@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info } from 'lucide-react';
+import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal } from 'lucide-react';
 import styles from './Settings.module.css';
 import BackupRestoreSettings from './BackupRestoreSettings';
 
@@ -9,6 +9,7 @@ const SECTIONS = [
   { id: 'model',    label: 'Model Settings',icon: Cpu },
   { id: 'rag',      label: 'RAG Engine',    icon: Database },
   { id: 'kb',       label: 'Knowledge Base', icon: Shield },
+  { id: 'mcp',      label: 'MCP Host',      icon: Terminal },
   { id: 'ui',       label: 'Appearance',    icon: Palette },
   { id: 'system',   label: 'Backup & Restore', icon: Archive },
   { id: 'about',    label: 'About StarkLLM',icon: Info },
@@ -157,6 +158,53 @@ export default function Settings({ token, username }) {
     localStorage.getItem('kb_auto_index') === 'true'
   );
   const [kbSaved, setKbSaved] = useState(false);
+
+  // MCP Host
+  const [mcpEnabled, setMcpEnabled] = useState(true);
+  const [mcpTools, setMcpTools] = useState({
+    list_workspace_files: true,
+    search_local_kb: true,
+    fetch_cited_chunk: true
+  });
+  const [mcpServers, setMcpServers] = useState([]);
+  const [mcpLoading, setMcpLoading] = useState(false);
+  const [mcpSaved, setMcpSaved] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/v1/mcp/config', { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => {
+        if (data.config) {
+          if (typeof data.config.enabled === 'boolean') setMcpEnabled(data.config.enabled);
+          if (data.config.tools) setMcpTools(data.config.tools);
+          if (data.config.servers) setMcpServers(data.config.servers);
+        }
+      })
+      .catch(err => console.error('Failed to load MCP config:', err));
+  }, [token]);
+
+  const saveMcpSettings = async (override) => {
+    setMcpLoading(true);
+    const payload = {
+      enabled: override && override.enabled !== undefined ? override.enabled : mcpEnabled,
+      tools: override && override.tools !== undefined ? override.tools : mcpTools,
+      servers: mcpServers
+    };
+    try {
+      const res = await fetch('/api/v1/mcp/config', {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        setMcpSaved(true);
+        setTimeout(() => setMcpSaved(false), 2000);
+      }
+    } catch (err) {
+      console.error('Failed to save MCP config:', err);
+    }
+    setMcpLoading(false);
+  };
 
   // UI
   const [fontSize, setFontSize] = useState(localStorage.getItem('ui_font_size') || 'medium');
@@ -534,6 +582,86 @@ export default function Settings({ token, username }) {
               <button className="btn-primary" onClick={saveKb}>
                 {kbSaved ? <><CheckCircle size={14} /> Saved!</> : <><Save size={14} /> Save KB Settings</>}
               </button>
+            </div>
+          )}
+
+          {/* ───── MCP Host ───── */}
+          {activeSection === 'mcp' && (
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <Terminal size={18} />
+                <h2>Local MCP Host (Model Context Protocol)</h2>
+              </div>
+              <p className={styles.panelDesc}>
+                StarkLLM acts as a local, read-only MCP host for the model. All tool calls require explicit manual confirmation in the UI before execution, with arguments visible and editable.
+              </p>
+
+              <div className={styles.toggleGroup}>
+                <Toggle
+                  checked={mcpEnabled}
+                  onChange={(val) => {
+                    setMcpEnabled(val);
+                    saveMcpSettings({ enabled: val });
+                  }}
+                  label="Enable Local MCP Host"
+                  hint="Allow the model to request local read-only tool calls (Workspace file listing, KB search, chunk inspection)."
+                />
+              </div>
+
+              <div className={styles.divider} />
+
+              <h3 className={styles.h3} style={{ marginTop: '1.2rem', marginBottom: '0.6rem' }}>Active Read-Only Tools</h3>
+              <div className={styles.toggleGroup}>
+                <Toggle
+                  checked={mcpTools.list_workspace_files !== false}
+                  onChange={(val) => {
+                    const updated = { ...mcpTools, list_workspace_files: val };
+                    setMcpTools(updated);
+                    saveMcpSettings({ tools: updated });
+                  }}
+                  label="list_workspace_files"
+                  hint="Lists files and document metadata in the user's active workspace."
+                />
+                <Toggle
+                  checked={mcpTools.search_local_kb !== false}
+                  onChange={(val) => {
+                    const updated = { ...mcpTools, search_local_kb: val };
+                    setMcpTools(updated);
+                    saveMcpSettings({ tools: updated });
+                  }}
+                  label="search_local_kb"
+                  hint="Performs hybrid retrieval against the local Knowledge Base and returns passage locators."
+                />
+                <Toggle
+                  checked={mcpTools.fetch_cited_chunk !== false}
+                  onChange={(val) => {
+                    const updated = { ...mcpTools, fetch_cited_chunk: val };
+                    setMcpTools(updated);
+                    saveMcpSettings({ tools: updated });
+                  }}
+                  label="fetch_cited_chunk"
+                  hint="Fetches the exact text chunk for a cited document locator."
+                />
+              </div>
+
+              <div className={styles.divider} />
+
+              <div className={styles.formGroup}>
+                <label className={styles.label}>Configured Servers (Local Only)</label>
+                <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.8rem 1rem', borderRadius: '6px', border: '1px solid #333', fontSize: '0.88rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <strong>StarkLLM Builtin (In-Process)</strong>
+                    <span className="badge badge-success" style={{ fontSize: '0.75rem' }}>CONNECTED (READ-ONLY)</span>
+                  </div>
+                  <p style={{ color: 'var(--text-secondary)', margin: '0.4rem 0 0', fontSize: '0.82rem' }}>
+                    Type: in-process &bull; Zero network egress &bull; Localhost only
+                  </p>
+                </div>
+              </div>
+
+              <div className={styles.infoBox} style={{ marginTop: '1.2rem' }}>
+                <strong>Zero-Cloud Guarantee:</strong> Tool execution runs 100% on your local machine. No external MCP registry is contacted, and every tool call requires manual user confirmation before running.
+              </div>
             </div>
           )}
 

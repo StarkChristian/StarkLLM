@@ -1,0 +1,183 @@
+.toolCard {
+  margin: 1rem 0;
+  padding: 1.1rem;
+  background: rgba(26, 26, 36, 0.95);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  font-family: inherit;
+  color: var(--text-primary, #ffffff);
+}
+
+.toolHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.8rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.toolTitleWrap {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.toolBadge {
+  background: rgba(212, 175, 55, 0.18);
+  color: #d4af37;
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.toolName {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-primary, #ffffff);
+}
+
+.toolDesc {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #a1a1aa);
+  margin-bottom: 0.8rem;
+  line-height: 1.4;
+}
+
+.argsLabel {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #d4af37;
+  margin-bottom: 0.3rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.argsLabelNote {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #71717a);
+  font-weight: normal;
+}
+
+.argsTextarea {
+  width: 100%;
+  background: #0d0d12;
+  border: 1px solid #333340;
+  border-radius: 6px;
+  color: #e4e4e7;
+  font-family: 'Fira Code', 'Consolas', monospace;
+  font-size: 0.85rem;
+  padding: 0.6rem 0.8rem;
+  resize: vertical;
+  min-height: 70px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.argsTextarea:focus {
+  border-color: #d4af37;
+}
+
+.argsError {
+  font-size: 0.8rem;
+  color: #ef4444;
+  margin-top: 0.3rem;
+}
+
+.btnRow {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 0.9rem;
+}
+
+.cancelBtn {
+  background: transparent;
+  border: 1px solid #444450;
+  color: #a1a1aa;
+  padding: 0.45rem 0.9rem;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cancelBtn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+}
+
+.confirmBtn {
+  background: #d4af37;
+  border: none;
+  color: #0d0d12;
+  font-weight: 600;
+  padding: 0.45rem 1rem;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.2s;
+}
+
+.confirmBtn:hover:not(:disabled) {
+  background: #e5be48;
+}
+
+.confirmBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.statusChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.statusChipError {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  margin: 0.6rem 0;
+}
+
+.statusChipSuccess {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #10b981;
+}
+
+.statusChipCancelled {
+  background: rgba(113, 113, 122, 0.15);
+  border: 1px solid rgba(113, 113, 122, 0.3);
+  color: #a1a1aa;
+}
+
+.resultBox {
+  margin-top: 0.8rem;
+  background: #0d0d12;
+  border: 1px solid #272730;
+  border-radius: 6px;
+  padding: 0.8rem;
+  font-size: 0.85rem;
+  max-height: 240px;
+  overflow-y: auto;
+  font-family: 'Fira Code', 'Consolas', monospace;
+  color: #d4d4d8;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

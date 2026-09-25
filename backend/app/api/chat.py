@@ -1,4 +1,5 @@
 import os
+import json
 import asyncio
 import logging
 import urllib.parse
@@ -11,6 +12,7 @@ from app.db import models
 from app.services.llm_service import llm_service
 from app.services.rag_service import rag_service
 from app.services.memory_service import memory_service
+from app.services.mcp_service import mcp_service
 from app.core.config import settings
 from app.api.auth import get_current_user
 from pydantic import BaseModel
@@ -446,8 +448,32 @@ GENERAL CONVERSATION MODE
 - Use your own internal knowledge to be helpful, accurate, and conversational.
 """
 
+        # ---- MCP Tools Section (Read-Only Local Host)
+        mcp_section = ""
+        active_tools = mcp_service.get_active_tools()
+        if active_tools:
+            tool_descs = []
+            for t in active_tools:
+                props = t["parameters"].get("properties", {})
+                tool_descs.append(f"- `{t['name']}`: {t['description']}\n  Parameters: {json.dumps(props)}")
+            tools_str = "\n".join(tool_descs)
+            mcp_section = f"""
+═══════════════════════════════════════
+LOCAL MCP TOOLS (READ-ONLY)
+═══════════════════════════════════════
+You have access to the following local Model Context Protocol (MCP) tools:
+{tools_str}
+
+If you need to list workspace files, search the Knowledge Base, or inspect a specific cited document chunk that was not provided above, output a tool call block EXACTLY in this format:
+```tool_call
+{{"name": "<tool_name>", "arguments": {{<arguments>}}}}
+```
+The user will confirm the tool call in the UI before it runs.
+"""
+
         system_prompt = f"""You are StarkLLM, a premium private AI assistant with Retrieval-Augmented Generation (RAG) capabilities.
 {custom_instructions_section}
+{mcp_section}
 ═══════════════════════════════════════
 CORE IDENTITY & BEHAVIOR
 ═══════════════════════════════════════

@@ -1188,6 +1188,8 @@ export default function App() {
               onExport={handleExportChat}
               onSummarize={activeChatId ? handleSummarizeChat : null}
               onRetryMessage={handleSendMessage}
+              workspaceId={activeWorkspace?.id}
+              token={token}
             />
             <InputBar 
               onSendMessage={handleSendMessage} 

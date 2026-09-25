@@ -1,9 +1,44 @@
 # StarkLLM Release Notes
 
-**Latest branch:** `phase-1.5-citations-and-gkb-sync`  
+**Latest branch:** `phase-2-mcp-host`  
 **Base version:** StarkLLM v1.0.0-beta  
-**Snapshot Date:** 2026-09-09  
+**Snapshot Date:** 2026-09-26  
 **Status:** Official Research Beta Snapshot (Windows)
+
+---
+
+## Phase 2 — Local MCP Host (Model Context Protocol) *(branch: phase-2-mcp-host)*
+
+StarkLLM becomes a local, read-only MCP host for the running FastAPI backend and React frontend.
+
+### A. Scope & Built-in Read-Only Tools
+
+1. **`list_workspace_files`**:
+   - Inspects and lists document metadata (filename, size, type, chunk count, timestamp) in the active workspace.
+   - Read-only; no modifications.
+
+2. **`search_local_kb`**:
+   - Performs hybrid vector & BM25 retrieval over the user's personal Knowledge Base index.
+   - Returns passage snippets with canonical, honest citations and locators (`Page N`, `Section`, `Chunk N`).
+
+3. **`fetch_cited_chunk`**:
+   - Fetches the exact text passage for a specific document citation locator.
+   - Searches local Chroma collections across workspace and Knowledge Base.
+
+### B. Security, Zero-Cloud & User Confirmation
+
+- **Explicit UI Confirmation**: Every tool call requires manual user confirmation before execution.
+- **Visible & Editable Arguments**: Users can review and edit arguments directly in the confirmation card before running.
+- **Non-Destructive Cancellation**: Rejecting or cancelling a tool call leaves the chat session and stream intact.
+- **Stream Resilience**: Malformed or broken JSON tool calls emitted by the model render an Error Chip (`⚠️ Malformed Tool Call JSON`) without killing the chat stream or crashing the UI.
+- **Local Persistence Only**: Tool toggles, host enablement, and local server configs persist exclusively in `data/mcp_config.json`. No cloud or external registry is contacted.
+
+### C. Explicit Non-Goals (Out of Scope for Phase 2)
+- No write tools (`write_file`, shell execution, system commands).
+- No internet access or web search tool execution in MCP host.
+- No third-party external MCP server installer or marketplace.
+- No OS-wide overlays or window injections.
+- No changes to Docker localhost 127.0.0.1 port bindings.
 
 ---
 
