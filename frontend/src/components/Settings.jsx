@@ -9,7 +9,7 @@ const SECTIONS = [
   { id: 'model',    label: 'Model Settings',icon: Cpu },
   { id: 'rag',      label: 'RAG Engine',    icon: Database },
   { id: 'kb',       label: 'Knowledge Base', icon: Shield },
-  { id: 'mcp',      label: 'MCP Host',      icon: Terminal },
+  { id: 'mcp',      label: 'Local Tools',   icon: Terminal },
   { id: 'ui',       label: 'Appearance',    icon: Palette },
   { id: 'system',   label: 'Backup & Restore', icon: Archive },
   { id: 'about',    label: 'About StarkLLM',icon: Info },

@@ -1,5 +1,7 @@
 import os
 import json
+import time
+import uuid
 import logging
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
@@ -15,13 +17,13 @@ CONFIG_PATH = os.path.join(settings.DATA_DIR if hasattr(settings, "DATA_DIR") el
 TOOL_SCHEMAS = [
     {
         "name": "list_workspace_files",
-        "description": "List all uploaded documents and files in the current or specified workspace (read-only).",
+        "description": "List all uploaded documents and files in the current workspace (read-only, tenant-isolated).",
         "parameters": {
             "type": "object",
             "properties": {
                 "workspace_id": {
                     "type": "integer",
-                    "description": "Optional workspace ID to inspect. Defaults to the active workspace."
+                    "description": "Optional workspace ID. Defaults to current active workspace."
                 }
             },
             "required": []
@@ -44,7 +46,7 @@ TOOL_SCHEMAS = [
                 },
                 "n_results": {
                     "type": "integer",
-                    "description": "Maximum number of passages to return (default 5)."
+                    "description": "Maximum number of passages to return (default 5, max 10)."
                 }
             },
             "required": ["query"]
@@ -52,7 +54,7 @@ TOOL_SCHEMAS = [
     },
     {
         "name": "fetch_cited_chunk",
-        "description": "Fetch the exact text passage for a specific document citation locator (read-only).",
+        "description": "Fetch the exact text passage for a specific document citation locator from Chroma vector store (read-only, no raw filesystem access).",
         "parameters": {
             "type": "object",
             "properties": {
@@ -76,6 +78,7 @@ TOOL_SCHEMAS = [
 
 
 def _build_locator_for_meta(meta: dict, doc_id: str = "") -> str:
+    """Matches the exact citation locator formatting used in rag_service and chat.py."""
     locator = meta.get("locator")
     if locator:
         return str(locator)
@@ -100,6 +103,9 @@ def _build_locator_for_meta(meta: dict, doc_id: str = "") -> str:
 class MCPService:
     def __init__(self):
         self._ensure_config()
+        # In-memory pending execution gate: call_id -> dict
+        self._pending_calls: Dict[str, Dict[str, Any]] = {}
+        self._pending_ttl = 600  # 10 minutes TTL
 
     def _get_default_config(self) -> Dict[str, Any]:
         return {
@@ -112,7 +118,7 @@ class MCPService:
             "servers": [
                 {
                     "id": "builtin-local",
-                    "name": "StarkLLM Builtin (Local)",
+                    "name": "StarkLLM Builtin (In-Process)",
                     "type": "in-process",
                     "status": "connected",
                     "read_only": True
@@ -127,7 +133,7 @@ class MCPService:
                 with open(CONFIG_PATH, "w", encoding="utf-8") as f:
                     json.dump(self._get_default_config(), f, indent=2)
         except Exception as e:
-            logger.warning(f"Failed to initialize MCP config file: {e}")
+            logger.warning(f"Failed to initialize local tools config file: {e}")
 
     def get_config(self) -> Dict[str, Any]:
         try:
@@ -135,7 +141,7 @@ class MCPService:
                 with open(CONFIG_PATH, "r", encoding="utf-8") as f:
                     return json.load(f)
         except Exception as e:
-            logger.error(f"Error reading MCP config: {e}")
+            logger.error(f"Error reading local tools config: {e}")
         return self._get_default_config()
 
     def update_config(self, new_config: Dict[str, Any]) -> Dict[str, Any]:
@@ -154,8 +160,8 @@ class MCPService:
             with open(CONFIG_PATH, "w", encoding="utf-8") as f:
                 json.dump(current, f, indent=2)
         except Exception as e:
-            logger.error(f"Error saving MCP config: {e}")
-            raise RuntimeError(f"Could not persist MCP config: {e}")
+            logger.error(f"Error saving local tools config: {e}")
+            raise RuntimeError(f"Could not persist config: {e}")
         return current
 
     def get_active_tools(self) -> List[Dict[str, Any]]:
@@ -172,13 +178,74 @@ class MCPService:
         return cfg.get("tools", {}).get(tool_name, False)
 
     # -----------------------------------------------------------------------
-    # Tool Implementations (Strictly Read-Only)
+    # Execution Gate (Pending Call Registry)
+    # -----------------------------------------------------------------------
+
+    def create_pending_call(
+        self, user_id: int, workspace_id: int, tool_name: str, arguments: dict
+    ) -> str:
+        """
+        Creates a pending execution gate entry server-side.
+        Returns a single-use call_id.
+        """
+        self._cleanup_expired_pending()
+        call_id = f"call_{uuid.uuid4().hex[:16]}"
+        self._pending_calls[call_id] = {
+            "call_id": call_id,
+            "user_id": user_id,
+            "workspace_id": workspace_id,
+            "tool_name": tool_name,
+            "original_arguments": arguments,
+            "created_at": time.time()
+        }
+        logger.info(f"Execution Gate: Registered pending call {call_id} for tool '{tool_name}' (user {user_id})")
+        return call_id
+
+    def cancel_pending_call(self, user_id: int, call_id: str) -> bool:
+        """Cancels and removes a pending tool call."""
+        pending = self._pending_calls.get(call_id)
+        if pending and pending.get("user_id") == user_id:
+            del self._pending_calls[call_id]
+            logger.info(f"Execution Gate: Cancelled pending call {call_id}")
+            return True
+        return False
+
+    def consume_pending_call(
+        self, user_id: int, call_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Validates, consumes (one-time use), and returns the pending call record.
+        Returns None if missing, expired, or unauthorized.
+        """
+        self._cleanup_expired_pending()
+        pending = self._pending_calls.get(call_id)
+        if not pending:
+            logger.warning(f"Execution Gate: Attempt to execute unknown/expired call_id: {call_id}")
+            return None
+        if pending.get("user_id") != user_id:
+            logger.warning(f"Execution Gate: call_id {call_id} unauthorized for user {user_id}")
+            return None
+        # Consume single-use token
+        del self._pending_calls[call_id]
+        return pending
+
+    def _cleanup_expired_pending(self):
+        now = time.time()
+        expired = [
+            cid for cid, item in self._pending_calls.items()
+            if now - item.get("created_at", 0) > self._pending_ttl
+        ]
+        for cid in expired:
+            self._pending_calls.pop(cid, None)
+
+    # -----------------------------------------------------------------------
+    # Tool Implementations (Strictly Read-Only, Tenant-Isolated)
     # -----------------------------------------------------------------------
 
     def execute_list_workspace_files(
         self, db: Session, user_id: int, workspace_id: int
     ) -> Dict[str, Any]:
-        """Read-only: lists files uploaded in the specified workspace."""
+        """Read-only: lists files uploaded in the specified workspace for this user only."""
         ws = db.query(models.Workspace).filter(
             models.Workspace.id == workspace_id,
             models.Workspace.user_id == user_id
@@ -224,8 +291,7 @@ class MCPService:
                 user_id=user_id,
                 query_text=query.strip(),
                 n_results=n_results,
-                filters=filters,
-                use_hybrid_search=True
+                filters=filters
             )
 
             results_out = []
@@ -248,27 +314,34 @@ class MCPService:
                 "results": results_out
             }
         except Exception as e:
-            logger.error(f"MCP search_local_kb error: {e}", exc_info=True)
+            logger.error(f"Local tools search_local_kb error: {e}", exc_info=True)
             return {"error": f"Failed to search Knowledge Base: {str(e)}", "results": []}
 
     def execute_fetch_cited_chunk(
         self, db: Session, user_id: int, filename: str, locator: Optional[str] = None, workspace_id: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Read-only: finds and returns a specific chunk matching the filename and locator."""
+        """
+        Read-only: finds and returns a specific chunk matching the filename and locator.
+        Operates strictly on Chroma vector stores for this user. Rejects raw filesystem path traversal.
+        """
         if not filename or not filename.strip():
             return {"error": "Filename must be specified", "found": False}
 
-        clean_fn = os.path.basename(filename.strip().lower())
+        # Sanitize filename: strictly strip directories/paths to avoid any path traversal
+        clean_fn = os.path.basename(filename.strip()).lower()
+        if not clean_fn or clean_fn in (".", ".."):
+            return {"error": "Invalid filename", "found": False}
+
         candidates = []
 
-        # 1. Search Knowledge Base collection
+        # 1. Search user's Knowledge Base collection in Chroma
         try:
             kb_coll = rag_service.get_or_create_kb_collection(user_id)
             if kb_coll and kb_coll.count() > 0:
                 all_kb = kb_coll.get()
                 for cid, doc, meta in zip(all_kb.get("ids", []), all_kb.get("documents", []), all_kb.get("metadatas", [])):
                     meta = meta or {}
-                    fn = (meta.get("file_name") or os.path.basename(meta.get("source") or meta.get("file_path") or "")).lower()
+                    fn = os.path.basename(meta.get("file_name") or meta.get("source") or meta.get("file_path") or "").lower()
                     if clean_fn in fn or fn in clean_fn:
                         loc = _build_locator_for_meta(meta, str(cid))
                         candidates.append({
@@ -282,27 +355,32 @@ class MCPService:
         except Exception as e:
             logger.warning(f"Could not inspect KB collection: {e}")
 
-        # 2. Search Workspace collection if workspace_id provided
+        # 2. Search Workspace collection if workspace_id is provided and verified
         if workspace_id:
-            try:
-                ws_coll = rag_service.get_or_create_collection(workspace_id, user_id)
-                if ws_coll and ws_coll.count() > 0:
-                    all_ws = ws_coll.get()
-                    for cid, doc, meta in zip(all_ws.get("ids", []), all_ws.get("documents", []), all_ws.get("metadatas", [])):
-                        meta = meta or {}
-                        fn = (meta.get("file_name") or os.path.basename(meta.get("source") or meta.get("file_path") or "")).lower()
-                        if clean_fn in fn or fn in clean_fn:
-                            loc = _build_locator_for_meta(meta, str(cid))
-                            candidates.append({
-                                "source_type": "workspace",
-                                "filename": meta.get("file_name") or fn,
-                                "locator": loc,
-                                "content": doc,
-                                "metadata": meta,
-                                "id": cid
-                            })
-            except Exception as e:
-                logger.warning(f"Could not inspect workspace collection: {e}")
+            ws = db.query(models.Workspace).filter(
+                models.Workspace.id == workspace_id,
+                models.Workspace.user_id == user_id
+            ).first()
+            if ws:
+                try:
+                    ws_coll = rag_service.get_or_create_collection(workspace_id, user_id)
+                    if ws_coll and ws_coll.count() > 0:
+                        all_ws = ws_coll.get()
+                        for cid, doc, meta in zip(all_ws.get("ids", []), all_ws.get("documents", []), all_ws.get("metadatas", [])):
+                            meta = meta or {}
+                            fn = os.path.basename(meta.get("file_name") or meta.get("source") or meta.get("file_path") or "").lower()
+                            if clean_fn in fn or fn in clean_fn:
+                                loc = _build_locator_for_meta(meta, str(cid))
+                                candidates.append({
+                                    "source_type": "workspace",
+                                    "filename": meta.get("file_name") or fn,
+                                    "locator": loc,
+                                    "content": doc,
+                                    "metadata": meta,
+                                    "id": cid
+                                })
+                except Exception as e:
+                    logger.warning(f"Could not inspect workspace collection: {e}")
 
         if not candidates:
             return {
@@ -326,7 +404,6 @@ class MCPService:
                     "total_matches": len(matched)
                 }
 
-        # If no locator or no locator match, return the first chunk found
         first = candidates[0]
         return {
             "found": True,

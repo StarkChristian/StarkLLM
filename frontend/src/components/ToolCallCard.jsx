@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styles from './ToolCallCard.module.css';
 import { Terminal, Check, X, AlertTriangle, Play, Loader2, Send } from 'lucide-react';
 
 const TOOL_DESCRIPTIONS = {
-  list_workspace_files: "Lists documents uploaded into the current workspace.",
-  search_local_kb: "Searches the local Knowledge Base index and returns passage locators.",
-  fetch_cited_chunk: "Fetches the exact text chunk for a cited document locator."
+  list_workspace_files: "Lists documents and files uploaded to the current workspace (read-only).",
+  search_local_kb: "Searches the local Knowledge Base index and returns passage locators (read-only).",
+  fetch_cited_chunk: "Fetches the exact text chunk for a cited document locator from local Chroma store."
 };
 
 export default function ToolCallCard({
@@ -28,10 +28,56 @@ export default function ToolCallCard({
     return "{}";
   });
 
+  const [callId, setCallId] = useState(null);
+  const [gatePending, setGatePending] = useState(true);
   const [jsonError, setJsonError] = useState(null);
   const [status, setStatus] = useState('pending'); // 'pending' | 'running' | 'executed' | 'cancelled' | 'error'
   const [execResult, setExecResult] = useState(null);
   const [execError, setExecError] = useState(null);
+  const pendingRegisteredRef = useRef(false);
+
+  const toolName = parsedCall?.name || '';
+  const toolDesc = TOOL_DESCRIPTIONS[toolName] || "Local read-only tool.";
+
+  // Execution Gate: register pending tool call server-side on mount
+  useEffect(() => {
+    if (isBrokenJson || !parsedCall || !parsedCall.name || pendingRegisteredRef.current) {
+      setGatePending(false);
+      return;
+    }
+
+    pendingRegisteredRef.current = true;
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    fetch('/api/v1/mcp/create-pending', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        tool_name: parsedCall.name,
+        arguments: parsedCall.arguments || {},
+        workspace_id: workspaceId
+      })
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || `Server rejected tool call (${res.status})`);
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (data.call_id) {
+          setCallId(data.call_id);
+        }
+        setGatePending(false);
+      })
+      .catch((err) => {
+        console.warn('Execution gate registration error:', err.message);
+        setExecError(err.message);
+        setGatePending(false);
+      });
+  }, [parsedCall, isBrokenJson, workspaceId, token]);
 
   if (isBrokenJson) {
     return (
@@ -46,9 +92,6 @@ export default function ToolCallCard({
     return null;
   }
 
-  const toolName = parsedCall.name;
-  const toolDesc = TOOL_DESCRIPTIONS[toolName] || "Local read-only Model Context Protocol tool.";
-
   const handleArgsChange = (val) => {
     setEditedArgs(val);
     try {
@@ -59,8 +102,21 @@ export default function ToolCallCard({
     }
   };
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     setStatus('cancelled');
+    if (callId) {
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      try {
+        await fetch('/api/v1/mcp/cancel', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ call_id: callId })
+        });
+      } catch (err) {
+        console.warn('Failed to cancel pending call:', err);
+      }
+    }
   };
 
   const handleConfirmRun = async () => {
@@ -72,24 +128,25 @@ export default function ToolCallCard({
       return;
     }
 
+    if (!callId) {
+      setExecError("Execution Gate Error: No authorized server-side pending call ID.");
+      setStatus('error');
+      return;
+    }
+
     setStatus('running');
     setExecError(null);
 
     try {
-      const headers = {
-        'Content-Type': 'application/json'
-      };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const res = await fetch('/api/v1/mcp/execute', {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          tool_name: toolName,
-          arguments: argsObj,
-          workspace_id: workspaceId
+          call_id: callId,
+          arguments: argsObj
         })
       });
 
@@ -121,7 +178,7 @@ export default function ToolCallCard({
       <div className={styles.toolHeader}>
         <div className={styles.toolTitleWrap}>
           <Terminal size={16} color="#d4af37" />
-          <span className={styles.toolBadge}>MCP Tool Call</span>
+          <span className={styles.toolBadge}>Local Tool Call</span>
           <span className={styles.toolName}>{toolName}</span>
         </div>
 
@@ -148,15 +205,19 @@ export default function ToolCallCard({
         <>
           <div className={styles.argsLabel}>
             <span>Arguments (Editable):</span>
-            <span className={styles.argsLabelNote}>Review or edit parameters before running</span>
+            <span className={styles.argsLabelNote}>
+              {callId ? `Gated ID: ${callId.slice(0, 10)}...` : (gatePending ? 'Authorizing...' : '')}
+            </span>
           </div>
           <textarea
             className={styles.argsTextarea}
             value={editedArgs}
             onChange={(e) => handleArgsChange(e.target.value)}
             rows={Math.min(8, editedArgs.split('\n').length + 1)}
+            disabled={gatePending}
           />
           {jsonError && <div className={styles.argsError}>{jsonError}</div>}
+          {execError && <div className={styles.argsError}>{execError}</div>}
 
           <div className={styles.btnRow}>
             <button className={styles.cancelBtn} onClick={handleCancel}>
@@ -165,7 +226,7 @@ export default function ToolCallCard({
             <button
               className={styles.confirmBtn}
               onClick={handleConfirmRun}
-              disabled={Boolean(jsonError)}
+              disabled={Boolean(jsonError) || gatePending || !callId}
             >
               <Play size={13} /> Confirm &amp; Run
             </button>
@@ -198,7 +259,7 @@ export default function ToolCallCard({
       )}
 
       {status === 'error' && execError && (
-        <div className={styles.argsError}>
+        <div className={styles.argsError} style={{ marginTop: '0.5rem' }}>
           <strong>Error:</strong> {execError}
         </div>
       )}

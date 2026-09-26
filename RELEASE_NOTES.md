@@ -7,29 +7,30 @@
 
 ---
 
-## Phase 2 — Local MCP Host (Model Context Protocol) *(branch: phase-2-mcp-host)*
+## Phase 2 — Local Tools (Local MCP Host) *(branch: phase-2-mcp-host)*
 
-StarkLLM becomes a local, read-only MCP host for the running FastAPI backend and React frontend.
+StarkLLM provides in-process local read-only tool calling for the running FastAPI backend and React frontend. (Note: this is an in-process local host, not a third-party JSON-RPC network client; no third-party MCP servers are supported).
 
 ### A. Scope & Built-in Read-Only Tools
 
 1. **`list_workspace_files`**:
-   - Inspects and lists document metadata (filename, size, type, chunk count, timestamp) in the active workspace.
+   - Inspects and lists document metadata (filename, size, type, chunk count, timestamp) in the active workspace only (tenant-isolated).
    - Read-only; no modifications.
 
 2. **`search_local_kb`**:
    - Performs hybrid vector & BM25 retrieval over the user's personal Knowledge Base index.
-   - Returns passage snippets with canonical, honest citations and locators (`Page N`, `Section`, `Chunk N`).
+   - Returns passage snippets with canonical, honest citations and locators (`Page N`, `Section: ... Chunk N`, `Chunk N`).
 
 3. **`fetch_cited_chunk`**:
-   - Fetches the exact text passage for a specific document citation locator.
-   - Searches local Chroma collections across workspace and Knowledge Base.
+   - Fetches the exact text passage for a specific document citation locator from Chroma vector collections.
+   - Strict vector boundary; rejects raw filesystem traversal.
 
-### B. Security, Zero-Cloud & User Confirmation
+### B. Security, Execution Gate & User Confirmation
 
-- **Explicit UI Confirmation**: Every tool call requires manual user confirmation before execution.
+- **Server-Side Execution Gate**: `POST /api/v1/mcp/execute` requires a valid single-use `call_id` registered server-side from parsed assistant output. Direct invocation without an authorized pending ID is rejected with HTTP 403 Forbidden.
+- **Explicit UI Confirmation**: Every tool call requires manual user confirmation in the UI before execution.
 - **Visible & Editable Arguments**: Users can review and edit arguments directly in the confirmation card before running.
-- **Non-Destructive Cancellation**: Rejecting or cancelling a tool call leaves the chat session and stream intact.
+- **Non-Destructive Cancellation**: Rejecting or cancelling a tool call drops the pending call ID and leaves the chat session intact.
 - **Stream Resilience**: Malformed or broken JSON tool calls emitted by the model render an Error Chip (`⚠️ Malformed Tool Call JSON`) without killing the chat stream or crashing the UI.
 - **Local Persistence Only**: Tool toggles, host enablement, and local server configs persist exclusively in `data/mcp_config.json`. No cloud or external registry is contacted.
 

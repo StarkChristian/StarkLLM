@@ -66,9 +66,10 @@ function isRTL(text) {
 }
 
 function parseContentWithToolCalls(content) {
-  if (!content) return [{ type: 'text', text: '' }];
+  if (!content || typeof content !== 'string') return [{ type: 'text', text: '' }];
 
-  const toolRegex = /(?:```(?:tool_call|toolcall|tool-call)\s*([\s\S]*?)```|<tool_call>\s*([\s\S]*?)\s*<\/tool_call>)/i;
+  // Tight fence: ```tool_call\n{...}\n``` or <tool_call>{...}</tool_call>
+  const toolRegex = /(?:```(?:tool_call)\s*\n?([\s\S]*?)\n?```|<tool_call>\s*([\s\S]*?)\s*<\/tool_call>)/;
   const match = content.match(toolRegex);
 
   if (!match) {
@@ -85,13 +86,17 @@ function parseContentWithToolCalls(content) {
   let parsed = null;
   let isBroken = false;
 
-  try {
-    parsed = JSON.parse(rawJson);
-    if (!parsed || typeof parsed !== 'object' || !parsed.name) {
+  if (!rawJson || (!rawJson.startsWith('{') && !rawJson.endsWith('}'))) {
+    isBroken = true;
+  } else {
+    try {
+      parsed = JSON.parse(rawJson);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !parsed.name || typeof parsed.name !== 'string') {
+        isBroken = true;
+      }
+    } catch {
       isBroken = true;
     }
-  } catch {
-    isBroken = true;
   }
 
   const segments = [];
