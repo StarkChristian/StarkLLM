@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api import workspaces, documents, chat, voice, auth, knowledge_base, dashboard, search, prompts, system
+from app.api import workspaces, documents, chat, voice, auth, knowledge_base, dashboard, search, prompts, system, mcp
 
 api_router = APIRouter()
 
@@ -13,5 +13,6 @@ api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboar
 api_router.include_router(search.router, prefix="/search", tags=["search"])
 api_router.include_router(prompts.router, prefix="/prompts", tags=["prompts"])
 api_router.include_router(system.router, prefix="/system", tags=["system"])
+api_router.include_router(mcp.router, prefix="/mcp", tags=["mcp"])
 
 

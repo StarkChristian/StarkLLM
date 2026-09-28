@@ -3,15 +3,12 @@ import styles from './ChatArea.module.css';
 import { User, Bot, Volume2, Square, Database, Copy, Check, Globe, RefreshCw, Edit2, Download, FileText, AlertTriangle } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
 import { useToast } from './Toast';
+import ToolCallCard from './ToolCallCard';
 
 const md = new MarkdownIt();
 
 // ---------------------------------------------------------------------------
 // Robust language detector — no external library needed.
-// Two-tier approach:
-//   1. Strong German character check (umlauts, ß)
-//   2. Score-based comparison using exclusive/common function words in both
-//      languages, with a high relative threshold (20%) to prevent false positives.
 // ---------------------------------------------------------------------------
 
 const GERMAN_WORDS = [
@@ -39,15 +36,9 @@ const ENGLISH_WORDS = [
 
 const GERMAN_UMLAUT_RE = /[äöüÄÖÜß]/;
 
-/**
- * Returns the Piper voice key best suited for the given text.
- * Defaults to English unless strong German signals are found.
- */
 function detectVoice(text) {
-  // Tier 1: umlauts / ß are an unambiguous German signal
   if (GERMAN_UMLAUT_RE.test(text)) return 'de_DE-thorsten-medium';
 
-  // Tier 2: score-based token check
   const tokens = text.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return 'en_US-lessac-medium';
 
@@ -59,27 +50,68 @@ function detectVoice(text) {
     if (ENGLISH_WORDS.includes(token)) enScore++;
   }
 
-  // If there are more or equal English words, default to English
   if (enScore >= deScore) return 'en_US-lessac-medium';
   if (deScore === 0) return 'en_US-lessac-medium';
 
-  // Ensure German ratio threshold is high enough (20% of all tokens)
   const ratio = deScore / tokens.length;
   return ratio >= 0.20 ? 'de_DE-thorsten-medium' : 'en_US-lessac-medium';
 }
 
-
-/**
- * Detects if the given text is primarily written in a Right-to-Left (RTL) language
- * like Persian or Arabic by counting characters.
- */
 function isRTL(text) {
   if (!text) return false;
   const rtlRegex = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/g;
-  const ltrRegex = /[a-zA-Z]/g;
+  const ltrMatches = text.match(/[a-zA-Z]/g) || [];
   const rtlMatches = text.match(rtlRegex) || [];
-  const ltrMatches = text.match(ltrRegex) || [];
   return rtlMatches.length > 0 && rtlMatches.length >= ltrMatches.length;
+}
+
+function parseContentWithToolCalls(content) {
+  if (!content || typeof content !== 'string') return [{ type: 'text', text: '' }];
+
+  // Tight fence: ```tool_call\n{...}\n``` or <tool_call>{...}</tool_call>
+  const toolRegex = /(?:```(?:tool_call)\s*\n?([\s\S]*?)\n?```|<tool_call>\s*([\s\S]*?)\s*<\/tool_call>)/;
+  const match = content.match(toolRegex);
+
+  if (!match) {
+    return [{ type: 'text', text: content }];
+  }
+
+  const rawJson = (match[1] || match[2] || '').trim();
+  const index = match.index;
+  const matchLength = match[0].length;
+
+  const before = content.slice(0, index);
+  const after = content.slice(index + matchLength);
+
+  let parsed = null;
+  let isBroken = false;
+
+  if (!rawJson || (!rawJson.startsWith('{') && !rawJson.endsWith('}'))) {
+    isBroken = true;
+  } else {
+    try {
+      parsed = JSON.parse(rawJson);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !parsed.name || typeof parsed.name !== 'string') {
+        isBroken = true;
+      }
+    } catch {
+      isBroken = true;
+    }
+  }
+
+  const segments = [];
+  if (before) segments.push({ type: 'text', text: before });
+  segments.push({
+    type: 'tool_call',
+    raw: rawJson,
+    parsed: parsed,
+    isBroken: isBroken
+  });
+  if (after) {
+    segments.push(...parseContentWithToolCalls(after));
+  }
+
+  return segments;
 }
 
 const ChatMessageRenderer = React.memo(({
@@ -98,8 +130,13 @@ const ChatMessageRenderer = React.memo(({
   onRegenerate,
   playingIndex,
   playAudio,
-  onRetryMessage
+  onRetryMessage,
+  workspaceId,
+  token,
+  onSendToolResult
 }) => {
+  const contentSegments = msg.role === 'assistant' ? parseContentWithToolCalls(msg.content) : null;
+
   return (
     <div className={`${styles.messageWrapper} ${msg.role === 'user' ? styles.user : ''} ${msg.role === 'system' ? styles.system : ''}`}>
       {msg.role !== 'system' && (
@@ -135,7 +172,29 @@ const ChatMessageRenderer = React.memo(({
             </div>
           ) : (
             <>
-              <div dangerouslySetInnerHTML={{ __html: md.render(msg.content) }} />
+              {contentSegments ? (
+                contentSegments.map((seg, sIdx) => {
+                  if (seg.type === 'tool_call') {
+                    return (
+                      <ToolCallCard
+                        key={sIdx}
+                        parsedCall={seg.parsed}
+                        isBrokenJson={seg.isBroken}
+                        rawCallText={seg.raw}
+                        workspaceId={workspaceId}
+                        token={token}
+                        onSendToolResult={onSendToolResult}
+                      />
+                    );
+                  }
+                  return seg.text ? (
+                    <div key={sIdx} dangerouslySetInnerHTML={{ __html: md.render(seg.text) }} />
+                  ) : null;
+                })
+              ) : (
+                <div dangerouslySetInnerHTML={{ __html: md.render(msg.content) }} />
+              )}
+
               {msg.role === 'assistant' && ((msg.wsSources && msg.wsSources.length > 0) || (msg.kbSources && msg.kbSources.length > 0) || (msg.webSources && msg.webSources.length > 0)) && (
                 <div className={styles.sourcesContainer}>
                   {msg.wsSources && msg.wsSources.length > 0 && (
@@ -251,7 +310,16 @@ const ChatMessageRenderer = React.memo(({
   );
 });
 
-export default function ChatArea({ messages, onRegenerate, onEdit, onExport, onSummarize, onRetryMessage }) {
+export default function ChatArea({
+  messages,
+  onRegenerate,
+  onEdit,
+  onExport,
+  onSummarize,
+  onRetryMessage,
+  workspaceId,
+  token
+}) {
   const toast = useToast();
   const scrollContainerRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -296,19 +364,14 @@ export default function ChatArea({ messages, onRegenerate, onEdit, onExport, onS
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (container) {
-      // Instant scroll to bottom to keep up with streaming tokens
       container.scrollTop = container.scrollHeight;
-      
-      // Deferred scroll to capture any layout shifts from Markdown rendering or images
       const timer = setTimeout(() => {
         container.scrollTop = container.scrollHeight;
       }, 50);
-      
       return () => clearTimeout(timer);
     }
   }, [messages]);
 
-  // Clean up any playing audio when the component unmounts
   useEffect(() => {
     return () => {
       if (currentAudioRef.current) {
@@ -318,7 +381,6 @@ export default function ChatArea({ messages, onRegenerate, onEdit, onExport, onS
   }, []);
 
   const playAudio = async (text, index) => {
-    // If the clicked message is already playing or loading, stop it and return
     if (activePlayIndexRef.current === index) {
       if (currentAudioRef.current) {
         currentAudioRef.current.pause();
@@ -329,7 +391,6 @@ export default function ChatArea({ messages, onRegenerate, onEdit, onExport, onS
       return;
     }
 
-    // If another message is playing or loading, stop/cancel it first
     if (currentAudioRef.current) {
       currentAudioRef.current.pause();
       currentAudioRef.current = null;
@@ -346,37 +407,25 @@ export default function ChatArea({ messages, onRegenerate, onEdit, onExport, onS
         body: JSON.stringify({ text, voice })
       });
 
-      // If user clicked stop or clicked another message during the fetch, halt execution
       if (activePlayIndexRef.current !== index) {
         return;
       }
 
       if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.detail || `TTS failed (${response.status})`);
+        throw new Error("Failed to generate speech");
       }
-      
+
       const blob = await response.blob();
       const audioUrl = URL.createObjectURL(blob);
       const audio = new Audio(audioUrl);
-
-      // Event listeners to reset UI states when audio finishes naturally or pauses/errors
-      const handleReset = () => {
+      
+      audio.onended = () => {
         if (activePlayIndexRef.current === index) {
-          activePlayIndexRef.current = null;
           setPlayingIndex(null);
-        }
-        if (currentAudioRef.current === audio) {
+          activePlayIndexRef.current = null;
           currentAudioRef.current = null;
         }
       };
-
-      audio.addEventListener('ended', handleReset);
-      audio.addEventListener('pause', handleReset);
-      audio.addEventListener('error', (e) => {
-        console.error("Audio playback error event:", e);
-        handleReset();
-      });
 
       currentAudioRef.current = audio;
       await audio.play();
@@ -465,6 +514,9 @@ export default function ChatArea({ messages, onRegenerate, onEdit, onExport, onS
               playingIndex={playingIndex}
               playAudio={playAudio}
               onRetryMessage={onRetryMessage}
+              workspaceId={workspaceId}
+              token={token}
+              onSendToolResult={onRetryMessage}
             />
           ))}
           <div ref={messagesEndRef} />
@@ -474,5 +526,3 @@ export default function ChatArea({ messages, onRegenerate, onEdit, onExport, onS
     </div>
   );
 }
-
-
