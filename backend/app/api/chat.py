@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import asyncio
 import logging
@@ -59,6 +60,20 @@ def _build_citation_label(r: dict) -> tuple[str, str]:
     else:
         label = filename
     return label, label
+
+
+# Regex to strip fenced ```tool_call ... ``` blocks from retrieved document chunks.
+# These blocks must never reach the LLM prompt as they could be misinterpreted as
+# assistant-emitted tool calls. Assistant output is not affected (it is never
+# passed through this function).
+_TOOL_FENCE_RE = re.compile(
+    r"```(?:tool_call)[\s\S]*?```",
+    re.IGNORECASE,
+)
+
+def _strip_tool_fences(text: str) -> str:
+    """Remove fenced tool_call blocks from retrieved document text before LLM prompt injection."""
+    return _TOOL_FENCE_RE.sub("[tool_call block redacted from document]", text).strip()
 
 
 class ChatRequest(BaseModel):
@@ -263,8 +278,8 @@ async def chat(
                     use_context_compression=req.use_context_compression,
                 )
                 
-                ws_ctx = "\n\n".join(f"[Document: {_build_citation_label(r)[0]}]\n{r['content']}" for r in ws_res)
-                kb_ctx = "\n\n".join(f"[Personal KB Document: {_build_citation_label(r)[0]}]\n{r['content']}" for r in kb_res)
+                ws_ctx = "\n\n".join(f"[Document: {_build_citation_label(r)[0]}]\n{_strip_tool_fences(r['content'])}" for r in ws_res)
+                kb_ctx = "\n\n".join(f"[Personal KB Document: {_build_citation_label(r)[0]}]\n{_strip_tool_fences(r['content'])}" for r in kb_res)
                 
                 logger.info(f"DEBUG: RAG merged → {len(ws_res)} workspace ({len(ws_ctx)} chars) + {len(kb_res)} KB ({len(kb_ctx)} chars) result(s)")
                 return ws_res, kb_res, ws_ctx, kb_ctx
