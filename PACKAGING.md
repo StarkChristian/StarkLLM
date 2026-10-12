@@ -2,15 +2,27 @@
 
 This document describes how to create a clean, distributable zip package of StarkLLM for the Windows Research Beta release. 
 
-## Automated Packaging (Recommended)
+## Building the Windows Setup Installer (.exe)
 
-To streamline the release process and guarantee that no personal data is leaked, use the provided PowerShell helper script:
+To generate the single-file setup wizard installer (`StarkLLM-v1.0.0-beta-Setup.exe`):
 
-1. Right-click **`package-release.ps1`** and select **Run with PowerShell**.
-2. Enter the version number when prompted (e.g., `1.0.0`).
-3. The script will automatically create a zip file named `StarkLLM-Windows-Research-Beta-v1.0.0.zip` in the project root.
+1. Run **`.\build-installer.ps1`** with PowerShell.
+2. The script will:
+   - Generate the application icon from `Logo.png`.
+   - Recompile the Go launcher (`start.exe`).
+   - Stage clean files (excluding caches, `data/`, `venv`, `node_modules`).
+   - Compile the Inno Setup script ([installer/starkllm.iss](file:///c:/Users/chris/Documents/anti%20gravity/StarkLLM/installer/starkllm.iss)).
+   - Output the installer `.exe` into `dist/` and sync to `website/downloads/StarkLLM-Setup.exe`.
 
-The script safely copies only the required source files and ignores sensitive local data, caches, and node_modules.
+---
+
+## Automated Packaging (Portable Zip)
+
+To build the portable zip archive (`StarkLLM-v1.0.0-beta.zip`), run the helper script:
+
+1. Run **`.\package-release.ps1`** in PowerShell.
+2. Enter the version number when prompted (e.g., `1.0.0-beta`).
+3. The script will automatically create the clean zip file in the project root, safely excluding sensitive local data, caches, and `node_modules`.
 
 ---
 
