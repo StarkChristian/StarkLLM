@@ -242,7 +242,7 @@ def launcher_register_kb_folder(
             try:
                 kb_service.sync_folder(db, existing.id)
             except Exception as e:
-                logger.warning(f"KB sync on existing folder {existing.id} warning: {e}")
+                _logger.warning(f"KB sync on existing folder {existing.id} warning: {e}")
             return {"id": existing.id, "folder_path": existing.folder_path}
 
         folder = kb_service.add_folder(
@@ -254,6 +254,6 @@ def launcher_register_kb_folder(
         try:
             kb_service.sync_folder(db, folder.id)
         except Exception as e:
-            logger.warning(f"KB initial sync on folder {folder.id} warning: {e}")
+            _logger.warning(f"KB initial sync on folder {folder.id} warning: {e}")
 
         return {"id": folder.id, "folder_path": folder.folder_path}

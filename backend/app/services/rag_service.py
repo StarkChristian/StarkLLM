@@ -10,7 +10,10 @@ from html .parser import HTMLParser
 from app .core .config import settings 
 from app .services .llm_service import llm_service 
 from app .services .vision_service import vision_service 
-import fitz # PyMuPDF
+try :
+    import pymupdf as fitz 
+except ImportError :
+    import fitz # PyMuPDF
 
 logger =logging .getLogger (__name__ )
 
@@ -410,7 +413,11 @@ class RAGService :
         query_kwargs ={"query_embeddings":[embedding ],"n_results":n }
         if where_filter :
             query_kwargs ["where"]=where_filter 
-        results =collection .query (**query_kwargs )
+        try :
+            results =collection .query (**query_kwargs )
+        except Exception as query_err :
+            logger.warning (f"RAG: Vector query on '{collection .name }' failed ({query_err }). Falling back to keyword search.")
+            return []
 
         docs =results .get ("documents",[[]])[0 ]
         metas =results .get ("metadatas",[[]])[0 ]

@@ -13,7 +13,13 @@ from app.db.models import User, Workspace, Document, Chat
 
 router = APIRouter()
 
-pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+try:
+    _test_ctx = CryptContext(schemes=["argon2", "pbkdf2_sha256"], deprecated="auto")
+    _test_ctx.hash("test")
+    pwd_context = _test_ctx
+except Exception:
+    pwd_context = CryptContext(schemes=["pbkdf2_sha256", "argon2"], deprecated="auto")
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 
 # Pydantic schemas

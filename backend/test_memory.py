@@ -16,5 +16,6 @@ def test_memory():
     memory_service.summarize_and_store_conversation(conv2, ws_id)
     print("Memories:", [m["content"] for m in memory_service.get_memories(ws_id)])
 
-test_memory()
+if __name__ == "__main__":
+    test_memory()
 

@@ -18,7 +18,13 @@ from app.core.config import settings
 from app.api.auth import get_current_user
 from pydantic import BaseModel
 from typing import Optional
-from ddgs import DDGS
+try:
+    from ddgs import DDGS
+except ImportError:
+    try:
+        from duckduckgo_search import DDGS
+    except ImportError:
+        DDGS = None
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -293,6 +299,9 @@ async def chat(
             logger.info(f"Web Search enabled for query: {req.message}")
             try:
                 def do_web_search():
+                    if DDGS is None:
+                        logger.warning("DDGS library not available. Skipping web search.")
+                        return []
                     results = []
                     with DDGS() as ddgs:
                         for r in ddgs.text(req.message, max_results=5):
