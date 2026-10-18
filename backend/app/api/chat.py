@@ -16,6 +16,7 @@ from app.services.memory_service import memory_service
 from app.services.mcp_service import mcp_service
 from app.core.config import settings
 from app.api.auth import get_current_user
+from app.api.deps import get_workspace_or_404, get_chat_or_404, get_message_or_404
 from pydantic import BaseModel
 from typing import Optional
 try:
@@ -101,47 +102,7 @@ class ChatRequest(BaseModel):
     base_url: Optional[str] = None
 
 
-class PullModelRequest(BaseModel):
-    model_name: str
-
-
-@router.get("/models")
-def get_models():
-    """Return available models from Ollama."""
-    models = llm_service.get_available_models()
-    return {"models": models}
-
-
-@router.get("/models/detailed")
-def get_detailed_models():
-    """Return detailed metadata for all installed Ollama models."""
-    models = llm_service.get_detailed_models()
-    return {"models": models}
-
-
-@router.get("/models/catalog")
-def get_model_catalog():
-    """Return curated list of recommended models with installation status."""
-    catalog = llm_service.get_recommended_catalog()
-    return {"catalog": catalog}
-
-
-@router.post("/models/pull")
-def pull_model(req: PullModelRequest):
-    """Stream model download progress from Ollama."""
-    return StreamingResponse(
-        llm_service.pull_model_stream(req.model_name),
-        media_type="application/x-ndjson"
-    )
-
-
-@router.delete("/models/{model_name:path}")
-def delete_model(model_name: str):
-    """Delete an installed model from Ollama."""
-    success = llm_service.delete_model(model_name)
-    if not success:
-        raise HTTPException(status_code=500, detail=f"Failed to delete model {model_name}")
-    return {"status": "success", "message": f"Model {model_name} deleted successfully"}
+# Model management routes moved to models_router.py
 
 
 class TruncateRequest(BaseModel):
@@ -746,8 +707,7 @@ WEB SEARCH RESULTS (LIVE DATA)
             return {"response": content, "chat_id": chat_obj.id}
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error("Chat endpoint error", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -841,17 +801,7 @@ async def trigger_summarization(
     current_user: models.User = Depends(get_current_user),
 ):
     try:
-        ws = (
-            db.query(models.Workspace)
-            .filter(
-                models.Workspace.id == workspace_id,
-                models.Workspace.user_id == current_user.id,
-            )
-            .first()
-        )
-        if not ws:
-            raise HTTPException(status_code=404, detail="Workspace not found")
-
+        get_workspace_or_404(db, workspace_id, current_user.id)
         chat_obj = (
             db.query(models.Chat)
             .filter(
@@ -877,7 +827,10 @@ async def trigger_summarization(
         )
         memory_service.summarize_and_store_conversation(formatted_history, workspace_id)
         return {"status": "Memory updated successfully"}
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.error("trigger_summarization error", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -889,16 +842,7 @@ def list_chats(
     current_user: models.User = Depends(get_current_user),
 ):
     """Return all chat sessions for a workspace, newest first. Optionally search by title or message content."""
-    ws = (
-        db.query(models.Workspace)
-        .filter(
-            models.Workspace.id == workspace_id,
-            models.Workspace.user_id == current_user.id,
-        )
-        .first()
-    )
-    if not ws:
-        raise HTTPException(status_code=404, detail="Workspace not found")
+    get_workspace_or_404(db, workspace_id, current_user.id)
 
     query = db.query(models.Chat).filter(models.Chat.workspace_id == workspace_id)
 
@@ -964,17 +908,10 @@ def list_folders(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    ws = db.query(models.Workspace).filter(
-        models.Workspace.id == workspace_id,
-        models.Workspace.user_id == current_user.id
-    ).first()
-    if not ws:
-        raise HTTPException(status_code=404, detail="Workspace not found")
-        
+    get_workspace_or_404(db, workspace_id, current_user.id)
     folders = db.query(models.ChatFolder).filter(
         models.ChatFolder.workspace_id == workspace_id
     ).order_by(models.ChatFolder.created_at.desc()).all()
-    
     return [{"id": f.id, "name": f.name} for f in folders]
 
 
@@ -985,13 +922,7 @@ def create_folder(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    ws = db.query(models.Workspace).filter(
-        models.Workspace.id == workspace_id,
-        models.Workspace.user_id == current_user.id
-    ).first()
-    if not ws:
-        raise HTTPException(status_code=404, detail="Workspace not found")
-        
+    get_workspace_or_404(db, workspace_id, current_user.id)
     folder = models.ChatFolder(workspace_id=workspace_id, name=req.name)
     db.add(folder)
     db.commit()
@@ -1106,17 +1037,7 @@ def create_chat(
     current_user: models.User = Depends(get_current_user),
 ):
     """Create a new empty chat session in the given workspace."""
-    ws = (
-        db.query(models.Workspace)
-        .filter(
-            models.Workspace.id == workspace_id,
-            models.Workspace.user_id == current_user.id,
-        )
-        .first()
-    )
-    if not ws:
-        raise HTTPException(status_code=404, detail="Workspace not found")
-
+    get_workspace_or_404(db, workspace_id, current_user.id)
     chat_obj = models.Chat(workspace_id=workspace_id, title="New Chat")
     db.add(chat_obj)
     db.commit()
@@ -1236,78 +1157,75 @@ def truncate_chat(
 
     return {"status": "success", "kept": req.keep_count, "deleted": max(0, len(messages) - req.keep_count)}
 
-# --- Memory CRUD Endpoints ---
-
-class AddMemoryRequest(BaseModel):
-    content: str
-
-@router.get("/memory/{workspace_id}")
-def get_memories(
-    workspace_id: int,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
-    """Get all long-term memories for a workspace."""
-    ws = db.query(models.Workspace).filter(models.Workspace.id == workspace_id, models.Workspace.user_id == current_user.id).first()
-    if not ws:
-        raise HTTPException(status_code=404, detail="Workspace not found")
-    
-    return memory_service.get_memories(workspace_id)
-
-@router.post("/memory/{workspace_id}")
-def add_memory(
-    workspace_id: int,
-    req: AddMemoryRequest,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
-    """Manually add a long-term memory."""
-    ws = db.query(models.Workspace).filter(models.Workspace.id == workspace_id, models.Workspace.user_id == current_user.id).first()
-    if not ws:
-        raise HTTPException(status_code=404, detail="Workspace not found")
-    
-    if not req.content or not req.content.strip():
-        raise HTTPException(status_code=400, detail="Content cannot be empty")
-        
-    return memory_service.add_memory(workspace_id, req.content.strip())
-
-@router.delete("/memory/{workspace_id}/{memory_id}")
-def delete_memory(
-    workspace_id: int,
-    memory_id: str,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
-    """Delete a specific memory."""
-    ws = db.query(models.Workspace).filter(models.Workspace.id == workspace_id, models.Workspace.user_id == current_user.id).first()
-    if not ws:
-        raise HTTPException(status_code=404, detail="Workspace not found")
-    
-    memory_service.delete_memory(workspace_id, memory_id)
-    return {"status": "deleted"}
-
-@router.delete("/memory/{workspace_id}")
-def clear_memories(
-    workspace_id: int,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
-    """Clear all memories for a workspace."""
-    ws = db.query(models.Workspace).filter(models.Workspace.id == workspace_id, models.Workspace.user_id == current_user.id).first()
-    if not ws:
-        raise HTTPException(status_code=404, detail="Workspace not found")
-    
-    memory_service.clear_memories(workspace_id)
-    return {"status": "cleared"}
+# Memory CRUD routes moved to memory_router.py
 
 
 # --- Message Feedback (Reactions) ---
+
+class DirectMessageCreate(BaseModel):
+    chat_id: int
+    content: str
+    role: Optional[str] = "user"
+
+
+@router.post("/message")
+def create_direct_message(
+    req: DirectMessageCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    chat_obj = get_chat_or_404(db, req.chat_id, current_user.id)
+    msg = models.Message(
+        chat_id=chat_obj.id,
+        role=req.role or "user",
+        content=req.content,
+    )
+    db.add(msg)
+    db.commit()
+    db.refresh(msg)
+    return {
+        "id": msg.id,
+        "chat_id": msg.chat_id,
+        "role": msg.role,
+        "content": msg.content,
+        "created_at": msg.created_at.isoformat() if msg.created_at else None,
+        "feedback": msg.feedback,
+    }
+
+
+@router.get("/messages/{chat_id}")
+def get_chat_messages(
+    chat_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    chat_obj = get_chat_or_404(db, chat_id, current_user.id)
+    messages = (
+        db.query(models.Message)
+        .filter(models.Message.chat_id == chat_obj.id)
+        .order_by(models.Message.created_at.asc())
+        .all()
+    )
+    return [
+        {
+            "id": m.id,
+            "role": m.role,
+            "content": m.content,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+            "feedback": m.feedback,
+        }
+        for m in messages
+    ]
+
 
 class MessageFeedbackRequest(BaseModel):
     feedback: Optional[str] = None  # 'positive', 'negative', or None to clear
 
 
 @router.patch("/message/{message_id}/feedback")
+@router.post("/message/{message_id}/feedback", include_in_schema=False)
+@router.patch("/messages/{message_id}/feedback", include_in_schema=False)
+@router.post("/messages/{message_id}/feedback", include_in_schema=False)
 def set_message_feedback(
     message_id: int,
     req: MessageFeedbackRequest,
@@ -1315,18 +1233,7 @@ def set_message_feedback(
     current_user: models.User = Depends(get_current_user),
 ):
     """Set or clear feedback (thumbs up/down) for a message (ownership enforced)."""
-    msg = (
-        db.query(models.Message)
-        .join(models.Chat, models.Message.chat_id == models.Chat.id)
-        .join(models.Workspace, models.Chat.workspace_id == models.Workspace.id)
-        .filter(
-            models.Message.id == message_id,
-            models.Workspace.user_id == current_user.id,
-        )
-        .first()
-    )
-    if not msg:
-        raise HTTPException(status_code=404, detail="Message not found")
+    msg = get_message_or_404(db, message_id, current_user.id)
     if req.feedback not in (None, "positive", "negative"):
         raise HTTPException(status_code=400, detail="feedback must be 'positive', 'negative', or null")
     msg.feedback = req.feedback
@@ -1341,6 +1248,15 @@ class MessageEditRequest(BaseModel):
 
 
 @router.patch("/message/{message_id}/content")
+@router.put("/message/{message_id}/content", include_in_schema=False)
+@router.post("/message/{message_id}/content", include_in_schema=False)
+@router.patch("/messages/{message_id}/content", include_in_schema=False)
+@router.put("/messages/{message_id}/content", include_in_schema=False)
+@router.post("/messages/{message_id}/content", include_in_schema=False)
+@router.patch("/message/{message_id}/edit", include_in_schema=False)
+@router.post("/message/{message_id}/edit", include_in_schema=False)
+@router.patch("/messages/{message_id}/edit", include_in_schema=False)
+@router.post("/messages/{message_id}/edit", include_in_schema=False)
 def edit_message_content(
     message_id: int,
     req: MessageEditRequest,
@@ -1348,18 +1264,7 @@ def edit_message_content(
     current_user: models.User = Depends(get_current_user),
 ):
     """Edit the text content of a user message (ownership enforced)."""
-    msg = (
-        db.query(models.Message)
-        .join(models.Chat, models.Message.chat_id == models.Chat.id)
-        .join(models.Workspace, models.Chat.workspace_id == models.Workspace.id)
-        .filter(
-            models.Message.id == message_id,
-            models.Workspace.user_id == current_user.id,
-        )
-        .first()
-    )
-    if not msg:
-        raise HTTPException(status_code=404, detail="Message not found")
+    msg = get_message_or_404(db, message_id, current_user.id)
     if not req.content.strip():
         raise HTTPException(status_code=400, detail="Content cannot be empty")
     msg.content = req.content.strip()

@@ -16,6 +16,9 @@ import HealthBanner from './components/HealthBanner';
 import OnboardingWizard from './components/OnboardingWizard';
 import ModelHubModal from './components/ModelHubModal';
 import { useToast } from './components/Toast';
+import { useChatFolders } from './hooks/useChatFolders';
+import { useChatSummary } from './hooks/useChatSummary';
+import { exportChat } from './utils/chatExport';
 
 export default function App() {
   const toast = useToast();
@@ -69,13 +72,38 @@ export default function App() {
   // ── Global Search state ──
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
 
-  // ── Chat Summary state ──
-  const [showSummaryModal, setShowSummaryModal] = useState(false);
-  const [summaryText, setSummaryText] = useState('');
-  const [summaryLoading, setSummaryLoading] = useState(false);
-  const [summaryError, setSummaryError] = useState(null);
-  const [summaryChatTitle, setSummaryChatTitle] = useState('');
-  const [summaryCopied, setSummaryCopied] = useState(false);
+  const getHeaders = (extraHeaders = {}) => ({
+    'Authorization': `Bearer ${token}`,
+    ...extraHeaders
+  });
+
+  const handleLogout = () => {
+    setToken(null);
+    setUsername('');
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
+    setWorkspaces([]);
+    setActiveWorkspace(null);
+    setActiveChatId(null);
+    setChats([]);
+    setActiveView('dashboard');
+    setHasFetchedWorkspaces(false);
+    setWorkspacesError(null);
+    setLoadingWorkspaces(false);
+  };
+
+  // ── Chat Summary hook ──
+  const {
+    showSummaryModal,
+    setShowSummaryModal,
+    summaryText,
+    summaryLoading,
+    summaryError,
+    summaryChatTitle,
+    summaryCopied,
+    handleSummarizeChat,
+    handleCopySummary,
+  } = useChatSummary({ getHeaders, handleLogout, chats, activeChatId });
 
   useEffect(() => {
     const fontSize = localStorage.getItem('ui_font_size') || 'medium';
@@ -97,26 +125,6 @@ export default function App() {
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, []);
-
-  const getHeaders = (extraHeaders = {}) => ({
-    'Authorization': `Bearer ${token}`,
-    ...extraHeaders
-  });
-
-  const handleLogout = () => {
-    setToken(null);
-    setUsername('');
-    localStorage.removeItem('token');
-    localStorage.removeItem('username');
-    setWorkspaces([]);
-    setActiveWorkspace(null);
-    setActiveChatId(null);
-    setChats([]);
-    setActiveView('dashboard');
-    setHasFetchedWorkspaces(false);
-    setWorkspacesError(null);
-    setLoadingWorkspaces(false);
-  };
 
   useEffect(() => {
     if (token) {
@@ -310,88 +318,16 @@ export default function App() {
     };
   }, [activeWorkspace?.id]);
 
-  const [chatFolders, setChatFolders] = useState([]);
-  const fetchChatFolders = async (workspaceId) => {
-    try {
-      const res = await fetch(`/api/v1/chat/folders/${workspaceId}`, { headers: getHeaders() });
-      if (res.status === 401) { handleLogout(); return; }
-      if (!res.ok) return;
-      const data = await res.json();
-      setChatFolders(data);
-    } catch (err) {
-      console.error('Error fetching chat folders:', err);
-    }
-  };
+  const {
+    chatFolders,
+    setChatFolders,
+    fetchChatFolders,
+    handleCreateFolder,
+    handleRenameFolder,
+    handleDeleteFolder,
+    handleMoveChat,
+  } = useChatFolders({ getHeaders, handleLogout, activeWorkspace, setChats });
 
-  const handleCreateFolder = async (name) => {
-    if (!activeWorkspace) return;
-    try {
-      const res = await fetch(`/api/v1/chat/folders/${activeWorkspace.id}`, {
-        method: 'POST',
-        headers: getHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ name })
-      });
-      if (res.status === 401) { handleLogout(); return; }
-      if (!res.ok) return;
-      const newFolder = await res.json();
-      setChatFolders(prev => [newFolder, ...prev]);
-    } catch (err) {
-      console.error('Error creating chat folder:', err);
-    }
-  };
-
-  const handleRenameFolder = async (folderId, name) => {
-    try {
-      const res = await fetch(`/api/v1/chat/folders/${folderId}`, {
-        method: 'PUT',
-        headers: getHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ name })
-      });
-      if (res.status === 401) { handleLogout(); return; }
-      if (!res.ok) return;
-      const updatedFolder = await res.json();
-      setChatFolders(prev => prev.map(f => f.id === folderId ? updatedFolder : f));
-    } catch (err) {
-      console.error('Error renaming chat folder:', err);
-    }
-  };
-
-  const handleDeleteFolder = async (folderId) => {
-    try {
-      const res = await fetch(`/api/v1/chat/folders/${folderId}`, {
-        method: 'DELETE',
-        headers: getHeaders()
-      });
-      if (res.status === 401) { handleLogout(); return; }
-      if (!res.ok) return;
-      setChatFolders(prev => prev.filter(f => f.id !== folderId));
-      // Removing a folder sets the chat's folder_id to null on the backend. 
-      // Update local state instantly rather than awaiting a full refresh.
-      setChats(prev => prev.map(c => 
-        c.folder_id === folderId ? { ...c, folder_id: null } : c
-      ));
-    } catch (err) {
-      console.error('Error deleting chat folder:', err);
-    }
-  };
-
-  const handleMoveChat = async (chatId, folderId) => {
-    try {
-      const res = await fetch(`/api/v1/chat/session/${chatId}/move`, {
-        method: 'PUT',
-        headers: getHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ folder_id: folderId === 'null' || folderId === null ? null : parseInt(folderId, 10) })
-      });
-      if (res.status === 401) { handleLogout(); return; }
-      if (!res.ok) return;
-      
-      setChats(prev => prev.map(c => 
-        c.id === chatId ? { ...c, folder_id: folderId === 'null' || folderId === null ? null : parseInt(folderId, 10) } : c
-      ));
-    } catch (err) {
-      console.error('Error moving chat:', err);
-    }
-  };
 
   useEffect(() => {
     if (activeWorkspace && token) {
@@ -712,46 +648,6 @@ export default function App() {
     }
   };
 
-  // ── Chat Summary ──
-  const handleSummarizeChat = async () => {
-    if (!activeChatId) return;
-    const activeChat = chats.find(c => c.id === activeChatId);
-    setSummaryChatTitle(activeChat?.title || 'Chat');
-    setSummaryText('');
-    setSummaryError(null);
-    setSummaryCopied(false);
-    setShowSummaryModal(true);
-    setSummaryLoading(true);
-    try {
-      const model = localStorage.getItem('starkllm_model_name') || null;
-      const res = await fetch(`/api/v1/chat/session/${activeChatId}/summarize`, {
-        method: 'POST',
-        headers: getHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ model }),
-      });
-      if (res.status === 401) { handleLogout(); return; }
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || `Server error ${res.status}`);
-      }
-      const data = await res.json();
-      setSummaryText(data.summary || '');
-    } catch (err) {
-      console.error('Summarize error:', err);
-      setSummaryError(err.message);
-    } finally {
-      setSummaryLoading(false);
-    }
-  };
-
-  const handleCopySummary = async () => {
-    if (!summaryText) return;
-    try {
-      await navigator.clipboard.writeText(summaryText);
-      setSummaryCopied(true);
-      setTimeout(() => setSummaryCopied(false), 2000);
-    } catch (_) {}
-  };
 
   // ── Global Search Navigation ──
   const handleNavigateFromSearch = async (item) => {
@@ -826,222 +722,7 @@ export default function App() {
   };
 
   const handleExportChat = (format = 'md') => {
-    if (!messages || messages.length === 0) return;
-
-    const activeChat = chats.find(c => c.id === activeChatId);
-    const chatTitle = activeChat?.title || 'StarkLLM Chat';
-    const exportDate = new Date().toLocaleString();
-
-    let content = '';
-    let ext = format;
-    let mimeType = 'text/plain';
-
-    if (format === 'json') {
-      ext = 'json';
-      mimeType = 'application/json';
-      content = JSON.stringify({
-        title: chatTitle,
-        exported_at: exportDate,
-        messages: messages.filter(m => m.role !== 'system')
-      }, null, 2);
-    } else if (format === 'html') {
-      ext = 'html';
-      mimeType = 'text/html';
-      const renderedMessages = messages.filter(m => m.role !== 'system').map(msg => {
-        const isUser = msg.role === 'user';
-        const roleLabel = isUser ? 'User' : 'StarkLLM Assistant';
-        const roleBg = isUser ? '#6366f1' : '#10b981';
-        const msgBg = isUser ? 'rgba(99, 102, 241, 0.08)' : 'rgba(255, 255, 255, 0.03)';
-        const safeContent = (msg.content || '')
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/\n/g, '<br/>');
-        const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : '';
-
-        return `
-        <div class="message-card" style="background: ${msgBg}; border-left: 4px solid ${roleBg};">
-          <div class="message-header">
-            <span class="role-badge" style="background: ${roleBg};">${roleLabel}</span>
-            <span class="timestamp">${timeStr}</span>
-          </div>
-          <div class="message-body">${safeContent}</div>
-        </div>`;
-      }).join('\n');
-
-      content = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>${chatTitle} - StarkLLM Export</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0f172a;
-      color: #e2e8f0;
-      line-height: 1.6;
-      margin: 0;
-      padding: 40px 20px;
-    }
-    .container {
-      max-width: 800px;
-      margin: 0 auto;
-    }
-    header {
-      border-bottom: 1px solid rgba(255,255,255,0.1);
-      padding-bottom: 20px;
-      margin-bottom: 30px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    h1 { margin: 0 0 8px 0; font-size: 1.8rem; color: #fff; }
-    .meta { font-size: 0.85rem; color: #94a3b8; }
-    .print-btn {
-      background: #6366f1;
-      color: #fff;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: 500;
-    }
-    .print-btn:hover { background: #4f46e5; }
-    .message-card {
-      border-radius: 8px;
-      padding: 16px 20px;
-      margin-bottom: 20px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    }
-    .message-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-    .role-badge {
-      color: #fff;
-      padding: 3px 8px;
-      border-radius: 4px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-    }
-    .timestamp { font-size: 0.75rem; color: #94a3b8; }
-    .message-body { font-size: 1rem; word-break: break-word; }
-    @media print {
-      body { background: #fff; color: #000; padding: 0; }
-      .print-btn { display: none; }
-      .message-card { border: 1px solid #e2e8f0; box-shadow: none; background: #fff !important; }
-      .role-badge { color: #000; border: 1px solid #000; background: transparent !important; }
-      .timestamp { color: #666; }
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <header>
-      <div>
-        <h1>${chatTitle}</h1>
-        <div class="meta">Exported from StarkLLM on ${exportDate}</div>
-      </div>
-      <button class="print-btn" onclick="window.print()">🖨️ Print / Save to PDF</button>
-    </header>
-    ${renderedMessages}
-  </div>
-</body>
-</html>`;
-    } else if (format === 'md') {
-      ext = 'md';
-      mimeType = 'text/markdown';
-      content += `# ${chatTitle}\n\n`;
-      content += `> Exported from StarkLLM on ${exportDate}\n\n---\n\n`;
-
-      messages.forEach(msg => {
-        if (msg.role === 'system') return; // skip system messages
-
-        const role = msg.role === 'user' ? '🧑 **User**' : '🤖 **Assistant**';
-        const timestamp = msg.timestamp
-          ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          : '';
-
-        content += `### ${role}${timestamp ? `  ·  ${timestamp}` : ''}\n\n`;
-        content += `${msg.content}\n\n`;
-
-        // Add sources if available
-        if (msg.role === 'assistant') {
-          const sources = [];
-          if (msg.wsSources?.length) sources.push(`📂 Workspace: ${msg.wsSources.join(', ')}`);
-          if (msg.kbSources?.length) sources.push(`📚 Knowledge Base: ${msg.kbSources.join(', ')}`);
-          if (msg.webSources?.length) {
-            msg.webSources.forEach(src => {
-              const title = typeof src === 'string' ? src : src.title;
-              const url = typeof src === 'string' ? '' : src.url;
-              sources.push(url ? `🌐 [${title}](${url})` : `🌐 ${title}`);
-            });
-          }
-          if (sources.length > 0) {
-            content += `> **Sources:**\n`;
-            sources.forEach(s => { content += `> - ${s}\n`; });
-            content += '\n';
-          }
-        }
-
-        content += `---\n\n`;
-      });
-    } else {
-      // Plain text format
-      ext = 'txt';
-      mimeType = 'text/plain';
-      content += `${chatTitle}\n`;
-      content += `Exported from StarkLLM on ${exportDate}\n`;
-      content += `${'='.repeat(50)}\n\n`;
-
-      messages.forEach(msg => {
-        if (msg.role === 'system') return;
-
-        const role = msg.role === 'user' ? 'User' : 'Assistant';
-        const timestamp = msg.timestamp
-          ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          : '';
-
-        content += `[${role}]${timestamp ? `  ${timestamp}` : ''}\n`;
-        content += `${msg.content}\n`;
-
-        if (msg.role === 'assistant') {
-          const sources = [];
-          if (msg.wsSources?.length) sources.push(`Workspace: ${msg.wsSources.join(', ')}`);
-          if (msg.kbSources?.length) sources.push(`Knowledge Base: ${msg.kbSources.join(', ')}`);
-          if (msg.webSources?.length) {
-            msg.webSources.forEach(src => {
-              const title = typeof src === 'string' ? src : src.title;
-              const url = typeof src === 'string' ? '' : src.url;
-              sources.push(url ? `${title} (${url})` : title);
-            });
-          }
-          if (sources.length > 0) {
-            content += `\nSources:\n`;
-            sources.forEach(s => { content += `  - ${s}\n`; });
-          }
-        }
-
-        content += `${'-'.repeat(40)}\n\n`;
-      });
-    }
-
-    const safeTitle = chatTitle.replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '_');
-    const filename = `${safeTitle}_${new Date().toISOString().slice(0, 10)}.${ext}`;
-
-    const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    exportChat(messages, chats, activeChatId, format);
   };
 
   const handleFileUpload = async (file) => {
@@ -1328,6 +1009,8 @@ export default function App() {
             onNewWorkspace={openNewWorkspaceModal}
             onViewChange={setActiveView}
             onSelectWorkspace={handleSelectWorkspace}
+            chats={chats}
+            onSelectChat={handleSelectChat}
           />
         )}
 

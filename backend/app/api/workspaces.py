@@ -12,6 +12,7 @@ class WorkspaceCreate(BaseModel):
     name: str
 
 @router.post("/")
+@router.post("", include_in_schema=False)
 def create_workspace(
     ws: WorkspaceCreate, 
     db: Session = Depends(get_db),
@@ -24,6 +25,7 @@ def create_workspace(
     return db_ws
 
 @router.get("/")
+@router.get("", include_in_schema=False)
 def get_workspaces(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
@@ -120,6 +122,39 @@ def update_workspace_system_prompt(
 
 class WorkspaceRenameRequest(BaseModel):
     name: str
+
+
+class WorkspaceUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    custom_system_prompt: Optional[str] = None
+
+
+@router.put("/{workspace_id}")
+def update_workspace(
+    workspace_id: int,
+    payload: WorkspaceUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Update workspace name and/or persona prompt."""
+    db_ws = db.query(models.Workspace).filter(
+        models.Workspace.id == workspace_id,
+        models.Workspace.user_id == current_user.id,
+    ).first()
+    if not db_ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    if payload.name:
+        db_ws.name = payload.name.strip()
+    if payload.custom_system_prompt is not None:
+        db_ws.system_prompt = payload.custom_system_prompt.strip() or None
+    db.commit()
+    db.refresh(db_ws)
+    return {
+        "id": db_ws.id,
+        "name": db_ws.name,
+        "custom_system_prompt": db_ws.system_prompt,
+        "system_prompt": db_ws.system_prompt,
+    }
 
 
 @router.patch("/{workspace_id}")

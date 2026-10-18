@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import styles from './InputBar.module.css';
 import { Paperclip, Mic, Send, Square, Loader, Database, Globe, FileCode, Settings } from 'lucide-react';
 import PromptTemplateModal from './PromptTemplateModal';
@@ -13,9 +13,20 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
   const [isUploading, setIsUploading] = useState(false);
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
   const fileInputRef = useRef(null);
+  const textareaRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const recordingTimerRef = useRef(null);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+  }, [text]);
+
+  const estimatedTokens = Math.max(1, Math.round(text.length / 4));
 
   const formatDuration = (sec) => {
     const m = Math.floor(sec / 60);
@@ -203,6 +214,7 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
           </div>
         ) : (
           <textarea
+            ref={textareaRef}
             className={styles.textarea}
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -231,6 +243,20 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
           )}
         </div>
       </div>
+
+      {/* Character / token counter */}
+      {text.length > 0 && (
+        <div className={styles.charCounter}>
+          <span className={text.length > 8000 ? styles.charCounterWarn : ''}>
+            {text.length.toLocaleString()} chars
+          </span>
+          <span className={styles.charCounterDot}>·</span>
+          <span>~{estimatedTokens.toLocaleString()} tokens</span>
+          {text.length > 8000 && (
+            <span className={styles.charCounterOverLimit}> · Long message — consider splitting</span>
+          )}
+        </div>
+      )}
 
       <PromptTemplateModal 
         isOpen={isTemplatesOpen} 

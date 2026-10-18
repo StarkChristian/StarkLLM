@@ -13,10 +13,22 @@ from app.services.rag_service import rag_service
 from app.services.llm_service import llm_service
 from app.core.config import settings
 
+from app.db.session import SessionLocal
+from app.db.models import User
+
 client = TestClient(app)
 
 @pytest.fixture(scope="session")
 def auth_headers():
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.username == "admin").first()
+        if not user:
+            user = User(username="admin", hashed_password=get_password_hash("admin123"))
+            db.add(user)
+            db.commit()
+    finally:
+        db.close()
     token = create_access_token({"sub": "admin"})
     return {"Authorization": f"Bearer {token}"}
 

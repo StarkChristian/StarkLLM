@@ -10,62 +10,62 @@ RECOMMENDED_MODELS = [
     {
         "name": "llama3.2:3b",
         "title": "Llama 3.2 (3B)",
-        "tagline": "فوق‌العاده سریع و سبک - مناسب تمام سیستم‌ها",
+        "tagline": "Ultra-fast & lightweight — suitable for all systems",
         "category": "General / Fast",
         "size": "2.0 GB",
         "min_ram": "4 GB",
         "recommended_ram": "8 GB",
-        "description": "مدل سریع و کم‌مصرف متا برای گفتگو، پاسخ به ایمیل‌ها و تحلیل ساده متون محلی."
+        "description": "Meta's compact model for fast chat, email drafting, and lightweight local document analysis."
     },
     {
         "name": "deepseek-r1:8b",
         "title": "DeepSeek R1 (8B)",
-        "tagline": "قدرت استدلال منطقی و حل مسئله (CoT Reasoning)",
+        "tagline": "Advanced reasoning & step-by-step problem solving",
         "category": "Reasoning / Math",
         "size": "4.9 GB",
         "min_ram": "8 GB",
         "recommended_ram": "16 GB",
-        "description": "پادشاه استدلال متن‌باز، فوق‌العاده برای ریاضیات، منطق پیچیده و تحلیل‌های چندمرحله‌ای."
+        "description": "Open-weight reasoning powerhouse, exceptional for mathematics, complex logic, and analytical tasks."
     },
     {
         "name": "qwen2.5-coder:7b",
         "title": "Qwen 2.5 Coder (7B)",
-        "tagline": "توسعه، عیب‌یابی و تولید کد حرفه‌ای",
+        "tagline": "Professional coding, debugging & synthesis",
         "category": "Coding",
         "size": "4.7 GB",
         "min_ram": "8 GB",
         "recommended_ram": "16 GB",
-        "description": "برترین مدل محلی برای برنامه‌نویسان با پشتیبانی از زبان‌های پایتون، جاوا اسکریپت، گو، راست و غیره."
+        "description": "Top-tier local model for software engineering with deep support for Python, JavaScript, Go, Rust, and more."
     },
     {
         "name": "mistral:7b",
         "title": "Mistral (7B)",
-        "tagline": "پایدار، دقیق و ایده‌آل برای RAG و اسناد",
+        "tagline": "Stable, precise & ideal for RAG and documents",
         "category": "General / RAG",
         "size": "4.1 GB",
         "min_ram": "8 GB",
         "recommended_ram": "16 GB",
-        "description": "مدل محبوب و شناخته‌شده میسترال با درک عمیق از متون طولانی و ادغام با پایگاه دانش."
+        "description": "Popular Mistral model with deep comprehension of extended contexts and knowledge base integration."
     },
     {
         "name": "phi3.5:mini",
         "title": "Phi 3.5 Mini (3.8B)",
-        "tagline": "کوچک اما شگفت‌انگیز از مایکروسافت",
+        "tagline": "Compact efficiency from Microsoft",
         "category": "Compact",
         "size": "2.2 GB",
         "min_ram": "4 GB",
         "recommended_ram": "8 GB",
-        "description": "مدل متراکم مایکروسافت با عملکردی فراتر از ابعاد خود در منطق، نگارش و استنتاج سریع."
+        "description": "Dense Microsoft model delivering exceptional reasoning, writing, and fast inference."
     },
     {
         "name": "nomic-embed-text:latest",
         "title": "Nomic Embed Text",
-        "tagline": "موتور قدرتمند برداری‌سازی متون پایگاه دانش",
+        "tagline": "High-precision vector embedding engine",
         "category": "Embedding",
         "size": "274 MB",
         "min_ram": "2 GB",
         "recommended_ram": "4 GB",
-        "description": "مدل رسمی و دقیق برای امبدینگ و ایندکس‌گذاری اسناد در پایگاه دانش StarkLLM."
+        "description": "Official high-accuracy model for semantic chunk embeddings and knowledge base vector indexing."
     }
 ]
 

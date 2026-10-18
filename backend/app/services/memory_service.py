@@ -9,7 +9,10 @@ logger = logging.getLogger(__name__)
 
 class MemoryService:
     def __init__(self):
-        self.chroma_client = chromadb.PersistentClient(path=settings.CHROMA_PERSIST_DIRECTORY)
+        self.chroma_client = chromadb.PersistentClient(
+            path=settings.CHROMA_PERSIST_DIRECTORY,
+            settings=chromadb.config.Settings(anonymized_telemetry=False),
+        )
         self.memory_collection = self.chroma_client.get_or_create_collection(name="long_term_memory")
         self.embedding_model = settings.DEFAULT_EMBEDDING_MODEL
         self.summarize_model = settings.DEFAULT_TEXT_MODEL

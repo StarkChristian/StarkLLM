@@ -425,6 +425,15 @@ const ChatMessageRenderer = React.memo(({
               <span>{msg.speedStats.tokens} tok</span>
             </span>
           )}
+          {msg.role === 'assistant' && msg.content && (() => {
+            const wordCount = msg.content.trim().split(/\s+/).filter(Boolean).length;
+            if (wordCount < 80) return null;
+            return (
+              <span className={styles.speedBadge} title={`${wordCount} words`} style={{ background: 'rgba(99,102,241,0.08)', borderColor: 'rgba(99,102,241,0.2)', color: 'var(--accent-bright)' }}>
+                {wordCount.toLocaleString()} words
+              </span>
+            );
+          })()}
         </div>
       )}
     </div>

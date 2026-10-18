@@ -82,8 +82,10 @@
 }
 
 /* =========================================================
-   Light Theme Overrides
+   Theme Overrides
    ========================================================= */
+
+/* ── 1. Light Theme ── */
 [data-theme="light"] {
   --bg-primary:    #f0f2f8;
   --bg-secondary:  #ffffff;
@@ -116,6 +118,212 @@
   --shadow-lg:     0 8px 32px rgba(0,0,0,0.16);
   --shadow-accent: 0 0 24px rgba(99,102,241,0.2);
 }
+
+/* ── 2. Cyberpunk Rose / Pink Theme ── */
+[data-theme="pink"] {
+  --bg-primary:    #0a040b;
+  --bg-secondary:  #140817;
+  --bg-tertiary:   #1d0c22;
+  --bg-card:       #220f28;
+  --bg-hover:      rgba(244, 63, 94, 0.08);
+  --bg-active:     rgba(244, 63, 94, 0.22);
+
+  --glass-bg:      rgba(29, 12, 34, 0.55);
+  --glass-border:  rgba(251, 113, 133, 0.25);
+  --glass-highlight: inset 0 1px 0 rgba(255, 180, 200, 0.2);
+
+  --border-color:  rgba(244, 63, 94, 0.18);
+  --border-subtle: rgba(244, 63, 94, 0.09);
+
+  --text-primary:  #fff1f2;
+  --text-secondary:#fecdd3;
+  --text-muted:    #fda4af;
+  --text-accent:   #fb7185;
+
+  --accent:        #f43f5e;
+  --accent-bright: #fb7185;
+  --accent-hover:  #e11d48;
+  --accent-glow:   rgba(244, 63, 94, 0.45);
+
+  --grad-accent:   linear-gradient(135deg, #ec4899 0%, #f43f5e 50%, #fb7185 100%);
+  --grad-card:     linear-gradient(145deg, #2b1132 0%, #150719 100%);
+  --grad-glow:     radial-gradient(ellipse at 50% 0%, rgba(244, 63, 94, 0.25) 0%, transparent 70%);
+
+  --shadow-accent: 0 0 32px rgba(244, 63, 94, 0.45);
+}
+
+/* ── 3. Pure OLED Black Theme ── */
+[data-theme="black"] {
+  --bg-primary:    #000000;
+  --bg-secondary:  #050505;
+  --bg-tertiary:   #0b0b0b;
+  --bg-card:       #101010;
+  --bg-hover:      rgba(255, 255, 255, 0.07);
+  --bg-active:     rgba(255, 255, 255, 0.14);
+
+  --glass-bg:      rgba(10, 10, 10, 0.9);
+  --glass-border:  rgba(255, 255, 255, 0.16);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+
+  --border-color:  rgba(255, 255, 255, 0.14);
+  --border-subtle: rgba(255, 255, 255, 0.07);
+
+  --text-primary:  #ffffff;
+  --text-secondary:#e5e7eb;
+  --text-muted:    #9ca3af;
+  --text-accent:   #38bdf8;
+
+  --accent:        #0284c7;
+  --accent-bright: #38bdf8;
+  --accent-hover:  #0369a1;
+  --accent-glow:   rgba(56, 189, 248, 0.35);
+
+  --grad-accent:   linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
+  --grad-card:     linear-gradient(145deg, #141414 0%, #000000 100%);
+  --grad-glow:     radial-gradient(ellipse at 50% 0%, rgba(56, 189, 248, 0.12) 0%, transparent 60%);
+
+  --shadow-sm:     0 1px 2px rgba(0,0,0,0.95);
+  --shadow-md:     0 6px 24px rgba(0,0,0,0.98);
+  --shadow-lg:     0 12px 40px #000000;
+  --shadow-accent: 0 0 28px rgba(56, 189, 248, 0.35);
+}
+
+/* ── 4. Liquid Glassmorphism Theme ── */
+[data-theme="glass"] {
+  --bg-primary:    #070b16;
+  --bg-secondary:  rgba(15, 22, 40, 0.55);
+  --bg-tertiary:   rgba(22, 32, 58, 0.50);
+  --bg-card:       rgba(25, 36, 66, 0.42);
+  --bg-hover:      rgba(255, 255, 255, 0.09);
+  --bg-active:     rgba(139, 92, 246, 0.25);
+
+  --glass-bg:      rgba(18, 26, 52, 0.45);
+  --glass-border:  rgba(255, 255, 255, 0.22);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.32);
+  --glass-blur:    blur(32px);
+
+  --border-color:  rgba(255, 255, 255, 0.18);
+  --border-subtle: rgba(255, 255, 255, 0.10);
+
+  --text-primary:  #f8fafc;
+  --text-secondary:#cbd5e1;
+  --text-muted:    #94a3b8;
+  --text-accent:   #c084fc;
+
+  --accent:        #8b5cf6;
+  --accent-bright: #a78bfa;
+  --accent-hover:  #7c3aed;
+  --accent-glow:   rgba(167, 139, 250, 0.48);
+
+  --grad-accent:   linear-gradient(135deg, #a855f7 0%, #6366f1 50%, #38bdf8 100%);
+  --grad-card:     linear-gradient(135deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.02) 100%);
+  --grad-glow:     radial-gradient(circle at 15% 15%, rgba(168, 85, 247, 0.25) 0%, transparent 45%),
+                   radial-gradient(circle at 85% 85%, rgba(56, 189, 248, 0.20) 0%, transparent 50%),
+                   radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.16) 0%, transparent 60%);
+
+  --shadow-md:     0 8px 32px 0 rgba(0, 0, 0, 0.55);
+  --shadow-accent: 0 0 32px rgba(168, 85, 247, 0.45);
+}
+
+/* ── 5. Cyber Matrix Emerald Theme ── */
+[data-theme="emerald"] {
+  --bg-primary:    #030c08;
+  --bg-secondary:  #06150f;
+  --bg-tertiary:   #091e16;
+  --bg-card:       #0d281e;
+  --bg-hover:      rgba(16, 185, 129, 0.08);
+  --bg-active:     rgba(16, 185, 129, 0.22);
+
+  --glass-bg:      rgba(9, 30, 22, 0.6);
+  --glass-border:  rgba(52, 211, 153, 0.22);
+  --glass-highlight: inset 0 1px 0 rgba(110, 231, 183, 0.22);
+
+  --border-color:  rgba(16, 185, 129, 0.18);
+  --border-subtle: rgba(16, 185, 129, 0.09);
+
+  --text-primary:  #ecfdf5;
+  --text-secondary:#a7f3d0;
+  --text-muted:    #6ee7b7;
+  --text-accent:   #34d399;
+
+  --accent:        #10b981;
+  --accent-bright: #34d399;
+  --accent-hover:  #059669;
+  --accent-glow:   rgba(16, 185, 129, 0.42);
+
+  --grad-accent:   linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  --grad-card:     linear-gradient(145deg, #0f3226 0%, #04140e 100%);
+  --grad-glow:     radial-gradient(ellipse at 50% 0%, rgba(16, 185, 129, 0.22) 0%, transparent 70%);
+
+  --shadow-accent: 0 0 32px rgba(16, 185, 129, 0.42);
+}
+
+/* ── 6. Sunset Volcano Amber Theme ── */
+[data-theme="amber"] {
+  --bg-primary:    #0b0602;
+  --bg-secondary:  #140d05;
+  --bg-tertiary:   #1d1308;
+  --bg-card:       #26190b;
+  --bg-hover:      rgba(245, 158, 11, 0.08);
+  --bg-active:     rgba(245, 158, 11, 0.22);
+
+  --glass-bg:      rgba(29, 19, 8, 0.6);
+  --glass-border:  rgba(251, 191, 36, 0.22);
+  --glass-highlight: inset 0 1px 0 rgba(253, 230, 138, 0.22);
+
+  --border-color:  rgba(245, 158, 11, 0.18);
+  --border-subtle: rgba(245, 158, 11, 0.09);
+
+  --text-primary:  #fffbeb;
+  --text-secondary:#fde68a;
+  --text-muted:    #fcd34d;
+  --text-accent:   #fbbf24;
+
+  --accent:        #f59e0b;
+  --accent-bright: #fbbf24;
+  --accent-hover:  #d97706;
+  --accent-glow:   rgba(245, 158, 11, 0.42);
+
+  --grad-accent:   linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
+  --grad-card:     linear-gradient(145deg, #2e1e0c 0%, #130b03 100%);
+  --grad-glow:     radial-gradient(ellipse at 50% 0%, rgba(245, 158, 11, 0.22) 0%, transparent 70%);
+
+  --shadow-accent: 0 0 32px rgba(245, 158, 11, 0.42);
+}
+
+/* ── 7. Nordic Arctic Frost Theme ── */
+[data-theme="nord"] {
+  --bg-primary:    #060f18;
+  --bg-secondary:  #0b1926;
+  --bg-tertiary:   #102234;
+  --bg-card:       #152c43;
+  --bg-hover:      rgba(6, 182, 212, 0.08);
+  --bg-active:     rgba(6, 182, 212, 0.22);
+
+  --glass-bg:      rgba(16, 34, 52, 0.6);
+  --glass-border:  rgba(34, 211, 238, 0.22);
+  --glass-highlight: inset 0 1px 0 rgba(103, 232, 249, 0.22);
+
+  --border-color:  rgba(6, 182, 212, 0.18);
+  --border-subtle: rgba(6, 182, 212, 0.09);
+
+  --text-primary:  #ecfeff;
+  --text-secondary:#cffafe;
+  --text-muted:    #a5f3fc;
+  --text-accent:   #22d3ee;
+
+  --accent:        #0891b2;
+  --accent-bright: #22d3ee;
+  --accent-hover:  #0e7490;
+  --accent-glow:   rgba(6, 182, 212, 0.42);
+
+  --grad-accent:   linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+  --grad-card:     linear-gradient(145deg, #19344e 0%, #0a1723 100%);
+  --grad-glow:     radial-gradient(ellipse at 50% 0%, rgba(6, 182, 212, 0.22) 0%, transparent 70%);
+
+  --shadow-accent: 0 0 32px rgba(6, 182, 212, 0.42);
+}
+
 
 /* =========================================================
    Reset & Base

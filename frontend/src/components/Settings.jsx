@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal, BrainCircuit, Server, Play, Loader, Key } from 'lucide-react';
+import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal, BrainCircuit, Server, Play, Loader, Key, Globe, Keyboard } from 'lucide-react';
 import styles from './Settings.module.css';
 import BackupRestoreSettings from './BackupRestoreSettings';
+import { AVAILABLE_THEMES, applyTheme } from '../utils/themes';
+import { SUPPORTED_LANGUAGES, getCurrentLanguage, setLanguage } from '../utils/languages';
 
 const SECTIONS = [
   { id: 'account',  label: 'Account',       icon: User },
@@ -13,6 +15,8 @@ const SECTIONS = [
   { id: 'mcp',      label: 'Local Tools',   icon: Terminal },
   { id: 'dev-api',  label: 'Local API Server (OpenAI)', icon: Server },
   { id: 'ui',       label: 'Appearance',    icon: Palette },
+  { id: 'language', label: 'Language & Locale', icon: Globe },
+  { id: 'shortcuts', label: 'Keyboard Shortcuts', icon: Keyboard },
   { id: 'system',   label: 'Backup & Restore', icon: Archive },
   { id: 'about',    label: 'About StarkLLM',icon: Info },
 ];
@@ -310,7 +314,7 @@ print(response.choices[0].message.content)`;
 
   const handleThemeChange = (newTheme) => {
     setTheme(newTheme);
-    document.documentElement.setAttribute('data-theme', newTheme);
+    applyTheme(newTheme);
   };
 
   const [activeSection, setActiveSection] = useState('account');
@@ -1138,30 +1142,218 @@ print(response.choices[0].message.content)`;
               </div>
 
               <div className={styles.formGroup}>
-                <label className={styles.label}>Color Theme</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '8px' }}>
+                  <label className={styles.label} style={{ margin: 0 }}>Color Theme & Palette</label>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    {AVAILABLE_THEMES.length} Presets Available
+                  </span>
+                </div>
                 <div className={styles.themeGrid}>
-                  <button
-                    className={`${styles.themeCard} ${theme === 'dark' ? styles.themeCardActive : ''}`}
-                    onClick={() => handleThemeChange('dark')}
-                  >
-                    <Moon size={20} />
-                    <span>Dark</span>
-                    {theme === 'dark' && <CheckCircle size={14} className={styles.themeCheck} />}
-                  </button>
-                  <button
-                    className={`${styles.themeCard} ${theme === 'light' ? styles.themeCardActive : ''}`}
-                    onClick={() => handleThemeChange('light')}
-                  >
-                    <Sun size={20} />
-                    <span>Light</span>
-                    {theme === 'light' && <CheckCircle size={14} className={styles.themeCheck} />}
-                  </button>
+                  {AVAILABLE_THEMES.map(t => {
+                    const isSelected = theme === t.id;
+                    return (
+                      <div
+                        key={t.id}
+                        className={`${styles.themeCard} ${isSelected ? styles.themeCardActive : ''}`}
+                        onClick={() => handleThemeChange(t.id)}
+                        role="button"
+                        tabIndex={0}
+                      >
+                        {/* Visual Preview Banner */}
+                        <div
+                          className={styles.themePreviewBanner}
+                          style={{
+                            background: t.card,
+                            borderLeft: `4px solid ${t.accent}`
+                          }}
+                        >
+                          <div className={styles.themeDotGroup}>
+                            <span className={styles.themeDot} style={{ background: t.bg }} title="Background" />
+                            <span className={styles.themeDot} style={{ background: t.card }} title="Surface" />
+                            <span className={styles.themeDot} style={{ background: t.accent, boxShadow: `0 0 8px ${t.accent}` }} title="Accent" />
+                          </div>
+                          <div
+                            style={{
+                              width: '28px',
+                              height: '14px',
+                              borderRadius: '4px',
+                              background: t.gradient,
+                              opacity: 0.95
+                            }}
+                          />
+                        </div>
+
+                        {/* Text info */}
+                        <div className={styles.themeCardBody}>
+                          <div className={styles.themeTitleRow}>
+                            <span className={styles.themeName}>{t.name}</span>
+                            <span className={styles.themeBadge}>{t.badge}</span>
+                          </div>
+                          <p className={styles.themeDesc}>{t.desc}</p>
+                        </div>
+
+                        {isSelected && <CheckCircle size={18} className={styles.themeCheck} />}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
               <button className="btn-primary" onClick={saveUi}>
                 {uiSaved ? <><CheckCircle size={14} /> Applied!</> : <><Save size={14} /> Apply Settings</>}
               </button>
+            </div>
+          )}
+
+          {/* ───── Language & Locale ───── */}
+          {activeSection === 'language' && (
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <Globe size={24} className={styles.panelIcon} />
+                <h2>Language &amp; Locale</h2>
+              </div>
+              <p className={styles.panelDesc}>
+                Internationalization roadmap prioritized by global internet demographics. English is the default active system language.
+              </p>
+
+              <div className={styles.languageGrid}>
+                {SUPPORTED_LANGUAGES.map(lang => {
+                  const isActive = lang.code === 'en';
+                  return (
+                    <div
+                      key={lang.code}
+                      className={`${styles.languageCard} ${isActive ? styles.languageCardActive : ''}`}
+                      onClick={() => {
+                        if (lang.status === 'active') {
+                          setLanguage(lang.code);
+                        }
+                      }}
+                    >
+                      <div className={styles.languageHeaderRow}>
+                        <div className={styles.languageTitleGroup}>
+                          <span className={styles.languageFlag}>{lang.flag}</span>
+                          <div className={styles.languageNames}>
+                            <span className={styles.languageNative}>{lang.nativeName}</span>
+                            <span className={styles.languageEnglish}>{lang.name}</span>
+                          </div>
+                        </div>
+                        {isActive ? (
+                          <span className={styles.languageBadgeActive}>Active</span>
+                        ) : (
+                          <span className={styles.languageBadgeRoadmap}>{lang.statusLabel}</span>
+                        )}
+                      </div>
+
+                      <div className={styles.languageFooterRow}>
+                        <span>{lang.region}</span>
+                        <strong>{lang.users}</strong>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className={styles.languageRoadmapNotice}>
+                <strong>🌐 StarkLLM Internationalization Architecture</strong>
+                <span>
+                  The initial release is standardized exclusively on 100% clean English for reliable inference, prompt consistency, and document evaluation. Additional language translations (Chinese, Spanish, French, German, Arabic, Persian, etc.) are structured according to global population demographics and scheduled for rollout in upcoming releases.
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* ───── Keyboard Shortcuts ───── */}
+          {activeSection === 'shortcuts' && (
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <Keyboard size={18} />
+                <h2>Keyboard Shortcuts</h2>
+              </div>
+              <p className={styles.panelDesc}>
+                Quick reference for all keyboard shortcuts available in StarkLLM.
+              </p>
+
+              {[
+                {
+                  category: 'Navigation & Search',
+                  shortcuts: [
+                    { keys: ['Ctrl', 'K'], desc: 'Open Global Search / Command Palette' },
+                    { keys: ['Esc'], desc: 'Close modal, dialog, or dropdown' },
+                  ]
+                },
+                {
+                  category: 'Chat',
+                  shortcuts: [
+                    { keys: ['Enter'], desc: 'Send message' },
+                    { keys: ['Shift', 'Enter'], desc: 'Insert new line in message' },
+                    { keys: ['Ctrl', 'Z'], desc: 'Undo text in input field' },
+                  ]
+                },
+                {
+                  category: 'Message Actions',
+                  shortcuts: [
+                    { keys: ['Click Copy'], desc: 'Copy message content to clipboard' },
+                    { keys: ['Click Edit ✏️'], desc: 'Edit a user message (re-runs from that point)' },
+                    { keys: ['Click Regenerate ↺'], desc: 'Regenerate the last AI response' },
+                  ]
+                },
+                {
+                  category: 'Input Bar',
+                  shortcuts: [
+                    { keys: ['Paperclip 📎'], desc: 'Attach file (PDF, TXT, PNG, JPG)' },
+                    { keys: ['Mic 🎙️'], desc: 'Start / Stop voice recording (Whisper transcription)' },
+                    { keys: ['FileCode 📝'], desc: 'Open Prompt Templates library' },
+                    { keys: ['Database 🗃️'], desc: 'Toggle Knowledge Base retrieval' },
+                    { keys: ['Globe 🌐'], desc: 'Toggle Web Search' },
+                  ]
+                },
+              ].map(group => (
+                <div key={group.category} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div className={styles.panelSubheader} style={{ marginTop: '8px' }}>
+                    {group.category}
+                  </div>
+                  <div style={{
+                    background: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--radius-md)',
+                    overflow: 'hidden'
+                  }}>
+                    {group.shortcuts.map((s, si) => (
+                      <div key={si} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 16px',
+                        borderBottom: si < group.shortcuts.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                        gap: '16px'
+                      }}>
+                        <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>{s.desc}</span>
+                        <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                          {s.keys.map((k, ki) => (
+                            <React.Fragment key={ki}>
+                              {ki > 0 && <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', alignSelf: 'center' }}>+</span>}
+                              <kbd style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                padding: '2px 8px',
+                                background: 'var(--bg-primary)',
+                                border: '1px solid var(--border-color)',
+                                borderBottom: '2px solid var(--border-color)',
+                                borderRadius: '6px',
+                                fontSize: '0.78rem',
+                                fontFamily: 'ui-monospace, monospace',
+                                color: 'var(--text-primary)',
+                                fontWeight: 500,
+                                whiteSpace: 'nowrap'
+                              }}>{k}</kbd>
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
@@ -1172,8 +1364,11 @@ print(response.choices[0].message.content)`;
 
           {/* ───── About ───── */}
           {activeSection === 'about' && (
-            <div className={styles.section}>
-              <h3 className={styles.h3}>About StarkLLM</h3>
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <Info size={18} />
+                <h2>About StarkLLM</h2>
+              </div>
               
               <div className={styles.aboutCard}>
                 <div className={styles.aboutHeader}>

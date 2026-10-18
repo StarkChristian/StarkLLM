@@ -695,6 +695,7 @@ async def ingest_note(
         "filename": doc.filename,
         "filepath": doc.filepath,
         "file_type": doc.file_type,
+        "doc_type": "note",
         "status": doc.status,
         "error_message": doc.error_message,
         "created_at": doc.created_at.isoformat() if doc.created_at else None,
@@ -731,11 +732,15 @@ def get_documents(
         if not exists and d.status == DocStatus.INDEXED:
             effective_status = "missing"
 
+        doc_title = d.filename.rsplit('.', 1)[0] if '.' in d.filename else d.filename
+        is_note = d.file_type == "md"
         result.append({
             "id": d.id,
             "filename": d.filename,
+            "title": doc_title,
             "filepath": d.filepath,
             "file_type": d.file_type,
+            "doc_type": "note" if is_note else "document",
             "created_at": d.created_at.isoformat() if d.created_at else None,
             "file_size": size,
             "status": effective_status,

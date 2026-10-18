@@ -144,8 +144,9 @@ def execute_code(
     lang = (req.language or "python").lower().strip()
     timeout = min(max(req.timeout_seconds or 5, 1), 10)
 
-    # Use python3 or python
-    cmd = ["python3", "-c", req.code]
+    # Use sys.executable for portable and sandboxed execution
+    import sys
+    cmd = [sys.executable, "-c", req.code]
 
     t0 = time.time()
     try:
@@ -157,24 +158,30 @@ def execute_code(
         )
         t1 = time.time()
         exec_ms = round((t1 - t0) * 1000)
+        output = proc.stdout + ("\n" + proc.stderr if proc.stderr else "")
         return {
             "stdout": proc.stdout[:15000],
             "stderr": proc.stderr[:5000],
+            "output": output[:20000],
             "exit_code": proc.returncode,
             "execution_time_ms": exec_ms
         }
     except subprocess.TimeoutExpired:
+        msg = f"Execution timed out after {timeout} seconds."
         return {
             "stdout": "",
-            "stderr": f"Execution timed out after {timeout} seconds.",
+            "stderr": msg,
+            "output": msg,
             "exit_code": 124,
             "execution_time_ms": timeout * 1000
         }
     except Exception as e:
         logger.error(f"Code execution error: {e}")
+        msg = f"Execution failed: {str(e)}"
         return {
             "stdout": "",
-            "stderr": f"Execution failed: {str(e)}",
+            "stderr": msg,
+            "output": msg,
             "exit_code": 1,
             "execution_time_ms": 0
         }

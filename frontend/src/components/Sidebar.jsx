@@ -5,10 +5,11 @@ import {
   Plus, LogOut, ChevronRight, Trash2, Check, X,
   MessageCircle, ChevronDown, FileText, FolderOpen, BrainCircuit,
   Pencil, Search, Pin, PinOff, AlignLeft, SearchCheck,
-  FolderPlus, Folder, MoveRight, Cpu, Sparkles
+  FolderPlus, Folder, MoveRight, Cpu, Sparkles, Palette
 } from 'lucide-react';
 import { SidebarStatusDot } from './SystemStatusWidget';
 import EmptyState from './EmptyState';
+import { AVAILABLE_THEMES, applyTheme, getCurrentTheme } from '../utils/themes';
 
 const NAV_ITEMS = [
   { id: 'dashboard',      label: 'Dashboard',      icon: LayoutDashboard },
@@ -68,11 +69,33 @@ export default function Sidebar({
   const [editingFolderId, setEditingFolderId] = useState(null);
   const [editFolderTitle, setEditFolderTitle] = useState('');
   const [movingChatId, setMovingChatId] = useState(null);
+  const [showThemeMenu, setShowThemeMenu] = useState(false);
+  const [currentTheme, setCurrentTheme] = useState(() => getCurrentTheme());
 
   const wsDropdownRef = useRef(null);
   const editInputRef = useRef(null);
   const searchInputRef = useRef(null);
   const folderEditInputRef = useRef(null);
+  const themePopoverRef = useRef(null);
+
+  // Close theme popover when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (themePopoverRef.current && !themePopoverRef.current.contains(e.target)) {
+        setShowThemeMenu(false);
+      }
+    };
+    if (showThemeMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showThemeMenu]);
+
+  const handleSelectTheme = (themeId) => {
+    setCurrentTheme(themeId);
+    applyTheme(themeId);
+    setShowThemeMenu(false);
+  };
 
   // Group chats
   const groupedChats = useMemo(() => {
@@ -644,9 +667,41 @@ export default function Sidebar({
           <span className={styles.username}>{username || 'User'}</span>
           <SidebarStatusDot token={token} />
         </div>
-        <button className={styles.logoutBtn} onClick={onLogout} title="Log out">
-          <LogOut size={16} />
-        </button>
+        <div className={styles.footerActions} ref={themePopoverRef}>
+          <button
+            className={styles.themeToggleBtn}
+            onClick={() => setShowThemeMenu(prev => !prev)}
+            title="Color Theme"
+          >
+            <Palette size={16} />
+          </button>
+
+          {showThemeMenu && (
+            <div className={styles.themePopover}>
+              <div className={styles.themePopoverHeader}>
+                <span>Color Theme</span>
+                <Palette size={12} />
+              </div>
+              {AVAILABLE_THEMES.map(t => (
+                <button
+                  key={t.id}
+                  className={`${styles.themePopoverItem} ${currentTheme === t.id ? styles.themePopoverItemActive : ''}`}
+                  onClick={() => handleSelectTheme(t.id)}
+                >
+                  <div className={styles.themeItemLeft}>
+                    <span className={styles.themeMiniDot} style={{ background: t.accent }} />
+                    <span>{t.name}</span>
+                  </div>
+                  {currentTheme === t.id && <Check size={14} />}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <button className={styles.logoutBtn} onClick={onLogout} title="Log out">
+            <LogOut size={16} />
+          </button>
+        </div>
       </div>
     </div>
   );

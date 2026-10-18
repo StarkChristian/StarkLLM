@@ -246,3 +246,30 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* ── Character / Token Counter ── */
+.charCounter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+  padding-left: 4px;
+  width: 100%;
+  max-width: 850px;
+  animation: fadeIn 0.15s ease;
+}
+
+.charCounterDot {
+  opacity: 0.4;
+}
+
+.charCounterWarn {
+  color: #f59e0b;
+  font-weight: 600;
+}
+
+.charCounterOverLimit {
+  color: #f59e0b;
+}

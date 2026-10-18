@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { MessageSquare, Settings, Database, Code, Shield, BrainCircuit, Activity, Clock, Plus, ArrowRight, TrendingUp, MessageCircle, Zap, FileText } from 'lucide-react';
+import { MessageSquare, Settings, Database, Code, Shield, BrainCircuit, Activity, Clock, Plus, ArrowRight, TrendingUp, MessageCircle, Zap, FileText, History } from 'lucide-react';
 import styles from './Dashboard.module.css';
 import DateTimeWidget from './DateTimeWidget';
 import MarketPricesWidget from './MarketPricesWidget';
 import SystemStatusWidget from './SystemStatusWidget';
 import EmptyState from './EmptyState';
 
-export default function Dashboard({ token, username, workspaces, onNewWorkspace, onViewChange, onSelectWorkspace }) {
+export default function Dashboard({ token, username, workspaces, onNewWorkspace, onViewChange, onSelectWorkspace, chats = [], onSelectChat }) {
   const [stats, setStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(true);
 
@@ -45,6 +45,10 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
 
     class Particle {
       constructor() {
+        this.reset();
+        this.y = Math.random() * canvas.height; // start anywhere vertically
+      }
+      reset() {
         this.x = Math.random() * canvas.width;
         this.y = Math.random() * canvas.height;
         this.vx = (Math.random() - 0.5) * 0.5;
@@ -59,10 +63,14 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
         if (this.y < 0 || this.y > canvas.height) this.vy = -this.vy;
       }
       draw() {
+        // Use CSS accent color if available
+        const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#4f46e5';
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(212, 175, 55, 0.95)';
+        ctx.fillStyle = accentColor;
+        ctx.globalAlpha = 0.65;
         ctx.fill();
+        ctx.globalAlpha = 1;
       }
     }
 
@@ -70,6 +78,7 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
     const particles = Array.from({ length: particleCount }, () => new Particle());
 
     const drawLines = () => {
+      const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#4f46e5';
       for (let i = 0; i < particles.length; i++) {
         for (let j = i + 1; j < particles.length; j++) {
           const dx = particles[i].x - particles[j].x;
@@ -80,7 +89,11 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
             ctx.beginPath();
             ctx.moveTo(particles[i].x, particles[i].y);
             ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.strokeStyle = `rgba(212, 175, 55, ${0.45 * (1 - dist / 120)})`;
+            // parse hex accent color
+            const r = parseInt(accentColor.slice(1, 3), 16) || 79;
+            const g = parseInt(accentColor.slice(3, 5), 16) || 70;
+            const b = parseInt(accentColor.slice(5, 7), 16) || 229;
+            ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${0.35 * (1 - dist / 120)})`;
             ctx.lineWidth = 1.1;
             ctx.stroke();
           }
@@ -161,11 +174,13 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
 
 
   const quickActions = [
-    { label: 'New Workspace', icon: MessageSquare, color: '#6366f1', onClick: onNewWorkspace },
+    { label: 'New Workspace', icon: Plus, color: '#6366f1', onClick: onNewWorkspace },
     { label: 'Open Chat', icon: MessageSquare, color: '#818cf8', onClick: () => onViewChange('chat') },
     { label: 'Knowledge Base', icon: Database, color: '#8b5cf6', onClick: () => onViewChange('knowledge-base') },
-    { label: 'Settings', icon: Zap, color: '#06b6d4', onClick: () => onViewChange('settings') },
+    { label: 'Settings', icon: Settings, color: '#06b6d4', onClick: () => onViewChange('settings') },
   ];
+
+  const recentChats = chats.slice(0, 5);
 
   return (
     <div className={styles.page}>
@@ -228,45 +243,43 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
           </div>
         </div>
 
-        {/* Workspace overview */}
+        {/* Recent Chats */}
         <div className={styles.card}>
           <div className={styles.cardHeader}>
-            <Clock size={16} />
-            Workspaces
+            <History size={16} />
+            Recent Chats
             <button
               className={styles.cardAction}
-              onClick={onNewWorkspace}
+              onClick={() => onViewChange('chat')}
             >
-              <Plus size={14} /> New
+              View All
             </button>
           </div>
-          {workspaces.length === 0 ? (
-            <EmptyState 
-              icon={MessageSquare} 
-              title="No workspaces yet." 
-              action={{ label: 'Create First Workspace', onClick: onNewWorkspace }} 
+          {recentChats.length === 0 ? (
+            <EmptyState
+              icon={MessageCircle}
+              title="No chats yet."
+              action={{ label: 'Start a Chat', onClick: () => onViewChange('chat') }}
             />
           ) : (
             <div className={styles.wsList}>
-              {workspaces.slice(0, 6).map(ws => (
+              {recentChats.map(chat => (
                 <div
-                  key={ws.id}
+                  key={chat.id}
                   className={styles.wsRow}
                   onClick={() => {
-                    if (onSelectWorkspace) onSelectWorkspace(ws);
+                    if (onSelectChat) onSelectChat(chat);
                     onViewChange('chat');
                   }}
                 >
-                  <div className={styles.wsRowIcon}><MessageSquare size={14} /></div>
-                  <span className={styles.wsRowName}>{ws.name}</span>
+                  <div className={styles.wsRowIcon} style={{ background: 'rgba(167,139,250,0.12)', color: '#a78bfa' }}>
+                    <MessageCircle size={14} />
+                  </div>
+                  <span className={styles.wsRowName}>{chat.title || 'Untitled Chat'}</span>
+                  {chat.is_pinned && <span style={{ fontSize: '0.65rem', color: '#818cf8', marginRight: 2 }}>📌</span>}
                   <ArrowRight size={13} className={styles.wsRowArrow} />
                 </div>
               ))}
-              {workspaces.length > 6 && (
-                <p className={styles.wsMore} onClick={() => onViewChange('chat')}>
-                  +{workspaces.length - 6} more — open chat to see all
-                </p>
-              )}
             </div>
           )}
         </div>
