@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import styles from './DocumentManager.module.css';
 import { 
   X, FileText, Trash2, Eye, Calendar, HardDrive, File, 
-  CheckCircle2, AlertTriangle, RefreshCw, Loader, XCircle
+  CheckCircle2, AlertTriangle, RefreshCw, Loader, XCircle,
+  Globe, Link2, Plus, ArrowRight
 } from 'lucide-react';
 import { useToast } from './Toast';
 
@@ -114,11 +115,47 @@ export default function DocumentManager({
   const [reindexingIds, setReindexingIds] = useState(new Set());
   const [reindexSuccessIds, setReindexSuccessIds] = useState(new Set());
 
+  // Web URL Ingestion State
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [webUrl, setWebUrl] = useState('');
+  const [ingestingUrl, setIngestingUrl] = useState(false);
+
+  const handleIngestUrl = async (e) => {
+    e.preventDefault();
+    if (!webUrl.trim()) return;
+    setIngestingUrl(true);
+    try {
+      const res = await fetch(`/api/v1/documents/${workspaceId}/ingest-url`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ url: webUrl.trim() })
+      });
+      if (res.ok) {
+        toast.success("Webpage queued for indexing!");
+        setWebUrl('');
+        setShowUrlInput(false);
+      } else {
+        const err = await res.json();
+        toast.error(`Ingest failed: ${err.detail || 'Could not fetch URL'}`);
+      }
+    } catch (err) {
+      console.error("Error ingesting URL:", err);
+      toast.error("Network error while connecting to URL.");
+    } finally {
+      setIngestingUrl(false);
+    }
+  };
+
   useEffect(() => {
     if (!isOpen) {
       setSelectedDoc(null);
       setPreviewText("");
       setDeleteConfirmId(null);
+      setShowUrlInput(false);
+      setWebUrl('');
     }
   }, [isOpen]);
 
@@ -209,11 +246,54 @@ export default function DocumentManager({
       <div className={styles.modal} onClick={e => e.stopPropagation()}>
         {/* ── Header ── */}
         <div className={styles.header}>
-          <h2>Workspace Documents</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <h2>Workspace Documents</h2>
+            <button 
+              className="badge badge-accent"
+              style={{ cursor: 'pointer', padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+              onClick={() => setShowUrlInput(!showUrlInput)}
+            >
+              <Globe size={13} />
+              <span>{showUrlInput ? 'Cancel URL' : '+ Ingest URL / Web'}</span>
+            </button>
+          </div>
           <button className={styles.closeBtn} onClick={onClose} title="Close">
             <X size={20} />
           </button>
         </div>
+
+        {/* ── Ingest Web URL Form ── */}
+        {showUrlInput && (
+          <form onSubmit={handleIngestUrl} style={{
+            padding: '12px 24px',
+            background: 'rgba(99, 102, 241, 0.08)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            display: 'flex',
+            gap: '10px',
+            alignItems: 'center'
+          }}>
+            <Globe size={16} color="var(--accent-bright)" />
+            <input 
+              type="url"
+              className="input-field"
+              placeholder="https://example.com/article-or-documentation..."
+              value={webUrl}
+              onChange={e => setWebUrl(e.target.value)}
+              disabled={ingestingUrl}
+              autoFocus
+              style={{ flex: 1, padding: '8px 12px', fontSize: '0.85rem' }}
+            />
+            <button 
+              type="submit"
+              className="btn-primary"
+              disabled={!webUrl.trim() || ingestingUrl}
+              style={{ padding: '8px 16px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
+            >
+              {ingestingUrl ? <Loader size={14} className="animate-spin" /> : <ArrowRight size={14} />}
+              <span>{ingestingUrl ? 'Crawling...' : 'Index Webpage'}</span>
+            </button>
+          </form>
+        )}
         
         {/* ── Body ── */}
         <div className={styles.content}>

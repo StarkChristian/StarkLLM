@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db, SessionLocal
 from app.db import models
 from app.db.models import DocStatus
-from app.services.rag_service import rag_service
+import re
+from pydantic import BaseModel
+from app.services.rag_service import rag_service, HTMLTextExtractor
 from app.core.config import settings
 from app.api.auth import get_current_user
 
@@ -144,6 +146,109 @@ async def upload_document(
         "created_at": doc.created_at.isoformat() if doc.created_at else None,
         "file_size": actual_size,
     }
+
+
+class IngestUrlRequest(BaseModel):
+    url: str
+
+
+@router.post("/{workspace_id}/ingest-url")
+async def ingest_url(
+    workspace_id: int,
+    req: IngestUrlRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    Fetch and ingest an external webpage URL into the Workspace RAG.
+    Extracts text, strips scripts/styles, saves as a clean Markdown/HTML file, and indexes in background.
+    """
+    ws = db.query(models.Workspace).filter(
+        models.Workspace.id == workspace_id,
+        models.Workspace.user_id == current_user.id
+    ).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    target_url = req.url.strip()
+    if not target_url.startswith("http://") and not target_url.startswith("https://"):
+        raise HTTPException(status_code=400, detail="Invalid URL. Must begin with http:// or https://")
+
+    # Fetch webpage content
+    import urllib.request
+    import hashlib
+    import time
+    from urllib.parse import urlparse
+
+    try:
+        http_req = urllib.request.Request(
+            target_url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) StarkLLM-Scraper/1.0"
+            }
+        )
+        with urllib.request.urlopen(http_req, timeout=20) as resp:
+            content_bytes = resp.read()
+            html_raw = content_bytes.decode("utf-8", errors="replace")
+    except Exception as e:
+        logger.error(f"Failed to fetch URL {target_url}: {e}")
+        raise HTTPException(status_code=400, detail=f"Could not fetch URL: {str(e)[:200]}")
+
+    # Extract text and title
+    title_match = re.search(r"<title>(.*?)</title>", html_raw, re.IGNORECASE | re.DOTALL)
+    page_title = title_match.group(1).strip() if title_match else urlparse(target_url).netloc
+    page_title = re.sub(r'[\\/*?:"<>|]', "", page_title)[:60]
+
+    extractor = HTMLTextExtractor()
+    extractor.feed(html_raw)
+    clean_text = extractor.get_data().strip()
+
+    if not clean_text or len(clean_text) < 30:
+        raise HTTPException(status_code=400, detail="Webpage contains no indexable text content.")
+
+    # Save to upload dir as Markdown
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+    unique_prefix = hashlib.md5(f"{workspace_id}_{time.time()}".encode()).hexdigest()[:8]
+    safe_filename = f"{page_title or 'webpage'}.md"
+    file_disk_name = f"{unique_prefix}_{safe_filename}"
+    file_path = os.path.join(settings.UPLOAD_DIR, file_disk_name)
+
+    markdown_content = f"# {page_title}\n\n**Source URL:** {target_url}\n\n---\n\n{clean_text}"
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(markdown_content)
+
+    actual_size = os.path.getsize(file_path)
+
+    doc = models.Document(
+        workspace_id=workspace_id,
+        filename=safe_filename,
+        filepath=file_path,
+        file_type="md",
+        status=DocStatus.UPLOADING,
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+
+    thread = threading.Thread(
+        target=_index_document_background,
+        args=(doc.id, workspace_id, current_user.id, file_path),
+        daemon=True,
+    )
+    thread.start()
+
+    return {
+        "id": doc.id,
+        "filename": doc.filename,
+        "filepath": doc.filepath,
+        "file_type": doc.file_type,
+        "status": doc.status,
+        "error_message": doc.error_message,
+        "created_at": doc.created_at.isoformat() if doc.created_at else None,
+        "file_size": actual_size,
+        "source_url": target_url
+    }
+
 
 
 @router.get("/{workspace_id}")
