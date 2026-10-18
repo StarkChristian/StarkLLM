@@ -364,12 +364,33 @@ class RAGService :
             logger.info (f"RAG: No chunks to store for {label }")
             return 
         embeddings =llm_service .generate_embeddings_batch (self .embedding_model ,chunks )
-        collection .add (
-        documents =chunks ,
-        embeddings =embeddings ,
-        metadatas =metadatas ,
-        ids =ids ,
-        )
+        try:
+            collection.add(
+                documents=chunks,
+                embeddings=embeddings,
+                metadatas=metadatas,
+                ids=ids,
+            )
+        except Exception as add_err:
+            if "dimension" in str(add_err).lower():
+                logger.warning(
+                    f"RAG: Dimension mismatch for collection '{collection.name}' ({add_err}). "
+                    f"Recreating collection to match new embedding model dimensions..."
+                )
+                col_name = collection.name
+                self.chroma_client.delete_collection(col_name)
+                collection = self.chroma_client.get_or_create_collection(
+                    name=col_name,
+                    metadata={"hnsw:space": "cosine"}
+                )
+                collection.add(
+                    documents=chunks,
+                    embeddings=embeddings,
+                    metadatas=metadatas,
+                    ids=ids,
+                )
+            else:
+                raise
         logger.info (
         f"RAG: Stored {len (chunks )} chunk(s) in '{collection .name }'. "
         f"Collection now has {collection .count ()} item(s)."

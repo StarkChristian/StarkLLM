@@ -9,6 +9,7 @@ from app.db.session import get_db, SessionLocal
 from app.db import models
 from app.db.models import DocStatus
 import re
+from typing import Optional, List
 from pydantic import BaseModel
 from app.services.rag_service import rag_service, HTMLTextExtractor
 from app.core.config import settings
@@ -396,6 +397,309 @@ async def ingest_youtube(
         "file_size": actual_size,
         "source_url": f"https://www.youtube.com/watch?v={video_id}",
         "video_title": video_title
+    }
+
+
+# --- GitHub Repository Connector ---
+
+class IngestGithubRequest(BaseModel):
+    repo_url: str
+    branch: Optional[str] = None
+    max_files: Optional[int] = 25
+
+
+def _parse_github_repo(url: str):
+    url = url.strip()
+    m = re.search(r"(?:https?:\/\/)?(?:www\.)?github\.com\/([^\/\s]+)\/([^\/\s#?]+)", url)
+    if m:
+        owner = m.group(1)
+        repo = m.group(2).removesuffix(".git")
+        return owner, repo
+    m2 = re.match(r"^([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)$", url)
+    if m2:
+        return m2.group(1), m2.group(2).removesuffix(".git")
+    return None, None
+
+
+@router.post("/{workspace_id}/ingest-github")
+async def ingest_github(
+    workspace_id: int,
+    req: IngestGithubRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    Fetch and ingest a GitHub repository into the Workspace RAG.
+    Parses repo tree, extracts key documentation, configuration, and source files,
+    compiles into a unified structured Markdown document, and indexes in background.
+    """
+    ws = db.query(models.Workspace).filter(
+        models.Workspace.id == workspace_id,
+        models.Workspace.user_id == current_user.id
+    ).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    owner, repo_name = _parse_github_repo(req.repo_url)
+    if not owner or not repo_name:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid GitHub repository. Format: https://github.com/owner/repo or owner/repo"
+        )
+
+    import urllib.request
+    import json
+    import hashlib
+    import time
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) StarkLLM-Agent/1.0",
+        "Accept": "application/vnd.github.v3+json"
+    }
+
+    # 1. Fetch repo metadata
+    repo_meta_url = f"https://api.github.com/repos/{owner}/{repo_name}"
+    try:
+        http_req = urllib.request.Request(repo_meta_url, headers=headers)
+        with urllib.request.urlopen(http_req, timeout=12) as resp:
+            meta = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as he:
+        if he.code == 404:
+            raise HTTPException(status_code=404, detail=f"GitHub repository '{owner}/{repo_name}' not found or is private.")
+        elif he.code == 403:
+            raise HTTPException(status_code=429, detail="GitHub API rate limit exceeded. Please wait a moment and try again.")
+        else:
+            raise HTTPException(status_code=400, detail=f"GitHub API error: {he.reason}")
+    except Exception as e:
+        logger.error(f"Failed to query GitHub API for {owner}/{repo_name}: {e}")
+        raise HTTPException(status_code=400, detail=f"Could not connect to GitHub: {str(e)[:200]}")
+
+    default_branch = req.branch or meta.get("default_branch", "main")
+    description = meta.get("description") or "No description provided."
+    stars = meta.get("stargazers_count", 0)
+    language = meta.get("language") or "General"
+    topics = ", ".join(meta.get("topics", [])) or "None"
+
+    # 2. Fetch git tree recursively
+    tree_url = f"https://api.github.com/repos/{owner}/{repo_name}/git/trees/{default_branch}?recursive=1"
+    try:
+        http_req = urllib.request.Request(tree_url, headers=headers)
+        with urllib.request.urlopen(http_req, timeout=15) as resp:
+            tree_data = json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        logger.error(f"Failed to fetch git tree for {owner}/{repo_name} ({default_branch}): {e}")
+        raise HTTPException(status_code=400, detail=f"Could not fetch file tree for branch '{default_branch}': {str(e)[:200]}")
+
+    raw_tree = tree_data.get("tree", [])
+    if not raw_tree:
+        raise HTTPException(status_code=400, detail="Repository appears to be empty.")
+
+    # 3. Filter files
+    EXCLUDED_PREFIXES = (
+        ".git/", "node_modules/", "dist/", "build/", "vendor/", "__pycache__/",
+        ".next/", "venv/", ".venv/", "env/", ".idea/", ".vscode/", "coverage/",
+        "target/", ".github/workflows/"
+    )
+    EXCLUDED_FILENAMES = {
+        "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "cargo.lock",
+        "poetry.lock", "composer.lock", "gemfile.lock"
+    }
+    ALLOWED_EXTENSIONS = {
+        ".py", ".js", ".jsx", ".ts", ".tsx", ".md", ".json", ".yaml", ".yml",
+        ".go", ".rs", ".html", ".css", ".sql", ".sh", ".txt", ".toml", ".rst",
+        ".cpp", ".c", ".h", ".cs", ".java", ".rb", ".php"
+    }
+
+    candidate_files = []
+    for item in raw_tree:
+        if item.get("type") != "blob":
+            continue
+        p = item.get("path", "")
+        if any(p.startswith(prefix) for prefix in EXCLUDED_PREFIXES):
+            continue
+        fname = os.path.basename(p).lower()
+        if fname in EXCLUDED_FILENAMES:
+            continue
+        _, ext = os.path.splitext(fname)
+        if ext in ALLOWED_EXTENSIONS or fname in ("readme", "license", "dockerfile"):
+            size = item.get("size", 0)
+            if size <= 120_000:
+                candidate_files.append((p, size))
+
+    if not candidate_files:
+        raise HTTPException(status_code=400, detail="No readable text or code files found in this repository.")
+
+    def file_priority(item):
+        path = item[0].lower()
+        if "readme" in path:
+            return 0
+        if "architecture" in path or "contributing" in path:
+            return 1
+        if path.startswith("docs/"):
+            return 2
+        if any(path.endswith(ext) for ext in (".py", ".js", ".ts", ".jsx", ".tsx", ".go", ".rs")):
+            return 3
+        return 4
+
+    candidate_files.sort(key=file_priority)
+    max_count = min(req.max_files or 20, 30)
+    selected_files = candidate_files[:max_count]
+
+    # 4. Fetch content for each selected file
+    file_sections = []
+    file_tree_list = [p for p, _ in candidate_files[:50]]
+
+    for path, _ in selected_files:
+        raw_url = f"https://raw.githubusercontent.com/{owner}/{repo_name}/{default_branch}/{path}"
+        try:
+            raw_req = urllib.request.Request(raw_url, headers={"User-Agent": "StarkLLM-Scraper/1.0"})
+            with urllib.request.urlopen(raw_req, timeout=10) as raw_resp:
+                content = raw_resp.read().decode("utf-8", errors="replace")
+                ext = path.rsplit(".", 1)[-1] if "." in path else ""
+                file_sections.append(f"### File: `{path}`\n```{ext}\n{content}\n```")
+        except Exception as err:
+            logger.warning(f"Could not fetch file {path}: {err}")
+
+    if not file_sections:
+        raise HTTPException(status_code=400, detail="Failed to fetch contents of repository files.")
+
+    # 5. Assemble Markdown
+    tree_preview = "\n".join(f"- `{f}`" for f in file_tree_list[:30])
+    if len(file_tree_list) > 30:
+        tree_preview += f"\n- ... and {len(file_tree_list) - 30} more files"
+
+    markdown_content = (
+        f"# GitHub Repository: {owner}/{repo_name}\n\n"
+        f"**Repository URL:** https://github.com/{owner}/{repo_name}\n\n"
+        f"**Description:** {description}\n\n"
+        f"**Default Branch:** {default_branch} | **Primary Language:** {language} | **Stars:** {stars}\n\n"
+        f"**Topics:** {topics}\n\n"
+        f"---\n\n"
+        f"## Repository File Structure\n\n"
+        f"{tree_preview}\n\n"
+        f"---\n\n"
+        f"## Source Code and Documentation ({len(file_sections)} files indexed)\n\n"
+        + "\n\n---\n\n".join(file_sections)
+    )
+
+    safe_title = f"{owner}_{repo_name}_repo"
+    safe_filename = f"{safe_title}.md"
+    unique_prefix = hashlib.md5(f"gh_{owner}_{repo_name}_{time.time()}".encode()).hexdigest()[:8]
+    file_disk_name = f"{unique_prefix}_{safe_filename}"
+    file_path = os.path.join(settings.UPLOAD_DIR, file_disk_name)
+
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(markdown_content)
+
+    actual_size = os.path.getsize(file_path)
+
+    doc = models.Document(
+        workspace_id=workspace_id,
+        filename=safe_filename,
+        filepath=file_path,
+        file_type="md",
+        status=DocStatus.UPLOADING,
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+
+    thread = threading.Thread(
+        target=_index_document_background,
+        args=(doc.id, workspace_id, current_user.id, file_path),
+        daemon=True,
+    )
+    thread.start()
+
+    return {
+        "id": doc.id,
+        "filename": doc.filename,
+        "filepath": doc.filepath,
+        "file_type": doc.file_type,
+        "status": doc.status,
+        "error_message": doc.error_message,
+        "created_at": doc.created_at.isoformat() if doc.created_at else None,
+        "file_size": actual_size,
+        "source_url": f"https://github.com/{owner}/{repo_name}",
+        "repo_name": f"{owner}/{repo_name}"
+    }
+
+
+# --- Quick Note / Raw Text Ingestion ---
+
+class IngestNoteRequest(BaseModel):
+    title: str
+    content: str
+
+
+@router.post("/{workspace_id}/ingest-note")
+async def ingest_note(
+    workspace_id: int,
+    req: IngestNoteRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    Ingest a direct custom text note or markdown snippet into the Workspace RAG.
+    """
+    ws = db.query(models.Workspace).filter(
+        models.Workspace.id == workspace_id,
+        models.Workspace.user_id == current_user.id
+    ).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    title = req.title.strip() if req.title else "Untitled Note"
+    content = req.content.strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Note content cannot be empty.")
+
+    import hashlib
+    import time
+
+    safe_title = re.sub(r'[\\/*?:"<>|]', "", title)[:60].strip() or "note"
+    safe_filename = f"{safe_title}.md"
+    unique_prefix = hashlib.md5(f"note_{workspace_id}_{time.time()}".encode()).hexdigest()[:8]
+    file_disk_name = f"{unique_prefix}_{safe_filename}"
+    file_path = os.path.join(settings.UPLOAD_DIR, file_disk_name)
+
+    markdown_content = f"# {title}\n\n---\n\n{content}"
+
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(markdown_content)
+
+    actual_size = os.path.getsize(file_path)
+
+    doc = models.Document(
+        workspace_id=workspace_id,
+        filename=safe_filename,
+        filepath=file_path,
+        file_type="md",
+        status=DocStatus.UPLOADING,
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+
+    thread = threading.Thread(
+        target=_index_document_background,
+        args=(doc.id, workspace_id, current_user.id, file_path),
+        daemon=True,
+    )
+    thread.start()
+
+    return {
+        "id": doc.id,
+        "filename": doc.filename,
+        "filepath": doc.filepath,
+        "file_type": doc.file_type,
+        "status": doc.status,
+        "error_message": doc.error_message,
+        "created_at": doc.created_at.isoformat() if doc.created_at else None,
+        "file_size": actual_size,
+        "title": title
     }
 
 

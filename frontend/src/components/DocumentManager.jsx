@@ -3,7 +3,7 @@ import styles from './DocumentManager.module.css';
 import { 
   X, FileText, Trash2, Eye, Calendar, HardDrive, File, 
   CheckCircle2, AlertTriangle, RefreshCw, Loader, XCircle,
-  Globe, Link2, Plus, ArrowRight, Video
+  Globe, Link2, Plus, ArrowRight, Video, GitBranch, StickyNote
 } from 'lucide-react';
 import { useToast } from './Toast';
 
@@ -115,10 +115,13 @@ export default function DocumentManager({
   const [reindexingIds, setReindexingIds] = useState(new Set());
   const [reindexSuccessIds, setReindexSuccessIds] = useState(new Set());
 
-  // Connectors State ('web' | 'youtube' | null)
+  // Connectors State ('web' | 'youtube' | 'github' | 'note' | null)
   const [activeConnector, setActiveConnector] = useState(null);
   const [webUrl, setWebUrl] = useState('');
   const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [githubUrl, setGithubUrl] = useState('');
+  const [noteTitle, setNoteTitle] = useState('');
+  const [noteContent, setNoteContent] = useState('');
   const [isIngesting, setIsIngesting] = useState(false);
 
   const handleIngestUrl = async (e) => {
@@ -179,6 +182,68 @@ export default function DocumentManager({
     }
   };
 
+  const handleIngestGithub = async (e) => {
+    e.preventDefault();
+    if (!githubUrl.trim()) return;
+    setIsIngesting(true);
+    try {
+      const res = await fetch(`/api/v1/documents/${workspaceId}/ingest-github`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ repo_url: githubUrl.trim() })
+      });
+      if (res.ok) {
+        toast.success("GitHub repository queued for indexing!");
+        setGithubUrl('');
+        setActiveConnector(null);
+      } else {
+        const err = await res.json();
+        toast.error(`Ingest failed: ${err.detail || 'Could not fetch GitHub repo'}`);
+      }
+    } catch (err) {
+      console.error("Error ingesting GitHub:", err);
+      toast.error("Network error while connecting to GitHub.");
+    } finally {
+      setIsIngesting(false);
+    }
+  };
+
+  const handleIngestNote = async (e) => {
+    e.preventDefault();
+    if (!noteContent.trim()) return;
+    setIsIngesting(true);
+    try {
+      const res = await fetch(`/api/v1/documents/${workspaceId}/ingest-note`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          title: noteTitle.trim() || 'Quick Note',
+          content: noteContent.trim()
+        })
+      });
+      if (res.ok) {
+        toast.success("Note saved and queued for indexing!");
+        setNoteTitle('');
+        setNoteContent('');
+        setActiveConnector(null);
+      } else {
+        const err = await res.json();
+        toast.error(`Ingest failed: ${err.detail || 'Could not save note'}`);
+      }
+    } catch (err) {
+      console.error("Error ingesting note:", err);
+      toast.error("Network error while saving note.");
+    } finally {
+      setIsIngesting(false);
+    }
+  };
+
   useEffect(() => {
     if (!isOpen) {
       setSelectedDoc(null);
@@ -187,6 +252,9 @@ export default function DocumentManager({
       setActiveConnector(null);
       setWebUrl('');
       setYoutubeUrl('');
+      setGithubUrl('');
+      setNoteTitle('');
+      setNoteContent('');
     }
   }, [isOpen]);
 
@@ -314,6 +382,42 @@ export default function DocumentManager({
               <Video size={13} />
               <span>{activeConnector === 'youtube' ? 'Close YouTube' : '+ YouTube Video'}</span>
             </button>
+
+            <button 
+              className="badge badge-accent"
+              style={{ 
+                cursor: 'pointer', 
+                padding: '5px 10px', 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                gap: '5px',
+                background: activeConnector === 'github' ? '#10b981' : undefined,
+                color: activeConnector === 'github' ? '#fff' : undefined,
+                borderColor: activeConnector === 'github' ? '#10b981' : undefined
+              }}
+              onClick={() => setActiveConnector(activeConnector === 'github' ? null : 'github')}
+            >
+              <GitBranch size={13} />
+              <span>{activeConnector === 'github' ? 'Close GitHub' : '+ GitHub Repo'}</span>
+            </button>
+
+            <button 
+              className="badge badge-accent"
+              style={{ 
+                cursor: 'pointer', 
+                padding: '5px 10px', 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                gap: '5px',
+                background: activeConnector === 'note' ? '#f59e0b' : undefined,
+                color: activeConnector === 'note' ? '#fff' : undefined,
+                borderColor: activeConnector === 'note' ? '#f59e0b' : undefined
+              }}
+              onClick={() => setActiveConnector(activeConnector === 'note' ? null : 'note')}
+            >
+              <StickyNote size={13} />
+              <span>{activeConnector === 'note' ? 'Close Note' : '+ New Note'}</span>
+            </button>
           </div>
           <button className={styles.closeBtn} onClick={onClose} title="Close">
             <X size={20} />
@@ -391,6 +495,99 @@ export default function DocumentManager({
               {isIngesting ? <Loader size={14} className="animate-spin" /> : <ArrowRight size={14} />}
               <span>{isIngesting ? 'Fetching Transcript...' : 'Index Video'}</span>
             </button>
+          </form>
+        )}
+
+        {/* ── Ingest GitHub Repo Form ── */}
+        {activeConnector === 'github' && (
+          <form onSubmit={handleIngestGithub} style={{
+            padding: '12px 24px',
+            background: 'rgba(16, 185, 129, 0.08)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            display: 'flex',
+            gap: '10px',
+            alignItems: 'center'
+          }}>
+            <GitBranch size={16} color="#10b981" />
+            <input 
+              type="text"
+              className="input-field"
+              placeholder="https://github.com/owner/repo or owner/repo..."
+              value={githubUrl}
+              onChange={e => setGithubUrl(e.target.value)}
+              disabled={isIngesting}
+              autoFocus
+              style={{ flex: 1, padding: '8px 12px', fontSize: '0.85rem' }}
+            />
+            <button 
+              type="submit"
+              className="btn-primary"
+              disabled={!githubUrl.trim() || isIngesting}
+              style={{ 
+                padding: '8px 16px', 
+                fontSize: '0.85rem', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '6px', 
+                whiteSpace: 'nowrap',
+                background: '#10b981'
+              }}
+            >
+              {isIngesting ? <Loader size={14} className="animate-spin" /> : <ArrowRight size={14} />}
+              <span>{isIngesting ? 'Analyzing Repo...' : 'Index Repository'}</span>
+            </button>
+          </form>
+        )}
+
+        {/* ── Ingest Quick Note Form ── */}
+        {activeConnector === 'note' && (
+          <form onSubmit={handleIngestNote} style={{
+            padding: '12px 24px',
+            background: 'rgba(245, 158, 11, 0.08)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
+          }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <StickyNote size={16} color="#f59e0b" />
+              <input 
+                type="text"
+                className="input-field"
+                placeholder="Note Title (e.g. API Architecture Notes, Meeting Summary)..."
+                value={noteTitle}
+                onChange={e => setNoteTitle(e.target.value)}
+                disabled={isIngesting}
+                autoFocus
+                style={{ flex: 1, padding: '7px 12px', fontSize: '0.85rem' }}
+              />
+              <button 
+                type="submit"
+                className="btn-primary"
+                disabled={!noteContent.trim() || isIngesting}
+                style={{ 
+                  padding: '7px 16px', 
+                  fontSize: '0.85rem', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '6px', 
+                  whiteSpace: 'nowrap',
+                  background: '#f59e0b'
+                }}
+              >
+                {isIngesting ? <Loader size={14} className="animate-spin" /> : <ArrowRight size={14} />}
+                <span>{isIngesting ? 'Saving Note...' : 'Save & Index Note'}</span>
+              </button>
+            </div>
+            <textarea
+              className="input-field"
+              placeholder="Paste or write your raw text, code snippet, or markdown notes here..."
+              value={noteContent}
+              onChange={e => setNoteContent(e.target.value)}
+              disabled={isIngesting}
+              rows={3}
+              style={{ width: '100%', padding: '8px 12px', fontSize: '0.82rem', fontFamily: 'monospace', resize: 'vertical' }}
+            />
           </form>
         )}
         
