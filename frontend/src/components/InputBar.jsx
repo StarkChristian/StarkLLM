@@ -8,11 +8,20 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
   const toast = useToast();
   const [text, setText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
   const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+  const recordingTimerRef = useRef(null);
+
+  const formatDuration = (sec) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
 
   const handleSend = () => {
     if (isGenerating) return;
@@ -51,6 +60,7 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
 
   const toggleRecording = async () => {
     if (isRecording) {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
       mediaRecorderRef.current?.stop();
       setIsRecording(false);
       return;
@@ -73,6 +83,7 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
         const formData = new FormData();
         formData.append('file', audioBlob, 'recording.webm');
 
+        setIsTranscribing(true);
         try {
           const response = await fetch('/api/v1/voice/transcribe', {
             method: 'POST',
@@ -87,9 +98,15 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
         } catch (error) {
           console.error(error);
           toast.error("Transcription failed: " + error.message);
+        } finally {
+          setIsTranscribing(false);
         }
       };
 
+      setRecordingDuration(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
       mediaRecorder.start();
       setIsRecording(true);
     } catch (error) {
@@ -167,14 +184,33 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
           accept=".pdf,.txt,.png,.jpg,.jpeg"
         />
 
-        <textarea
-          className={styles.textarea}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Message StarkLLM or drop a file here..."
-          rows={1}
-        />
+        {isRecording ? (
+          <div className={styles.recordingIndicator}>
+            <span className={styles.recordingPulseDot} />
+            <span className={styles.recordingText}>Listening... {formatDuration(recordingDuration)}</span>
+            <div className={styles.waveformBars}>
+              <span className={styles.bar1} />
+              <span className={styles.bar2} />
+              <span className={styles.bar3} />
+              <span className={styles.bar4} />
+              <span className={styles.bar5} />
+            </div>
+          </div>
+        ) : isTranscribing ? (
+          <div className={styles.transcribingIndicator}>
+            <Loader size={16} className={styles.spinnerIcon} />
+            <span>Transcribing audio with Whisper...</span>
+          </div>
+        ) : (
+          <textarea
+            className={styles.textarea}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Message StarkLLM or drop a file here..."
+            rows={1}
+          />
+        )}
 
         <div className={styles.actions}>
           <button
