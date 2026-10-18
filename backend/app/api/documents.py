@@ -250,6 +250,155 @@ async def ingest_url(
     }
 
 
+class IngestYoutubeRequest(BaseModel):
+    url: str
+
+
+def _extract_youtube_id(url: str):
+    url = url.strip()
+    patterns = [
+        r"(?:v=|\/v\/|youtu\.be\/|embed\/|shorts\/|^)([0-9A-Za-z_-]{11})(?:[?&/]|$)",
+    ]
+    for pattern in patterns:
+        m = re.search(pattern, url)
+        if m:
+            return m.group(1)
+    return None
+
+
+@router.post("/{workspace_id}/ingest-youtube")
+async def ingest_youtube(
+    workspace_id: int,
+    req: IngestYoutubeRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    Fetch and ingest a YouTube video transcript into the Workspace RAG.
+    Retrieves video title, extracts transcript, formats with timestamps, and indexes in background.
+    """
+    ws = db.query(models.Workspace).filter(
+        models.Workspace.id == workspace_id,
+        models.Workspace.user_id == current_user.id
+    ).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    video_id = _extract_youtube_id(req.url)
+    if not video_id:
+        raise HTTPException(status_code=400, detail="Invalid YouTube URL. Please provide a valid video link or video ID.")
+
+    import urllib.request
+    import json
+    import hashlib
+    import time
+
+    # Fetch title & author via YouTube oEmbed
+    video_title = f"YouTube Video {video_id}"
+    channel_title = "YouTube"
+    try:
+        oembed_url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
+        http_req = urllib.request.Request(
+            oembed_url,
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) StarkLLM-Scraper/1.0"}
+        )
+        with urllib.request.urlopen(http_req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            video_title = data.get("title", video_title)
+            channel_title = data.get("author_name", channel_title)
+    except Exception as e:
+        logger.warning(f"Could not fetch YouTube oEmbed title for {video_id}: {e}")
+
+    # Fetch transcript using youtube_transcript_api
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi
+        yt_api = YouTubeTranscriptApi()
+        transcript_list = yt_api.list(video_id)
+        transcript = None
+        try:
+            transcript = transcript_list.find_transcript(['en', 'fa', 'es', 'de', 'fr', 'zh', 'ja', 'ru', 'ar'])
+        except Exception:
+            for t in transcript_list:
+                transcript = t
+                break
+
+        if not transcript:
+            raise HTTPException(status_code=400, detail="No transcript or subtitles available for this YouTube video.")
+
+        fetched = transcript.fetch()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to fetch YouTube transcript for {video_id}: {e}")
+        raise HTTPException(status_code=400, detail=f"Could not extract transcript: {str(e)[:250]}")
+
+    lines = []
+    for snippet in fetched:
+        start_sec = int(snippet.start) if hasattr(snippet, 'start') else int(snippet.get('start', 0))
+        text = snippet.text if hasattr(snippet, 'text') else snippet.get('text', '')
+        m = start_sec // 60
+        s = start_sec % 60
+        lines.append(f"[{m:02d}:{s:02d}] {text}")
+
+    full_transcript_text = "\n".join(lines).strip()
+    if not full_transcript_text:
+        raise HTTPException(status_code=400, detail="Transcript is empty.")
+
+    safe_title = re.sub(r'[\\/*?:"<>|]', "", video_title)[:60].strip() or f"youtube_{video_id}"
+    safe_filename = f"{safe_title}.md"
+    unique_prefix = hashlib.md5(f"yt_{video_id}_{time.time()}".encode()).hexdigest()[:8]
+    file_disk_name = f"{unique_prefix}_{safe_filename}"
+    file_path = os.path.join(settings.UPLOAD_DIR, file_disk_name)
+
+    lang_name = transcript.language if hasattr(transcript, 'language') else 'Unknown'
+    markdown_content = (
+        f"# {video_title}\n\n"
+        f"**Channel:** {channel_title}\n\n"
+        f"**Source Video:** https://www.youtube.com/watch?v={video_id}\n\n"
+        f"**Language:** {lang_name}\n\n"
+        f"---\n\n"
+        f"## Transcript\n\n"
+        f"{full_transcript_text}\n"
+    )
+
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(markdown_content)
+
+    actual_size = os.path.getsize(file_path)
+
+    doc = models.Document(
+        workspace_id=workspace_id,
+        filename=safe_filename,
+        filepath=file_path,
+        file_type="md",
+        status=DocStatus.UPLOADING,
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+
+    thread = threading.Thread(
+        target=_index_document_background,
+        args=(doc.id, workspace_id, current_user.id, file_path),
+        daemon=True,
+    )
+    thread.start()
+
+    return {
+        "id": doc.id,
+        "filename": doc.filename,
+        "filepath": doc.filepath,
+        "file_type": doc.file_type,
+        "status": doc.status,
+        "error_message": doc.error_message,
+        "created_at": doc.created_at.isoformat() if doc.created_at else None,
+        "file_size": actual_size,
+        "source_url": f"https://www.youtube.com/watch?v={video_id}",
+        "video_title": video_title
+    }
+
+
 
 @router.get("/{workspace_id}")
 def get_documents(

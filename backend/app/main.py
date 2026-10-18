@@ -107,6 +107,10 @@ def health_check():
 # Include routers
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
+# Mount OpenAI-compatible developer API endpoints directly at /v1
+from app.api.openai_compat import router as openai_compat_router
+app.include_router(openai_compat_router, prefix="/v1", tags=["OpenAI Compatible"])
+
 from app.services.kb_service import kb_service
 
 @app.on_event("startup")

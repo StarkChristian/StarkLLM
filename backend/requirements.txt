@@ -27,3 +27,4 @@ alembic
 python-docx
 ddgs
 httpx
+youtube-transcript-api
