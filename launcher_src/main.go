@@ -260,8 +260,8 @@ func main() {
 	}
 
 	fmt.Println()
-	fmt.Println("Opening StarkLLM Dashboard (http://localhost:5173)...")
-	openBrowser("http://localhost:5173")
+	fmt.Println("Launching StarkLLM Desktop Application Window...")
+	launchDesktopWindow(exeDir, "http://localhost:5173")
 
 	// 8. Knowledge Base sync resume and folder picker (Windows only)
 	if backendReady && runtime.GOOS == "windows" {
@@ -437,17 +437,47 @@ func writePreflightReport(r PreflightReport) {
 	_ = os.WriteFile("preflight_report.txt", []byte(content), 0644)
 }
 
-func openBrowser(url string) {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
-	case "darwin":
-		cmd = exec.Command("open", url)
-	default:
-		cmd = exec.Command("xdg-open", url)
+func launchDesktopWindow(exeDir, url string) {
+	if runtime.GOOS == "windows" {
+		// 1. Check unpacked Electron native desktop application
+		electronApp := filepath.Join(exeDir, "desktop", "dist", "win-unpacked", "StarkLLM.exe")
+		if _, err := os.Stat(electronApp); err == nil {
+			cmd := exec.Command(electronApp)
+			_ = cmd.Start()
+			return
+		}
+
+		// 2. Check bundled standalone executable in root
+		rootApp := filepath.Join(exeDir, "StarkLLM.exe")
+		if _, err := os.Stat(rootApp); err == nil {
+			cmd := exec.Command(rootApp)
+			_ = cmd.Start()
+			return
+		}
+
+		// 3. Native App Window via Edge (Frameless standalone application window)
+		edgePath := `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`
+		if _, err := os.Stat(edgePath); err == nil {
+			appData := os.Getenv("LOCALAPPDATA")
+			userProfile := filepath.Join(appData, "StarkLLM", "AppProfile")
+			cmd := exec.Command(edgePath, "--app="+url, "--window-size=1440,900", "--user-data-dir="+userProfile)
+			_ = cmd.Start()
+			return
+		}
+
+		// 4. Default browser fallback
+		cmd := exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+		_ = cmd.Start()
+		return
 	}
-	_ = cmd.Start()
+
+	if runtime.GOOS == "darwin" {
+		cmd := exec.Command("open", url)
+		_ = cmd.Start()
+	} else {
+		cmd := exec.Command("xdg-open", url)
+		_ = cmd.Start()
+	}
 }
 
 func pauseAndExit(code int) {

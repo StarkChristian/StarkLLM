@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>StarkLLM</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #05070a;
+      color: #f1f5f9;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+      user-select: none;
+      -webkit-app-region: drag;
+    }
+    .splash-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 2.5rem;
+      border-radius: 20px;
+      background: rgba(18, 22, 34, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+      width: 420px;
+    }
+    .logo-img {
+      width: 80px;
+      height: 80px;
+      border-radius: 18px;
+      margin-bottom: 1.2rem;
+      box-shadow: 0 0 30px rgba(99, 102, 241, 0.4);
+      animation: pulse 2.5s infinite ease-in-out;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 20px rgba(99, 102, 241, 0.4)); }
+      50% { transform: scale(1.04); filter: drop-shadow(0 0 35px rgba(139, 92, 246, 0.6)); }
+    }
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 0.3rem;
+      background: linear-gradient(135deg, #fff 30%, #818cf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle {
+      font-size: 0.85rem;
+      color: #94a3b8;
+      margin-bottom: 1.8rem;
+    }
+    .spinner-ring {
+      width: 36px;
+      height: 36px;
+      border: 3px solid rgba(99, 102, 241, 0.2);
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin 1s infinite linear;
+      margin-bottom: 1.2rem;
+    }
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+    .status-text {
+      font-size: 0.82rem;
+      color: #cbd5e1;
+      min-height: 20px;
+    }
+    .badge-v2 {
+      display: inline-block;
+      margin-top: 1.2rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      color: #a5b4fc;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="splash-container">
+    <img src="assets/Logo.png" alt="StarkLLM Logo" class="logo-img" />
+    <h1>StarkLLM</h1>
+    <p class="subtitle">100% Private Local AI for Windows</p>
+    <div class="spinner-ring"></div>
+    <div class="status-text" id="statusMsg">Connecting to local engine...</div>
+    <span class="badge-v2">Desktop v2.0.0</span>
+  </div>
+</body>
+</html>

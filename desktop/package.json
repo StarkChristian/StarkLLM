@@ -1,0 +1,42 @@
+{
+  "name": "starkllm-desktop",
+  "version": "2.0.0",
+  "description": "StarkLLM Standalone Native Desktop Application",
+  "main": "main.js",
+  "author": "Christian Stark",
+  "license": "Apache-2.0",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win --x64"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.starkllm.desktop",
+    "productName": "StarkLLM",
+    "copyright": "Copyright © 2026 Christian Stark",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "StarkLLM",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "artifactName": "StarkLLM-v${version}-Setup.${ext}"
+    }
+  }
+}

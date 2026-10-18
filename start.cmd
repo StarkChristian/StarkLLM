@@ -124,12 +124,20 @@ goto poll_loop
 
 :open_browser
 echo.
-echo Opening StarkLLM in your browser (http://localhost:5173)...
-start http://localhost:5173
+echo Launching StarkLLM Desktop Application Window...
+if exist "%~dp0desktop\dist\win-unpacked\StarkLLM.exe" (
+    start "" "%~dp0desktop\dist\win-unpacked\StarkLLM.exe"
+) else if exist "%~dp0StarkLLM.exe" (
+    start "" "%~dp0StarkLLM.exe"
+) else if exist "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" (
+    start "" "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" --app=http://localhost:5173 --window-size=1440,900 --user-data-dir="%LOCALAPPDATA%\StarkLLM\AppProfile"
+) else (
+    start http://localhost:5173
+)
 echo.
 echo ==================================================
-echo  StarkLLM is running!
-echo  Access: http://localhost:5173
+echo  StarkLLM Desktop v2.0.0 is running!
+echo  Standalone Desktop Window Active
 echo ==================================================
 echo.
 pause
