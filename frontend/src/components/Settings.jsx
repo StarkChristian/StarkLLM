@@ -1373,7 +1373,7 @@ print(response.choices[0].message.content)`;
               <div className={styles.aboutCard}>
                 <div className={styles.aboutHeader}>
                   <h4>StarkLLM</h4>
-                  <span className={styles.aboutVersion}>v1.0.0-beta (Snapshot: 2026-09-09)</span>
+                  <span className={styles.aboutVersion}>v1.0.0-beta (Snapshot: 2026-10-18)</span>
                 </div>
                 
                 <p className={styles.aboutText}>
