@@ -1,11 +1,41 @@
 import React, { useEffect, useRef, useState } from 'react';
 import styles from './ChatArea.module.css';
-import { User, Bot, Volume2, Square, Database, Copy, Check, Globe, RefreshCw, Edit2, Download, FileText, AlertTriangle } from 'lucide-react';
+import { 
+  User, Bot, Volume2, Square, Database, Copy, Check, Globe, RefreshCw, 
+  Edit2, Download, FileText, AlertTriangle, Sparkles, Code, BookOpen 
+} from 'lucide-react';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css';
 import { useToast } from './Toast';
 import ToolCallCard from './ToolCallCard';
+
+const STARTER_PROMPTS = [
+  {
+    icon: Sparkles,
+    title: "Deep Tech Explainer",
+    desc: "Explain Homomorphic Encryption & ZK Proofs simply",
+    prompt: "Can you explain how Homomorphic Encryption and Zero-Knowledge Proofs work together to preserve privacy in modern AI, in simple terms?"
+  },
+  {
+    icon: Code,
+    title: "Code Architecture & Review",
+    desc: "Analyze code for performance bottlenecks & security",
+    prompt: "Act as a principal software architect. Review my codebase architecture and suggest optimizations for concurrency and memory usage."
+  },
+  {
+    icon: BookOpen,
+    title: "Workspace Knowledge Query",
+    desc: "Synthesize insights and answers from indexed documents",
+    prompt: "Based on my indexed workspace documents and knowledge base, what are the primary takeaways and key insights?"
+  },
+  {
+    icon: FileText,
+    title: "Executive Strategic Briefing",
+    desc: "Draft a concise summary on local open-source AI",
+    prompt: "Draft an executive briefing summarizing recent advancements in open-weight models, local inference speed, and private enterprise AI."
+  }
+];
 
 const md = new MarkdownIt({
   html: false,
@@ -341,6 +371,7 @@ export default function ChatArea({
   onExport,
   onSummarize,
   onRetryMessage,
+  onSelectStarter,
   workspaceId,
   token
 }) {
@@ -509,6 +540,27 @@ export default function ChatArea({
           <p className={styles.welcomeSubtitle}>
             Private AI assistant with personal Knowledge Base and RAG retrieval.
           </p>
+
+          <div className={styles.suggestionsGrid}>
+            {STARTER_PROMPTS.map((item, idx) => {
+              const Icon = item.icon;
+              return (
+                <div 
+                  key={idx} 
+                  className={styles.suggestionCard}
+                  onClick={() => onSelectStarter && onSelectStarter(item.prompt)}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div className={styles.suggestionHeader}>
+                    <Icon size={16} className={styles.suggestionIcon} />
+                    <span>{item.title}</span>
+                  </div>
+                  <div className={styles.suggestionDesc}>{item.desc}</div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       ) : (
         <>
@@ -536,6 +588,12 @@ export default function ChatArea({
                     <div className={styles.exportMenu}>
                       <button onClick={() => { onExport('md'); setShowExportMenu(false); }}>
                         📄 Markdown (.md)
+                      </button>
+                      <button onClick={() => { onExport('html'); setShowExportMenu(false); }}>
+                        🖨️ Printable HTML / PDF (.html)
+                      </button>
+                      <button onClick={() => { onExport('json'); setShowExportMenu(false); }}>
+                        📋 Structured Data (.json)
                       </button>
                       <button onClick={() => { onExport('txt'); setShowExportMenu(false); }}>
                         📝 Plain Text (.txt)
