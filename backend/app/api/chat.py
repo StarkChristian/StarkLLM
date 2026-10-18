@@ -193,7 +193,8 @@ def save_partial_message(
     )
     db.add(ast_msg)
     db.commit()
-    return {"status": "saved"}
+    db.refresh(ast_msg)
+    return {"status": "saved", "message_id": ast_msg.id}
 
 
 @router.post("/")
