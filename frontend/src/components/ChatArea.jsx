@@ -3,7 +3,7 @@ import styles from './ChatArea.module.css';
 import { 
   User, Bot, Volume2, Square, Database, Copy, Check, Globe, RefreshCw, 
   Edit2, Download, FileText, AlertTriangle, Sparkles, Code, BookOpen,
-  ThumbsUp, ThumbsDown
+  ThumbsUp, ThumbsDown, Zap
 } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
@@ -410,10 +410,22 @@ const ChatMessageRenderer = React.memo(({
             </div>
           )}
         </div>
-      {msg.role !== 'system' && msg.timestamp && (
-        <span className={styles.timestamp}>
-          {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        </span>
+      {msg.role !== 'system' && (
+        <div className={styles.metaRow}>
+          {msg.timestamp && (
+            <span className={styles.timestamp}>
+              {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+          {msg.speedStats && msg.role === 'assistant' && (
+            <span className={styles.speedBadge} title={`Speed: ${msg.speedStats.tokPerSec} tok/s | ~${msg.speedStats.tokens} tokens generated in ${msg.speedStats.timeSec}s`}>
+              <Zap size={11} className={styles.speedZap} />
+              <span>{msg.speedStats.tokPerSec} tok/s</span>
+              <span className={styles.speedDot}>•</span>
+              <span>{msg.speedStats.tokens} tok</span>
+            </span>
+          )}
+        </div>
       )}
     </div>
   );

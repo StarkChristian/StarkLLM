@@ -595,6 +595,7 @@ export default function App() {
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder('utf-8');
+      const streamStartTime = performance.now();
       let fullText = '';
 
       while (true) {
@@ -617,6 +618,27 @@ export default function App() {
           return msgs;
         });
       }
+
+      const totalElapsedSec = Math.max(0.1, (performance.now() - streamStartTime) / 1000);
+      const totalWords = fullText.trim().split(/\s+/).filter(Boolean).length;
+      const totalTokens = Math.max(1, Math.round(totalWords * 1.3));
+      const tokPerSec = (totalTokens / totalElapsedSec).toFixed(1);
+
+      setMessages(prev => {
+        const msgs = [...prev];
+        const prevMsg = msgs[msgs.length - 1];
+        if (prevMsg && prevMsg.role === 'assistant') {
+          msgs[msgs.length - 1] = {
+            ...prevMsg,
+            speedStats: {
+              tokPerSec,
+              tokens: totalTokens,
+              timeSec: totalElapsedSec.toFixed(1)
+            }
+          };
+        }
+        return msgs;
+      });
 
     } catch (err) {
       if (isTimeout) {

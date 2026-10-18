@@ -39,19 +39,48 @@
   justify-content: center;
 }
 
-.timestamp {
-  width: 100%;
-  display: block;
-  font-size: 0.7rem;
-  color: var(--text-muted, rgba(255,255,255,0.3));
+.metaRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-top: 4px;
   padding-left: 52px;
 }
 
-.messageWrapper.user .timestamp {
-  text-align: right;
+.messageWrapper.user .metaRow {
+  justify-content: flex-end;
   padding-left: 0;
   padding-right: 52px;
+}
+
+.timestamp {
+  font-size: 0.7rem;
+  color: var(--text-muted, rgba(255,255,255,0.3));
+}
+
+.speedBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  border-radius: 999px;
+  color: #38bdf8;
+  font-size: 0.68rem;
+  font-family: var(--font-mono, monospace);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  user-select: none;
+  animation: fadeIn 0.25s ease-out;
+}
+
+.speedZap {
+  color: #f59e0b;
+}
+
+.speedDot {
+  opacity: 0.4;
 }
 
 .avatar {
