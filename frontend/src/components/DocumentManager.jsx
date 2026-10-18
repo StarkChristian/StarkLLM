@@ -3,7 +3,7 @@ import styles from './DocumentManager.module.css';
 import { 
   X, FileText, Trash2, Eye, Calendar, HardDrive, File, 
   CheckCircle2, AlertTriangle, RefreshCw, Loader, XCircle,
-  Globe, Link2, Plus, ArrowRight, Video, GitBranch, StickyNote
+  Globe, Link2, Plus, ArrowRight, Video, GitBranch, StickyNote, Search
 } from 'lucide-react';
 import { useToast } from './Toast';
 
@@ -123,6 +123,10 @@ export default function DocumentManager({
   const [noteTitle, setNoteTitle] = useState('');
   const [noteContent, setNoteContent] = useState('');
   const [isIngesting, setIsIngesting] = useState(false);
+
+  // Search & Filter State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState('all');
 
   const handleIngestUrl = async (e) => {
     e.preventDefault();
@@ -339,6 +343,25 @@ export default function DocumentManager({
   if (!isOpen) return null;
 
   const isInProgress = (doc) => IN_PROGRESS_STATUSES.includes(doc.status);
+
+  const filteredDocuments = documents.filter(doc => {
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const name = (doc.filename || '').toLowerCase();
+      if (!name.includes(q)) return false;
+    }
+    if (filterType === 'all') return true;
+    const fname = (doc.filename || '').toLowerCase();
+    if (filterType === 'youtube') return fname.includes('youtube');
+    if (filterType === 'github') return fname.includes('_repo.md');
+    if (filterType === 'note') return fname.endsWith('.md') && !fname.includes('youtube') && !fname.includes('_repo.md') && !fname.includes('webpage');
+    if (filterType === 'web') return fname.includes('webpage') || doc.file_type === 'html';
+    if (filterType === 'files') {
+      const ext = fname.split('.').pop();
+      return ['pdf', 'txt', 'csv', 'docx', 'xlsx', 'json'].includes(ext);
+    }
+    return true;
+  });
 
   return (
     <div className={styles.overlay} onClick={onClose}>
@@ -596,13 +619,88 @@ export default function DocumentManager({
           
           {/* ── Master List (Left) ── */}
           <div className={styles.masterList}>
-            {documents.length === 0 ? (
+            {/* ── Search & Filter Controls ── */}
+            <div style={{
+              padding: '10px 14px',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              background: 'rgba(0, 0, 0, 0.2)'
+            }}>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <Search size={13} color="#8b949e" style={{ position: 'absolute', left: '10px' }} />
+                <input
+                  type="text"
+                  placeholder="Search documents by name..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '6px 10px 6px 30px',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '6px',
+                    color: '#fff',
+                    fontSize: '0.78rem'
+                  }}
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    style={{
+                      position: 'absolute',
+                      right: '8px',
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#8b949e',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem'
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: '5px', overflowX: 'auto', paddingBottom: '2px' }}>
+                {[
+                  { id: 'all', label: `All (${documents.length})` },
+                  { id: 'files', label: 'Files' },
+                  { id: 'web', label: 'Web' },
+                  { id: 'youtube', label: 'YouTube' },
+                  { id: 'github', label: 'GitHub' },
+                  { id: 'note', label: 'Notes' }
+                ].map(f => (
+                  <button
+                    key={f.id}
+                    onClick={() => setFilterType(f.id)}
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      fontSize: '0.7rem',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      border: '1px solid',
+                      borderColor: filterType === f.id ? 'var(--accent-bright)' : 'rgba(255, 255, 255, 0.08)',
+                      background: filterType === f.id ? 'rgba(99, 102, 241, 0.25)' : 'rgba(255, 255, 255, 0.03)',
+                      color: filterType === f.id ? '#fff' : '#9ca3af'
+                    }}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {filteredDocuments.length === 0 ? (
               <div className={styles.emptyList}>
                 <FileText size={32} className={styles.emptyListIcon} />
-                <p>No documents uploaded yet.</p>
+                <p>{searchQuery || filterType !== 'all' ? 'No matching documents found.' : 'No documents uploaded yet.'}</p>
               </div>
             ) : (
-              documents.map(doc => {
+              filteredDocuments.map(doc => {
                 const isSelected = selectedDoc?.id === doc.id;
                 return (
                   <div 
