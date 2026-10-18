@@ -910,3 +910,67 @@
   background: rgba(239,68,68,0.12);
   color: var(--danger);
 }
+
+/* ── Model Section & Hub Button ── */
+.modelSection {
+  padding: 10px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.modelHubBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  border-radius: var(--radius-md);
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.modelHubBtn:hover {
+  background: rgba(99, 102, 241, 0.16);
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow: 0 0 16px rgba(99, 102, 241, 0.2);
+  transform: translateY(-1px);
+}
+
+.modelIcon {
+  color: var(--accent-bright);
+  flex-shrink: 0;
+}
+
+.modelDetails {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modelLabel {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--accent-bright);
+  text-transform: uppercase;
+}
+
+.modelValue {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.modelSparkle {
+  color: #facc15;
+  opacity: 0.8;
+  flex-shrink: 0;
+}

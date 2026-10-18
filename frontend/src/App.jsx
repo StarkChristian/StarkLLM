@@ -14,6 +14,7 @@ import SummaryModal from './components/SummaryModal';
 import WorkspaceKBModal from './components/WorkspaceKBModal';
 import HealthBanner from './components/HealthBanner';
 import OnboardingWizard from './components/OnboardingWizard';
+import ModelHubModal from './components/ModelHubModal';
 import { useToast } from './components/Toast';
 
 export default function App() {
@@ -57,6 +58,8 @@ export default function App() {
   const [showDocManager, setShowDocManager] = useState(false);
   const [showMemoryManager, setShowMemoryManager] = useState(false);
   const [showKbModal, setShowKbModal] = useState(false);
+  const [showModelHub, setShowModelHub] = useState(false);
+  const [currentModel, setCurrentModel] = useState(localStorage.getItem('default_model') || 'llama3.2:3b');
 
   // Generation state (for stop button)
   const [isGenerating, setIsGenerating] = useState(false);
@@ -528,22 +531,35 @@ export default function App() {
     };
 
     try {
-      const response = await fetch('/api/v1/chat/', {
-        method: 'POST',
-        headers: getHeaders({ 'Content-Type': 'application/json' }),
-        signal: controller.signal,
-        body: JSON.stringify({
-          workspace_id: activeWorkspace.id,
-          chat_id: activeChatId,
-          message: text,
-          stream: true,
-          use_knowledge_base: useKb,
-          use_web_search: useWebSearch,
-          use_hybrid_search: localStorage.getItem('rag_hybrid_search') !== 'false',
-          use_query_rewriting: localStorage.getItem('rag_query_rewriting') !== 'false',
-          use_context_compression: localStorage.getItem('rag_context_compression') !== 'false'
-        })
-      });
+        const savedProvider = localStorage.getItem('llm_provider') || 'ollama';
+        const savedBaseUrl = localStorage.getItem('llm_base_url') || undefined;
+        const savedApiKey = localStorage.getItem('llm_api_key') || undefined;
+        const savedCustomModel = localStorage.getItem('llm_custom_model') || undefined;
+
+        const effectiveModel = savedProvider === 'openai_compatible'
+          ? (savedCustomModel || currentModel || 'deepseek-chat')
+          : (currentModel || undefined);
+
+        const response = await fetch('/api/v1/chat/', {
+          method: 'POST',
+          headers: getHeaders({ 'Content-Type': 'application/json' }),
+          signal: controller.signal,
+          body: JSON.stringify({
+            workspace_id: activeWorkspace.id,
+            chat_id: activeChatId,
+            message: text,
+            model: effectiveModel,
+            provider: savedProvider,
+            base_url: savedBaseUrl,
+            api_key: savedApiKey,
+            stream: true,
+            use_knowledge_base: useKb,
+            use_web_search: useWebSearch,
+            use_hybrid_search: localStorage.getItem('rag_hybrid_search') !== 'false',
+            use_query_rewriting: localStorage.getItem('rag_query_rewriting') !== 'false',
+            use_context_compression: localStorage.getItem('rag_context_compression') !== 'false'
+          })
+        });
 
       if (response.status === 401) { handleLogout(); return; }
       if (!response.ok) throw new Error(`API error: ${response.status}`);
@@ -1155,6 +1171,8 @@ export default function App() {
         onRenameFolder={handleRenameFolder}
         onDeleteFolder={handleDeleteFolder}
         onMoveChat={handleMoveChat}
+        currentModel={currentModel}
+        onOpenModelHub={() => setShowModelHub(true)}
       />
 
       {/* Main content */}
@@ -1273,6 +1291,18 @@ export default function App() {
           copied={summaryCopied}
         />
       )}
+
+      {/* StarkLLM Model Hub Modal */}
+      <ModelHubModal
+        isOpen={showModelHub}
+        onClose={() => setShowModelHub(false)}
+        token={token}
+        currentModel={currentModel}
+        onModelSelect={(modelName) => {
+          setCurrentModel(modelName);
+          localStorage.setItem('default_model', modelName);
+        }}
+      />
     </div>
   );
 }

@@ -251,3 +251,122 @@ button { font-family: var(--font-main); }
   color: var(--warning);
   border: 1px solid rgba(245,158,11,0.2);
 }
+
+/* =========================================================
+   Rich Code Blocks & Markdown Tables (Syntax Highlighting)
+   ========================================================= */
+
+.code-block-wrapper {
+  margin: 14px 0;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #0d1117;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.code-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 14px;
+  background: #161b22;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.78rem;
+}
+
+.code-block-lang {
+  color: #8b949e;
+  text-transform: lowercase;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+}
+
+.copy-code-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #c9d1d9;
+  padding: 4px 9px;
+  border-radius: 5px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.copy-code-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.copy-code-btn.copied {
+  background: rgba(34, 197, 94, 0.18);
+  color: #4ade80;
+  border-color: rgba(34, 197, 94, 0.4);
+}
+
+.code-block-wrapper pre {
+  margin: 0;
+  padding: 14px 16px;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  background: transparent !important;
+}
+
+.code-block-wrapper code.hljs {
+  padding: 0;
+  background: transparent !important;
+  color: #e6edf3;
+}
+
+/* Inline code tags */
+:not(pre) > code {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f0883e;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.88em;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Markdown Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  font-size: 0.92rem;
+  background: rgba(15, 20, 30, 0.6);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+table th, table td {
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+table th {
+  background: rgba(255, 255, 255, 0.05);
+  font-weight: 600;
+  color: var(--text-primary);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+}
+
+table tr:last-child td {
+  border-bottom: none;
+}
+
+table tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+

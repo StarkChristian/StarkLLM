@@ -92,6 +92,12 @@ export default function Settings({ token, username }) {
   const [modelSaved, setModelSaved] = useState(false);
   const [modelLoading, setModelLoading] = useState(false);
 
+  // Multi-Provider & Cloud API
+  const [provider, setProvider] = useState(localStorage.getItem('llm_provider') || 'ollama');
+  const [baseUrl, setBaseUrl] = useState(localStorage.getItem('llm_base_url') || '');
+  const [apiKey, setApiKey] = useState(localStorage.getItem('llm_api_key') || '');
+  const [customModel, setCustomModel] = useState(localStorage.getItem('llm_custom_model') || '');
+
   useEffect(() => {
     fetch('/api/v1/chat/models', { headers: getHeaders() })
       .then(res => res.json())
@@ -109,11 +115,16 @@ export default function Settings({ token, username }) {
   const saveModelSettings = async () => {
     setModelLoading(true);
     try {
+      localStorage.setItem('llm_provider', provider);
+      localStorage.setItem('llm_base_url', baseUrl);
+      localStorage.setItem('llm_api_key', apiKey);
+      localStorage.setItem('llm_custom_model', customModel);
+
       const res = await fetch('/api/v1/auth/generation-settings', {
         method: 'PUT',
         headers: getHeaders(),
         body: JSON.stringify({
-          default_model: modelName || null,
+          default_model: provider === 'openai_compatible' ? (customModel || modelName || null) : (modelName || null),
           temperature: parseFloat(temperature),
           top_p: parseFloat(topP),
           max_tokens: maxTokens ? parseInt(maxTokens, 10) : null
@@ -430,19 +441,171 @@ export default function Settings({ token, username }) {
               </p>
 
               <div className={styles.formGroup}>
-                <label className={styles.label}>Model Selection</label>
-                <select 
-                  className="input-field" 
-                  value={modelName} 
-                  onChange={(e) => setModelName(e.target.value)}
-                >
-                  <option value="">Default Backend Model</option>
-                  {availableModels.map(m => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                </select>
-                <p className={styles.hint}>Choose the active AI model to use for chat.</p>
+                <label className={styles.label}>AI Inference Provider</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 4 }}>
+                  <button 
+                    type="button"
+                    onClick={() => setProvider('ollama')}
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: 8,
+                      border: provider === 'ollama' ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.08)',
+                      background: provider === 'ollama' ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)',
+                      color: provider === 'ollama' ? '#ffffff' : 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: 2 }}>🏠 Local Ollama</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>100% Private & Offline</div>
+                  </button>
+
+                  <button 
+                    type="button"
+                    onClick={() => setProvider('openai_compatible')}
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: 8,
+                      border: provider === 'openai_compatible' ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.08)',
+                      background: provider === 'openai_compatible' ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)',
+                      color: provider === 'openai_compatible' ? '#ffffff' : 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: 2 }}>🌐 Custom / Cloud API</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>DeepSeek, OpenRouter, Groq, LM Studio</div>
+                  </button>
+                </div>
               </div>
+
+              {provider === 'openai_compatible' && (
+                <div style={{
+                  background: 'rgba(255, 255, 255, 0.025)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: 8,
+                  padding: 16,
+                  marginBottom: 16,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12
+                }}>
+                  <div>
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, display: 'block', marginBottom: 6 }}>Quick Presets</label>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <button 
+                        type="button" 
+                        className="badge badge-accent" 
+                        style={{ cursor: 'pointer', padding: '5px 10px' }}
+                        onClick={() => {
+                          setBaseUrl('https://api.deepseek.com/v1');
+                          setCustomModel('deepseek-chat');
+                        }}
+                      >
+                        DeepSeek (V3)
+                      </button>
+                      <button 
+                        type="button" 
+                        className="badge badge-accent" 
+                        style={{ cursor: 'pointer', padding: '5px 10px' }}
+                        onClick={() => {
+                          setBaseUrl('https://api.deepseek.com/v1');
+                          setCustomModel('deepseek-reasoner');
+                        }}
+                      >
+                        DeepSeek R1 (Reasoning)
+                      </button>
+                      <button 
+                        type="button" 
+                        className="badge badge-accent" 
+                        style={{ cursor: 'pointer', padding: '5px 10px' }}
+                        onClick={() => {
+                          setBaseUrl('https://openrouter.ai/api/v1');
+                          setCustomModel('anthropic/claude-3.5-sonnet');
+                        }}
+                      >
+                        OpenRouter (Claude 3.5)
+                      </button>
+                      <button 
+                        type="button" 
+                        className="badge badge-accent" 
+                        style={{ cursor: 'pointer', padding: '5px 10px' }}
+                        onClick={() => {
+                          setBaseUrl('https://api.groq.com/openai/v1');
+                          setCustomModel('llama-3.3-70b-versatile');
+                        }}
+                      >
+                        Groq Cloud (Fast)
+                      </button>
+                      <button 
+                        type="button" 
+                        className="badge badge-accent" 
+                        style={{ cursor: 'pointer', padding: '5px 10px' }}
+                        onClick={() => {
+                          setBaseUrl('http://localhost:1234/v1');
+                          setCustomModel('local-model');
+                        }}
+                      >
+                        LM Studio (Local)
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className={styles.formGroup} style={{ marginBottom: 0 }}>
+                    <label className={styles.label}>Base URL</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      placeholder="e.g. https://api.deepseek.com/v1"
+                      value={baseUrl}
+                      onChange={e => setBaseUrl(e.target.value)}
+                    />
+                  </div>
+
+                  <div className={styles.formGroup} style={{ marginBottom: 0 }}>
+                    <label className={styles.label}>API Key</label>
+                    <input 
+                      type="password" 
+                      className="input-field" 
+                      placeholder="sk-..."
+                      value={apiKey}
+                      onChange={e => setApiKey(e.target.value)}
+                    />
+                  </div>
+
+                  <div className={styles.formGroup} style={{ marginBottom: 0 }}>
+                    <label className={styles.label}>Model ID</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      placeholder="e.g. deepseek-chat, gpt-4o, claude-3-5-sonnet"
+                      value={customModel}
+                      onChange={e => setCustomModel(e.target.value)}
+                    />
+                  </div>
+
+                  <div style={{ fontSize: '0.75rem', color: '#f59e0b', background: 'rgba(245, 158, 11, 0.08)', padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                    🔒 <strong>Privacy Note:</strong> When using external cloud APIs, chat messages are transmitted to the external provider's servers.
+                  </div>
+                </div>
+              )}
+
+              {provider === 'ollama' && (
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>Local Ollama Model</label>
+                  <select 
+                    className="input-field" 
+                    value={modelName} 
+                    onChange={(e) => setModelName(e.target.value)}
+                  >
+                    <option value="">Default Backend Model</option>
+                    {availableModels.map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                  <p className={styles.hint}>Choose the active local AI model to use for chat.</p>
+                </div>
+              )}
 
               <div className={styles.divider} />
 

@@ -2,10 +2,34 @@ import React, { useEffect, useRef, useState } from 'react';
 import styles from './ChatArea.module.css';
 import { User, Bot, Volume2, Square, Database, Copy, Check, Globe, RefreshCw, Edit2, Download, FileText, AlertTriangle } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
+import hljs from 'highlight.js';
+import 'highlight.js/styles/github-dark.css';
 import { useToast } from './Toast';
 import ToolCallCard from './ToolCallCard';
 
-const md = new MarkdownIt();
+const md = new MarkdownIt({
+  html: false,
+  linkify: true,
+  typographer: true,
+  highlight: function (str, lang) {
+    const validLang = lang && hljs.getLanguage(lang) ? lang : '';
+    const displayLang = validLang || 'code';
+    let highlightedCode = '';
+    
+    if (validLang) {
+      try {
+        highlightedCode = hljs.highlight(str, { language: validLang, ignoreIllegals: true }).value;
+      } catch (__) {
+        highlightedCode = md.utils.escapeHtml(str);
+      }
+    } else {
+      highlightedCode = md.utils.escapeHtml(str);
+    }
+
+    const encoded = encodeURIComponent(str);
+    return `<div class="code-block-wrapper"><div class="code-block-header"><span class="code-block-lang">${displayLang}</span><button class="copy-code-btn" data-code="${encoded}" title="Copy code"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span>Copy</span></button></div><pre><code class="hljs ${validLang}">${highlightedCode}</code></pre></div>`;
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Robust language detector — no external library needed.
@@ -331,6 +355,34 @@ export default function ChatArea({
   const [editText, setEditText] = useState("");
   const currentAudioRef = useRef(null);
   const activePlayIndexRef = useRef(null);
+
+  useEffect(() => {
+    const handleCopyCodeClick = (e) => {
+      const btn = e.target.closest('.copy-code-btn');
+      if (!btn) return;
+      const encoded = btn.getAttribute('data-code');
+      if (!encoded) return;
+      try {
+        const code = decodeURIComponent(encoded);
+        navigator.clipboard.writeText(code);
+        const span = btn.querySelector('span');
+        if (span) {
+          const originalText = span.textContent;
+          span.textContent = 'Copied!';
+          btn.classList.add('copied');
+          setTimeout(() => {
+            span.textContent = originalText;
+            btn.classList.remove('copied');
+          }, 2000);
+        }
+      } catch (err) {
+        console.error('Failed to copy code snippet:', err);
+      }
+    };
+
+    document.addEventListener('click', handleCopyCodeClick);
+    return () => document.removeEventListener('click', handleCopyCodeClick);
+  }, []);
 
   const handleStartEdit = (index, text) => {
     setEditingIndex(index);

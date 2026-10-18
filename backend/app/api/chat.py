@@ -96,6 +96,13 @@ class ChatRequest(BaseModel):
     temperature: Optional[float] = None
     top_p: Optional[float] = None
     max_tokens: Optional[int] = None
+    provider: Optional[str] = "ollama"
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
+
+
+class PullModelRequest(BaseModel):
+    model_name: str
 
 
 @router.get("/models")
@@ -103,6 +110,38 @@ def get_models():
     """Return available models from Ollama."""
     models = llm_service.get_available_models()
     return {"models": models}
+
+
+@router.get("/models/detailed")
+def get_detailed_models():
+    """Return detailed metadata for all installed Ollama models."""
+    models = llm_service.get_detailed_models()
+    return {"models": models}
+
+
+@router.get("/models/catalog")
+def get_model_catalog():
+    """Return curated list of recommended models with installation status."""
+    catalog = llm_service.get_recommended_catalog()
+    return {"catalog": catalog}
+
+
+@router.post("/models/pull")
+def pull_model(req: PullModelRequest):
+    """Stream model download progress from Ollama."""
+    return StreamingResponse(
+        llm_service.pull_model_stream(req.model_name),
+        media_type="application/x-ndjson"
+    )
+
+
+@router.delete("/models/{model_name:path}")
+def delete_model(model_name: str):
+    """Delete an installed model from Ollama."""
+    success = llm_service.delete_model(model_name)
+    if not success:
+        raise HTTPException(status_code=500, detail=f"Failed to delete model {model_name}")
+    return {"status": "success", "message": f"Model {model_name} deleted successfully"}
 
 
 class TruncateRequest(BaseModel):
@@ -593,7 +632,13 @@ WEB SEARCH RESULTS (LIVE DATA)
                 full_response = ""
                 try:
                     for chunk in llm_service.generate_chat(
-                        model_name, messages, stream=True, options=options
+                        model_name,
+                        messages,
+                        stream=True,
+                        options=options,
+                        provider=req.provider or "ollama",
+                        api_key=req.api_key,
+                        base_url=req.base_url
                     ):
                         full_response += chunk
                         yield chunk
@@ -658,7 +703,13 @@ WEB SEARCH RESULTS (LIVE DATA)
             try:
                 llm_response = await asyncio.to_thread(
                     llm_service.generate_chat,
-                    model_name, messages, stream=False, options=options
+                    model_name,
+                    messages,
+                    False,
+                    options,
+                    req.provider or "ollama",
+                    req.api_key,
+                    req.base_url
                 )
                 content = llm_response.get("message", {}).get("content", "")
             except Exception as e:

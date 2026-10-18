@@ -5,7 +5,7 @@ import {
   Plus, LogOut, ChevronRight, Trash2, Check, X,
   MessageCircle, ChevronDown, FileText, FolderOpen, BrainCircuit,
   Pencil, Search, Pin, PinOff, AlignLeft, SearchCheck,
-  FolderPlus, Folder, MoveRight
+  FolderPlus, Folder, MoveRight, Cpu, Sparkles
 } from 'lucide-react';
 import { SidebarStatusDot } from './SystemStatusWidget';
 import EmptyState from './EmptyState';
@@ -51,6 +51,9 @@ export default function Sidebar({
   onRenameFolder,
   onDeleteFolder,
   onMoveChat,
+  // Model Hub
+  currentModel,
+  onOpenModelHub,
 }) {
   const isChat = activeView === 'chat';
   const [deletingChatId, setDeletingChatId] = useState(null);
@@ -615,6 +618,22 @@ export default function Sidebar({
           )}
         </div>
       )}
+
+      {/* ── Active Model & Model Hub ── */}
+      <div className={styles.modelSection}>
+        <button 
+          className={styles.modelHubBtn}
+          onClick={onOpenModelHub}
+          title="Open StarkLLM Model Hub"
+        >
+          <Cpu size={18} className={styles.modelIcon} />
+          <div className={styles.modelDetails}>
+            <span className={styles.modelLabel}>AI Model</span>
+            <span className={styles.modelValue}>{currentModel || 'Select Model...'}</span>
+          </div>
+          <Sparkles size={14} className={styles.modelSparkle} />
+        </button>
+      </div>
 
       {/* ── User footer ── */}
       <div className={styles.footer}>
