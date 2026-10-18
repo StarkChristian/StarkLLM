@@ -4,6 +4,7 @@ import asyncio
 import logging
 import threading
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from app.db.session import get_db, SessionLocal
 from app.db import models
@@ -901,3 +902,144 @@ async def delete_document(
     db.delete(doc)
     db.commit()
     return {"status": "deleted", "document_id": document_id}
+
+
+@router.get("/{workspace_id}/documents/{document_id}/file")
+async def get_document_file(
+    workspace_id: int,
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Serve the raw file with appropriate media type for inline preview/streaming."""
+    ws = db.query(models.Workspace).filter(
+        models.Workspace.id == workspace_id,
+        models.Workspace.user_id == current_user.id
+    ).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    doc = db.query(models.Document).filter(
+        models.Document.id == document_id,
+        models.Document.workspace_id == workspace_id
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if not doc.filepath or not os.path.exists(doc.filepath):
+        raise HTTPException(status_code=404, detail="File missing from disk")
+
+    ext = (doc.file_type or "").lower().strip(".")
+    media_map = {
+        "pdf": "application/pdf",
+        "txt": "text/plain; charset=utf-8",
+        "md": "text/markdown; charset=utf-8",
+        "json": "application/json; charset=utf-8",
+        "png": "image/png",
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "html": "text/html; charset=utf-8",
+        "csv": "text/csv; charset=utf-8",
+    }
+    media_type = media_map.get(ext, "application/octet-stream")
+    return FileResponse(doc.filepath, media_type=media_type, filename=doc.filename)
+
+
+@router.get("/{workspace_id}/documents/{document_id}/content")
+async def get_document_content(
+    workspace_id: int,
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Retrieve extracted text and page breakdown of a document for deep citations."""
+    ws = db.query(models.Workspace).filter(
+        models.Workspace.id == workspace_id,
+        models.Workspace.user_id == current_user.id
+    ).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    doc = db.query(models.Document).filter(
+        models.Document.id == document_id,
+        models.Document.workspace_id == workspace_id
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if not doc.filepath or not os.path.exists(doc.filepath):
+        raise HTTPException(status_code=404, detail="File missing from disk")
+
+    ext = (doc.file_type or "").lower().strip(".")
+    pages = []
+    full_text = ""
+
+    if ext == "pdf":
+        try:
+            try:
+                import pymupdf as fitz
+            except ImportError:
+                import fitz
+            doc_fitz = fitz.open(doc.filepath)
+            for p_no in range(len(doc_fitz)):
+                page = doc_fitz[p_no]
+                txt = page.get_text("text").strip()
+                pages.append({"page": p_no + 1, "text": txt})
+                if txt:
+                    full_text += f"\n--- Page {p_no + 1} ---\n" + txt
+        except Exception as e:
+            logger.error(f"Error reading PDF content: {e}")
+            full_text = f"Error reading PDF: {e}"
+    else:
+        try:
+            with open(doc.filepath, "r", encoding="utf-8", errors="replace") as f:
+                full_text = f.read()
+            pages.append({"page": 1, "text": full_text})
+        except Exception as e:
+            logger.error(f"Error reading document text: {e}")
+            full_text = f"Error reading document: {e}"
+
+    return {
+        "id": doc.id,
+        "filename": doc.filename,
+        "file_type": doc.file_type,
+        "page_count": len(pages),
+        "pages": pages,
+        "full_text": full_text
+    }
+
+
+@router.get("/{workspace_id}/documents/lookup")
+async def lookup_document_by_name(
+    workspace_id: int,
+    filename: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Lookup document by filename to support inline citation jumping."""
+    clean_name = filename.strip()
+    # Remove citation page patterns like '(Page 4)' or '[Page 4]'
+    clean_name = re.sub(r'[\(\[]Page\s*\d+[\)\]]', '', clean_name).strip()
+
+    doc = db.query(models.Document).filter(
+        models.Document.workspace_id == workspace_id,
+        models.Document.filename == clean_name
+    ).first()
+
+    if not doc:
+        # Try case-insensitive or partial match
+        doc = db.query(models.Document).filter(
+            models.Document.workspace_id == workspace_id,
+            models.Document.filename.ilike(f"%{clean_name}%")
+        ).first()
+
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document '{filename}' not found")
+
+    return {
+        "id": doc.id,
+        "filename": doc.filename,
+        "file_type": doc.file_type,
+        "status": doc.status
+    }
+

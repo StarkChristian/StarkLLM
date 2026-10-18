@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from app.api import (
     workspaces, documents, chat, voice, auth, knowledge_base,
-    dashboard, search, prompts, system, mcp, models_router, memory_router
+    dashboard, search, prompts, system, mcp, models_router, memory_router, studio
 )
 
 api_router = APIRouter()
@@ -9,6 +9,7 @@ api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(workspaces.router, prefix="/workspaces", tags=["workspaces"])
 api_router.include_router(documents.router, prefix="/documents", tags=["documents"])
+api_router.include_router(studio.router, prefix="/studio", tags=["studio"])
 api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
 api_router.include_router(models_router.router, prefix="/chat", tags=["models"])
 api_router.include_router(memory_router.router, prefix="/chat", tags=["memory"])
@@ -19,6 +20,7 @@ api_router.include_router(search.router, prefix="/search", tags=["search"])
 api_router.include_router(prompts.router, prefix="/prompts", tags=["prompts"])
 api_router.include_router(system.router, prefix="/system", tags=["system"])
 api_router.include_router(mcp.router, prefix="/mcp", tags=["mcp"])
+
 
 
 

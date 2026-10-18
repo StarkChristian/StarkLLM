@@ -15,6 +15,7 @@ import WorkspaceKBModal from './components/WorkspaceKBModal';
 import HealthBanner from './components/HealthBanner';
 import OnboardingWizard from './components/OnboardingWizard';
 import ModelHubModal from './components/ModelHubModal';
+import StudioModal from './components/StudioModal';
 import { useToast } from './components/Toast';
 import { useChatFolders } from './hooks/useChatFolders';
 import { useChatSummary } from './hooks/useChatSummary';
@@ -62,6 +63,7 @@ export default function App() {
   const [showMemoryManager, setShowMemoryManager] = useState(false);
   const [showKbModal, setShowKbModal] = useState(false);
   const [showModelHub, setShowModelHub] = useState(false);
+  const [showStudio, setShowStudio] = useState(false);
   const [currentModel, setCurrentModel] = useState(localStorage.getItem('default_model') || 'llama3.2:3b');
 
   // Generation state (for stop button)
@@ -997,6 +999,7 @@ export default function App() {
         onMoveChat={handleMoveChat}
         currentModel={currentModel}
         onOpenModelHub={() => setShowModelHub(true)}
+        onOpenStudio={() => setShowStudio(true)}
       />
 
       {/* Main content */}
@@ -1168,6 +1171,15 @@ export default function App() {
           setCurrentModel(modelName);
           localStorage.setItem('default_model', modelName);
         }}
+      />
+
+      {/* AI Studio Modal - Offline Document Synthesis */}
+      <StudioModal
+        isOpen={showStudio}
+        onClose={() => setShowStudio(false)}
+        workspaceId={activeWorkspace?.id}
+        token={token}
+        selectedModel={currentModel}
       />
     </div>
   );

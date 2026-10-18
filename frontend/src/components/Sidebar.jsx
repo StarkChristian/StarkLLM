@@ -55,6 +55,7 @@ export default function Sidebar({
   // Model Hub
   currentModel,
   onOpenModelHub,
+  onOpenStudio,
 }) {
   const isChat = activeView === 'chat';
   const [deletingChatId, setDeletingChatId] = useState(null);
@@ -657,6 +658,24 @@ export default function Sidebar({
           <Sparkles size={14} className={styles.modelSparkle} />
         </button>
       </div>
+
+      {/* ── AI Studio Quick Launch ── */}
+      {activeWorkspace && (
+        <div className={styles.modelSection} style={{ paddingTop: 0 }}>
+          <button
+            className={styles.modelHubBtn}
+            onClick={onOpenStudio}
+            title="Open AI Studio - Podcast, Briefing, Study Guide"
+            style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(192,132,252,0.12) 100%)', borderColor: 'rgba(99,102,241,0.3)' }}
+          >
+            <Sparkles size={18} className={styles.modelIcon} style={{ color: '#c084fc' }} />
+            <div className={styles.modelDetails}>
+              <span className={styles.modelLabel}>AI Studio</span>
+              <span className={styles.modelValue} style={{ color: '#a78bfa' }}>Podcast • Briefing • Quiz</span>
+            </div>
+          </button>
+        </div>
+      )}
 
       {/* ── User footer ── */}
       <div className={styles.footer}>
