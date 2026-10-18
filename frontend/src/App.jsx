@@ -420,6 +420,7 @@ export default function App() {
       const newChat = await res.json();
       setChats(prev => [newChat, ...prev]);
       setActiveChatId(newChat.id);
+      setActiveView('chat');
       setMessages([{ role: 'assistant', content: 'New chat started. What shall we work on?' }]);
     } catch (err) {
       console.error('Error creating chat:', err);
@@ -1412,13 +1413,52 @@ export default function App() {
         />
       )}
 
-      {/* Global Search Modal */}
+      {/* Global Search & Command Palette Modal */}
       {showGlobalSearch && (
         <GlobalSearch
           token={token}
           workspaces={workspaces}
+          activeWorkspace={activeWorkspace}
+          chats={chats}
+          currentModel={currentModel}
           onClose={() => setShowGlobalSearch(false)}
           onNavigate={handleNavigateFromSearch}
+          onNewChat={() => {
+            setShowGlobalSearch(false);
+            handleNewChat();
+          }}
+          onSelectWorkspace={(ws) => {
+            setShowGlobalSearch(false);
+            handleSelectWorkspace(ws);
+          }}
+          onOpenSettings={() => {
+            setShowGlobalSearch(false);
+            setActiveView('settings');
+          }}
+          onOpenDocuments={() => {
+            setShowGlobalSearch(false);
+            setShowDocManager(true);
+          }}
+          onOpenModelHub={() => {
+            setShowGlobalSearch(false);
+            setShowModelHub(true);
+          }}
+          onOpenPromptTemplates={() => {
+            setShowGlobalSearch(false);
+            setActiveView('settings');
+          }}
+          onOpenMemoryManager={() => {
+            setShowGlobalSearch(false);
+            setShowMemoryManager(true);
+          }}
+          onOpenKnowledgeBase={() => {
+            setShowGlobalSearch(false);
+            setActiveView('knowledge-base');
+          }}
+          onClearChat={() => {
+            setShowGlobalSearch(false);
+            setMessages([{ role: 'assistant', content: 'Chat reset. What would you like to explore next?' }]);
+          }}
         />
       )}
 
