@@ -1,9 +1,40 @@
 # StarkLLM Release Notes
 
-**Latest branch:** `phase-2-mcp-host`  
-**Base version:** StarkLLM v1.0.0-beta  
-**Snapshot Date:** 2026-09-26  
-**Status:** Official Research Beta Snapshot (Windows)
+**Current Version:** StarkLLM Desktop v2.0.0  
+**Release Date:** 2026-10-18  
+**Status:** Official Windows Desktop Release (v2.0.0)
+
+---
+
+## Version 2.0.0 — Standalone Native Desktop Application *(v2.0.0)*
+
+StarkLLM transitions from a browser-hosted interface to a **dedicated native desktop application** (Electron Desktop Shell), identical in behavior and experience to modern desktop AI applications like Cursor and Claude Desktop.
+
+### Major Additions & Enhancements:
+
+1. **Standalone Native Desktop App Window**:
+   - Packaged as a true Windows application (`StarkLLM.exe`).
+   - Opens in its own frameless/native styled window (1440x920) with midnight indigo theme framing.
+   - Includes custom launch splash screen (`splash.html`), system tray icon with quick actions, and single-instance process lock.
+   - Distributed as both an installer (`StarkLLM-v2.0.0-Setup.exe`) and portable executable (`StarkLLM-v2.0.0-Portable.exe`).
+
+2. **Chat Folders & Sidebar Organization**:
+   - Custom folders allow categorizing research, client projects, and coding sessions.
+   - Folders support collapse/expand, renaming, drag/assignment, and real-time session filtering.
+
+3. **Universal 4-Format Conversation Export**:
+   - One-click export into Markdown (`.md`), clean JSON (`.json`), standalone HTML (`.html`), and Plain Text (`.txt`).
+   - Timestamps, citation locators, word counts, and speed stats are fully preserved in exported documents.
+
+4. **8 Curated Visual Themes**:
+   - 8 bespoke palettes with frosted glassmorphism: Midnight Indigo (default), OLED Pitch Black, Liquid Glass, Cyberpunk Rose, Matrix Emerald, Sunset Amber, Arctic Frost, and Daylight Minimal.
+   - Instant quick-switch popover in sidebar footer.
+
+5. **Demographic Internationalization & Language Roadmap**:
+   - 4-tier localization engine prioritized strictly by global internet user demographics (English active default, Tier 1 Chinese & Spanish, Tier 2 French & German, Tier 3 Arabic & Persian/Farsi, Tier 4 Portuguese, Russian, Japanese). Zero regional script clutter in UI.
+
+6. **Hardware Telemetry & Live VRAM Dashboard**:
+   - Real-time GPU video memory tracking, container status monitor, indexed chunk counters, and recent chats quick jump list.
 
 ---
 
