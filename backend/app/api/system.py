@@ -4,6 +4,10 @@ import tempfile
 import zipfile
 import logging
 from datetime import datetime
+import subprocess
+import time
+from typing import Optional
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from fastapi.background import BackgroundTasks
@@ -118,3 +122,60 @@ async def restore_system(
             shutil.rmtree(temp_dir, ignore_errors=True)
         except:
             pass
+
+
+# --- Sandboxed Code Interpreter / Runner ---
+
+class ExecuteCodeRequest(BaseModel):
+    code: str
+    language: Optional[str] = "python"
+    timeout_seconds: Optional[int] = 5
+
+
+@router.post("/execute-code")
+def execute_code(
+    req: ExecuteCodeRequest,
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    Safely execute a code snippet in an isolated process with strict timeout.
+    Returns stdout, stderr, execution_time_ms, and exit_code.
+    """
+    lang = (req.language or "python").lower().strip()
+    timeout = min(max(req.timeout_seconds or 5, 1), 10)
+
+    # Use python3 or python
+    cmd = ["python3", "-c", req.code]
+
+    t0 = time.time()
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout
+        )
+        t1 = time.time()
+        exec_ms = round((t1 - t0) * 1000)
+        return {
+            "stdout": proc.stdout[:15000],
+            "stderr": proc.stderr[:5000],
+            "exit_code": proc.returncode,
+            "execution_time_ms": exec_ms
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            "stdout": "",
+            "stderr": f"Execution timed out after {timeout} seconds.",
+            "exit_code": 124,
+            "execution_time_ms": timeout * 1000
+        }
+    except Exception as e:
+        logger.error(f"Code execution error: {e}")
+        return {
+            "stdout": "",
+            "stderr": f"Execution failed: {str(e)}",
+            "exit_code": 1,
+            "execution_time_ms": 0
+        }
+

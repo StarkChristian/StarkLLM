@@ -283,6 +283,12 @@ button { font-family: var(--font-main); }
   letter-spacing: 0.03em;
 }
 
+.code-block-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .copy-code-btn {
   display: inline-flex;
   align-items: center;
@@ -308,6 +314,107 @@ button { font-family: var(--font-main); }
   background: rgba(34, 197, 94, 0.18);
   color: #4ade80;
   border-color: rgba(34, 197, 94, 0.4);
+}
+
+.run-code-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34d399;
+  padding: 4px 9px;
+  border-radius: 5px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.run-code-btn:hover {
+  background: rgba(16, 185, 129, 0.22);
+  color: #6ee7b7;
+  border-color: rgba(16, 185, 129, 0.6);
+  transform: translateY(-1px);
+}
+
+.run-code-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Code Output Box */
+.code-output-box {
+  margin: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: #090d13;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  animation: fadeInOutput 0.25s ease-out;
+}
+
+@keyframes fadeInOutput {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.code-output-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.74rem;
+  color: #8b949e;
+}
+
+.code-output-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.code-output-indicator {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+}
+
+.output-error .code-output-indicator {
+  background: #ef4444;
+}
+
+.code-output-close {
+  background: transparent;
+  border: none;
+  color: #8b949e;
+  cursor: pointer;
+  padding: 2px 5px;
+  font-size: 0.8rem;
+  border-radius: 3px;
+  transition: color 0.15s;
+}
+
+.code-output-close:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.code-output-body {
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  color: #d1d5db;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 240px;
+  overflow-y: auto;
+  line-height: 1.5;
+}
+
+.output-error .code-output-body {
+  color: #fca5a5;
 }
 
 .code-block-wrapper pre {

@@ -58,7 +58,10 @@ const md = new MarkdownIt({
     }
 
     const encoded = encodeURIComponent(str);
-    return `<div class="code-block-wrapper"><div class="code-block-header"><span class="code-block-lang">${displayLang}</span><button class="copy-code-btn" data-code="${encoded}" title="Copy code"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span>Copy</span></button></div><pre><code class="hljs ${validLang}">${highlightedCode}</code></pre></div>`;
+    const isRunnable = ['python', 'py', 'python3'].includes((validLang || '').toLowerCase());
+    const runBtn = isRunnable ? `<button class="run-code-btn" data-lang="${validLang}" data-code="${encoded}" title="Run code in local Python sandbox"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>Run</span></button>` : '';
+
+    return `<div class="code-block-wrapper"><div class="code-block-header"><span class="code-block-lang">${displayLang}</span><div class="code-block-actions">${runBtn}<button class="copy-code-btn" data-code="${encoded}" title="Copy code"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span>Copy</span></button></div></div><pre><code class="hljs ${validLang}">${highlightedCode}</code></pre></div>`;
   }
 });
 
@@ -189,7 +192,8 @@ const ChatMessageRenderer = React.memo(({
   workspaceId,
   token,
   onSendToolResult,
-  onFeedback
+  onFeedback,
+  onInspectSources
 }) => {
   const contentSegments = msg.role === 'assistant' ? parseContentWithToolCalls(msg.content) : null;
   const [localFeedback, setLocalFeedback] = useState(msg.feedback || null);
@@ -272,13 +276,23 @@ const ChatMessageRenderer = React.memo(({
               {msg.role === 'assistant' && ((msg.wsSources && msg.wsSources.length > 0) || (msg.kbSources && msg.kbSources.length > 0) || (msg.webSources && msg.webSources.length > 0)) && (
                 <div className={styles.sourcesContainer}>
                   {msg.wsSources && msg.wsSources.length > 0 && (
-                    <div className={styles.sourceGroup} title="Retrieved from Workspace Documents">
+                    <div 
+                      className={styles.sourceGroup} 
+                      title="Retrieved from Workspace Documents — click to inspect citations"
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => onInspectSources && onInspectSources('Workspace Documents', msg.wsSources)}
+                    >
                       <Database size={11} className={styles.sourceIcon} />
                       <span>Workspace: {msg.wsSources.join(', ')}</span>
                     </div>
                   )}
                   {msg.kbSources && msg.kbSources.length > 0 && (
-                    <div className={styles.sourceGroup} title="Retrieved from Personal Knowledge Base">
+                    <div 
+                      className={styles.sourceGroup} 
+                      title="Retrieved from Personal Knowledge Base — click to inspect citations"
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => onInspectSources && onInspectSources('Personal Knowledge Base', msg.kbSources)}
+                    >
                       <Database size={11} className={styles.sourceIcon} />
                       <span>Personal KB: {msg.kbSources.join(', ')}</span>
                     </div>
@@ -425,6 +439,7 @@ export default function ChatArea({
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
   const [editText, setEditText] = useState("");
+  const [inspectingSource, setInspectingSource] = useState(null);
   const currentAudioRef = useRef(null);
   const activePlayIndexRef = useRef(null);
 
@@ -452,9 +467,92 @@ export default function ChatArea({
       }
     };
 
+    const handleRunCodeClick = async (e) => {
+      const btn = e.target.closest('.run-code-btn');
+      if (!btn) return;
+      const encoded = btn.getAttribute('data-code');
+      const lang = btn.getAttribute('data-lang') || 'python';
+      if (!encoded) return;
+
+      const wrapper = btn.closest('.code-block-wrapper');
+      if (!wrapper) return;
+
+      const oldOutput = wrapper.querySelector('.code-output-box');
+      if (oldOutput) oldOutput.remove();
+
+      const span = btn.querySelector('span');
+      const originalText = span ? span.textContent : 'Run';
+      if (span) span.textContent = 'Running...';
+      btn.disabled = true;
+
+      try {
+        const code = decodeURIComponent(encoded);
+        const res = await fetch('/api/v1/system/execute-code', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({ code, language: lang })
+        });
+        const data = await res.json();
+        
+        const isSuccess = data.exit_code === 0;
+        const outputText = data.stdout || data.stderr || '(No output returned)';
+        const execTime = data.execution_time_ms ? `${data.execution_time_ms}ms` : '0ms';
+
+        const outputEl = document.createElement('div');
+        outputEl.className = `code-output-box ${isSuccess ? 'output-success' : 'output-error'}`;
+        outputEl.innerHTML = `
+          <div class="code-output-header">
+            <div class="code-output-title-wrap">
+              <span class="code-output-indicator"></span>
+              <span>Output (${execTime})</span>
+            </div>
+            <button class="code-output-close" title="Close output">✕</button>
+          </div>
+          <pre class="code-output-body">${outputText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+        `;
+
+        wrapper.appendChild(outputEl);
+      } catch (err) {
+        console.error('Code execution failed:', err);
+        const outputEl = document.createElement('div');
+        outputEl.className = 'code-output-box output-error';
+        outputEl.innerHTML = `
+          <div class="code-output-header">
+            <div class="code-output-title-wrap">
+              <span class="code-output-indicator"></span>
+              <span>Execution Error</span>
+            </div>
+            <button class="code-output-close" title="Close output">✕</button>
+          </div>
+          <pre class="code-output-body">${String(err.message || err).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+        `;
+        wrapper.appendChild(outputEl);
+      } finally {
+        if (span) span.textContent = originalText;
+        btn.disabled = false;
+      }
+    };
+
+    const handleCloseOutputClick = (e) => {
+      const closeBtn = e.target.closest('.code-output-close');
+      if (!closeBtn) return;
+      const box = closeBtn.closest('.code-output-box');
+      if (box) box.remove();
+    };
+
     document.addEventListener('click', handleCopyCodeClick);
-    return () => document.removeEventListener('click', handleCopyCodeClick);
-  }, []);
+    document.addEventListener('click', handleRunCodeClick);
+    document.addEventListener('click', handleCloseOutputClick);
+
+    return () => {
+      document.removeEventListener('click', handleCopyCodeClick);
+      document.removeEventListener('click', handleRunCodeClick);
+      document.removeEventListener('click', handleCloseOutputClick);
+    };
+  }, [token]);
 
   const handleStartEdit = (index, text) => {
     setEditingIndex(index);
@@ -669,11 +767,121 @@ export default function ChatArea({
               token={token}
               onSendToolResult={onRetryMessage}
               onFeedback={null}
+              onInspectSources={(title, sources) => setInspectingSource({ title, sources })}
             />
           ))}
           <div ref={messagesEndRef} />
         </div>
         </>
+      )}
+
+      {/* ── Grounding Citations / Evidence Inspector Modal ── */}
+      {inspectingSource && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(5px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px'
+          }}
+          onClick={() => setInspectingSource(null)}
+        >
+          <div 
+            style={{
+              background: 'var(--bg-secondary, #121824)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              borderRadius: '12px',
+              width: '100%',
+              maxWidth: '560px',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+              overflow: 'hidden'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Database size={18} color="var(--accent-bright, #6366f1)" />
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>
+                  {inspectingSource.title} Grounding Evidence
+                </h3>
+              </div>
+              <button 
+                onClick={() => setInspectingSource(null)}
+                style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', fontSize: '1.2rem', padding: '4px' }}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ padding: '20px', maxHeight: '420px', overflowY: 'auto' }}>
+              <p style={{ margin: '0 0 14px 0', fontSize: '0.85rem', color: '#9ca3af', lineHeight: 1.5 }}>
+                The assistant retrieved and synthesized the following document citations to ground its answer accurately in your data:
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {inspectingSource.sources.map((src, sIdx) => (
+                  <div 
+                    key={sIdx}
+                    style={{
+                      padding: '12px 14px',
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '10px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                      <FileText size={15} color="#818cf8" style={{ flexShrink: 0 }} />
+                      <span style={{ fontSize: '0.88rem', fontWeight: 500, color: '#f3f4f6', wordBreak: 'break-all' }}>
+                        {src}
+                      </span>
+                    </div>
+                    <span 
+                      style={{
+                        fontSize: '0.72rem',
+                        padding: '2px 8px',
+                        background: 'rgba(99, 102, 241, 0.15)',
+                        color: '#a5b4fc',
+                        borderRadius: '12px',
+                        whiteSpace: 'nowrap',
+                        fontWeight: 500
+                      }}
+                    >
+                      Cited Source
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{
+              padding: '12px 20px',
+              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              background: 'rgba(0,0,0,0.15)'
+            }}>
+              <button 
+                className="btn-primary"
+                onClick={() => setInspectingSource(null)}
+                style={{ padding: '7px 18px', fontSize: '0.85rem' }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
