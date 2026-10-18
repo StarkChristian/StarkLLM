@@ -534,8 +534,19 @@ If you need to list workspace files, search the Knowledge Base, or inspect a spe
 The user will confirm the tool call in the UI before it runs.
 """
 
+        # ---- Workspace custom system prompt (overrides default identity block when set)
+        workspace_persona_section = ""
+        if ws.system_prompt and ws.system_prompt.strip():
+            workspace_persona_section = f"""
+═══════════════════════════════════════
+WORKSPACE PERSONA / CUSTOM SYSTEM PROMPT
+═══════════════════════════════════════
+{ws.system_prompt.strip()}
+"""
+
         system_prompt = f"""You are StarkLLM, a premium private AI assistant with Retrieval-Augmented Generation (RAG) capabilities.
 {custom_instructions_section}
+{workspace_persona_section}
 {mcp_section}
 ═══════════════════════════════════════
 CORE IDENTITY & BEHAVIOR
@@ -1083,7 +1094,7 @@ def get_session(
     return {
         "chat_id": chat_obj.id,
         "title": chat_obj.title or "Untitled Chat",
-        "messages": [{"role": m.role, "content": m.content, "timestamp": m.created_at.isoformat()} for m in messages],
+        "messages": [{"role": m.role, "content": m.content, "timestamp": m.created_at.isoformat(), "id": m.id, "feedback": m.feedback} for m in messages],
     }
 
 
@@ -1287,3 +1298,69 @@ def clear_memories(
     
     memory_service.clear_memories(workspace_id)
     return {"status": "cleared"}
+
+
+# --- Message Feedback (Reactions) ---
+
+class MessageFeedbackRequest(BaseModel):
+    feedback: Optional[str] = None  # 'positive', 'negative', or None to clear
+
+
+@router.patch("/message/{message_id}/feedback")
+def set_message_feedback(
+    message_id: int,
+    req: MessageFeedbackRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Set or clear feedback (thumbs up/down) for a message (ownership enforced)."""
+    msg = (
+        db.query(models.Message)
+        .join(models.Chat, models.Message.chat_id == models.Chat.id)
+        .join(models.Workspace, models.Chat.workspace_id == models.Workspace.id)
+        .filter(
+            models.Message.id == message_id,
+            models.Workspace.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if req.feedback not in (None, "positive", "negative"):
+        raise HTTPException(status_code=400, detail="feedback must be 'positive', 'negative', or null")
+    msg.feedback = req.feedback
+    db.commit()
+    return {"message_id": message_id, "feedback": msg.feedback}
+
+
+# --- Message Edit ---
+
+class MessageEditRequest(BaseModel):
+    content: str
+
+
+@router.patch("/message/{message_id}/content")
+def edit_message_content(
+    message_id: int,
+    req: MessageEditRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Edit the text content of a user message (ownership enforced)."""
+    msg = (
+        db.query(models.Message)
+        .join(models.Chat, models.Message.chat_id == models.Chat.id)
+        .join(models.Workspace, models.Chat.workspace_id == models.Workspace.id)
+        .filter(
+            models.Message.id == message_id,
+            models.Workspace.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if not req.content.strip():
+        raise HTTPException(status_code=400, detail="Content cannot be empty")
+    msg.content = req.content.strip()
+    db.commit()
+    return {"message_id": message_id, "content": msg.content}

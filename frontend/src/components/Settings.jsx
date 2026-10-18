@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal } from 'lucide-react';
+import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal, BrainCircuit } from 'lucide-react';
 import styles from './Settings.module.css';
 import BackupRestoreSettings from './BackupRestoreSettings';
 
 const SECTIONS = [
   { id: 'account',  label: 'Account',       icon: User },
   { id: 'instructions', label: 'Custom Instructions', icon: FileText },
+  { id: 'workspace-prompt', label: 'Workspace AI Persona', icon: BrainCircuit },
   { id: 'model',    label: 'Model Settings',icon: Cpu },
   { id: 'rag',      label: 'RAG Engine',    icon: Database },
   { id: 'kb',       label: 'Knowledge Base', icon: Shield },
@@ -34,7 +35,7 @@ function Toggle({ checked, onChange, label, hint }) {
   );
 }
 
-export default function Settings({ token, username }) {
+export default function Settings({ token, username, activeWorkspace }) {
   // Account
   const [newPassword, setNewPassword] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
@@ -221,6 +222,38 @@ export default function Settings({ token, username }) {
   const [fontSize, setFontSize] = useState(localStorage.getItem('ui_font_size') || 'medium');
   const [theme, setTheme] = useState(() => localStorage.getItem('ui_theme') || 'dark');
   const [uiSaved, setUiSaved] = useState(false);
+
+  // Workspace AI Persona
+  const [wsSystemPrompt, setWsSystemPrompt] = useState('');
+  const [wsPromptSaved, setWsPromptSaved] = useState(false);
+  const [wsPromptLoading, setWsPromptLoading] = useState(false);
+
+  useEffect(() => {
+    if (!activeWorkspace) return;
+    fetch(`/api/v1/workspaces/${activeWorkspace.id}/system-prompt`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(d => setWsSystemPrompt(d.system_prompt || ''))
+      .catch(() => {});
+  }, [token, activeWorkspace]);
+
+  const saveWsSystemPrompt = async () => {
+    if (!activeWorkspace) return;
+    setWsPromptLoading(true);
+    try {
+      const res = await fetch(`/api/v1/workspaces/${activeWorkspace.id}/system-prompt`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify({ system_prompt: wsSystemPrompt })
+      });
+      if (res.ok) {
+        setWsPromptSaved(true);
+        setTimeout(() => setWsPromptSaved(false), 2000);
+      }
+    } catch (e) { console.error(e); }
+    setWsPromptLoading(false);
+  };
 
   // Apply saved theme on mount
   useEffect(() => {
@@ -426,6 +459,62 @@ export default function Settings({ token, username }) {
               >
                 {instructionsLoading ? 'Saving…' : instructionsSaved ? <><CheckCircle size={14} /> Saved!</> : <><Save size={14} /> Save Instructions</>}
               </button>
+            </div>
+          )}
+
+          {/* ───── Workspace AI Persona ───── */}
+          {activeSection === 'workspace-prompt' && (
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <BrainCircuit size={18} />
+                <h2>Workspace AI Persona</h2>
+              </div>
+              <p className={styles.panelDesc}>
+                Define a custom system prompt for the <strong>{activeWorkspace?.name || 'active workspace'}</strong>.
+                This overrides the default StarkLLM identity for this specific workspace only — perfect for specialized roles like a coding assistant, legal analyst, or language tutor.
+              </p>
+
+              {!activeWorkspace ? (
+                <div className={styles.msg}>
+                  No active workspace selected. Switch to a workspace to configure its AI persona.
+                </div>
+              ) : (
+                <>
+                  <div className={styles.formGroup}>
+                    <label className={styles.label}>Workspace System Prompt</label>
+                    <textarea
+                      className="input-field"
+                      placeholder={`Example:\nYou are a senior Python software engineer specializing in data pipelines and ML systems. Always provide production-ready code with error handling. Prefer asyncio for I/O-bound tasks. When reviewing code, highlight security issues first.`}
+                      rows={10}
+                      value={wsSystemPrompt}
+                      onChange={e => setWsSystemPrompt(e.target.value)}
+                      style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '0.85rem' }}
+                    />
+                    <p className={styles.hint}>
+                      Leave empty to use the default StarkLLM personality. Changes apply to all new messages in this workspace.
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 12 }}>
+                    <button
+                      className="btn-primary"
+                      onClick={saveWsSystemPrompt}
+                      disabled={wsPromptLoading}
+                    >
+                      {wsPromptLoading ? 'Saving…' : wsPromptSaved ? <><CheckCircle size={14} /> Saved!</> : <><Save size={14} /> Save Persona</>}
+                    </button>
+                    {wsSystemPrompt && (
+                      <button
+                        className="btn-secondary"
+                        onClick={() => { setWsSystemPrompt(''); saveWsSystemPrompt(); }}
+                        style={{ opacity: 0.7 }}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           )}
 

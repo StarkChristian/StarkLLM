@@ -1313,7 +1313,7 @@ export default function App() {
         )}
 
         {activeView === 'settings' && (
-          <Settings token={token} username={username} />
+          <Settings token={token} username={username} activeWorkspace={activeWorkspace} />
         )}
 
         {activeView === 'chat' && (

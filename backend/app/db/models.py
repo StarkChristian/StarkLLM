@@ -33,6 +33,7 @@ class Workspace(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     name = Column(String, index=True)
     active_kb_dir_ids = Column(String, nullable=True)  # JSON-encoded list of integer folder IDs
+    system_prompt = Column(String, nullable=True)       # Custom workspace-level system prompt
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="workspaces")
@@ -72,6 +73,7 @@ class Message(Base):
     chat_id = Column(Integer, ForeignKey("chats.id"))
     role = Column(String)  # 'user', 'assistant', 'system'
     content = Column(String)
+    feedback = Column(String, nullable=True)  # 'positive', 'negative', or None
     created_at = Column(DateTime, default=datetime.utcnow)
 
     chat = relationship("Chat", back_populates="messages")

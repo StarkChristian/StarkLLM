@@ -10,11 +10,17 @@ Base.metadata.create_all(bind=engine)
 
 # Add columns to existing tables if they don't exist
 from sqlalchemy import text
-try:
-    with engine.begin() as conn:
-        conn.execute(text("ALTER TABLE chats ADD COLUMN folder_id INTEGER REFERENCES chat_folders(id) ON DELETE SET NULL"))
-except Exception:
-    pass # Column already exists or table doesn't exist
+_migrations = [
+    "ALTER TABLE chats ADD COLUMN folder_id INTEGER REFERENCES chat_folders(id) ON DELETE SET NULL",
+    "ALTER TABLE workspaces ADD COLUMN system_prompt TEXT",
+    "ALTER TABLE messages ADD COLUMN feedback TEXT",
+]
+for _sql in _migrations:
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(_sql))
+    except Exception:
+        pass  # Column already exists or table doesn't exist
 
 # Create upload directory if it doesn't exist
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)

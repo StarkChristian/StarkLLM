@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import styles from './ChatArea.module.css';
 import { 
   User, Bot, Volume2, Square, Database, Copy, Check, Globe, RefreshCw, 
-  Edit2, Download, FileText, AlertTriangle, Sparkles, Code, BookOpen 
+  Edit2, Download, FileText, AlertTriangle, Sparkles, Code, BookOpen,
+  ThumbsUp, ThumbsDown
 } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
@@ -187,9 +188,28 @@ const ChatMessageRenderer = React.memo(({
   onRetryMessage,
   workspaceId,
   token,
-  onSendToolResult
+  onSendToolResult,
+  onFeedback
 }) => {
   const contentSegments = msg.role === 'assistant' ? parseContentWithToolCalls(msg.content) : null;
+  const [localFeedback, setLocalFeedback] = useState(msg.feedback || null);
+
+  const handleFeedback = useCallback(async (value) => {
+    if (!msg.id || !token) return;
+    const newVal = localFeedback === value ? null : value; // toggle off
+    setLocalFeedback(newVal);
+    try {
+      await fetch(`/api/v1/chat/message/${msg.id}/feedback`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ feedback: newVal }),
+      });
+      if (onFeedback) onFeedback(msg.id, newVal);
+    } catch (e) {
+      console.error('Feedback error', e);
+    }
+  }, [msg.id, token, localFeedback, onFeedback]);
+
 
   return (
     <div className={`${styles.messageWrapper} ${msg.role === 'user' ? styles.user : ''} ${msg.role === 'system' ? styles.system : ''}`}>
@@ -341,6 +361,27 @@ const ChatMessageRenderer = React.memo(({
                 >
                   <RefreshCw size={14} />
                 </button>
+              )}
+
+              {msg.role === 'assistant' && msg.content.length > 0 && (
+                <>
+                  <button
+                    className={`${styles.actionBtn} ${localFeedback === 'positive' ? styles.feedbackActive : ''}`}
+                    onClick={() => handleFeedback('positive')}
+                    title="Good response"
+                    style={localFeedback === 'positive' ? { color: 'var(--success)', background: 'rgba(16,185,129,0.12)' } : {}}
+                  >
+                    <ThumbsUp size={14} />
+                  </button>
+                  <button
+                    className={`${styles.actionBtn} ${localFeedback === 'negative' ? styles.feedbackActive : ''}`}
+                    onClick={() => handleFeedback('negative')}
+                    title="Bad response"
+                    style={localFeedback === 'negative' ? { color: 'var(--danger)', background: 'rgba(239,68,68,0.12)' } : {}}
+                  >
+                    <ThumbsDown size={14} />
+                  </button>
+                </>
               )}
               
               {msg.role === 'assistant' && !isRTL(msg.content) && (
@@ -607,7 +648,7 @@ export default function ChatArea({
           <div className={styles.messages} ref={scrollContainerRef}>
           {messages.map((msg, i) => (
             <ChatMessageRenderer
-              key={i}
+              key={msg.id || i}
               msg={msg}
               i={i}
               isRTL={isRTL}
@@ -627,6 +668,7 @@ export default function ChatArea({
               workspaceId={workspaceId}
               token={token}
               onSendToolResult={onRetryMessage}
+              onFeedback={null}
             />
           ))}
           <div ref={messagesEndRef} />
