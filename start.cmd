@@ -44,8 +44,8 @@ if %ERRORLEVEL% NEQ 0 (
     echo           StarkLLM requires Ollama for local LLM inference and embeddings.
     echo           Please ensure Ollama is installed from https://ollama.com and running.
     echo           Recommended models:
-    echo             ollama pull qwen3.8:27b
-    echo             ollama pull qwen3-embedding:0.6b
+    echo             ollama pull qwen2.5:7b
+    echo             ollama pull nomic-embed-text
     echo.
 ) else (
     echo   -^> Ollama service detected.

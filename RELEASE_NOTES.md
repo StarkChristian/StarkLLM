@@ -121,8 +121,8 @@ This is an official frozen research-beta snapshot of StarkLLM, designed for loca
 - **Clean Docker Startup**: Automatic database initialization on clean volume creation without Alembic schema collision.
 - **Pre-Configured Environment**: Ready-to-run `.env` shipped directly in the distribution archive with secure research defaults.
 - **Default Models**:
-  - Chat / Completion: `qwen3.8:27b` (shipped `.env` default; `qwen2.5:7b` / `3b` for lightweight setups)
-  - Document Embeddings: `qwen3-embedding:0.6b` (shipped `.env` default; `nomic-embed-text` alternative)
+  - Chat / Completion: `qwen2.5:7b` (default; `qwen2.5:3b` for lightweight setups)
+  - Document Embeddings: `nomic-embed-text` (default)
   - Vision (optional): `llava`
 - **Robust Launchers (Phase 1 Hardened)**:
   - `start.exe`, `start.cmd`, and `start.bat` perform automated container cleanup before launch to prevent naming and port conflicts.

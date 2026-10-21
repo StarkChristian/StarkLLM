@@ -34,9 +34,9 @@ class Settings(BaseSettings):
     
     # LLM Settings (Ollama on Host)
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
-    DEFAULT_TEXT_MODEL: str = os.getenv("DEFAULT_TEXT_MODEL", "qwen3.8:27b")
+    DEFAULT_TEXT_MODEL: str = os.getenv("DEFAULT_TEXT_MODEL", "qwen2.5:7b")
     DEFAULT_VISION_MODEL: str = os.getenv("DEFAULT_VISION_MODEL", "llava")
-    DEFAULT_EMBEDDING_MODEL: str = os.getenv("DEFAULT_EMBEDDING_MODEL", "qwen3-embedding:0.6b")
+    DEFAULT_EMBEDDING_MODEL: str = os.getenv("DEFAULT_EMBEDDING_MODEL", "nomic-embed-text")
     
     # Paths for uploads
     UPLOAD_DIR: str = "data/uploads"
