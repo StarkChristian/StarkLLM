@@ -5,7 +5,7 @@ cd /d "%~dp0"
 
 echo ==================================================
 echo              StarkLLM Windows Launcher            
-echo           Windows Research Beta — Phase 1         
+echo           Windows Research Beta - Phase 1         
 echo ==================================================
 echo.
 

@@ -74,12 +74,16 @@ class RAGService :
         settings =chromadb .config .Settings (anonymized_telemetry =False ),
         )
         self .embedding_model =settings .DEFAULT_EMBEDDING_MODEL 
+        self .ranker =None 
         if Ranker :
-            self .ranker =Ranker (
-            model_name ="ms-marco-TinyBERT-L-2-v2",cache_dir ="./data/models"
-            )
-        else :
-            self .ranker =None 
+            try :
+                self .ranker =Ranker (
+                model_name ="ms-marco-TinyBERT-L-2-v2",cache_dir ="./data/models"
+                )
+            except Exception as e :
+                # The reranker model is downloaded on first use; without network access
+                # the backend must still start (retrieval just skips reranking).
+                logger .warning (f"Reranker unavailable, continuing without reranking: {e }")
 
             # ------------------------------------------------------------------
             # Collection helpers

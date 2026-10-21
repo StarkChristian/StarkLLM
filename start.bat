@@ -7,7 +7,7 @@ cd /d "%~dp0"
 cls
 echo ==================================================
 echo              StarkLLM Control Panel               
-echo           Windows Research Beta — Phase 1         
+echo           Windows Research Beta - Phase 1         
 echo ==================================================
 echo.
 echo  1.  Start StarkLLM

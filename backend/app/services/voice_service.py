@@ -21,12 +21,20 @@ DEFAULT_VOICE = "en_US-lessac-medium"
 class VoiceService:
     def __init__(self):
         # Force CPU to avoid CUDA library errors in slim docker image
-        logger.info("Initializing WhisperModel on CPU...")
-        try:
-            self.model = WhisperModel("base", device="cpu", compute_type="int8")
-        except Exception as e:
-            logger.error(f"Error initializing WhisperModel: {e}")
-            raise
+        # The model is downloaded on first use, so load it lazily: the backend
+        # must start even when the model cannot be fetched (e.g. offline).
+        self._model = None
+
+    @property
+    def model(self):
+        if self._model is None:
+            logger.info("Initializing WhisperModel on CPU...")
+            try:
+                self._model = WhisperModel("base", device="cpu", compute_type="int8")
+            except Exception as e:
+                logger.error(f"Error initializing WhisperModel: {e}")
+                raise
+        return self._model
 
     def transcribe(self, audio_path: str) -> str:
         segments, info = self.model.transcribe(audio_path, beam_size=5)

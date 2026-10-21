@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     DEFAULT_EMBEDDING_MODEL: str = os.getenv("DEFAULT_EMBEDDING_MODEL", "qwen3-embedding:0.6b")
     
     # Paths for uploads
-    UPLOAD_DIR: str = "../data/uploads"
+    UPLOAD_DIR: str = "data/uploads"
     
     # RAG Chunking configuration
     RAG_CHUNKING_STRATEGY: str = "semantic"  # "semantic", "recursive", "fixed"
