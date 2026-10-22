@@ -1,13 +1,13 @@
 const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain } = require('electron');
 const path = require('path');
-const http = require('http');
+const { probe, diagnose, buildErrorPage } = require('./diagnostics');
 
 let mainWindow = null;
 let tray = null;
 let isQuitting = false;
 
 const APP_URL = process.env.STARKLLM_URL || 'http://localhost:5173';
-const HEALTH_URL = 'http://localhost:8000/health';
+let pollInterval = null;
 
 // Ensure single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
@@ -77,6 +77,13 @@ function createMainWindow() {
     return { action: 'allow' };
   });
 
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (url.startsWith('starkllm-retry:')) {
+      event.preventDefault();
+      retryConnection();
+    }
+  });
+
   mainWindow.on('close', (event) => {
     if (!isQuitting) {
       // Allow standard close on Windows
@@ -88,27 +95,40 @@ function createMainWindow() {
 function checkServicesAndLoad() {
   let attempts = 0;
   const maxAttempts = 60;
+  let busy = false;
 
-  const pollInterval = setInterval(() => {
+  clearInterval(pollInterval);
+  pollInterval = setInterval(async () => {
+    if (busy) return;
+    busy = true;
     attempts++;
 
-    http.get(APP_URL, (res) => {
-      if (res.statusCode >= 200 && res.statusCode < 400) {
-        clearInterval(pollInterval);
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.loadURL(APP_URL);
-        }
+    const res = await probe(APP_URL);
+    if (res.ok) {
+      clearInterval(pollInterval);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.loadURL(APP_URL);
       }
-    }).on('error', () => {
-      // Retry
-      if (attempts >= maxAttempts) {
-        clearInterval(pollInterval);
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.loadURL(APP_URL); // attempt direct load
-        }
-      }
-    });
+    } else if (attempts >= maxAttempts) {
+      clearInterval(pollInterval);
+      showEngineProblem();
+    }
+    busy = false;
   }, 1000);
+}
+
+async function showEngineProblem() {
+  const diagnosis = await diagnose();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(buildErrorPage(diagnosis)));
+  }
+}
+
+function retryConnection() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.loadFile(path.join(__dirname, 'splash.html'));
+    checkServicesAndLoad();
+  }
 }
 
 function createTray() {
@@ -135,9 +155,7 @@ function createTray() {
       {
         label: 'Reload Application',
         click: () => {
-          if (mainWindow) {
-            mainWindow.loadURL(APP_URL);
-          }
+          retryConnection();
         }
       },
       { type: 'separator' },
