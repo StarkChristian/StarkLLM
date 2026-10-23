@@ -2,6 +2,8 @@ import os
 import re 
 import math 
 import hashlib 
+import unicodedata 
+from collections import Counter 
 import tempfile 
 import logging 
 import chromadb 
@@ -38,6 +40,23 @@ ENGLISH_STOP_WORDS ={
 "with","won't","would","wouldn't","you","you'd","you'll","you're","you've","your","yours","yourself",
 "yourselves"
 }
+
+# The lexical branch used to filter English stop words only, so German function words ("der", "wie", "beim")
+# dominated the keyword ranking of German questions.
+GERMAN_STOP_WORDS ={
+"der","die","das","den","dem","des","ein","eine","einer","einem","einen","eines","und","oder","aber","nicht",
+"ist","sind","war","waren","wird","werden","wurde","wurden","hat","haben","hatte","hatten","wie","was","wer",
+"wo","wann","warum","wieso","welche","welcher","welches","welchen","welchem","viel","viele","wieviel","auf",
+"aus","bei","beim","mit","nach","von","vom","zu","zum","zur","über","ueber","unter","vor","für","fuer","gegen",
+"ohne","durch","um","am","im","in","an","ich","du","er","sie","es","wir","ihr","mein","dein","sein","unser",
+"sich","auch","noch","nur","schon","dann","dass","daß","als","wenn","bitte","kann","können","koennen","muss",
+"müssen","muessen","soll","sollen","gibt","mir","mich","uns","dir","ihre","ihren","ihrem","seine","seinen"
+}
+
+def _fold(text :str )->str :
+    """Lowercase and fold German umlauts / accents so 'Zähler' matches 'Zaehler' and 'Straße' matches 'Strasse'."""
+    text =text .lower ().replace ("ä","ae").replace ("ö","oe").replace ("ü","ue").replace ("ß","ss")
+    return "".join (c for c in unicodedata .normalize ("NFKD",text )if not unicodedata .combining (c ))
 
 
 class HTMLTextExtractor (HTMLParser ):
@@ -330,6 +349,18 @@ class RAGService :
                             current_texts.append(p_text)
                     if current_texts:
                         sections.append((current_heading, "\n".join(current_texts)))
+                    table_rows = []
+                    for table in doc.tables:
+                        for row in table.rows:
+                            cells = []
+                            for c in row.cells:
+                                t = c.text.strip()
+                                if t and (not cells or cells[-1] != t):
+                                    cells.append(t)
+                            if cells:
+                                table_rows.append(" | ".join(cells) + ".")
+                    if table_rows:
+                        sections.append(("Tables", "\n".join(table_rows)))
                     if not sections:
                         full_text = "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
                         sections = [("General", full_text)]
@@ -355,11 +386,59 @@ class RAGService :
                                 ids.append(f"{prefix}_{basename}_c{chunk_counter}")
                 except Exception as docx_err:
                     logger.error(f"RAG: DOCX processing failed for {file_path}: {docx_err}")
+                    raise
+
+            # ---------------------------------------------------------------- CSV / JSON / XML / LOG (plain-text data)
+            elif file_ext in [".csv", ".json", ".xml", ".log", ".markdown"]:
+                with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                    text = f.read()
+                for idx, chunk in enumerate(self._chunk_structured_text(text, file_ext)):
+                    if chunk.strip():
+                        chunks.append(chunk.strip())
+                        metadatas.append({
+                            "source": file_path,
+                            "type": file_ext.lstrip("."),
+                            "chunk": idx + 1,
+                            "locator": f"Chunk {idx + 1}"
+                        })
+                        ids.append(f"{prefix}_{basename}_c{idx}")
+
+            # ---------------------------------------------------------------- XLSX
+            elif file_ext == ".xlsx":
+                import openpyxl
+
+                wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+                try:
+                    idx = 0
+                    for sheet in wb.worksheets:
+                        lines = []
+                        for row in sheet.iter_rows(values_only=True):
+                            cells = ["" if c is None else str(c) for c in row]
+                            if any(c.strip() for c in cells):
+                                lines.append(" | ".join(cells).rstrip(" |"))
+                        if not lines:
+                            continue
+                        for chunk in self._chunk_rows(lines, f"Sheet: {sheet.title}"):
+                            chunks.append(chunk)
+                            metadatas.append({
+                                "source": file_path,
+                                "type": "xlsx",
+                                "sheet": sheet.title,
+                                "chunk": idx + 1,
+                                "locator": f"Sheet '{sheet.title}' (chunk {idx + 1})"
+                            })
+                            ids.append(f"{prefix}_{basename}_c{idx}")
+                            idx += 1
+                finally:
+                    wb.close()
 
         except Exception as e :
             logger.error (f"RAG: Error processing document {file_path }: {e }")
             raise 
 
+        if not chunks :
+            # never report "indexed" for a file that produced nothing searchable
+            raise ValueError (f"No text content could be extracted from '{basename }'")
         return chunks ,metadatas ,ids 
 
     def _embed_and_store (self ,collection ,chunks ,metadatas ,ids ,label :str ):
@@ -470,10 +549,24 @@ class RAGService :
                 prefix =f"[Document: {filename}]\n"if filename else ""
                 passages .append ({"id":str (i ),"text":prefix +r ["content"],"meta":meta })
             reranked =self .ranker .rerank (RerankRequest (query =query_text ,passages =passages ))
-            top =reranked [:n_results ]
-            return [
-            candidates [int (r ["id"])]for r in top 
-            ]
+            # The bundled cross-encoder is English-only; on German text its order is close to noise and used to
+            # replace the hybrid (vector + keyword) order completely. Fuse both orders (RRF) instead, and never
+            # drop the hybrid's best candidate or the vector search's nearest neighbour.
+            k =60 
+            rerank_pos ={int (r ["id"]):pos for pos ,r in enumerate (reranked )}
+            order =sorted (
+            range (len (candidates )),
+            key =lambda i :-(1.0 /(k +i +1 )+1.0 /(k +rerank_pos .get (i ,len (candidates ))+1 )),
+            )
+            top =order [:n_results ]
+            protected =[i for i ,c in enumerate (candidates )if i ==0 or c .get ("_vector_top")]
+            for i in protected :
+                if i not in top and top :
+                    for j in range (len (top )-1 ,-1 ,-1 ):
+                        if top [j ]not in protected :
+                            top [j ]=i 
+                            break 
+            return [candidates [i ]for i in top ]
         return candidates [:n_results ]
 
         # ------------------------------------------------------------------
@@ -670,6 +763,42 @@ class RAGService :
         logger.info (f"RAG [recursive-chunker]: {len (result )} chunk(s) from {len (text )} chars")
         return result 
 
+    def _chunk_rows (self ,rows :List [str ],header :str ="",max_chars :int =None )->List [str ]:
+        """Pack line-oriented data (CSV rows, spreadsheet rows, log lines) into chunks of at most
+        `max_chars`; every chunk repeats `header` so a row keeps its column context."""
+        limit =max_chars or getattr (settings ,"RAG_CHUNK_SIZE",700 )
+        head =(header +"\n")if header else ""
+        out ,cur =[],[]
+        cur_len =len (head )
+        for row in rows :
+            row =row [:limit -len (head )]if len (row )>limit -len (head )else row 
+            if cur and cur_len +len (row )+1 >limit :
+                out .append (head +"\n".join (cur ))
+                cur ,cur_len =[],len (head )
+            cur .append (row )
+            cur_len +=len (row )+1 
+        if cur :
+            out .append (head +"\n".join (cur ))
+        return out 
+
+    def _chunk_structured_text (self ,text :str ,ext :str )->List [str ]:
+        """CSV / JSON / XML / LOG / Markdown: line-aware chunking that always respects the chunk size."""
+        if not text or not text .strip ():
+            return []
+        if ext ==".json":
+            try :
+                import json 
+
+                text =json .dumps (json .loads (text ),ensure_ascii =False ,indent =1 )
+            except Exception :
+                pass 
+        lines =[l for l in text .splitlines ()if l .strip ()]
+        if ext ==".csv"and lines :
+            return self ._chunk_rows (lines [1 :]or lines ,"Columns: "+lines [0 ][:300 ])
+        if ext ==".markdown":
+            return self ._semantic_chunk_text (text )
+        return self ._chunk_rows (lines )
+
     def _semantic_chunk_text (self ,text :str )->List [str ]:
         """
         Splits text based on sentence semantic similarity using nomic-embed-text.
@@ -684,7 +813,17 @@ class RAGService :
 
             # 1. Split into sentences (keeping end marks)
         raw_sentences =re .split (r'(?<=[.?!])\s+',text .strip ())
-        sentences =[s .strip ()for s in raw_sentences if s .strip ()]
+        sentences =[]
+        for raw in raw_sentences :
+            raw =raw .strip ()
+            if not raw :
+                continue 
+            if len (raw )>chunk_size :
+                # Text without sentence punctuation (logs, tables, code, lists) is one huge "sentence":
+                # split it by lines/words first so it never becomes a single giant chunk.
+                sentences .extend (part .strip ()for part in self ._chunk_text_recursive (raw ,chunk_size =chunk_size ,overlap =0 )if part .strip ())
+            else :
+                sentences .append (raw )
 
         if len (sentences )<=1 :
             logger.info (f"RAG [semantic-chunker]: only {len (sentences )} sentence(s) — returning as-is")
@@ -849,28 +988,39 @@ class RAGService :
         Retrieve all documents from a collection (applying optional filters) and
         rank them by TF-IDF relevance against stop-word filtered query terms.
         """
+        # Score every chunk, not just the first few: a rare token (an error code, a part number, a counter)
+        # can sit in any chunk of a long document. Read the collection page by page up to a safety cap.
+        docs ,metas ,ids =[],[],[]
         try :
             where_filter =self ._build_where_filter (filters )
-            limit_val = min(n_candidates * 2, 50)
-            get_kwargs ={"include":["documents","metadatas"],"limit":limit_val }
-            if where_filter :
-                get_kwargs ["where"]=where_filter 
-            all_items =collection .get (**get_kwargs )
+            scan_cap =getattr (settings ,"RAG_KEYWORD_SCAN_LIMIT",20000 )
+            page_size =1000 
+            while len (docs )<scan_cap :
+                get_kwargs ={"include":["documents","metadatas"],"limit":min (page_size ,scan_cap -len (docs )),"offset":len (docs )}
+                if where_filter :
+                    get_kwargs ["where"]=where_filter 
+                page =collection .get (**get_kwargs )
+                page_docs =page .get ("documents",[])or []
+                if not page_docs :
+                    break 
+                docs .extend (page_docs )
+                metas .extend (page .get ("metadatas",[])or [])
+                ids .extend (page .get ("ids",[])or [])
+                if len (page_docs )<get_kwargs ["limit"]:
+                    break 
+            else :
+                logger .warning (f"RAG [keyword-query]: scan cap of {scan_cap } chunks reached; later chunks were not scored lexically")
         except Exception as e :
             logger.error (f"RAG [keyword-query]: ChromaDB get failed: {e }")
             return []
-
-        docs =all_items .get ("documents",[])or []
-        metas =all_items .get ("metadatas",[])or []
-        ids =all_items .get ("ids",[])or []
 
         N =len (docs )
         if N ==0 :
             return []
 
             # Tokenize query, filter stop words
-        raw_words =re .findall (r'\b\w+\b',query_text .lower ())
-        query_terms =[w for w in raw_words if len (w )>1 and w not in ENGLISH_STOP_WORDS ]
+        raw_words =re .findall (r'\b\w+\b',_fold (query_text ))
+        query_terms =[w for w in raw_words if len (w )>1 and w not in ENGLISH_STOP_WORDS and w not in GERMAN_STOP_WORDS ]
         if not query_terms :
         # Safeguard fallback: if all query terms are stop words, retain them
             query_terms =[w for w in raw_words if len (w )>1 ]
@@ -891,7 +1041,7 @@ class RAGService :
             # correct file's chunks without polluting stored chunk text.
         doc_words =[]
         for doc_idx ,doc in enumerate (docs ):
-            words =re .findall (r'\b\w+\b',doc .lower ())
+            words =re .findall (r'\b\w+\b',_fold (doc ))
             # Append filename-derived tokens from metadata
             meta =metas [doc_idx ]if doc_idx <len (metas )else {}
             for meta_key in ("file_name","source","file_path"):
@@ -899,19 +1049,22 @@ class RAGService :
                 if raw_name :
                     filename =os .path .basename (raw_name )
                     basename ,ext =os .path .splitext (filename )
-                    name_tokens =re .findall (r'\b\w+\b',basename .lower ())
+                    name_tokens =re .findall (r'\b\w+\b',_fold (basename ))
                     if ext :
                         name_tokens .append (ext .replace (".","").lower ())
                     # Also index the raw filename and full lowercased name
-                    name_tokens .append (filename .lower ())
+                    name_tokens .append (_fold (filename ))
                     words =words +name_tokens
                     break # one source is enough
             doc_words .append (words )
 
+            # Term counts per chunk (one pass over the tokens instead of one list scan per query term)
+        doc_counts =[Counter (words )for words in doc_words ]
+
             # Document frequency count
         df ={}
         for term in query_terms :
-            df [term ]=sum (1 for words in doc_words if term in words )
+            df [term ]=sum (1 for counts in doc_counts if term in counts )
 
             # Calculate IDF values
         idf ={}
@@ -926,8 +1079,9 @@ class RAGService :
                 continue 
 
             score =0.0 
+            counts =doc_counts [i ]
             for term in query_terms :
-                term_count =words .count (term )
+                term_count =counts .get (term ,0 )
                 if term_count >0 :
                     tf =term_count /len (words )
                     score +=tf *idf [term ]
@@ -970,6 +1124,8 @@ class RAGService :
             cid =cand .get ("id")or hashlib .md5 (cand ["content"].encode ()).hexdigest ()
             rrf_scores [cid ]=rrf_scores .get (cid ,0.0 )+1.0 /(k +rank +1 )
             all_by_id [cid ]=cand 
+            if rank ==0 :
+                cand ["_vector_top"]=True # the reranker must not drop the nearest neighbour
 
         for rank ,cand in enumerate (keyword_cands ):
             cid =cand .get ("id")or hashlib .md5 (cand ["content"].encode ()).hexdigest ()
