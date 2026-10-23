@@ -28,3 +28,4 @@ python-docx
 ddgs
 httpx
 youtube-transcript-api
+openpyxl==3.1.5

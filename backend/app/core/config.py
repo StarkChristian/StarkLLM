@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "StarkLLM"
-    VERSION: str = "1.0.0"
+    VERSION: str = "2.0.0"  # shown by /health; keep equal to the released app version
     
     # API settings
     API_V1_STR: str = "/api/v1"
@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     
     # Advanced RAG
     RAG_HYBRID_SEARCH: bool = True
+    RAG_KEYWORD_SCAN_LIMIT: int = 20000  # max chunks scored by the lexical (BM25-style) branch per query
     RAG_CONTEXT_COMPRESSION: bool = True
     
     class Config:

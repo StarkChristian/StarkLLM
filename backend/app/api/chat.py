@@ -17,7 +17,7 @@ from app.services.mcp_service import mcp_service
 from app.core.config import settings
 from app.api.auth import get_current_user
 from app.api.deps import get_workspace_or_404, get_chat_or_404, get_message_or_404
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 try:
     from ddgs import DDGS
@@ -86,7 +86,7 @@ def _strip_tool_fences(text: str) -> str:
 class ChatRequest(BaseModel):
     workspace_id: int
     chat_id: Optional[int] = None
-    message: str
+    message: str = Field(..., max_length=100_000)
     stream: bool = True
     use_knowledge_base: bool = False  # toggle: query personal KB in addition to workspace
     use_web_search: bool = False      # toggle: query web via DDG
@@ -98,6 +98,13 @@ class ChatRequest(BaseModel):
     top_p: Optional[float] = None
     max_tokens: Optional[int] = None
     provider: Optional[str] = "ollama"
+
+    @field_validator("message")
+    @classmethod
+    def _message_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Message must not be empty")
+        return v
     api_key: Optional[str] = None
     base_url: Optional[str] = None
 
@@ -250,10 +257,31 @@ async def chat(
 
         matched_filepaths = []
 
+        # ---- Do we have any documents the question could be about?
+        # Retrieval must not depend on English trigger words in the message: as soon as the user has indexed
+        # documents (workspace, or personal KB when toggled) we retrieve and let the model decide.
+        ws_indexed_docs = (
+            db.query(models.Document)
+            .filter(models.Document.workspace_id == req.workspace_id,
+                    models.Document.status == models.DocStatus.INDEXED)
+            .count()
+        )
+        kb_docs = []
+        if req.use_knowledge_base:
+            kb_docs = (
+                db.query(models.KnowledgeBaseDocument)
+                .join(models.KnowledgeBaseFolder, models.KnowledgeBaseDocument.folder_id == models.KnowledgeBaseFolder.id)
+                .filter(models.KnowledgeBaseFolder.user_id == current_user.id,
+                        models.KnowledgeBaseDocument.status == "indexed")
+                .order_by(models.KnowledgeBaseDocument.indexed_at.desc())
+                .all()
+            )
+        docs_available = ws_indexed_docs > 0 or len(kb_docs) > 0
+
         # ---- Concurrent Data Fetching (RAG, Web, Memory)
         async def fetch_rag():
-            if not (is_rag_intent or matched_filepaths):
-                logger.info("Skipped RAG vector search due to GENERAL intent.")
+            if not (is_rag_intent or matched_filepaths or docs_available):
+                logger.info("Skipped RAG vector search: GENERAL intent and no indexed documents.")
                 return [], [], "", ""
             try:
                 import json
@@ -450,12 +478,32 @@ STRICT DOCUMENT RAG MODE
 - IF the provided context DOES NOT contain the exact information needed to answer the question, you MUST refuse to answer. Reply with: "I could not find the answer in the provided documents." (or natural equivalent in the requested language). Do NOT attempt to answer from your outside knowledge. Do NOT guess.
 - You MUST explicitly cite the source filename for every claim you make (e.g., "According to [report.pdf]...").
 - Do NOT hallucinate facts, numbers, or details that are not explicitly written in the context.
+- If passages disagree (for example an old and a new version of the same contract or manual), answer with the current, valid one first. A passage that says it was replaced, superseded or is no longer valid is outdated: mention its value only as outdated, never as an equal alternative.
+- When asked to summarize a document, cover its key terms (parties, duration, amounts, deadlines, liabilities) and add nothing that is not in the passages.
 
 ═══════════════════════════════════════
 RAG — DOCUMENT CONTEXT
 ═══════════════════════════════════════
 The sections below contain EXACT TEXT retrieved from the user's documents.
 Each chunk is prefixed with [Document: <filename>] so you know which file it came from.
+
+--- Available files in this workspace ---
+{ws_file_list if ws_file_list else "  (no files uploaded yet)"}{kb_file_list_section}
+--- Retrieved Workspace Context ---
+{ws_context if ws_context else "No relevant documents found in this workspace for this query."}
+{kb_section}
+"""
+        elif docs_available:
+            mode_instructions = f"""
+═══════════════════════════════════════
+DOCUMENT-AWARE MODE
+═══════════════════════════════════════
+- The user has indexed documents. Passages that may be relevant to the current message were retrieved below; they can also be irrelevant.
+- If the passages contain the answer, answer from them and name the source filename (e.g., "According to [report.pdf]...").
+- If passages disagree (for example an old and a new version of the same contract or manual), answer with the current, valid one first. A passage that says it was replaced, superseded or is no longer valid is outdated: mention its value only as outdated, never as an equal alternative.
+- When asked to summarize a document, cover its key terms (parties, duration, amounts, deadlines, liabilities) and add nothing that is not in the passages.
+- If the message asks for facts about the user's own company, files, people, products, contracts or data that only their documents could contain, and the passages do not contain the answer, reply that you could not find it in the provided documents (in the user's language). Do NOT guess and do NOT answer from general knowledge in that case.
+- For greetings, chit-chat, general knowledge, coding or writing tasks that have nothing to do with the documents, answer normally and do not mention the documents.
 
 --- Available files in this workspace ---
 {ws_file_list if ws_file_list else "  (no files uploaded yet)"}{kb_file_list_section}
@@ -686,7 +734,10 @@ WEB SEARCH RESULTS (LIVE DATA)
                 )
                 content = llm_response.get("message", {}).get("content", "")
             except Exception as e:
-                content = f"Error generating response: {str(e)}"
+                # An error must not be stored as the assistant's answer (it would be replayed into later prompts)
+                # and must not come back as HTTP 200.
+                logger.error(f"LLM error: {e}")
+                raise HTTPException(status_code=502, detail=f"The language model backend (Ollama) failed: {e}")
 
             ast_msg = models.Message(
                 chat_id=chat_obj.id, role="assistant", content=content
@@ -706,6 +757,8 @@ WEB SEARCH RESULTS (LIVE DATA)
             
             return {"response": content, "chat_id": chat_obj.id}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("Chat endpoint error", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
