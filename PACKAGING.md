@@ -2,17 +2,16 @@
 
 This document describes how to create a clean, distributable zip package of StarkLLM for the Windows Research Beta release. 
 
-## Building the Windows Setup Installer (.exe)
+## Building the launcher (start.exe)
 
-To generate the single-file setup wizard installer (`StarkLLM-v1.0.0-beta-Setup.exe`):
+The Inno Setup installer was retired: it was out of date (v1.0.0-beta) and did not match the released
+installers. Releases are built as follows:
 
-1. Run **`.\build-installer.ps1`** with PowerShell.
-2. The script will:
-   - Generate the application icon from `Logo.png`.
-   - Recompile the Go launcher (`start.exe`).
-   - Stage clean files (excluding caches, `data/`, `venv`, `node_modules`).
-   - Compile the Inno Setup script ([installer/starkllm.iss](file:///c:/Users/chris/Documents/anti%20gravity/StarkLLM/installer/starkllm.iss)).
-   - Output the installer `.exe` into `dist/` and sync to `website/downloads/StarkLLM-Setup.exe`.
+1. Recompile the Go launcher (Windows only, from `launcher_src/`):
+   `go build -ldflags="-s -w" -o ..\start.exe main.go`
+2. Build the desktop shell installer and portable app (from `desktop/`): `npm ci` then `npm run dist`.
+   This produces `StarkLLM-v<version>-Setup.exe` and the portable executable in `desktop/dist/`.
+3. Build the zip package with `package-release.ps1` (below). It contains `start.exe`, the backend and the frontend.
 
 ---
 

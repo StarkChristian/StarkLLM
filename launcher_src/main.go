@@ -313,8 +313,8 @@ func isPortAvailable(port int) bool {
 }
 
 func loadConfiguredModels() (string, string) {
-	textModel := "qwen3.8:27b"
-	embedModel := "qwen3-embedding:0.6b"
+	textModel := "qwen2.5:7b"
+	embedModel := "nomic-embed-text"
 
 	file, err := os.Open(".env")
 	if err != nil {

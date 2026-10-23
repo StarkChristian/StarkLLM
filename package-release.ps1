@@ -40,7 +40,6 @@ $ItemsToCopy = @(
     "RELEASE_NOTES.md",
     "RELEASE_CHECKLIST.md",
     "PACKAGING.md",
-    ".env",
     ".env.example"
 )
 

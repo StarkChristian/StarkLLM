@@ -7,7 +7,7 @@ cd /d "%~dp0"
 cls
 echo ==================================================
 echo              StarkLLM Control Panel               
-echo           Windows Research Beta — Phase 1         
+echo           Windows Research Beta - Phase 1         
 echo ==================================================
 echo.
 echo  1.  Start StarkLLM
@@ -17,7 +17,7 @@ echo  4.  Exit
 echo.
 echo ==================================================
 echo  Requires: Docker Desktop (WSL2) + Ollama
-echo  Default:  qwen3.8:27b + qwen3-embedding:0.6b
+echo  Default:  qwen2.5:7b + nomic-embed-text
 echo ==================================================
 echo.
 set "choice="

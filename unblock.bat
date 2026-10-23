@@ -1,6 +1,6 @@
 @echo off
 rem ============================================================
-rem  unblock.bat — Run this ONCE after extracting the ZIP.
+rem  unblock.bat - Run this ONCE after extracting the ZIP.
 rem
 rem  Windows marks files downloaded from the internet with a
 rem  "Zone.Identifier" alternate data stream (the Mark of the Web).
