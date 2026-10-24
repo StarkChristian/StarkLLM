@@ -621,10 +621,24 @@ class KBService:
                 else:
                     raise ValueError("Vision service returned empty description for the image")
 
-            elif file_type in ["txt", "md"]:
-                logger.info(f"KB: Extracting plain text/Markdown: {file_path}")
-                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                    text = f.read()
+            elif file_type in ["txt", "md", "markdown", "csv", "json", "xml", "log", "xlsx"]:
+                logger.info(f"KB: Extracting text/data file ({file_type}): {file_path}")
+                if file_type == "xlsx":
+                    import openpyxl
+                    wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+                    lines = []
+                    for ws in wb.worksheets:
+                        lines.append(f"Sheet: {ws.title}")
+                        for row in ws.iter_rows(values_only=True):
+                            cells = ["" if c is None else str(c) for c in row]
+                            if any(cells):
+                                lines.append(" | ".join(cells))
+                        lines.append("")
+                    wb.close()
+                    text = "\n".join(lines)
+                else:
+                    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                        text = f.read()
                 text_chunks = rag_service._semantic_chunk_text(text)
                 txt_chunk_count = 0
                 for c in text_chunks:
