@@ -1,5 +1,16 @@
 # StarkLLM Release Notes
 
+## Version 2.0.2 — First start fixes
+
+Found by starting the app on a fresh profile in every situation (no Docker, Docker stopped, no Ollama, missing models, a failing model download, a busy port):
+
+- **Chat works right after installation.** The interface sent the model `llama3.2:3b` with every chat until a model was picked by hand, so on a new PC every chat failed with "Model 'llama3.2:3b' not found". It now uses the default model (the one the app downloads). AI Studio no longer falls back to a fixed model either.
+- **Clearer start page when a model is missing:** it names the missing model and the reason instead of "running without its AI runtime".
+- Error messages in the chat no longer show a tokens-per-second badge.
+- `engine.log` records why Docker could not be used.
+
+---
+
 ## Version 2.0.1 — The desktop app starts its own engine; reliability, privacy and security fixes
 
 - **The installer and the portable exe now work on a new PC.** v2.0.0 only opened a window on `localhost:5173` and contained no engine, so it always ended on an error page unless the engine had been started from a source checkout. The app now ships the engine and on every start: finds Docker (also right after Docker Desktop was installed), starts Docker Desktop if needed, starts Ollama if installed, downloads missing AI models with progress on the splash screen, builds and starts the engine (`docker compose up --build`; the first start takes 10-20 minutes and needs internet), and opens StarkLLM. Data lives in `%APPDATA%\StarkLLM`, the Knowledge Base folder is `Documents\StarkLLM Knowledge Base`, and every installation gets its own secret key. When something is missing the window says what and how to fix it, with the engine log.
