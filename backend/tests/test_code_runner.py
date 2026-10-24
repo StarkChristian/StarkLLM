@@ -64,3 +64,12 @@ def test_other_languages_and_huge_snippets_are_rejected():
     with pytest.raises(HTTPException) as e:
         run("x = 1\n" * 10000)
     assert e.value.status_code == 413
+
+
+def test_numpy_and_pandas_work_under_the_memory_limit():
+    """Found by a smoke test of the merged build: with several BLAS threads numpy/pandas could not even be imported
+    under the address-space limit ('OpenBLAS error: Memory allocation still failed')."""
+    pytest.importorskip("numpy")
+    pytest.importorskip("pandas")
+    r = run("import numpy as np, pandas as pd\nprint(np.arange(5).sum(), pd.DataFrame({'a': [1, 2]}).a.sum())", timeout=10)
+    assert r["exit_code"] == 0 and r["stdout"].split() == ["10", "3"], r

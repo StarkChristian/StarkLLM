@@ -242,7 +242,9 @@ def execute_code(
         msg = f"Blocked: {reason}."
         return {"stdout": "", "stderr": msg, "output": msg, "exit_code": 126, "execution_time_ms": 0}
 
-    env = {"PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1"}
+    # One BLAS thread: every extra thread reserves address space, and numpy/pandas then fail to import under the memory limit.
+    env = {"PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1",
+           "OPENBLAS_NUM_THREADS": "1", "OMP_NUM_THREADS": "1", "MKL_NUM_THREADS": "1"}
     if os.environ.get("SYSTEMROOT"):                       # Windows needs it to start Python
         env["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
     t0 = time.time()
