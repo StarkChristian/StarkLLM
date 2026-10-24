@@ -17,7 +17,7 @@
   "build": {
     "appId": "com.starkllm.desktop",
     "productName": "StarkLLM",
-    "copyright": "Copyright © 2026 Christian Stark",
+    "copyright": "Copyright \u00a9 2026 Christian Stark",
     "directories": {
       "output": "dist"
     },
@@ -37,6 +37,42 @@
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico",
       "artifactName": "StarkLLM-v${version}-Setup.${ext}"
+    },
+    "extraResources": [
+      {
+        "from": "../docker-compose.yml",
+        "to": "engine/docker-compose.yml"
+      },
+      {
+        "from": "../backend",
+        "to": "engine/backend",
+        "filter": [
+          "Dockerfile",
+          "requirements.txt",
+          "alembic.ini",
+          "app/**/*",
+          "alembic/**/*",
+          "!**/__pycache__/**",
+          "!**/*.pyc"
+        ]
+      },
+      {
+        "from": "../frontend",
+        "to": "engine/frontend",
+        "filter": [
+          "Dockerfile",
+          "nginx.conf",
+          "package.json",
+          "package-lock.json",
+          "index.html",
+          "vite.config.js",
+          "public/**/*",
+          "src/**/*"
+        ]
+      }
+    ],
+    "portable": {
+      "artifactName": "StarkLLM-v${version}-Portable.${ext}"
     }
   }
 }

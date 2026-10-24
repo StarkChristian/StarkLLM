@@ -73,6 +73,9 @@
       font-size: 0.82rem;
       color: #cbd5e1;
       min-height: 20px;
+      max-width: 100%;
+      line-height: 1.4;
+      overflow-wrap: anywhere;
     }
     .badge-v2 {
       display: inline-block;
@@ -95,8 +98,8 @@
     <h1>StarkLLM</h1>
     <p class="subtitle">100% Private Local AI for Windows</p>
     <div class="spinner-ring"></div>
-    <div class="status-text" id="statusMsg">Connecting to local engine...</div>
-    <span class="badge-v2">Desktop v2.0.0</span>
+    <div class="status-text" id="statusMsg">Starting...</div>
+    <span class="badge-v2" id="versionBadge">Desktop</span>
   </div>
 </body>
 </html>

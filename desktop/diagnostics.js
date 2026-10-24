@@ -2,7 +2,7 @@ const http = require('http');
 const { execFile } = require('child_process');
 
 const OLLAMA_URL = 'http://127.0.0.1:11434/api/tags';
-const HEALTH_URL = 'http://localhost:8000/health';
+const HEALTH_URL = `http://127.0.0.1:${process.env.STARKLLM_API_PORT || 8000}/health`;
 
 const LINKS = {
   docker: 'https://www.docker.com/products/docker-desktop/',
@@ -11,6 +11,8 @@ const LINKS = {
 };
 
 function probe(url) {
+  // Docker publishes the ports on 127.0.0.1; 'localhost' may resolve to ::1 first on Windows.
+  url = url.replace('//localhost:', '//127.0.0.1:');
   return new Promise((resolve) => {
     const req = http.get(url, { timeout: 4000 }, (res) => {
       let body = '';
@@ -33,8 +35,12 @@ function dockerState() {
   });
 }
 
-async function diagnose() {
-  const [docker, ollama, backend] = await Promise.all([dockerState(), probe(OLLAMA_URL), probe(HEALTH_URL)]);
+async function diagnose(engine = {}) {
+  let [docker, ollama, backend] = await Promise.all([dockerState(), probe(OLLAMA_URL), probe(HEALTH_URL)]);
+  // The engine start knows better (it also finds docker.exe when it is not on PATH yet).
+  if (engine.stage === 'docker-missing') docker = 'missing';
+  else if (engine.stage === 'docker-stopped') docker = 'stopped';
+  else if (engine.stage) docker = 'running';
   let models = [];
   try {
     models = (JSON.parse(ollama.body).models || []).map((m) => m.name);
@@ -46,7 +52,7 @@ async function diagnose() {
     if (!models.some((n) => n.startsWith('nomic-embed-text'))) missingModels.push('nomic-embed-text');
     if (!models.some((n) => !n.startsWith('nomic-embed-text'))) missingModels.push('qwen2.5:7b');
   }
-  return { docker, ollama: ollama.ok, missingModels, backend: backend.ok };
+  return { docker, ollama: ollama.ok, missingModels, backend: backend.ok, engine };
 }
 
 function buildRows(d) {
@@ -65,7 +71,7 @@ function buildRows(d) {
     rows.push({
       ok: false,
       title: 'Docker Desktop is not running',
-      detail: 'Start Docker Desktop and wait until it reports that the engine is running, then press Retry.'
+      detail: 'StarkLLM tried to start Docker Desktop but its engine did not come up. Open Docker Desktop, wait until it says "Engine running" (on a new PC it may ask to finish its setup or to enable WSL2 and restart), then press Retry.'
     });
   }
 
@@ -80,27 +86,24 @@ function buildRows(d) {
     rows.push({
       ok: false,
       title: 'Ollama is missing models',
-      detail: 'Open a terminal and run:',
+      detail: 'StarkLLM could not download them automatically. Open a terminal and run:',
       code: d.missingModels.map((m) => 'ollama pull ' + m)
     });
   } else {
     rows.push({ ok: true, title: 'Ollama is running with models' });
   }
 
-  if (d.backend) {
+  if (d.engine.ok) {
+    rows.push({ ok: true, title: 'StarkLLM engine is running' });
+  } else if (d.docker === 'running') {
     rows.push({
       ok: false,
-      title: 'The StarkLLM web UI is not answering on port 5173',
-      detail: 'The backend is up but the UI container is not. In the StarkLLM folder run:',
-      code: ['docker compose ps', 'docker compose up -d']
-    });
-  } else {
-    rows.push({
-      ok: false,
-      title: 'StarkLLM services are not running',
-      detail: 'This desktop window only displays StarkLLM; it does not start the services itself. In the StarkLLM folder run start.cmd (or docker compose up -d), then press Retry.'
+      title: 'The StarkLLM engine could not be started',
+      detail: (d.engine.detail || 'The engine containers did not start.') + ' The full log is in ' + d.engine.logFile + '.',
+      code: d.engine.log && d.engine.log.length ? d.engine.log : null
     });
   }
+  for (const w of d.engine.warnings || []) rows.push({ ok: false, title: 'Warning', detail: w });
 
   return rows;
 }
@@ -148,11 +151,12 @@ function buildErrorPage(d) {
 </head>
 <body>
 <div class="card">
-  <h1>StarkLLM can't reach its local engine</h1>
-  <p class="sub">The desktop app waited 60 seconds. Here is what is missing on this PC:</p>
+  <h1>${d.engine.ok ? 'StarkLLM is running without its AI runtime' : 'StarkLLM could not start'}</h1>
+  <p class="sub">Here is what this PC is missing:</p>
   <ul>${rows}</ul>
   <div class="actions">
     <a class="btn" href="starkllm-retry:">Retry</a>
+    ${d.engine.ok ? '<a class="link" href="starkllm-continue:">Open StarkLLM anyway</a>' : ''}
     <a class="link" href="${LINKS.guide}" target="_blank">Setup guide</a>
   </div>
 </div>

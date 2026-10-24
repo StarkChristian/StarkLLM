@@ -1,13 +1,14 @@
 const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain } = require('electron');
 const path = require('path');
-const { probe, diagnose, buildErrorPage } = require('./diagnostics');
+const { diagnose, buildErrorPage } = require('./diagnostics');
+const { startEngine, userPaths } = require('./engine');
 
 let mainWindow = null;
 let tray = null;
 let isQuitting = false;
 
-const APP_URL = process.env.STARKLLM_URL || 'http://localhost:5173';
-let pollInterval = null;
+const APP_URL = process.env.STARKLLM_URL || `http://localhost:${process.env.STARKLLM_UI_PORT || 5173}`;
+let starting = false;
 
 // Ensure single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
@@ -63,7 +64,7 @@ function createMainWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
-    checkServicesAndLoad();
+    startAndLoad();
   });
 
   // Handle external links safely in system browser
@@ -81,6 +82,9 @@ function createMainWindow() {
     if (url.startsWith('starkllm-retry:')) {
       event.preventDefault();
       retryConnection();
+    } else if (url.startsWith('starkllm-continue:')) {
+      event.preventDefault();
+      mainWindow.loadURL(APP_URL);
     }
   });
 
@@ -92,33 +96,37 @@ function createMainWindow() {
   });
 }
 
-function checkServicesAndLoad() {
-  let attempts = 0;
-  const maxAttempts = 60;
-  let busy = false;
-
-  clearInterval(pollInterval);
-  pollInterval = setInterval(async () => {
-    if (busy) return;
-    busy = true;
-    attempts++;
-
-    const res = await probe(APP_URL);
-    if (res.ok) {
-      clearInterval(pollInterval);
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.loadURL(APP_URL);
-      }
-    } else if (attempts >= maxAttempts) {
-      clearInterval(pollInterval);
-      showEngineProblem();
-    }
-    busy = false;
-  }, 1000);
+function setSplashStatus(text) {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents.getURL().startsWith('file:')) return;
+  mainWindow.webContents
+    .executeJavaScript(`(function (t, v) {
+      var s = document.getElementById('statusMsg'); if (s) s.textContent = t;
+      var b = document.getElementById('versionBadge'); if (b) b.textContent = 'Desktop v' + v;
+    })(${JSON.stringify(text)}, ${JSON.stringify(app.getVersion())})`)
+    .catch(() => {});
 }
 
-async function showEngineProblem() {
-  const diagnosis = await diagnose();
+// Starts Docker, Ollama and the engine (see engine.js), then shows the app or a page that says what is missing.
+async function startAndLoad() {
+  if (starting) return;
+  starting = true;
+  let result;
+  try {
+    result = await startEngine(APP_URL, setSplashStatus);
+  } catch (e) {
+    result = { ok: false, stage: 'engine', detail: 'Unexpected error: ' + e.message };
+  }
+  starting = false;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (result.ok && result.ollama && !result.warnings.length) {
+    mainWindow.loadURL(APP_URL);
+  } else {
+    showEngineProblem(result);
+  }
+}
+
+async function showEngineProblem(result) {
+  const diagnosis = await diagnose({ ...result, logFile: userPaths().log });
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(buildErrorPage(diagnosis)));
   }
@@ -126,8 +134,7 @@ async function showEngineProblem() {
 
 function retryConnection() {
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.loadFile(path.join(__dirname, 'splash.html'));
-    checkServicesAndLoad();
+    mainWindow.loadFile(path.join(__dirname, 'splash.html')).then(startAndLoad);
   }
 }
 
