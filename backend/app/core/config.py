@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "StarkLLM"
-    VERSION: str = "2.0.0"  # shown by /health; keep equal to the released app version
+    VERSION: str = "2.0.1"  # shown by /health; keep equal to the released app version
     
     # API settings
     API_V1_STR: str = "/api/v1"
