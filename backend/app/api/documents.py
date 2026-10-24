@@ -76,7 +76,7 @@ async def upload_document(
         raise HTTPException(status_code=404, detail="Workspace not found")
 
     # Validate file extension
-    ALLOWED_EXTENSIONS = {'pdf', 'txt', 'png', 'jpg', 'jpeg', 'md', 'csv', 'docx', 'xlsx', 'html', 'json'}
+    ALLOWED_EXTENSIONS = {'pdf', 'txt', 'png', 'jpg', 'jpeg', 'md', 'markdown', 'csv', 'docx', 'xlsx', 'html', 'json', 'xml', 'log'}
     ext = (file.filename.rsplit('.', 1)[-1] if '.' in file.filename else '').lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(

@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 # Supported file formats for the Knowledge Base indexer.
 # CSV and JSON are intentionally omitted until a meaningful chunking strategy
 # is implemented; they are not claimed in README or UI.
-SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".png", ".jpg", ".jpeg", ".txt", ".md", ".html"}
+SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".png", ".jpg", ".jpeg", ".txt", ".md", ".markdown", ".csv", ".json", ".xlsx", ".html", ".xml", ".log"}
 
 
 
@@ -352,6 +352,13 @@ class KBService:
             
             # 4. Trigger indexing for pending documents
             indexed_ids = self.index_pending_documents(db, folder_id=folder_id)
+            queued_ids = [d.id for d in new_documents + updated_documents]
+            failed_count = 0
+            if queued_ids:
+                failed_count = db.query(KnowledgeBaseDocument).filter(
+                    KnowledgeBaseDocument.id.in_(queued_ids),
+                    KnowledgeBaseDocument.status == KBDocStatus.FAILED,
+                ).count()
             
             folder = db.query(KnowledgeBaseFolder).filter(KnowledgeBaseFolder.id == folder_id).first()
             if folder:
@@ -371,7 +378,7 @@ class KBService:
                 "updated": updated_count,
                 "deleted": deleted_count,
                 "indexed": len(indexed_ids),
-                "failed": 0  # We can't easily count exact failures in this pass without tracking, let's keep it simple
+                "failed": failed_count
             }
 
         except Exception as e:
@@ -614,10 +621,24 @@ class KBService:
                 else:
                     raise ValueError("Vision service returned empty description for the image")
 
-            elif file_type in ["txt", "md"]:
-                logger.info(f"KB: Extracting plain text/Markdown: {file_path}")
-                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                    text = f.read()
+            elif file_type in ["txt", "md", "markdown", "csv", "json", "xml", "log", "xlsx"]:
+                logger.info(f"KB: Extracting text/data file ({file_type}): {file_path}")
+                if file_type == "xlsx":
+                    import openpyxl
+                    wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+                    lines = []
+                    for ws in wb.worksheets:
+                        lines.append(f"Sheet: {ws.title}")
+                        for row in ws.iter_rows(values_only=True):
+                            cells = ["" if c is None else str(c) for c in row]
+                            if any(cells):
+                                lines.append(" | ".join(cells))
+                        lines.append("")
+                    wb.close()
+                    text = "\n".join(lines)
+                else:
+                    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                        text = f.read()
                 text_chunks = rag_service._semantic_chunk_text(text)
                 txt_chunk_count = 0
                 for c in text_chunks:
