@@ -226,12 +226,19 @@ async function startEngine(appUrl, onStatus) {
 
   status('Checking Docker...');
   const docker = await findDocker();
-  if (!docker) return { ok: false, stage: 'docker-missing' };
+  if (!docker) {
+    log('Docker not found (not installed or not on PATH)');
+    return { ok: false, stage: 'docker-missing' };
+  }
   if (!(await dockerRunning(docker))) {
     if (IS_WIN && launchDetached(DOCKER_DESKTOP)) {
       status('Starting Docker Desktop (this can take a minute)...');
-      if (!(await waitFor(() => dockerRunning(docker), 240000, 4000))) return { ok: false, stage: 'docker-stopped' };
+      if (!(await waitFor(() => dockerRunning(docker), 240000, 4000))) {
+        log('Docker Desktop was started but its engine did not come up within 4 minutes');
+        return { ok: false, stage: 'docker-stopped' };
+      }
     } else {
+      log('Docker is installed but its engine is not running');
       return { ok: false, stage: 'docker-stopped' };
     }
   }
