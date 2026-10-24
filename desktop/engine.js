@@ -10,7 +10,7 @@ const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { probe } = require('./diagnostics');
 
-const OLLAMA_URL = 'http://127.0.0.1:11434';
+const OLLAMA_URL = process.env.STARKLLM_OLLAMA_URL || 'http://127.0.0.1:11434';
 const TEXT_MODEL = process.env.DEFAULT_TEXT_MODEL || 'qwen2.5:7b';
 const EMBEDDING_MODEL = process.env.DEFAULT_EMBEDDING_MODEL || 'nomic-embed-text';
 const PROJECT = 'starkllm';
@@ -100,6 +100,12 @@ function run(cmd, args, { env, timeoutMs = 60000, onLine } = {}) {
   });
 }
 
+// Something answering on the UI port is not enough: Vite dev servers use 5173 too.
+async function isStarkLLM(appUrl) {
+  const r = await probe(appUrl);
+  return r.ok && r.body.includes('<title>StarkLLM</title>');
+}
+
 async function waitFor(check, timeoutMs, intervalMs = 2000) {
   const end = Date.now() + timeoutMs;
   while (Date.now() < end) {
@@ -182,11 +188,12 @@ function pullModel(name, onStatus) {
   });
 }
 
-async function ensureOllama(onStatus, warnings) {
-  onStatus('Checking Ollama (the local AI runtime)...');
+// status() also writes the log; progress() only updates the splash screen (download progress is too chatty for the log).
+async function ensureOllama(status, progress, warnings) {
+  status('Checking Ollama (the local AI runtime)...');
   let models = await ollamaModels();
   if (models === null && IS_WIN && launchDetached(OLLAMA_APP)) {
-    onStatus('Starting Ollama...');
+    status('Starting Ollama...');
     await waitFor(async () => (models = await ollamaModels()) !== null, 45000);
   }
   if (models === null) {
@@ -195,9 +202,9 @@ async function ensureOllama(onStatus, warnings) {
   }
   for (const name of [EMBEDDING_MODEL, TEXT_MODEL]) {
     if (hasModel(models, name)) continue;
-    log(`pulling ${name}`);
+    status(`Downloading AI model ${name}...`);
     try {
-      await pullModel(name, onStatus);
+      await pullModel(name, progress);
       log(`pulled ${name}`);
     } catch (e) {
       log(`pull ${name} failed: ${e.message}`);
@@ -229,9 +236,9 @@ async function startEngine(appUrl, onStatus) {
     }
   }
 
-  const ollama = await ensureOllama(status, warnings);
+  const ollama = await ensureOllama(status, onStatus, warnings);
 
-  if ((await probe(appUrl)).ok) {
+  if (await isStarkLLM(appUrl)) {
     status('StarkLLM is already running.');
     return { ok: true, ollama, warnings };
   }
@@ -257,10 +264,16 @@ async function startEngine(appUrl, onStatus) {
     up = await run(docker, ['start', ...CONTAINERS], { timeoutMs: 120000 });
   }
   up.lines.slice(-60).forEach((l) => log('compose: ' + l));
-  if (up.code !== 0) return { ok: false, stage: 'engine', detail: 'The engine could not be started.', log: up.lines.slice(-20) };
+  if (up.code !== 0) {
+    const portBusy = up.lines.some((l) => /address already in use|port is already allocated|ports are not available/i.test(l));
+    const detail = portBusy
+      ? `Another program on this PC already uses port ${process.env.STARKLLM_UI_PORT || 5173} or ${process.env.STARKLLM_API_PORT || 8000}. Close it and press Retry.`
+      : 'The engine could not be started.';
+    return { ok: false, stage: 'engine', detail, log: up.lines.slice(-8) };
+  }
 
   status('Waiting for StarkLLM to answer...');
-  if (!(await waitFor(async () => (await probe(appUrl)).ok, 180000))) {
+  if (!(await waitFor(() => isStarkLLM(appUrl), 180000))) {
     const logs = await run(docker, ['compose', '-p', PROJECT, '-f', compose, 'logs', '--tail', '20'], { env, timeoutMs: 30000 });
     return { ok: false, stage: 'engine', detail: 'The engine started but the web UI does not answer.', log: logs.lines.slice(-20) };
   }

@@ -1,7 +1,7 @@
 const http = require('http');
 const { execFile } = require('child_process');
 
-const OLLAMA_URL = 'http://127.0.0.1:11434/api/tags';
+const OLLAMA_URL = (process.env.STARKLLM_OLLAMA_URL || 'http://127.0.0.1:11434') + '/api/tags';
 const HEALTH_URL = `http://127.0.0.1:${process.env.STARKLLM_API_PORT || 8000}/health`;
 
 const LINKS = {
@@ -141,8 +141,9 @@ function buildErrorPage(d) {
   .mark { flex: none; width: 22px; height: 22px; border-radius: 50%; text-align: center; line-height: 22px; font-size: 0.8rem; }
   li.ok .mark { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
   li.fail .mark { background: rgba(248, 113, 113, 0.15); color: #f87171; }
-  p { color: #cbd5e1; margin-top: 0.2rem; line-height: 1.45; }
-  pre { margin-top: 0.4rem; padding: 0.5rem 0.7rem; border-radius: 8px; background: #0b0f17; color: #a5b4fc; font-size: 0.8rem; user-select: text; }
+  li > div { min-width: 0; }
+  p { color: #cbd5e1; margin-top: 0.2rem; line-height: 1.45; overflow-wrap: anywhere; }
+  pre { margin-top: 0.4rem; padding: 0.5rem 0.7rem; border-radius: 8px; background: #0b0f17; color: #a5b4fc; font-size: 0.75rem; user-select: text; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow-y: auto; }
   .link { display: inline-block; margin-top: 0.4rem; color: #818cf8; }
   .actions { display: flex; gap: 0.8rem; align-items: center; }
   .btn { padding: 0.55rem 1.1rem; border-radius: 10px; background: #6366f1; color: #fff; text-decoration: none; font-size: 0.88rem; font-weight: 600; }

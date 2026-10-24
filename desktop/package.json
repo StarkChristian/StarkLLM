@@ -1,5 +1,6 @@
 {
   "name": "starkllm-desktop",
+  "productName": "StarkLLM",
   "version": "2.0.0",
   "description": "StarkLLM Standalone Native Desktop Application",
   "main": "main.js",
