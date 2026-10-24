@@ -1,7 +1,7 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 from app.db.session import get_db
 from app.db import models
@@ -11,14 +11,21 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 class PromptCreate(BaseModel):
-    title: str
-    content: str
-    tags: Optional[str] = None
+    title: str = Field(..., min_length=1, max_length=200)
+    content: str = Field(..., min_length=1, max_length=50_000)
+    tags: Optional[str] = Field(None, max_length=500)
+
+    @field_validator("title", "content")
+    @classmethod
+    def _not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("must not be blank")
+        return v
 
 class PromptUpdate(BaseModel):
-    title: Optional[str] = None
-    content: Optional[str] = None
-    tags: Optional[str] = None
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    content: Optional[str] = Field(None, min_length=1, max_length=50_000)
+    tags: Optional[str] = Field(None, max_length=500)
 
 class PromptResponse(BaseModel):
     id: int

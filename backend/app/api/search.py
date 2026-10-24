@@ -28,14 +28,15 @@ def global_search(
     if not q:
         return {"chats": [], "workspaces": [], "documents": []}
 
-    pattern = f"%{q}%"
+    # escape LIKE wildcards so "%" and "_" are matched literally
+    pattern = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
 
     # ── 1. Workspaces ──────────────────────────────────────────────────────────
     workspaces = (
         db.query(models.Workspace)
         .filter(
             models.Workspace.user_id == current_user.id,
-            models.Workspace.name.ilike(pattern),
+            models.Workspace.name.ilike(pattern, escape="\\"),
         )
         .order_by(models.Workspace.created_at.desc())
         .limit(MAX_RESULTS_PER_GROUP)
@@ -58,7 +59,7 @@ def global_search(
         db.query(models.Chat)
         .filter(
             models.Chat.workspace_id.in_(user_ws_ids),
-            models.Chat.title.ilike(pattern),
+            models.Chat.title.ilike(pattern, escape="\\"),
         )
         .order_by(models.Chat.created_at.desc())
         .limit(MAX_RESULTS_PER_GROUP)
@@ -92,7 +93,7 @@ def global_search(
         .join(models.Chat, models.Message.chat_id == models.Chat.id)
         .filter(
             models.Chat.workspace_id.in_(user_ws_ids),
-            models.Message.content.ilike(pattern),
+            models.Message.content.ilike(pattern, escape="\\"),
             ~models.Message.chat_id.in_(already_found_chat_ids),
         )
         .distinct()
@@ -126,7 +127,7 @@ def global_search(
         db.query(models.Document)
         .filter(
             models.Document.workspace_id.in_(user_ws_ids),
-            models.Document.filename.ilike(pattern),
+            models.Document.filename.ilike(pattern, escape="\\"),
         )
         .order_by(models.Document.created_at.desc())
         .limit(MAX_RESULTS_PER_GROUP)
@@ -161,7 +162,7 @@ def global_search(
         )
         .filter(
             models.KnowledgeBaseFolder.user_id == current_user.id,
-            models.KnowledgeBaseDocument.file_name.ilike(pattern),
+            models.KnowledgeBaseDocument.file_name.ilike(pattern, escape="\\"),
         )
         .order_by(models.KnowledgeBaseDocument.created_at.desc())
         .limit(MAX_RESULTS_PER_GROUP)
