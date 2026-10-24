@@ -2,7 +2,7 @@
    StarkLLM — Global Design System
    ========================================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+/* No web fonts: importing Google Fonts would tell Google about every start of this local app. */
 
 :root {
   /* --- Core Palette --- */

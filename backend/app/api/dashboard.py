@@ -83,8 +83,13 @@ import httpx
 from fastapi import HTTPException
 
 @router.get("/market-prices")
-async def get_market_prices(symbol: str):
-    """Proxy Yahoo Finance API to avoid frontend CORS issues."""
+async def get_market_prices(symbol: str, consent: int = 0, current_user: models.User = Depends(get_current_user)):
+    """Proxy Yahoo Finance API to avoid frontend CORS issues.
+
+    This is the only dashboard call that leaves the PC, so it only runs after the user switched live prices on
+    in the widget (the widget then sends consent=1). Without consent nothing is requested from the internet."""
+    if consent != 1:
+        raise HTTPException(status_code=403, detail="Live market prices are off. Turn them on in the dashboard widget to allow this external request.")
     if symbol not in ["GC=F", "BZ=F"]:
         raise HTTPException(status_code=400, detail="Invalid symbol")
     

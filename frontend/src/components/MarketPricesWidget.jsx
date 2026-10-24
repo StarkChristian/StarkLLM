@@ -84,6 +84,7 @@ const ALL_ASSETS = {
 };
 
 const DEFAULT_SELECTED = ['btc', 'gold', 'brent'];
+const CONSENT_KEY = 'starkllm_market_prices_consent';
 const LS_KEY = 'starkllm_market_assets';
 
 function loadSelected() {
@@ -99,7 +100,7 @@ function loadSelected() {
   return DEFAULT_SELECTED;
 }
 
-export default function MarketPricesWidget() {
+export default function MarketPricesWidget({ token }) {
   const [selectedIds, setSelectedIds] = useState(loadSelected);
   const [prices, setPrices] = useState({});
   const [loading, setLoading] = useState(false);
@@ -107,6 +108,16 @@ export default function MarketPricesWidget() {
   const [isSimulated, setIsSimulated] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const configRef = useRef(null);
+  // StarkLLM is local-first: this widget talks to CoinGecko (directly) and Yahoo Finance (via the backend),
+  // so it stays off until the user switches it on.
+  const [consent, setConsent] = useState(() => {
+    try { return localStorage.getItem(CONSENT_KEY) === 'yes'; } catch (_) { return false; }
+  });
+  const setLiveConsent = (on) => {
+    try { localStorage.setItem(CONSENT_KEY, on ? 'yes' : 'no'); } catch (_) { /* private mode */ }
+    setConsent(on);
+    if (!on) { setPrices({}); setIsSimulated(false); setShowConfig(false); }
+  };
 
   // Close config panel when clicking outside
   useEffect(() => {
@@ -121,7 +132,9 @@ export default function MarketPricesWidget() {
 
   // Helper — Yahoo Finance proxy
   const fetchYahooQuote = async (symbol) => {
-    const res = await fetch(`/api/v1/dashboard/market-prices?symbol=${encodeURIComponent(symbol)}`);
+    const res = await fetch(`/api/v1/dashboard/market-prices?consent=1&symbol=${encodeURIComponent(symbol)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
     if (!res.ok) return null;
     const json = await res.json();
     const meta = json?.chart?.result?.[0]?.meta;
@@ -227,11 +240,12 @@ export default function MarketPricesWidget() {
   };
 
   useEffect(() => {
+    if (!consent) return undefined;
     fetchPrices();
     const interval = setInterval(fetchPrices, 40000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIds]);
+  }, [selectedIds, consent]);
 
   const toggleAsset = (id) => {
     setSelectedIds((prev) => {
@@ -250,6 +264,24 @@ export default function MarketPricesWidget() {
   };
 
   const categories = [...new Set(Object.values(ALL_ASSETS).map((a) => a.category))];
+
+  if (!consent) {
+    return (
+      <div className={styles.card}>
+        <div className={styles.header}>
+          <div className={styles.titleWrap}>
+            <Layers className={styles.headerIcon} size={16} />
+            <h3 className={styles.title}>Live Market Indicators</h3>
+          </div>
+        </div>
+        <p style={{ margin: '0.8rem 0', fontSize: '0.85rem', opacity: 0.8, lineHeight: 1.5 }}>
+          Off by default: StarkLLM keeps your data on this PC. Turning this on contacts CoinGecko and Yahoo Finance
+          from now on to fetch prices (they can see that your IP address uses StarkLLM).
+        </p>
+        <button className={styles.chip} onClick={() => setLiveConsent(true)}>Turn on live prices</button>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.card}>
@@ -284,6 +316,7 @@ export default function MarketPricesWidget() {
           <div className={styles.configHeader}>
             <span className={styles.configTitle}>Select Assets</span>
             <span className={styles.configHint}>{selectedIds.length}/6 selected</span>
+            <button className={styles.chip} onClick={() => setLiveConsent(false)} title="Stop contacting CoinGecko and Yahoo Finance">Turn off live prices</button>
           </div>
           {categories.map((cat) => (
             <div key={cat} className={styles.configGroup}>
