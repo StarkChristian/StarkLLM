@@ -1,5 +1,20 @@
 # StarkLLM Release Notes
 
+## Version 2.0.1 — Reliability, privacy and security fixes *(unreleased: version bumped, installers not built yet)*
+
+Found by running a pre-registered scenario suite (S01-S13) against v2.0.0: 52 of 213 checks failed; after these fixes 10 remain, each analysed (watcher architecture, a missing export feature, test assumptions, or deliberate behaviour).
+
+- **Security:** registration is validated (username/password rules, case-insensitive unique names); backup and restore are administrator-only, restore rejects unsafe or broken archives before touching anything; model and voice routes need a login; memory deletion is scoped to its workspace.
+- **Privacy:** live market prices are off until you turn them on; the Google Fonts import is gone; the price proxy needs login and consent.
+- **Code runner:** the chat's Python runner checks the code first and runs it in a clean environment with memory, time and output limits (a convenience limit, not a security boundary).
+- **Errors you can act on:** Ollama out-of-memory, timeout and "not reachable" now say what to do; errors are never saved as the assistant's answer; `/health` shows the real version.
+- **Data hygiene:** deleting a workspace removes its files, vectors, chats and memories; `%` and `_` in search are literal; invalid prompt templates and truncate values are rejected; dashboard counts only indexed documents; model status no longer matches by prefix; Python requirements are pinned.
+- **Knowledge Base:** folders must be inside the KB directory; selecting folders for a workspace works; csv, json, xlsx, xml, log and markdown files are indexed; sync reports failed documents honestly.
+
+Pull requests: #4, #5, #6, #7, #8, #9.
+
+---
+
 **Current Version:** StarkLLM Desktop v2.0.0  
 **Release Date:** 2026-10-18  
 **Status:** Official Windows Desktop Release (v2.0.0)
