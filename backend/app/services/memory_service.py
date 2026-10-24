@@ -145,10 +145,15 @@ Conversation:
                 })
         return memories
 
-    def delete_memory(self, workspace_id: int, memory_id: str):
-        """Delete a specific memory by ID."""
-        # ChromaDB does not allow `ids` + `where` together — delete by ID only
+    def delete_memory(self, workspace_id: int, memory_id: str) -> bool:
+        """Delete a specific memory by ID, only if it belongs to the given workspace."""
+        found = self.memory_collection.get(ids=[memory_id])
+        metas = (found or {}).get("metadatas") or []
+        if not metas or (metas[0] or {}).get("workspace_id") != workspace_id:
+            return False
+        # ChromaDB does not allow `ids` + `where` together — delete by ID only (ownership checked above)
         self.memory_collection.delete(ids=[memory_id])
+        return True
 
     def clear_memories(self, workspace_id: int):
         """Clear all memories for a workspace."""

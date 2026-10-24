@@ -646,7 +646,7 @@ export default function ChatArea({
     try {
       const response = await fetch('/api/v1/voice/synthesize', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ text, voice })
       });
 

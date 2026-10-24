@@ -59,7 +59,8 @@ def delete_memory(
 ):
     """Delete a specific memory."""
     get_workspace_or_404(db, workspace_id, current_user.id)
-    memory_service.delete_memory(workspace_id, memory_id)
+    if not memory_service.delete_memory(workspace_id, memory_id):
+        raise HTTPException(status_code=404, detail="Memory not found")
     return {"status": "deleted"}
 
 

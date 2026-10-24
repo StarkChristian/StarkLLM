@@ -98,6 +98,7 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
         try {
           const response = await fetch('/api/v1/voice/transcribe', {
             method: 'POST',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
             body: formData,
           });
           if (!response.ok) throw new Error("Transcription failed");

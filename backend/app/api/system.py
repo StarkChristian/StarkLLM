@@ -13,10 +13,38 @@ from fastapi.responses import FileResponse
 from fastapi.background import BackgroundTasks
 from app.api.auth import get_current_user
 from app.db import models
-from app.db.session import engine
+from sqlalchemy import func
+from app.db.session import engine, get_db
+import sqlite3
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def require_admin(current_user: models.User = Depends(get_current_user), db=Depends(get_db)) -> models.User:
+    """The instance owner (first registered account) is the only administrator.
+    Backup/restore expose or replace the data of ALL users, so ordinary accounts must not reach them."""
+    first_id = db.query(func.min(models.User.id)).scalar()
+    if current_user.id != first_id:
+        raise HTTPException(status_code=403, detail="Only the instance administrator may use backup/restore.")
+    return current_user
+
+
+def _validate_backup_db(path: str) -> None:
+    """A restore must never replace a working database with garbage."""
+    try:
+        con = sqlite3.connect(path)
+        try:
+            if con.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+                raise ValueError("integrity check failed")
+            tables = {r[0] for r in con.execute("select name from sqlite_master where type='table'")}
+        finally:
+            con.close()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid backup file: starkllm.db is not a valid database ({e}).")
+    for needed in ("users", "workspaces"):
+        if needed not in tables:
+            raise HTTPException(status_code=400, detail=f"Invalid backup file: table '{needed}' missing.")
 
 # Identify the root data directory.
 # Since CHROMA_PERSIST_DIRECTORY is usually "data/chroma", its parent is "data".
@@ -24,7 +52,7 @@ logger = logging.getLogger(__name__)
 DATA_DIR = os.path.abspath("data")
 
 @router.get("/backup")
-def backup_system(current_user: models.User = Depends(get_current_user)):
+def backup_system(current_user: models.User = Depends(require_admin)):
     """
     Creates a zip archive of the local data directory and returns it as a download.
     """
@@ -62,7 +90,7 @@ def backup_system(current_user: models.User = Depends(get_current_user)):
 @router.post("/restore")
 async def restore_system(
     file: UploadFile = File(...),
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(require_admin)
 ):
     """
     Restores the system from an uploaded zip backup.
@@ -81,7 +109,15 @@ async def restore_system(
             shutil.copyfileobj(file.file, buffer)
             
         # Extract zip
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        try:
+            zf = zipfile.ZipFile(zip_path, 'r')
+        except zipfile.BadZipFile:
+            raise HTTPException(status_code=400, detail="Invalid backup file: not a valid zip archive.")
+        with zf as zip_ref:
+            root = os.path.realpath(extract_dir)
+            for member in zip_ref.namelist():                       # zip-slip guard
+                if not os.path.realpath(os.path.join(root, member)).startswith(root + os.sep):
+                    raise HTTPException(status_code=400, detail="Invalid backup file: unsafe path in archive.")
             zip_ref.extractall(extract_dir)
             
         # Basic validation: check if starkllm.db exists in the extracted root
@@ -93,6 +129,8 @@ async def restore_system(
             else:
                 raise HTTPException(status_code=400, detail="Invalid backup file: starkllm.db not found.")
         
+        _validate_backup_db(os.path.join(extract_dir, "starkllm.db"))
+
         # 1. Close SQLAlchemy connections to release sqlite locks
         engine.dispose()
         
