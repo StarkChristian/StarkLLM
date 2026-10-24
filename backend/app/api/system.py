@@ -162,7 +162,59 @@ async def restore_system(
             pass
 
 
-# --- Sandboxed Code Interpreter / Runner ---
+# --- Restricted code runner ---
+#
+# The chat shows a "Run" button for Python code blocks. The code is checked before it starts and runs in a separate process
+# with a time, memory, CPU and file-size limit, in an empty temp directory, without the server's environment variables.
+# This is a convenience limit against mistakes and obvious abuse, NOT a security boundary: do not run code you do not trust.
+
+import ast
+import sys
+
+_BLOCKED_MODULES = {
+    "os", "subprocess", "socket", "shutil", "ctypes", "importlib", "pathlib", "multiprocessing", "threading", "signal",
+    "urllib", "http", "ftplib", "smtplib", "telnetlib", "requests", "httpx", "aiohttp", "sqlite3", "pickle", "marshal",
+    "builtins", "sys", "inspect", "gc", "resource", "pty", "tempfile", "glob", "zipfile", "tarfile", "webbrowser", "asyncio",
+}
+_BLOCKED_CALLS = {"open", "exec", "eval", "compile", "__import__", "input", "breakpoint", "globals", "locals", "vars", "getattr", "setattr", "delattr"}
+
+
+def check_code(code: str) -> Optional[str]:
+    """Return a reason if the snippet must not run, otherwise None."""
+    try:
+        tree = ast.parse(code)
+    except SyntaxError as e:
+        return None  # syntax errors are reported by Python itself, with a normal traceback
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for a in node.names:
+                if a.name.split(".")[0] in _BLOCKED_MODULES:
+                    return f"import of '{a.name}' is not allowed in the code runner"
+        elif isinstance(node, ast.ImportFrom):
+            if (node.module or "").split(".")[0] in _BLOCKED_MODULES:
+                return f"import from '{node.module}' is not allowed in the code runner"
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in _BLOCKED_CALLS:
+            return f"call to '{node.func.id}()' is not allowed in the code runner"
+        elif isinstance(node, ast.Attribute) and node.attr.startswith("__") and node.attr.endswith("__"):
+            return f"access to '{node.attr}' is not allowed in the code runner"
+    return None
+
+
+MAX_MEMORY_BYTES = 512 * 1024 * 1024
+MAX_FILE_BYTES = 10 * 1024 * 1024
+
+
+def _limit_resources(cpu_seconds: int):
+    def apply():
+        try:
+            import resource
+            resource.setrlimit(resource.RLIMIT_AS, (MAX_MEMORY_BYTES, MAX_MEMORY_BYTES))
+            resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
+            resource.setrlimit(resource.RLIMIT_FSIZE, (MAX_FILE_BYTES, MAX_FILE_BYTES))
+        except Exception:
+            pass
+    return apply
+
 
 class ExecuteCodeRequest(BaseModel):
     code: str
@@ -176,51 +228,44 @@ def execute_code(
     current_user: models.User = Depends(get_current_user)
 ):
     """
-    Safely execute a code snippet in an isolated process with strict timeout.
-    Returns stdout, stderr, execution_time_ms, and exit_code.
+    Run a Python snippet in a restricted child process (see the note above).
+    Returns stdout, stderr, execution_time_ms, and exit_code (126 = blocked before start, 124 = timeout).
     """
-    lang = (req.language or "python").lower().strip()
     timeout = min(max(req.timeout_seconds or 5, 1), 10)
+    if (req.language or "python").lower().strip() not in ("python", "py", "python3"):
+        raise HTTPException(status_code=400, detail="Only Python is supported.")
+    if len(req.code) > 20000:
+        raise HTTPException(status_code=413, detail="Code is too long (limit 20000 characters).")
 
-    # Use sys.executable for portable and sandboxed execution
-    import sys
-    cmd = [sys.executable, "-c", req.code]
+    reason = check_code(req.code)
+    if reason:
+        msg = f"Blocked: {reason}."
+        return {"stdout": "", "stderr": msg, "output": msg, "exit_code": 126, "execution_time_ms": 0}
 
+    env = {"PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1"}
+    if os.environ.get("SYSTEMROOT"):                       # Windows needs it to start Python
+        env["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
     t0 = time.time()
-    try:
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout
-        )
-        t1 = time.time()
-        exec_ms = round((t1 - t0) * 1000)
-        output = proc.stdout + ("\n" + proc.stderr if proc.stderr else "")
-        return {
-            "stdout": proc.stdout[:15000],
-            "stderr": proc.stderr[:5000],
-            "output": output[:20000],
-            "exit_code": proc.returncode,
-            "execution_time_ms": exec_ms
-        }
-    except subprocess.TimeoutExpired:
-        msg = f"Execution timed out after {timeout} seconds."
-        return {
-            "stdout": "",
-            "stderr": msg,
-            "output": msg,
-            "exit_code": 124,
-            "execution_time_ms": timeout * 1000
-        }
-    except Exception as e:
-        logger.error(f"Code execution error: {e}")
-        msg = f"Execution failed: {str(e)}"
-        return {
-            "stdout": "",
-            "stderr": msg,
-            "output": msg,
-            "exit_code": 1,
-            "execution_time_ms": 0
-        }
-
+    with tempfile.TemporaryDirectory() as workdir:
+        try:
+            proc = subprocess.run(
+                [sys.executable, "-I", "-c", req.code],
+                capture_output=True, text=True, timeout=timeout, cwd=workdir, env=env,
+                preexec_fn=_limit_resources(timeout + 1) if os.name == "posix" else None,
+            )
+            exec_ms = round((time.time() - t0) * 1000)
+            output = proc.stdout + ("\n" + proc.stderr if proc.stderr else "")
+            return {
+                "stdout": proc.stdout[:15000],
+                "stderr": proc.stderr[:5000],
+                "output": output[:20000],
+                "exit_code": proc.returncode,
+                "execution_time_ms": exec_ms,
+            }
+        except subprocess.TimeoutExpired:
+            msg = f"Execution timed out after {timeout} seconds."
+            return {"stdout": "", "stderr": msg, "output": msg, "exit_code": 124, "execution_time_ms": timeout * 1000}
+        except Exception as e:
+            logger.error(f"Code execution error: {e}")
+            msg = f"Execution failed: {str(e)}"
+            return {"stdout": "", "stderr": msg, "output": msg, "exit_code": 1, "execution_time_ms": 0}
