@@ -47,11 +47,12 @@ async function diagnose(engine = {}) {
   } catch (e) {
     // Ollama not reachable or not JSON: handled via ollama.ok below
   }
-  const missingModels = [];
-  if (ollama.ok) {
-    if (!models.some((n) => n.startsWith('nomic-embed-text'))) missingModels.push('nomic-embed-text');
-    if (!models.some((n) => !n.startsWith('nomic-embed-text'))) missingModels.push('qwen2.5:7b');
-  }
+  // The same two models the engine start downloads (DEFAULT_TEXT_MODEL / DEFAULT_EMBEDDING_MODEL).
+  const norm = (n) => (n.includes(':') ? n : n + ':latest');
+  const installed = models.map(norm);
+  const missingModels = ollama.ok
+    ? [process.env.DEFAULT_EMBEDDING_MODEL || 'nomic-embed-text', process.env.DEFAULT_TEXT_MODEL || 'qwen2.5:7b'].filter((m) => !installed.includes(norm(m)))
+    : [];
   return { docker, ollama: ollama.ok, missingModels, backend: backend.ok, engine };
 }
 
@@ -85,8 +86,8 @@ function buildRows(d) {
   } else if (d.missingModels.length) {
     rows.push({
       ok: false,
-      title: 'Ollama is missing models',
-      detail: 'StarkLLM could not download them automatically. Open a terminal and run:',
+      title: 'An AI model is missing',
+      detail: 'StarkLLM could not download it automatically (see the reason below). Check the internet connection and press Retry, or open a terminal and run:',
       code: d.missingModels.map((m) => 'ollama pull ' + m)
     });
   } else {
@@ -103,7 +104,7 @@ function buildRows(d) {
       code: d.engine.log && d.engine.log.length ? d.engine.log : null
     });
   }
-  for (const w of d.engine.warnings || []) rows.push({ ok: false, title: 'Warning', detail: w });
+  for (const w of d.engine.warnings || []) rows.push({ ok: false, title: 'Download failed', detail: w });
 
   return rows;
 }
@@ -152,7 +153,7 @@ function buildErrorPage(d) {
 </head>
 <body>
 <div class="card">
-  <h1>${d.engine.ok ? 'StarkLLM is running without its AI runtime' : 'StarkLLM could not start'}</h1>
+  <h1>${!d.engine.ok ? 'StarkLLM could not start' : !d.ollama ? 'StarkLLM is running without its AI runtime' : 'StarkLLM is running, but an AI model is missing'}</h1>
   <p class="sub">Here is what this PC is missing:</p>
   <ul>${rows}</ul>
   <div class="actions">

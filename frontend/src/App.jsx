@@ -64,7 +64,9 @@ export default function App() {
   const [showKbModal, setShowKbModal] = useState(false);
   const [showModelHub, setShowModelHub] = useState(false);
   const [showStudio, setShowStudio] = useState(false);
-  const [currentModel, setCurrentModel] = useState(localStorage.getItem('default_model') || 'llama3.2:3b');
+  // Empty until the user picks a model: then fetchMe() shows the server's default (DEFAULT_TEXT_MODEL, the one the
+  // desktop app downloads). A hard-coded name here made every chat on a fresh install ask for a model that is not installed.
+  const [currentModel, setCurrentModel] = useState(localStorage.getItem('default_model') || '');
 
   // Generation state (for stop button)
   const [isGenerating, setIsGenerating] = useState(false);
@@ -153,6 +155,14 @@ export default function App() {
         const name = data.username || data.name || '';
         setUsername(name);
         localStorage.setItem('username', name);
+        if (!localStorage.getItem('default_model')) {
+          if (data.default_model) {
+            setCurrentModel(data.default_model);
+          } else {
+            const st = await fetch('/api/v1/dashboard/system-status', { headers: getHeaders() });
+            if (st.ok) setCurrentModel((await st.json()).text_model?.name || '');
+          }
+        }
       }
     } catch (_) {}
   };
@@ -563,7 +573,8 @@ export default function App() {
       const totalTokens = Math.max(1, Math.round(totalWords * 1.3));
       const tokPerSec = (totalTokens / totalElapsedSec).toFixed(1);
 
-      setMessages(prev => {
+      // An error message streamed by the backend is not generated text: no speed badge for it.
+      if (!fullText.trimStart().startsWith('Error generating response')) setMessages(prev => {
         const msgs = [...prev];
         const prevMsg = msgs[msgs.length - 1];
         if (prevMsg && prevMsg.role === 'assistant') {

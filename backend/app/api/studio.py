@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.db import models
+from app.core.config import settings
 from app.api.auth import get_current_user
 from app.services.llm_service import llm_service
 
@@ -97,7 +98,7 @@ async def synthesize_studio(
         raise HTTPException(status_code=404, detail="Workspace not found")
 
     context_corpus = _extract_workspace_context(db, workspace_id)
-    target_model = req.model or "qwen2.5:7b"
+    target_model = req.model or current_user.default_model or settings.DEFAULT_TEXT_MODEL
 
     focus_note = f"Specific Focus: {req.focus}\n" if req.focus else ""
 

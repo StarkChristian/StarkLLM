@@ -14,7 +14,7 @@ export default function StudioModal({
   onClose,
   workspaceId,
   token,
-  selectedModel = "qwen2.5:7b"
+  selectedModel = ""
 }) {
   const [activeTab, setActiveTab] = useState('podcast'); // 'podcast' | 'briefing' | 'study_guide' | 'comparison'
   const [focusQuery, setFocusQuery] = useState('');
@@ -62,7 +62,7 @@ export default function StudioModal({
         },
         body: JSON.stringify({
           type: targetType,
-          model: selectedModel,
+          model: selectedModel || undefined,
           focus: focusQuery.trim() || undefined
         })
       });

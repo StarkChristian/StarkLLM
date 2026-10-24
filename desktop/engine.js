@@ -153,8 +153,8 @@ function hasModel(available, name) {
   return available.map(norm).includes(norm(name));
 }
 
-function gb(bytes) {
-  return (bytes / 1e9).toFixed(1);
+function size(bytes) {
+  return bytes >= 1e9 ? (bytes / 1e9).toFixed(1) + ' GB' : Math.max(1, Math.round(bytes / 1e6)) + ' MB';
 }
 
 // Streams Ollama's /api/pull and reports the download progress.
@@ -177,7 +177,7 @@ function pullModel(name, onStatus) {
           }
           if (msg.error) failed = msg.error;
           else if (msg.total && msg.completed) {
-            onStatus(`Downloading AI model ${name}: ${Math.floor((msg.completed / msg.total) * 100)} % (${gb(msg.completed)} of ${gb(msg.total)} GB)`);
+            onStatus(`Downloading AI model ${name}: ${Math.floor((msg.completed / msg.total) * 100)} % (${size(msg.completed)} of ${size(msg.total)})`);
           } else if (msg.status) onStatus(`AI model ${name}: ${msg.status}`);
         }
       });
@@ -226,12 +226,19 @@ async function startEngine(appUrl, onStatus) {
 
   status('Checking Docker...');
   const docker = await findDocker();
-  if (!docker) return { ok: false, stage: 'docker-missing' };
+  if (!docker) {
+    log('Docker not found (not installed or not on PATH)');
+    return { ok: false, stage: 'docker-missing' };
+  }
   if (!(await dockerRunning(docker))) {
     if (IS_WIN && launchDetached(DOCKER_DESKTOP)) {
       status('Starting Docker Desktop (this can take a minute)...');
-      if (!(await waitFor(() => dockerRunning(docker), 240000, 4000))) return { ok: false, stage: 'docker-stopped' };
+      if (!(await waitFor(() => dockerRunning(docker), 240000, 4000))) {
+        log('Docker Desktop was started but its engine did not come up within 4 minutes');
+        return { ok: false, stage: 'docker-stopped' };
+      }
     } else {
+      log('Docker is installed but its engine is not running');
       return { ok: false, stage: 'docker-stopped' };
     }
   }
