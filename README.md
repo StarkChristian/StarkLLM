@@ -1,9 +1,9 @@
-# StarkLLM Desktop (v2.0.0)
+# StarkLLM Desktop (v2.0.1)
 
-**Version:** StarkLLM Desktop v2.0.0  
+**Version:** StarkLLM Desktop v2.0.1  
 **License:** Apache 2.0 (Open Source)  
-**Package:** `StarkLLM-v2.0.0-Setup.exe` (SHA-256: `e6b29e6b77788dfd85eaa1e3e96634f38c97f1d4ed993b6ff6057340d4a457b5`)  
-**Portable:** `StarkLLM-v2.0.0-Portable.exe` (SHA-256: `a0c8b569d554ee345802f832ece80fad01f4db378c126576ac6685be78aaeda9`)  
+**Package:** `StarkLLM-v2.0.1-Setup.exe` (SHA-256: `a4c99421221803aa52757c03ad9265d439d73257fb1186840d29561eb51b40e4`)  
+**Portable:** `StarkLLM-v2.0.1-Portable.exe` (SHA-256: `782b0b166854031e31bd00ba236b231868f66d18f04d87880205181f7469dd11`)  
 **Official Website:** [https://www.starkllm.com](https://www.starkllm.com)  
 **Documentation & Manual:** [https://www.starkllm.com/manual.html](https://www.starkllm.com/manual.html)
 
@@ -92,8 +92,8 @@ You do not need to open a terminal: StarkLLM starts both programs and downloads 
 To verify file integrity before running, compare the SHA-256 hash in PowerShell:
 
 ```powershell
-Get-FileHash -Algorithm SHA256 StarkLLM-v2.0.0-Setup.exe
-# Target: e6b29e6b77788dfd85eaa1e3e96634f38c97f1d4ed993b6ff6057340d4a457b5
+Get-FileHash -Algorithm SHA256 StarkLLM-v2.0.1-Setup.exe
+# Target: a4c99421221803aa52757c03ad9265d439d73257fb1186840d29561eb51b40e4
 ```
 
 ---
