@@ -83,7 +83,7 @@ import httpx
 from fastapi import HTTPException
 
 @router.get("/market-prices")
-async def get_market_prices(symbol: str, consent: int = 0):
+async def get_market_prices(symbol: str, consent: int = 0, current_user: models.User = Depends(get_current_user)):
     """Proxy Yahoo Finance API to avoid frontend CORS issues.
 
     This is the only dashboard call that leaves the PC, so it only runs after the user switched live prices on

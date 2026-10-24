@@ -218,7 +218,7 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
       {/* ── Widgets row ── */}
       <div className={styles.widgetsRow}>
         <DateTimeWidget />
-        <MarketPricesWidget />
+        <MarketPricesWidget token={token} />
         <SystemStatusWidget token={token} />
       </div>
 

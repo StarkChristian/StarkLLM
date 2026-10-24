@@ -100,7 +100,7 @@ function loadSelected() {
   return DEFAULT_SELECTED;
 }
 
-export default function MarketPricesWidget() {
+export default function MarketPricesWidget({ token }) {
   const [selectedIds, setSelectedIds] = useState(loadSelected);
   const [prices, setPrices] = useState({});
   const [loading, setLoading] = useState(false);
@@ -132,7 +132,9 @@ export default function MarketPricesWidget() {
 
   // Helper — Yahoo Finance proxy
   const fetchYahooQuote = async (symbol) => {
-    const res = await fetch(`/api/v1/dashboard/market-prices?consent=1&symbol=${encodeURIComponent(symbol)}`);
+    const res = await fetch(`/api/v1/dashboard/market-prices?consent=1&symbol=${encodeURIComponent(symbol)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
     if (!res.ok) return null;
     const json = await res.json();
     const meta = json?.chart?.result?.[0]?.meta;
