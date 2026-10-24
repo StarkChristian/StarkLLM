@@ -4,10 +4,11 @@ services:
       context: ./backend
     container_name: starkllm-backend
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:${STARKLLM_API_PORT:-8000}:8000"
     volumes:
-      - ./data:/app/data
-      - ./knowledge_base_data:/kb_data   # Personal Knowledge Base volume
+      # The desktop app sets these to folders in the user's profile; a source checkout keeps the old defaults.
+      - ${STARKLLM_DATA_DIR:-./data}:/app/data
+      - ${STARKLLM_KB_DIR:-./knowledge_base_data}:/kb_data   # Personal Knowledge Base volume
     environment:
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - DEFAULT_TEXT_MODEL=${DEFAULT_TEXT_MODEL:-qwen2.5:7b}
@@ -17,6 +18,7 @@ services:
       - HF_HUB_DISABLE_TELEMETRY=1
       - DO_NOT_TRACK=1
       - ANONYMIZED_TELEMETRY=False
+      - HOST_KB_PATH=${HOST_KB_PATH:-knowledge_base_data (inside the StarkLLM project folder)}
       - SECRET_KEY=${SECRET_KEY:-starkllm_research_beta_secure_fallback_key_2026_change_in_production}
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -26,7 +28,7 @@ services:
       context: ./frontend
     container_name: starkllm-frontend
     ports:
-      - "127.0.0.1:5173:80"
+      - "127.0.0.1:${STARKLLM_UI_PORT:-5173}:80"
     depends_on:
       - backend
 
