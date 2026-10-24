@@ -2,13 +2,15 @@ import os
 import tempfile
 import traceback
 import logging
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, BackgroundTasks
+from app.api.auth import get_current_user
 from app.services.voice_service import voice_service
 from pydantic import BaseModel
 from typing import Optional
 from fastapi.responses import FileResponse
 
-router = APIRouter()
+# Speech-to-text and text-to-speech use the CPU of this PC, so they need a logged-in user like every other data route.
+router = APIRouter(dependencies=[Depends(get_current_user)])
 logger = logging.getLogger(__name__)
 
 class SynthesizeRequest(BaseModel):

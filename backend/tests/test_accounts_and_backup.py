@@ -98,3 +98,8 @@ def test_garbage_or_incomplete_databases_are_rejected(tmp_path):
 def test_every_model_route_requires_a_logged_in_user():
     deps = {d.dependency for d in models_router.dependencies}
     assert auth.get_current_user in deps
+
+
+def test_voice_routes_require_a_logged_in_user():
+    from app.api.voice import router as voice_router
+    assert auth.get_current_user in {d.dependency for d in voice_router.dependencies}
