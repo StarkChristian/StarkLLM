@@ -972,6 +972,8 @@ class RAGService :
             return None 
             
         def _make_field_filter (k ,v ):
+            if isinstance (v ,dict )and v and all (str (op ).startswith ("$")for op in v ):
+                return {k :v }# already a Chroma operator expression, e.g. {"$in": [1, 2]}
             if isinstance (v ,list ):
                 return {k :{"$in":v }}
             return {k :{"$eq":v }}

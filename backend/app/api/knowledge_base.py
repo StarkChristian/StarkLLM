@@ -139,10 +139,10 @@ def _assert_safe_path(path: str) -> Path:
 # ---------------------------------------------------------------------------
 
 @router.get("/config")
-def get_kb_config():
+def get_kb_config(current_user: models.User = Depends(get_current_user)):
     """Return backend configuration for the Knowledge Base UI."""
     return {
-        "host_kb_path": os.environ.get("HOST_KB_PATH", "C:\\Users\\chris\\Documents\\anti gravity\\StarkLLM\\knowledge_base_data"),
+        "host_kb_path": os.environ.get("HOST_KB_PATH", "knowledge_base_data (inside the StarkLLM project folder)"),
         "container_kb_path": settings.KB_DATA_DIR
     }
 
@@ -231,6 +231,17 @@ def register_folder(
             )
         )
 
+    # Only folders inside the Knowledge Base data directory may be registered. Without this check any logged-in
+    # user could register /app/data (the databases of all users) or any other directory the container can read.
+    kb_root = os.path.realpath(settings.KB_DATA_DIR)
+    resolved = os.path.realpath(folder_path_cleaned)
+    if resolved != kb_root and not resolved.startswith(kb_root + os.sep):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Only folders inside {settings.KB_DATA_DIR} can be added to the Knowledge Base. "
+                   "Copy your files into the knowledge_base_data folder of the StarkLLM project first."
+        )
+
     # Verify physical path exists inside the container
     if not os.path.exists(folder_path_cleaned):
         raise HTTPException(
@@ -241,6 +252,9 @@ def register_folder(
                 "Use start.exe to add a Windows folder automatically."
             )
         )
+
+    if not os.path.isdir(folder_path_cleaned):
+        raise HTTPException(status_code=400, detail=f"'{folder_path_cleaned}' is a file, not a folder.")
 
     # Prevent duplicate registrations of the same path for the same user
     existing = db.query(models.KnowledgeBaseFolder).filter(

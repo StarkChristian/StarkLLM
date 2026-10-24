@@ -211,7 +211,7 @@ def global_search(
             
     ws_rag_results = ws_rag_results[:MAX_RESULTS_PER_GROUP]
 
-    rag_kb_paths = list(set([r["metadata"].get("source") or r["metadata"].get("file_path") for r in kb_results if r.get("metadata")]))
+    rag_kb_paths = list(set([r["metadata"].get("file_path") or r["metadata"].get("source") for r in kb_results if r.get("metadata")]))
     rag_ws_paths = list(set([r["metadata"].get("source") or r["metadata"].get("file_path") for r in ws_rag_results if r.get("metadata")]))
     
     rag_kb_paths = [p for p in rag_kb_paths if p and p not in found_doc_paths]
@@ -229,7 +229,7 @@ def global_search(
         )
         path_to_snippet = {}
         for r in kb_results:
-            p = r["metadata"].get("source") or r["metadata"].get("file_path")
+            p = r["metadata"].get("file_path") or r["metadata"].get("source")
             if p and p not in path_to_snippet:
                 snippet = r.get("content", "")
                 path_to_snippet[p] = snippet[:200] + "..." if len(snippet) > 200 else snippet
