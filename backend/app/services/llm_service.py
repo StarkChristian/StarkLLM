@@ -1,6 +1,7 @@
 import requests
 import json
 import logging
+import re
 from typing import Generator, List
 from app.core.config import settings
 
@@ -68,6 +69,77 @@ RECOMMENDED_MODELS = [
         "description": "Official high-accuracy model for semantic chunk embeddings and knowledge base vector indexing."
     }
 ]
+
+class ModelNotFoundError(Exception):
+    """The requested model is not installed in Ollama."""
+
+
+class LLMBackendError(requests.exceptions.RequestException):
+    """Ollama could not answer. str(e) is a message the user can act on: no internal URLs, no raw HTTP text.
+
+    kind: out_of_memory | timeout | unreachable | server_error;  http_status: what an API endpoint should answer with.
+    """
+
+    def __init__(self, message: str, kind: str = "server_error", http_status: int = 502):
+        super().__init__(message)
+        self.kind = kind
+        self.http_status = http_status
+
+
+_OUT_OF_MEMORY = re.compile(
+    r"more system memory|out of memory|signal: killed|unable to allocate|cudamalloc|insufficient memory|failed to allocate|cannot allocate",
+    re.I,
+)
+REQUEST_TIMEOUT_SECONDS = 150
+
+
+def _ollama_error_text(response) -> str:
+    """The 'error' text Ollama put in the body of a failed response (best effort, short)."""
+    try:
+        body = response.json()
+    except ValueError:
+        return (response.text or "").strip()[:300]
+    if isinstance(body, dict):
+        return str(body.get("error") or body)[:300]
+    return str(body)[:300]
+
+
+def explain_ollama_error(model: str, detail: str, status: int | None = None) -> LLMBackendError:
+    if _OUT_OF_MEMORY.search(detail or ""):
+        return LLMBackendError(
+            f"Not enough free memory to run model '{model}'. Close other programs, or choose a smaller model "
+            f"(for example run 'ollama pull qwen2.5:3b' and select it in the chat), then try again.",
+            "out_of_memory", 503,
+        )
+    where = f" (HTTP {status})" if status else ""
+    return LLMBackendError(f"Ollama could not answer with model '{model}'{where}" + (f": {detail}" if detail else "") + ".", "server_error", 502)
+
+
+def _transport_error(model: str, e: requests.exceptions.RequestException) -> LLMBackendError | None:
+    if isinstance(e, requests.exceptions.Timeout):
+        return LLMBackendError(
+            f"Model '{model}' did not answer within {REQUEST_TIMEOUT_SECONDS} seconds. It may still be loading, or this computer is too slow "
+            f"for it. Try again, or choose a smaller model.", "timeout", 504,
+        )
+    if isinstance(e, requests.exceptions.ConnectionError):
+        return LLMBackendError("Could not reach Ollama. Make sure Ollama is installed and running on this computer, then try again.", "unreachable", 502)
+    return None
+
+def _openai_compatible_error(e: requests.exceptions.RequestException) -> LLMBackendError:
+    """Message for an OpenAI-compatible service (cloud API, LM Studio, vLLM) that did not answer; never includes the API key."""
+    status = getattr(getattr(e, "response", None), "status_code", None)
+    if status in (401, 403):
+        return LLMBackendError("The service rejected the API key (HTTP %s). Check the key in the model settings." % status, "auth", 502)
+    if status == 404:
+        return LLMBackendError("The service does not know this model or address (HTTP 404). Check the model name and base URL.", "not_found", 502)
+    if status == 429:
+        return LLMBackendError("The service is rate limiting this key (HTTP 429). Wait a moment and try again.", "rate_limit", 502)
+    if isinstance(e, requests.exceptions.Timeout):
+        return LLMBackendError("The service did not answer in time. Try again.", "timeout", 504)
+    if isinstance(e, requests.exceptions.ConnectionError):
+        return LLMBackendError("Could not reach the service. Check the base URL and your internet connection.", "unreachable", 502)
+    return LLMBackendError("The service could not answer" + (f" (HTTP {status})" if status else "") + ".", "server_error", 502)
+
 
 class LLMService:
     def __init__(self):
@@ -170,13 +242,20 @@ class LLMService:
             return self._stream_response(url, payload)
         else:
             try:
-                response = requests.post(url, json=payload, timeout=150)
+                response = requests.post(url, json=payload, timeout=REQUEST_TIMEOUT_SECONDS)
                 if response.status_code == 404:
-                    raise ValueError(f"Model '{payload.get('model')}' not found in Ollama. Please ensure it is pulled (e.g. ollama run {payload.get('model')}).")
-                response.raise_for_status()
+                    raise ModelNotFoundError(f"Model '{payload.get('model')}' not found in Ollama. Please ensure it is pulled (e.g. ollama pull {payload.get('model')}).")
+                if response.status_code >= 400:
+                    raise explain_ollama_error(payload.get("model"), _ollama_error_text(response), response.status_code)
                 return response.json()
+            except LLMBackendError as e:
+                logger.error(f"LLM API Error ({e.kind}): {e}")
+                raise
             except requests.exceptions.RequestException as e:
                 logger.error(f"LLM API Error: {e}")
+                friendly = _transport_error(payload.get("model"), e)
+                if friendly:
+                    raise friendly from e
                 raise
 
     def _stream_openai_compatible(
@@ -226,7 +305,7 @@ class LLMService:
                                 pass
         except requests.exceptions.RequestException as e:
             logger.error(f"OpenAI-Compatible Streaming API Error: {e}")
-            yield f"\n\n[API Error: {str(e)}]"
+            raise _openai_compatible_error(e) from e
 
     def _generate_openai_compatible(
         self,
@@ -259,22 +338,31 @@ class LLMService:
             return {"message": {"content": content}}
         except requests.exceptions.RequestException as e:
             logger.error(f"OpenAI-Compatible API Error: {e}")
-            raise
+            raise _openai_compatible_error(e) from e
 
     def _stream_response(self, url: str, payload: dict) -> Generator[str, None, None]:
         try:
-            with requests.post(url, json=payload, stream=True, timeout=150) as response:
+            with requests.post(url, json=payload, stream=True, timeout=REQUEST_TIMEOUT_SECONDS) as response:
                 if response.status_code == 404:
-                    yield f"\n\nError: Model '{payload.get('model')}' not found in Ollama. Please ensure it is pulled (e.g. ollama run {payload.get('model')})."
-                    return
-                response.raise_for_status()
+                    raise ModelNotFoundError(f"Model '{payload.get('model')}' not found in Ollama. Please ensure it is pulled (e.g. ollama pull {payload.get('model')}).")
+                if response.status_code >= 400:
+                    raise explain_ollama_error(payload.get("model"), _ollama_error_text(response), response.status_code)
                 for line in response.iter_lines():
                     if line:
                         data = json.loads(line)
+                        if data.get("error"):
+                            # Ollama reports a runner crash (often out of memory) as an error line inside a 200 stream
+                            raise explain_ollama_error(payload.get("model"), str(data["error"])[:300])
                         if "message" in data and "content" in data["message"]:
                             yield data["message"]["content"]
+        except LLMBackendError as e:
+            logger.error(f"LLM Streaming API Error ({e.kind}): {e}")
+            raise
         except requests.exceptions.RequestException as e:
             logger.error(f"LLM Streaming API Error: {e}")
+            friendly = _transport_error(payload.get("model"), e)
+            if friendly:
+                raise friendly from e
             raise
 
     def generate_embeddings(self, model: str, prompt: str) -> list[float]:
