@@ -1,6 +1,10 @@
 # StarkLLM Release Notes
 
-## Version 2.0.1 — Reliability, privacy and security fixes *(unreleased: version bumped, installers not built yet)*
+## Version 2.0.1 — The desktop app starts its own engine; reliability, privacy and security fixes
+
+- **The installer and the portable exe now work on a new PC.** v2.0.0 only opened a window on `localhost:5173` and contained no engine, so it always ended on an error page unless the engine had been started from a source checkout. The app now ships the engine and on every start: finds Docker (also right after Docker Desktop was installed), starts Docker Desktop if needed, starts Ollama if installed, downloads missing AI models with progress on the splash screen, builds and starts the engine (`docker compose up --build`; the first start takes 10-20 minutes and needs internet), and opens StarkLLM. Data lives in `%APPDATA%\StarkLLM`, the Knowledge Base folder is `Documents\StarkLLM Knowledge Base`, and every installation gets its own secret key. When something is missing the window says what and how to fix it, with the engine log.
+- **Code runner:** numpy and pandas work under the memory limit.
+- **Clear messages:** a document that cannot be embedded because Ollama is missing says what to do instead of showing a connection error.
 
 Found by running a pre-registered scenario suite (S01-S13) against v2.0.0: 52 of 213 checks failed; after these fixes 10 remain, each analysed (watcher architecture, a missing export feature, test assumptions, or deliberate behaviour).
 

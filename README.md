@@ -61,13 +61,20 @@ ollama pull nomic-embed-text
 
 ## Installation & Launch
 
-### Option A: Windows Installer (Recommended)
-1. Download `StarkLLM-v2.0.0-Setup.exe` from [starkllm.com/download.html](https://www.starkllm.com/download.html).
-2. Run the setup wizard to install StarkLLM and create desktop shortcuts.
-3. Click the **StarkLLM** desktop shortcut. Local services start automatically and the native desktop application window appears.
+### Before the first start (once per PC)
+1. Install **Docker Desktop** (with WSL2): https://www.docker.com/products/docker-desktop/ — start it once and finish its setup (it may ask for a restart).
+2. Install **Ollama**: https://ollama.com/download
 
-### Option B: Portable Zero-Install Executable
-1. Download `StarkLLM-v2.0.0-Portable.exe` and double-click to launch directly.
+You do not need to open a terminal: StarkLLM starts both programs and downloads the AI models itself.
+
+### Option A: Windows Installer (Recommended)
+1. Download `StarkLLM-v2.0.1-Setup.exe` from [starkllm.com/download](https://www.starkllm.com/download) or the GitHub release.
+2. Run the setup wizard and start StarkLLM from the desktop shortcut.
+3. **The first start takes 10-20 minutes** (about 5 GB of AI models plus the engine are downloaded and built; the splash screen shows the progress). Later starts take seconds.
+4. If something is missing (Docker Desktop not installed, a busy port, ...), the window says what and how to fix it; the log is in `%APPDATA%\StarkLLM\engine.log`.
+
+### Option B: Portable Executable
+1. Download `StarkLLM-v2.0.1-Portable.exe` and double-click it. It does the same as the installed app (same data folder).
 
 ### Option C: Developer / Source Launch
 1. Ensure Docker Desktop and Ollama are running.
