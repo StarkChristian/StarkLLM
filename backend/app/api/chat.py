@@ -114,7 +114,7 @@ class ChatRequest(BaseModel):
 
 class TruncateRequest(BaseModel):
     chat_id: int
-    keep_count: int
+    keep_count: int = Field(..., ge=0)
 
 
 class RenameChatRequest(BaseModel):

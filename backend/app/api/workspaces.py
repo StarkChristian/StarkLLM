@@ -5,6 +5,7 @@ from app.db import models
 from pydantic import BaseModel
 from app.api.auth import get_current_user
 from typing import Optional
+import os
 
 router = APIRouter()
 
@@ -50,10 +51,38 @@ def delete_workspace(
 ):
     db_ws = db.query(models.Workspace).filter(models.Workspace.id == workspace_id, models.Workspace.user_id == current_user.id).first()
     if db_ws:
+        _purge_workspace_data(db, db_ws, current_user.id)
         db.delete(db_ws)
         db.commit()
         return {"status": "deleted"}
     raise HTTPException(status_code=404, detail="Workspace not found")
+
+
+def _purge_workspace_data(db: Session, ws: models.Workspace, user_id: int):
+    """Deleting a workspace must really delete its documents (files + vectors), chats, messages and memories."""
+    import logging
+    log = logging.getLogger(__name__)
+    from app.services.rag_service import rag_service
+    from app.services.memory_service import memory_service
+    for d in db.query(models.Document).filter(models.Document.workspace_id == ws.id).all():
+        try:
+            if d.filepath and os.path.exists(d.filepath):
+                os.remove(d.filepath)
+        except Exception as e:
+            log.warning(f"Could not remove {d.filepath}: {e}")
+        db.delete(d)
+    chat_ids = [c.id for c in db.query(models.Chat.id).filter(models.Chat.workspace_id == ws.id).all()]
+    if chat_ids:
+        db.query(models.Message).filter(models.Message.chat_id.in_(chat_ids)).delete(synchronize_session=False)
+        db.query(models.Chat).filter(models.Chat.id.in_(chat_ids)).delete(synchronize_session=False)
+    try:
+        rag_service.chroma_client.delete_collection(f"user_{user_id}_workspace_{ws.id}")
+    except Exception as e:
+        log.warning(f"No vector collection to delete for workspace {ws.id}: {e}")
+    try:
+        memory_service.clear_memories(ws.id)
+    except Exception as e:
+        log.warning(f"Could not clear memories of workspace {ws.id}: {e}")
 
 class WorkspaceKBUpdate(BaseModel):
     active_kb_dir_ids: list[int]
@@ -176,62 +205,3 @@ def rename_workspace(
     db_ws.name = payload.name.strip()
     db.commit()
     return {"id": db_ws.id, "name": db_ws.name}
-
-
-class WorkspaceCreate(BaseModel):
-    name: str
-
-@router.post("/")
-def create_workspace(
-    ws: WorkspaceCreate, 
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
-):
-    db_ws = models.Workspace(name=ws.name, user_id=current_user.id)
-    db.add(db_ws)
-    db.commit()
-    db.refresh(db_ws)
-    return db_ws
-
-@router.get("/")
-def get_workspaces(
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
-):
-    return db.query(models.Workspace).filter(models.Workspace.user_id == current_user.id).all()
-
-@router.delete("/{workspace_id}")
-def delete_workspace(
-    workspace_id: int, 
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
-):
-    db_ws = db.query(models.Workspace).filter(models.Workspace.id == workspace_id, models.Workspace.user_id == current_user.id).first()
-    if db_ws:
-        db.delete(db_ws)
-        db.commit()
-        return {"status": "deleted"}
-    raise HTTPException(status_code=404, detail="Workspace not found")
-
-class WorkspaceKBUpdate(BaseModel):
-    active_kb_dir_ids: list[int]
-
-@router.put("/{workspace_id}/kb-folders")
-def update_workspace_kb_folders(
-    workspace_id: int,
-    payload: WorkspaceKBUpdate,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
-):
-    import json
-    db_ws = db.query(models.Workspace).filter(
-        models.Workspace.id == workspace_id, 
-        models.Workspace.user_id == current_user.id
-    ).first()
-    if not db_ws:
-        raise HTTPException(status_code=404, detail="Workspace not found")
-    
-    db_ws.active_kb_dir_ids = json.dumps(payload.active_kb_dir_ids)
-    db.commit()
-    db.refresh(db_ws)
-    return db_ws

@@ -31,7 +31,7 @@ def get_dashboard_stats(
     doc_count = (
         db.query(func.count(models.Document.id))
         .join(models.Workspace, models.Document.workspace_id == models.Workspace.id)
-        .filter(models.Workspace.user_id == user_id)
+        .filter(models.Workspace.user_id == user_id, models.Document.status == models.DocStatus.INDEXED)
         .scalar()
     )
 
@@ -155,11 +155,10 @@ async def get_system_status(
             embed_model = app_settings.DEFAULT_EMBEDDING_MODEL
 
             def _model_present(name: str, available: list[str]) -> bool:
-                """Match by prefix — e.g. 'qwen3:latest' matches 'qwen3'."""
-                for a in available:
-                    if a == name or a.startswith(name.split(":")[0]):
-                        return True
-                return False
+                """Exact match; a name without a tag means ':latest' (Ollama's own rule).
+                'qwen2.5:7b' must NOT be satisfied by 'qwen2.5vl:7b'."""
+                norm = lambda n: n if ":" in n else n + ":latest"
+                return norm(name) in {norm(a) for a in available}
 
             text_model_present = _model_present(text_model, available)
             embed_model_present = _model_present(embed_model, available)
