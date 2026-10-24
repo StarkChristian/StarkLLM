@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, select, exists
 from app.db.session import get_db
 from app.db import models
-from app.services.llm_service import llm_service
+from app.services.llm_service import llm_service, ModelNotFoundError, LLMBackendError
 from app.services.rag_service import rag_service
 from app.services.memory_service import memory_service
 from app.services.mcp_service import mcp_service
@@ -737,6 +737,10 @@ WEB SEARCH RESULTS (LIVE DATA)
                 # An error must not be stored as the assistant's answer (it would be replayed into later prompts)
                 # and must not come back as HTTP 200.
                 logger.error(f"LLM error: {e}")
+                if isinstance(e, ModelNotFoundError):
+                    raise HTTPException(status_code=404, detail=str(e))
+                if isinstance(e, LLMBackendError):
+                    raise HTTPException(status_code=e.http_status, detail=str(e))
                 raise HTTPException(status_code=502, detail=f"The language model backend (Ollama) failed: {e}")
 
             ast_msg = models.Message(

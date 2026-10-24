@@ -108,7 +108,7 @@ async def generic_exception_handler(request: Request, exc: Exception):
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "app": settings.PROJECT_NAME}
+    return {"status": "ok", "app": settings.PROJECT_NAME, "version": settings.VERSION}
 
 # Include routers
 app.include_router(api_router, prefix=settings.API_V1_STR)
