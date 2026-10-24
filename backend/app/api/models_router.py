@@ -6,13 +6,15 @@ Mounted at /api/v1/chat by the main router (same prefix as before).
 """
 
 import logging
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from app.api.auth import get_current_user
 from app.services.llm_service import llm_service
 
-router = APIRouter()
+# Every route here lists, downloads or deletes models on the PC's Ollama, so a logged-in user is required.
+router = APIRouter(dependencies=[Depends(get_current_user)])
 logger = logging.getLogger(__name__)
 
 
@@ -55,6 +57,5 @@ def delete_model(model_name: str):
     """Delete an installed model from Ollama."""
     success = llm_service.delete_model(model_name)
     if not success:
-        from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=f"Failed to delete model {model_name}")
     return {"status": "success", "message": f"Model {model_name} deleted successfully"}

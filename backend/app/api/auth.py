@@ -5,7 +5,8 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import func
 
 from app.core.config import settings
 from app.db.session import get_db
@@ -24,8 +25,21 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login
 
 # Pydantic schemas
 class UserCreate(BaseModel):
-    username: str
-    password: str = Field(..., max_length=72)
+    username: str = Field(..., min_length=1, max_length=64)
+    password: str = Field(..., min_length=6, max_length=72)
+
+    @field_validator("username")
+    @classmethod
+    def _clean_username(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Username must not be blank")
+        return v
+
+
+def _find_user(db: Session, username: str):
+    """Usernames are unique case-insensitively and ignore surrounding whitespace."""
+    return db.query(User).filter(func.lower(User.username) == (username or "").strip().lower()).first()
 
 class Token(BaseModel):
     access_token: str
@@ -103,7 +117,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 
 @router.post("/register", response_model=UserResponse)
 def register(user_in: UserCreate, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == user_in.username).first()
+    user = _find_user(db, user_in.username)
     if user:
         raise HTTPException(status_code=400, detail="Username already registered")
         
@@ -126,7 +140,7 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == form_data.username).first()
+    user = _find_user(db, form_data.username)
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -165,10 +179,10 @@ def update_instructions(
     return current_user
 
 class UpdateGenerationSettingsRequest(BaseModel):
-    default_model: Optional[str] = None
-    temperature: Optional[float] = None
-    top_p: Optional[float] = None
-    max_tokens: Optional[int] = None
+    default_model: Optional[str] = Field(None, max_length=200)
+    temperature: Optional[float] = Field(None, ge=0.0, le=2.0)
+    top_p: Optional[float] = Field(None, ge=0.0, le=1.0)
+    max_tokens: Optional[int] = Field(None, ge=1, le=131072)
 
 @router.put("/generation-settings", response_model=UserResponse)
 def update_generation_settings(
