@@ -33,7 +33,7 @@ from app.core.config import settings
 from app.db import models
 from app.db.models import KnowledgeBaseFolder, KnowledgeBaseDocument, KBDocStatus
 from app.services.rag_service import rag_service
-from app.services.llm_service import llm_service
+from app.services.llm_service import llm_service, describe_indexing_error
 from app.services.vision_service import vision_service
 
 logger = logging.getLogger(__name__)
@@ -749,7 +749,7 @@ class KBService:
                 db,
                 document_id,
                 KBDocStatus.FAILED,
-                error_message=str(e)
+                error_message=describe_indexing_error(e)
             )
             return False
 

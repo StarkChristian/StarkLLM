@@ -13,6 +13,7 @@ import re
 from typing import Optional, List
 from pydantic import BaseModel
 from app.services.rag_service import rag_service, HTMLTextExtractor
+from app.services.llm_service import describe_indexing_error
 from app.core.config import settings
 from app.api.auth import get_current_user
 
@@ -51,7 +52,7 @@ def _index_document_background(doc_id: int, workspace_id: int, user_id: int, fil
         logger.info(f"Document {doc_id} indexed successfully.")
     except Exception as e:
         logger.error(f"Background indexing failed for doc {doc_id}: {e}", exc_info=True)
-        _set_doc_status(doc_id, DocStatus.FAILED, error_message=str(e)[:500])
+        _set_doc_status(doc_id, DocStatus.FAILED, error_message=describe_indexing_error(e))
         # Clean up file on failure
         try:
             if os.path.exists(file_path):

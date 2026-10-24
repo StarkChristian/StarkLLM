@@ -74,6 +74,17 @@ class ModelNotFoundError(Exception):
     """The requested model is not installed in Ollama."""
 
 
+def describe_indexing_error(e: Exception) -> str:
+    """Text shown next to a document that failed to index: what to do, not a raw connection error."""
+    if isinstance(e, requests.exceptions.ConnectionError):
+        return "Ollama is not reachable, so the document could not be embedded. Start Ollama (and run 'ollama pull nomic-embed-text'), then upload the file again."
+    if isinstance(e, requests.exceptions.Timeout):
+        return "Ollama took too long to embed this document. Try again, or use a smaller file."
+    if isinstance(e, requests.exceptions.HTTPError) and getattr(e.response, "status_code", None) == 404:
+        return "The embedding model is not installed in Ollama. Run 'ollama pull nomic-embed-text', then upload the file again."
+    return str(e)[:500]
+
+
 class LLMBackendError(requests.exceptions.RequestException):
     """Ollama could not answer. str(e) is a message the user can act on: no internal URLs, no raw HTTP text.
 
