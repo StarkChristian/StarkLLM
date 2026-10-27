@@ -86,6 +86,25 @@ class HTMLTextExtractor (HTMLParser ):
         return " ".join (text .split ())
 
 
+_UPLOAD_PREFIX = re.compile(r"^[0-9a-f]{8}_(.+)$")
+
+
+def source_display_name(meta: dict) -> str:
+    """The file name a person recognises for a chunk: the KB's stored name, or the upload's original name
+    (uploads are saved as '<8 hex>_<original name>' to avoid collisions; that prefix is not part of the name)."""
+    meta = meta or {}
+    if meta.get("file_name"):
+        return meta["file_name"]
+    path = meta.get("source") or meta.get("file_path") or ""
+    name = os.path.basename(path)
+    upload_dir = os.path.normpath(settings.UPLOAD_DIR)
+    if path and os.path.normpath(os.path.dirname(path)).endswith(upload_dir):
+        m = _UPLOAD_PREFIX.match(name)
+        if m:
+            return m.group(1)
+    return name
+
+
 class RAGService :
     def __init__ (self ):
         self .chroma_client =chromadb .PersistentClient (
@@ -293,7 +312,7 @@ class RAGService :
 
             # ---------------------------------------------------------------- Plain text / Markdown
             elif file_ext in [".txt", ".md"]:
-                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                with open(file_path, "r", encoding="utf-8-sig", errors="ignore") as f:
                     text = f.read()
                 file_chunks = self._semantic_chunk_text(text)
                 for idx, chunk in enumerate(file_chunks):
@@ -309,7 +328,7 @@ class RAGService :
 
             # ---------------------------------------------------------------- HTML
             elif file_ext == ".html":
-                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                with open(file_path, "r", encoding="utf-8-sig", errors="ignore") as f:
                     html_content = f.read()
                 extractor = HTMLTextExtractor()
                 extractor.feed(html_content)
@@ -390,7 +409,7 @@ class RAGService :
 
             # ---------------------------------------------------------------- CSV / JSON / XML / LOG (plain-text data)
             elif file_ext in [".csv", ".json", ".xml", ".log", ".markdown"]:
-                with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                with open(file_path, "r", encoding="utf-8-sig", errors="replace") as f:
                     text = f.read()
                 for idx, chunk in enumerate(self._chunk_structured_text(text, file_ext)):
                     if chunk.strip():
@@ -545,7 +564,7 @@ class RAGService :
             passages =[]
             for i ,r in enumerate (candidates ):
                 meta =r .get ("metadata",{})
-                filename =meta .get ("file_name")or os .path .basename (meta .get ("source")or meta .get ("file_path")or "")
+                filename =source_display_name (meta )
                 prefix =f"[Document: {filename}]\n"if filename else ""
                 passages .append ({"id":str (i ),"text":prefix +r ["content"],"meta":meta })
             reranked =self .ranker .rerank (RerankRequest (query =query_text ,passages =passages ))
@@ -1046,8 +1065,7 @@ class RAGService :
             words =re .findall (r'\b\w+\b',_fold (doc ))
             # Append filename-derived tokens from metadata
             meta =metas [doc_idx ]if doc_idx <len (metas )else {}
-            for meta_key in ("file_name","source","file_path"):
-                raw_name =meta .get (meta_key ,"")
+            for raw_name in (source_display_name (meta ),):
                 if raw_name :
                     filename =os .path .basename (raw_name )
                     basename ,ext =os .path .splitext (filename )
@@ -1144,7 +1162,7 @@ class RAGService :
                 rrf_scores [cid ]=rrf_scores .get (cid ,0.0 )+50.0 
             
             # 2. Fallback heuristic string match boost
-            filename =os .path .basename (source )
+            filename =source_display_name (meta )
             if filename :
                 query_lower =query_text .lower ()
                 file_lower =filename .lower ()

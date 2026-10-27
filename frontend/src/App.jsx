@@ -568,6 +568,16 @@ export default function App() {
         });
       }
 
+      if (!fullText.trim()) {
+        // the stream ended without any text: say so instead of leaving the "thinking" animation on screen
+        fullText = 'Error generating response: the model returned an empty answer. Try again, or choose another model.';
+        setMessages(prev => {
+          const msgs = [...prev];
+          msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], role: 'assistant', content: fullText, isError: true, failedText: text };
+          return msgs;
+        });
+      }
+
       const totalElapsedSec = Math.max(0.1, (performance.now() - streamStartTime) / 1000);
       const totalWords = fullText.trim().split(/\s+/).filter(Boolean).length;
       const totalTokens = Math.max(1, Math.round(totalWords * 1.3));

@@ -14,6 +14,7 @@ _migrations = [
     "ALTER TABLE chats ADD COLUMN folder_id INTEGER REFERENCES chat_folders(id) ON DELETE SET NULL",
     "ALTER TABLE workspaces ADD COLUMN system_prompt TEXT",
     "ALTER TABLE messages ADD COLUMN feedback TEXT",
+    "ALTER TABLE messages ADD COLUMN sources TEXT",
 ]
 for _sql in _migrations:
     try:

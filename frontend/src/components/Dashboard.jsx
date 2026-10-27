@@ -153,7 +153,8 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
     },
     {
       label: 'Indexed Documents',
-      value: loadingStats ? '—' : (stats?.kb_documents ?? 0),
+      // workspace uploads and Knowledge Base files together: both are indexed and searchable in chat
+      value: loadingStats ? '—' : ((stats?.documents ?? 0) + (stats?.kb_documents ?? 0)),
       icon: FileText,
       color: '#06b6d4',
       glow: 'rgba(6,182,212,0.2)',

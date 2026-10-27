@@ -1,5 +1,5 @@
 import base64
-from app.services.llm_service import llm_service
+from app.services.llm_service import llm_service, LLMBackendError
 from app.core.config import settings
 import os
 
@@ -28,7 +28,12 @@ class VisionService:
             }
         ]
         
-        response = llm_service.generate_chat(self.vision_model, messages, stream=False)
+        try:
+            response = llm_service.generate_chat(self.vision_model, messages, stream=False)
+        except LLMBackendError as e:
+            if e.kind == "empty_answer":
+                return ""  # nothing to describe (e.g. a blank PDF page); the caller skips empty descriptions
+            raise
         return response.get("message", {}).get("content", "")
 
 vision_service = VisionService()
