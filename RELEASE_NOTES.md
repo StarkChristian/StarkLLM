@@ -1,5 +1,16 @@
 # StarkLLM Release Notes
 
+## Version 2.0.3 — Thinking models, citations, dashboard
+
+Found by testing v2.0.2 on a PC that only had a thinking model (`qwen3.5:4b`) installed:
+
+- **No more empty answers with thinking models.** Models such as qwen3 or deepseek-r1 write a draft into a separate "thinking" field first. With a token limit the whole budget could go there, and the chat saved an empty answer that looked like it was still loading. StarkLLM now asks Ollama to answer directly (`think: false`), and if a model still returns no text, the chat says so (and what to change) instead of saving an empty message.
+- **Source chips show the real file name** (`Project card.md`, not `529bb309_Project card.md`), and **they are saved with the answer**, so they are still there when a chat is reopened. Questions that mention an uploaded file's name now find that file again.
+- **Dashboard:** "Indexed Documents" counts workspace documents and Knowledge Base files, not only the Knowledge Base.
+- **CSV and text files saved on Windows** (with a UTF-8 byte-order mark) no longer keep that mark in the first column name.
+
+---
+
 ## Version 2.0.2 — First start fixes
 
 Found by starting the app on a fresh profile in every situation (no Docker, Docker stopped, no Ollama, missing models, a failing model download, a busy port):

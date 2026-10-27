@@ -126,6 +126,16 @@ def explain_ollama_error(model: str, detail: str, status: int | None = None) -> 
     return LLMBackendError(f"Ollama could not answer with model '{model}'{where}" + (f": {detail}" if detail else "") + ".", "server_error", 502)
 
 
+def empty_answer_error(model: str, thought: bool = False, hit_limit: bool = False) -> LLMBackendError:
+    """The model finished without any answer text (a thinking model can spend the whole token limit on its thoughts)."""
+    if thought or hit_limit:
+        return LLMBackendError(
+            f"Model '{model}' used up its token limit before writing an answer. Raise or clear 'Max tokens' in the "
+            f"settings, or choose another model, then try again.", "empty_answer", 502,
+        )
+    return LLMBackendError(f"Model '{model}' returned an empty answer. Try again, or choose another model.", "empty_answer", 502)
+
+
 def _transport_error(model: str, e: requests.exceptions.RequestException) -> LLMBackendError | None:
     if isinstance(e, requests.exceptions.Timeout):
         return LLMBackendError(
@@ -243,7 +253,10 @@ class LLMService:
         payload = {
             "model": model,
             "messages": messages,
-            "stream": stream
+            "stream": stream,
+            # Thinking models (qwen3, deepseek-r1, ...) otherwise write their draft into a separate 'thinking'
+            # field first; with a token limit that can use up the whole budget and leave the answer empty.
+            "think": False,
         }
         
         if options:
@@ -258,7 +271,11 @@ class LLMService:
                     raise ModelNotFoundError(f"Model '{payload.get('model')}' not found in Ollama. Please ensure it is pulled (e.g. ollama pull {payload.get('model')}).")
                 if response.status_code >= 400:
                     raise explain_ollama_error(payload.get("model"), _ollama_error_text(response), response.status_code)
-                return response.json()
+                data = response.json()
+                message = data.get("message") or {}
+                if not (message.get("content") or "").strip():
+                    raise empty_answer_error(model, bool(message.get("thinking")), data.get("done_reason") == "length")
+                return data
             except LLMBackendError as e:
                 logger.error(f"LLM API Error ({e.kind}): {e}")
                 raise
@@ -358,14 +375,21 @@ class LLMService:
                     raise ModelNotFoundError(f"Model '{payload.get('model')}' not found in Ollama. Please ensure it is pulled (e.g. ollama pull {payload.get('model')}).")
                 if response.status_code >= 400:
                     raise explain_ollama_error(payload.get("model"), _ollama_error_text(response), response.status_code)
+                answered = thought = hit_limit = False
                 for line in response.iter_lines():
                     if line:
                         data = json.loads(line)
                         if data.get("error"):
                             # Ollama reports a runner crash (often out of memory) as an error line inside a 200 stream
                             raise explain_ollama_error(payload.get("model"), str(data["error"])[:300])
-                        if "message" in data and "content" in data["message"]:
-                            yield data["message"]["content"]
+                        message = data.get("message") or {}
+                        thought = thought or bool(message.get("thinking"))
+                        hit_limit = hit_limit or data.get("done_reason") == "length"
+                        if message.get("content"):
+                            answered = answered or bool(message["content"].strip())
+                            yield message["content"]
+                if not answered:
+                    raise empty_answer_error(payload.get("model"), thought, hit_limit)
         except LLMBackendError as e:
             logger.error(f"LLM Streaming API Error ({e.kind}): {e}")
             raise

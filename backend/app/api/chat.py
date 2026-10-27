@@ -11,7 +11,7 @@ from sqlalchemy import or_, and_, select, exists
 from app.db.session import get_db
 from app.db import models
 from app.services.llm_service import llm_service, ModelNotFoundError, LLMBackendError
-from app.services.rag_service import rag_service
+from app.services.rag_service import rag_service, source_display_name
 from app.services.memory_service import memory_service
 from app.services.mcp_service import mcp_service
 from app.core.config import settings
@@ -31,6 +31,30 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+def _sources_json(kb_used: bool, kb: list, ws: list, web_titles: list, web_urls: list) -> Optional[str]:
+    """The source chips of one answer, stored with the message so they come back when the chat is reopened."""
+    if not (kb or ws or web_titles):
+        return None
+    web = [{"title": t, "url": web_urls[i] if i < len(web_urls) else ""} for i, t in enumerate(web_titles)]
+    return json.dumps({"kb_used": bool(kb_used), "kb": list(kb), "ws": list(ws), "web": web}, ensure_ascii=False)
+
+
+def _message_out(m) -> dict:
+    """A stored message in the shape the chat view uses for a live answer (including its source chips)."""
+    out = {"role": m.role, "content": m.content, "timestamp": m.created_at.isoformat() if m.created_at else None,
+           "id": m.id, "feedback": m.feedback}
+    if m.role == "assistant" and not (m.content or "").strip():
+        out["content"] = "*[No answer was generated]*"  # an empty answer would otherwise look like it is still loading
+    if getattr(m, "sources", None):
+        try:
+            src = json.loads(m.sources)
+            out.update(kbUsed=bool(src.get("kb_used")), kbSources=src.get("kb") or [],
+                       wsSources=src.get("ws") or [], webSources=src.get("web") or [])
+        except (ValueError, AttributeError):
+            pass
+    return out
+
+
 def _build_citation_label(r: dict) -> tuple[str, str]:
     """
     Constructs honest, verifiable citation labels for LLM context and UI headers.
@@ -39,11 +63,7 @@ def _build_citation_label(r: dict) -> tuple[str, str]:
     TXT/MD: includes chunk locator ('notes.md (Chunk 2)')
     """
     meta = r.get("metadata", {}) or {}
-    filename = (
-        meta.get("file_name")
-        or os.path.basename(meta.get("source") or meta.get("file_path") or "")
-        or "unknown file"
-    )
+    filename = source_display_name(meta) or "unknown file"
     locator = meta.get("locator")
     if not locator:
         if "page" in meta and meta["page"] is not None:
@@ -648,6 +668,9 @@ WEB SEARCH RESULTS (LIVE DATA)
             
         model_name = req.model if req.model else (current_user.default_model if current_user.default_model else settings.DEFAULT_TEXT_MODEL)
 
+        kb_used = bool(req.use_knowledge_base and kb_results)
+        sources_json = _sources_json(kb_used, kb_sources, ws_sources, web_sources, web_source_urls)
+
         if req.stream:
             def generate():
                 full_response = ""
@@ -663,7 +686,10 @@ WEB SEARCH RESULTS (LIVE DATA)
                     ):
                         full_response += chunk
                         yield chunk
+                    if not full_response.strip():
+                        raise LLMBackendError(f"Model '{model_name}' returned an empty answer. Try again, or choose another model.", "empty_answer")
                 except Exception as e:
+                    full_response = full_response if full_response.strip() else ""
                     yield f"\n\nError generating response: {str(e)}"
                 finally:
                     if full_response:
@@ -696,6 +722,7 @@ WEB SEARCH RESULTS (LIVE DATA)
                                     chat_id=chat_obj.id,
                                     role="assistant",
                                     content=full_response,
+                                    sources=sources_json,
                                 )
                                 local_db.add(ast_msg)
                                 local_db.commit()
@@ -711,7 +738,7 @@ WEB SEARCH RESULTS (LIVE DATA)
                 media_type="text/plain",
                 headers={
                     "X-Chat-ID": str(chat_obj.id),
-                    "X-KB-Used": "true" if (req.use_knowledge_base and bool(kb_results)) else "false",
+                    "X-KB-Used": "true" if kb_used else "false",
                     "X-KB-Sources": urllib.parse.quote("|".join(kb_sources)),
                     "X-WS-Sources": urllib.parse.quote("|".join(ws_sources)),
                     "X-Web-Sources": urllib.parse.quote(",".join(web_sources)),
@@ -742,14 +769,17 @@ WEB SEARCH RESULTS (LIVE DATA)
                 if isinstance(e, LLMBackendError):
                     raise HTTPException(status_code=e.http_status, detail=str(e))
                 raise HTTPException(status_code=502, detail=f"The language model backend (Ollama) failed: {e}")
+            if not (content or "").strip():
+                # never save (or return as a success) an answer without text
+                raise HTTPException(status_code=502, detail=f"Model '{model_name}' returned an empty answer. Try again, or choose another model.")
 
             ast_msg = models.Message(
-                chat_id=chat_obj.id, role="assistant", content=content
+                chat_id=chat_obj.id, role="assistant", content=content, sources=sources_json
             )
             db.add(ast_msg)
             db.commit()
             # Set headers on the Response object for non-streaming paths
-            kb_used_val = "true" if (req.use_knowledge_base and bool(kb_results)) else "false"
+            kb_used_val = "true" if kb_used else "false"
             response.headers["X-Chat-ID"] = str(chat_obj.id)
             response.headers["X-KB-Used"] = kb_used_val
             response.headers["X-KB-Sources"] = urllib.parse.quote("|".join(kb_sources))
@@ -1083,7 +1113,7 @@ def get_session(
     return {
         "chat_id": chat_obj.id,
         "title": chat_obj.title or "Untitled Chat",
-        "messages": [{"role": m.role, "content": m.content, "timestamp": m.created_at.isoformat(), "id": m.id, "feedback": m.feedback} for m in messages],
+        "messages": [_message_out(m) for m in messages],
     }
 
 

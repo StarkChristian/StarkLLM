@@ -74,6 +74,7 @@ class Message(Base):
     role = Column(String)  # 'user', 'assistant', 'system'
     content = Column(String)
     feedback = Column(String, nullable=True)  # 'positive', 'negative', or None
+    sources = Column(String, nullable=True)  # JSON: the source chips shown under an assistant answer
     created_at = Column(DateTime, default=datetime.utcnow)
 
     chat = relationship("Chat", back_populates="messages")
