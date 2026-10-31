@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     DEFAULT_TEXT_MODEL: str = os.getenv("DEFAULT_TEXT_MODEL", "qwen2.5:7b")
     DEFAULT_VISION_MODEL: str = os.getenv("DEFAULT_VISION_MODEL", "llava")
     DEFAULT_EMBEDDING_MODEL: str = os.getenv("DEFAULT_EMBEDDING_MODEL", "nomic-embed-text")
+    # Thinking models (qwen3, deepseek-r1, ...) write a hidden draft first; with a token limit that draft can use the
+    # whole budget and leave no answer. Off by default; OLLAMA_THINK=true turns it on (only for models that support it).
+    OLLAMA_THINK: bool = os.getenv("OLLAMA_THINK", "false").lower() in ("1", "true", "yes")
     
     # Paths for uploads
     UPLOAD_DIR: str = "data/uploads"
