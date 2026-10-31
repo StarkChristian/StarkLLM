@@ -277,7 +277,14 @@ export default function App() {
       setActiveChatId(data.chat_id);
       setMessages(
         data.messages && data.messages.length > 0
-          ? data.messages
+          // Saved source chips come back in the same shape the live response headers produce.
+          ? data.messages.map(m => (m.sources ? {
+              ...m,
+              kbUsed: !!m.sources.kb_used,
+              kbSources: m.sources.kb || [],
+              wsSources: m.sources.ws || [],
+              webSources: m.sources.web || [],
+            } : m))
           : [{ role: 'assistant', content: 'Chat loaded. How can I help you?', timestamp: new Date() }]
       );
     } catch (err) {
