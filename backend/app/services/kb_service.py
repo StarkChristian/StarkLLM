@@ -637,7 +637,7 @@ class KBService:
                     wb.close()
                     text = "\n".join(lines)
                 else:
-                    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                    with open(file_path, "r", encoding="utf-8-sig", errors="ignore") as f:
                         text = f.read()
                 text_chunks = rag_service._semantic_chunk_text(text)
                 txt_chunk_count = 0
@@ -659,7 +659,7 @@ class KBService:
 
             elif file_type == "html":
                 logger.info(f"KB: Extracting HTML: {file_path}")
-                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                with open(file_path, "r", encoding="utf-8-sig", errors="ignore") as f:
                     html_content = f.read()
                 from html.parser import HTMLParser as _HP
 
