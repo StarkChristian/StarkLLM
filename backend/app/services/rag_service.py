@@ -293,7 +293,7 @@ class RAGService :
 
             # ---------------------------------------------------------------- Plain text / Markdown
             elif file_ext in [".txt", ".md"]:
-                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                with open(file_path, "r", encoding="utf-8-sig", errors="ignore") as f:
                     text = f.read()
                 file_chunks = self._semantic_chunk_text(text)
                 for idx, chunk in enumerate(file_chunks):
@@ -309,7 +309,7 @@ class RAGService :
 
             # ---------------------------------------------------------------- HTML
             elif file_ext == ".html":
-                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                with open(file_path, "r", encoding="utf-8-sig", errors="ignore") as f:
                     html_content = f.read()
                 extractor = HTMLTextExtractor()
                 extractor.feed(html_content)
@@ -390,7 +390,7 @@ class RAGService :
 
             # ---------------------------------------------------------------- CSV / JSON / XML / LOG (plain-text data)
             elif file_ext in [".csv", ".json", ".xml", ".log", ".markdown"]:
-                with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                with open(file_path, "r", encoding="utf-8-sig", errors="replace") as f:
                     text = f.read()
                 for idx, chunk in enumerate(self._chunk_structured_text(text, file_ext)):
                     if chunk.strip():

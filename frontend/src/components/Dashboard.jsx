@@ -152,12 +152,15 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
       actionLabel: 'Open KB',
     },
     {
+      // Workspace uploads and Knowledge Base files are counted separately by the API; the card showed only the KB
+      // number, so it stayed at 0 when all indexed files were workspace documents.
       label: 'Indexed Documents',
-      value: loadingStats ? '—' : (stats?.kb_documents ?? 0),
+      value: loadingStats ? '—' : (stats?.documents ?? 0) + (stats?.kb_documents ?? 0),
+      detail: loadingStats ? null : `${stats?.documents ?? 0} in workspaces · ${stats?.kb_documents ?? 0} in Knowledge Base`,
       icon: FileText,
       color: '#06b6d4',
       glow: 'rgba(6,182,212,0.2)',
-      action: () => onViewChange('knowledge-base'),
+      action: () => onViewChange(stats?.documents || !stats?.kb_documents ? 'chat' : 'knowledge-base'),
       actionLabel: 'View Docs',
     },
     {
@@ -199,7 +202,7 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
 
       {/* ── Stat cards ── */}
       <div className={styles.statsGrid}>
-        {statCards.map(({ label, value, icon: Icon, color, glow, action, actionLabel }) => (
+        {statCards.map(({ label, value, detail, icon: Icon, color, glow, action, actionLabel }) => (
           <button key={label} className={styles.statCard} style={{ '--card-glow': glow }} onClick={action}>
             <div className={styles.statIconWrap} style={{ background: `${color}1a`, boxShadow: `0 0 16px ${glow}` }}>
               <Icon size={20} color={color} />
@@ -207,6 +210,7 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
             <div className={styles.statBody}>
               <span className={styles.statValue}>{value}</span>
               <span className={styles.statLabel}>{label}</span>
+              {detail && <span className={styles.statLabel} style={{ fontSize: '0.72rem', opacity: 0.75 }}>{detail}</span>}
             </div>
             <span className={styles.statAction} style={{ color }}>
               {actionLabel} <ArrowRight size={13} />
