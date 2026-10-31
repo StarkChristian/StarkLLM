@@ -85,10 +85,21 @@ def describe_indexing_error(e: Exception) -> str:
     return str(e)[:500]
 
 
+def empty_answer_error(model: str, thought: bool) -> "LLMBackendError":
+    """The model finished without writing any answer text. Never store or show that as an answer."""
+    if thought:
+        return LLMBackendError(
+            f"Model '{model}' used its whole token limit for thinking and wrote no answer. Raise the token limit "
+            f"(max tokens) in the settings, or choose a model without a thinking mode.",
+            "empty_answer", 502,
+        )
+    return LLMBackendError(f"Model '{model}' returned an empty answer. Try again or choose another model.", "empty_answer", 502)
+
+
 class LLMBackendError(requests.exceptions.RequestException):
     """Ollama could not answer. str(e) is a message the user can act on: no internal URLs, no raw HTTP text.
 
-    kind: out_of_memory | timeout | unreachable | server_error;  http_status: what an API endpoint should answer with.
+    kind: out_of_memory | timeout | unreachable | empty_answer | server_error;  http_status: what an API endpoint should answer with.
     """
 
     def __init__(self, message: str, kind: str = "server_error", http_status: int = 502):
@@ -243,7 +254,9 @@ class LLMService:
         payload = {
             "model": model,
             "messages": messages,
-            "stream": stream
+            "stream": stream,
+            # Ollama ignores this for models without a thinking mode.
+            "think": settings.OLLAMA_THINK,
         }
         
         if options:
@@ -258,7 +271,11 @@ class LLMService:
                     raise ModelNotFoundError(f"Model '{payload.get('model')}' not found in Ollama. Please ensure it is pulled (e.g. ollama pull {payload.get('model')}).")
                 if response.status_code >= 400:
                     raise explain_ollama_error(payload.get("model"), _ollama_error_text(response), response.status_code)
-                return response.json()
+                data = response.json()
+                message = data.get("message") or {}
+                if not (message.get("content") or "").strip():
+                    raise empty_answer_error(model, bool(message.get("thinking")))
+                return data
             except LLMBackendError as e:
                 logger.error(f"LLM API Error ({e.kind}): {e}")
                 raise
@@ -297,6 +314,7 @@ class LLMService:
         try:
             with requests.post(url, json=payload, headers=headers, stream=True, timeout=180) as response:
                 response.raise_for_status()
+                wrote, thought = False, False
                 for line in response.iter_lines():
                     if line:
                         line_str = line.decode("utf-8").strip()
@@ -309,11 +327,17 @@ class LLMService:
                                 choices = chunk.get("choices", [])
                                 if choices:
                                     delta = choices[0].get("delta", {})
+                                    thought = thought or bool(delta.get("reasoning_content"))
                                     content = delta.get("content", "")
                                     if content:
+                                        wrote = wrote or bool(content.strip())
                                         yield content
                             except Exception:
                                 pass
+                if not wrote:
+                    raise empty_answer_error(model, thought)
+        except LLMBackendError:
+            raise
         except requests.exceptions.RequestException as e:
             logger.error(f"OpenAI-Compatible Streaming API Error: {e}")
             raise _openai_compatible_error(e) from e
@@ -346,7 +370,11 @@ class LLMService:
             response.raise_for_status()
             data = response.json()
             content = data["choices"][0]["message"]["content"]
+            if not (content or "").strip():
+                raise empty_answer_error(model, bool(data["choices"][0]["message"].get("reasoning_content")))
             return {"message": {"content": content}}
+        except LLMBackendError:
+            raise
         except requests.exceptions.RequestException as e:
             logger.error(f"OpenAI-Compatible API Error: {e}")
             raise _openai_compatible_error(e) from e
@@ -358,14 +386,20 @@ class LLMService:
                     raise ModelNotFoundError(f"Model '{payload.get('model')}' not found in Ollama. Please ensure it is pulled (e.g. ollama pull {payload.get('model')}).")
                 if response.status_code >= 400:
                     raise explain_ollama_error(payload.get("model"), _ollama_error_text(response), response.status_code)
+                wrote, thought = False, False
                 for line in response.iter_lines():
                     if line:
                         data = json.loads(line)
                         if data.get("error"):
                             # Ollama reports a runner crash (often out of memory) as an error line inside a 200 stream
                             raise explain_ollama_error(payload.get("model"), str(data["error"])[:300])
-                        if "message" in data and "content" in data["message"]:
-                            yield data["message"]["content"]
+                        message = data.get("message") or {}
+                        thought = thought or bool(message.get("thinking"))
+                        if message.get("content"):
+                            wrote = wrote or bool(message["content"].strip())
+                            yield message["content"]
+                if not wrote:
+                    raise empty_answer_error(payload.get("model"), thought)
         except LLMBackendError as e:
             logger.error(f"LLM Streaming API Error ({e.kind}): {e}")
             raise

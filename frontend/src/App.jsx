@@ -21,6 +21,8 @@ import { useChatFolders } from './hooks/useChatFolders';
 import { useChatSummary } from './hooks/useChatSummary';
 import { exportChat } from './utils/chatExport';
 
+const NO_ANSWER_TEXT = '*[The model returned no answer. Try again, raise the token limit, or choose another model.]*';
+
 export default function App() {
   const toast = useToast();
   const [token, setToken] = useState(localStorage.getItem('token'));
@@ -277,7 +279,8 @@ export default function App() {
       setActiveChatId(data.chat_id);
       setMessages(
         data.messages && data.messages.length > 0
-          ? data.messages
+          // An empty saved answer (older versions stored them) would otherwise show the "thinking" dots forever.
+          ? data.messages.map(m => (m.role === 'assistant' && !(m.content || '').trim() ? { ...m, content: NO_ANSWER_TEXT } : m))
           : [{ role: 'assistant', content: 'Chat loaded. How can I help you?', timestamp: new Date() }]
       );
     } catch (err) {
@@ -566,6 +569,15 @@ export default function App() {
           };
           return msgs;
         });
+      }
+
+      if (!fullText.trim()) {
+        setMessages(prev => {
+          const msgs = [...prev];
+          msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], role: 'assistant', content: NO_ANSWER_TEXT, isError: true, failedText: text };
+          return msgs;
+        });
+        return;
       }
 
       const totalElapsedSec = Math.max(0.1, (performance.now() - streamStartTime) / 1000);
