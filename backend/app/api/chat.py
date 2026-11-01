@@ -41,7 +41,8 @@ def _build_citation_label(r: dict) -> tuple[str, str]:
     meta = r.get("metadata", {}) or {}
     filename = (
         meta.get("file_name")
-        or os.path.basename(meta.get("source") or meta.get("file_path") or "")
+        # Files indexed before file_name was stored: drop the 8-character upload prefix ("529bb309_notes.md").
+        or re.sub(r"^[0-9a-f]{8}_", "", os.path.basename(meta.get("source") or meta.get("file_path") or ""))
         or "unknown file"
     )
     locator = meta.get("locator")
@@ -395,6 +396,13 @@ async def chat(
         # Unpack Web
         web_sources, web_source_urls, web_context = web_data
 
+        sources_json = json.dumps({
+            "kb_used": bool(req.use_knowledge_base and kb_results),
+            "kb": kb_sources,
+            "ws": ws_sources,
+            "web": [{"title": t, "url": (web_source_urls[i] if i < len(web_source_urls) else "")} for i, t in enumerate(web_sources)],
+        })
+
         # ---- Lightweight file list for the system prompt (max 10 most recent)
         MAX_FILES_SHOWN = 10
         ws_doc_total = 0
@@ -696,6 +704,7 @@ WEB SEARCH RESULTS (LIVE DATA)
                                     chat_id=chat_obj.id,
                                     role="assistant",
                                     content=full_response,
+                                    sources=sources_json,
                                 )
                                 local_db.add(ast_msg)
                                 local_db.commit()
@@ -744,7 +753,7 @@ WEB SEARCH RESULTS (LIVE DATA)
                 raise HTTPException(status_code=502, detail=f"The language model backend (Ollama) failed: {e}")
 
             ast_msg = models.Message(
-                chat_id=chat_obj.id, role="assistant", content=content
+                chat_id=chat_obj.id, role="assistant", content=content, sources=sources_json
             )
             db.add(ast_msg)
             db.commit()
@@ -1083,7 +1092,8 @@ def get_session(
     return {
         "chat_id": chat_obj.id,
         "title": chat_obj.title or "Untitled Chat",
-        "messages": [{"role": m.role, "content": m.content, "timestamp": m.created_at.isoformat(), "id": m.id, "feedback": m.feedback} for m in messages],
+        "messages": [{"role": m.role, "content": m.content, "timestamp": m.created_at.isoformat(), "id": m.id, "feedback": m.feedback,
+                      "sources": json.loads(m.sources) if m.sources else None} for m in messages],
     }
 
 

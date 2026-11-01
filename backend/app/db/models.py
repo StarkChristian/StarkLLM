@@ -74,6 +74,9 @@ class Message(Base):
     role = Column(String)  # 'user', 'assistant', 'system'
     content = Column(String)
     feedback = Column(String, nullable=True)  # 'positive', 'negative', or None
+    # JSON {"kb_used", "kb", "ws", "web": [{"title", "url"}]}: the source chips of an answer, shown again when the
+    # chat is reopened (they used to exist only in the headers of the live response).
+    sources = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     chat = relationship("Chat", back_populates="messages")

@@ -279,8 +279,17 @@ export default function App() {
       setActiveChatId(data.chat_id);
       setMessages(
         data.messages && data.messages.length > 0
-          // An empty saved answer (older versions stored them) would otherwise show the "thinking" dots forever.
-          ? data.messages.map(m => (m.role === 'assistant' && !(m.content || '').trim() ? { ...m, content: NO_ANSWER_TEXT } : m))
+          // An empty saved answer (older versions stored them) would otherwise show the "thinking" dots forever;
+          // saved source chips come back in the same shape the live response headers produce.
+          ? data.messages
+              .map(m => (m.role === 'assistant' && !(m.content || '').trim() ? { ...m, content: NO_ANSWER_TEXT } : m))
+              .map(m => (m.sources ? {
+                ...m,
+                kbUsed: !!m.sources.kb_used,
+                kbSources: m.sources.kb || [],
+                wsSources: m.sources.ws || [],
+                webSources: m.sources.web || [],
+              } : m))
           : [{ role: 'assistant', content: 'Chat loaded. How can I help you?', timestamp: new Date() }]
       );
     } catch (err) {

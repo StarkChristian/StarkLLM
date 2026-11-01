@@ -486,11 +486,18 @@ class RAGService :
             # Public indexing methods
             # ------------------------------------------------------------------
 
-    def add_document (self ,workspace_id :int ,user_id :int ,file_path :str ):
-        """Index a file into a workspace-scoped ChromaDB collection."""
+    def add_document (self ,workspace_id :int ,user_id :int ,file_path :str ,display_name :str =None ):
+        """Index a file into a workspace-scoped ChromaDB collection.
+
+        display_name is the name the user uploaded; the file on disk carries a hash prefix ("529bb309_notes.md"),
+        and citations are built from file_name, so they showed that prefix.
+        """
         collection =self .get_or_create_collection (workspace_id ,user_id )
         logger.info (f"RAG: Indexing '{file_path }' → collection '{collection .name }'")
         chunks ,metadatas ,ids =self ._process_file_to_chunks (file_path )
+        if display_name :
+            for m in metadatas :
+                m ["file_name"]=display_name
         self ._embed_and_store (collection ,chunks ,metadatas ,ids ,file_path )
 
     def add_kb_document (self ,user_id :int ,file_path :str ):

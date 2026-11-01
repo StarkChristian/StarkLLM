@@ -36,6 +36,16 @@ def _set_doc_status(doc_id: int, status: str, error_message: str = None):
         db.close()
 
 
+def _display_name(doc_id: int) -> Optional[str]:
+    """The name the user gave the file (the copy on disk has a hash prefix)."""
+    db = SessionLocal()
+    try:
+        doc = db.query(models.Document).filter(models.Document.id == doc_id).first()
+        return doc.filename if doc else None
+    finally:
+        db.close()
+
+
 def _index_document_background(doc_id: int, workspace_id: int, user_id: int, file_path: str):
     """Background thread: runs the full indexing pipeline with status updates."""
     try:
@@ -46,7 +56,7 @@ def _index_document_background(doc_id: int, workspace_id: int, user_id: int, fil
         _set_doc_status(doc_id, DocStatus.EMBEDDING)
 
         # Run the synchronous rag_service call
-        rag_service.add_document(workspace_id, user_id, file_path)
+        rag_service.add_document(workspace_id, user_id, file_path, display_name=_display_name(doc_id))
 
         _set_doc_status(doc_id, DocStatus.INDEXED)
         logger.info(f"Document {doc_id} indexed successfully.")
