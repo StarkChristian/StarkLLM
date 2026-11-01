@@ -14,6 +14,7 @@ services:
       - DEFAULT_TEXT_MODEL=${DEFAULT_TEXT_MODEL:-qwen2.5:7b}
       - DEFAULT_VISION_MODEL=${DEFAULT_VISION_MODEL:-llava}
       - DEFAULT_EMBEDDING_MODEL=${DEFAULT_EMBEDDING_MODEL:-nomic-embed-text}
+      - OLLAMA_THINK=${OLLAMA_THINK:-false}   # true: let thinking models (qwen3, deepseek-r1) think first
       # Security & Privacy: Disable telemetry globally
       - HF_HUB_DISABLE_TELEMETRY=1
       - DO_NOT_TRACK=1
