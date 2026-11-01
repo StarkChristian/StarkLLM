@@ -1,5 +1,18 @@
 # StarkLLM Release Notes
 
+## Version 2.0.3 — Answers from thinking models, CSV files, sources
+
+Fixes for problems reported from a real PC:
+
+- **Thinking models (qwen3, deepseek-r1 and similar) answer again.** They spent the whole token limit on hidden thinking and returned an empty answer, so the chat kept showing the "thinking" dots. StarkLLM now asks Ollama to answer without the thinking step (`OLLAMA_THINK=true` turns it back on). An empty answer is now a clear error and is never saved.
+- **CSV and text files from Excel/Windows** (UTF-8 with BOM) are read correctly; the first column name no longer starts with an invisible character.
+- **Dashboard:** "Indexed Documents" counts workspace files and Knowledge Base files and shows the split.
+- **Sources:** the source chips show the uploaded file name (`Project card.md`, not `529bb309_Project card.md`) and are still there when a chat is reopened. Existing databases get the new column automatically.
+
+Pull requests: #16, #17, #18.
+
+---
+
 ## Version 2.0.2 — First start fixes
 
 Found by starting the app on a fresh profile in every situation (no Docker, Docker stopped, no Ollama, missing models, a failing model download, a busy port):
