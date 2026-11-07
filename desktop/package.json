@@ -9,7 +9,8 @@
   "scripts": {
     "start": "electron .",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder --win --x64"
+    "dist": "electron-builder --win --x64",
+    "test": "node --test test/*.test.js"
   },
   "devDependencies": {
     "electron": "^33.2.0",
