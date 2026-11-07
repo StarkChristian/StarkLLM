@@ -58,7 +58,7 @@ jobs:
           while ((Get-Date) -lt $deadline) {
             Start-Sleep 10
             if ($p.HasExited) { throw "the app exited with code $($p.ExitCode)" }
-            if ((Test-Path $log) -and (Select-String -Path $log -Pattern 'compose: |Ready\.|not reachable' -Quiet)) { Start-Sleep 30; break }
+            if ((Test-Path $log) -and (Select-String -Path $log -Pattern 'compose: |Ready\.|not reachable|Windows containers|Docker not found|engine is not running' -Quiet)) { Start-Sleep 30; break }
           }
           Add-Type -AssemblyName System.Windows.Forms, System.Drawing
           $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
