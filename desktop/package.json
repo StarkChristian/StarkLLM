@@ -10,7 +10,7 @@
     "start": "electron .",
     "pack": "electron-builder --dir",
     "dist": "electron-builder --win --x64",
-    "test": "node --test test/*.test.js"
+    "test": "node --test"
   },
   "devDependencies": {
     "electron": "^33.2.0",
