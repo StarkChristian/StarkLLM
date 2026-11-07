@@ -1,7 +1,9 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, dialog, net } = require('electron');
+const fs = require('fs');
 const path = require('path');
 const { diagnose, buildErrorPage } = require('./diagnostics');
 const { startEngine, userPaths } = require('./engine');
+const { createUpdater } = require('./updates');
 
 let mainWindow = null;
 let tray = null;
@@ -9,6 +11,15 @@ let isQuitting = false;
 
 const APP_URL = process.env.STARKLLM_URL || `http://localhost:${process.env.STARKLLM_UI_PORT || 5173}`;
 let starting = false;
+let updater = null;
+
+function logLine(line) {
+  try {
+    fs.appendFileSync(userPaths().log, `[${new Date().toISOString()}] ${line}\n`);
+  } catch (e) {
+    // logging must never stop the app
+  }
+}
 
 // Ensure single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
@@ -26,8 +37,11 @@ if (!gotTheLock) {
 }
 
 function initApp() {
+  updater = createUpdater({ app, dialog, shell, net, getWindow: () => mainWindow, log: logLine, onChange: () => refreshTrayMenu() });
   createMainWindow();
   createTray();
+  // Also when the engine cannot start: an old version is often the reason.
+  setTimeout(() => updater.onStart().catch((e) => logLine(`update check: ${e.message}`)), 3000);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -147,36 +161,8 @@ function createTray() {
     }
     tray = new Tray(trayIcon);
 
-    const contextMenu = Menu.buildFromTemplate([
-      {
-        label: 'Open StarkLLM',
-        click: () => {
-          if (mainWindow) {
-            mainWindow.show();
-            mainWindow.focus();
-          } else {
-            createMainWindow();
-          }
-        }
-      },
-      {
-        label: 'Reload Application',
-        click: () => {
-          retryConnection();
-        }
-      },
-      { type: 'separator' },
-      {
-        label: 'Quit StarkLLM',
-        click: () => {
-          isQuitting = true;
-          app.quit();
-        }
-      }
-    ]);
-
     tray.setToolTip('StarkLLM — Local AI Desktop');
-    tray.setContextMenu(contextMenu);
+    refreshTrayMenu();
 
     tray.on('double-click', () => {
       if (mainWindow) {
@@ -187,6 +173,52 @@ function createTray() {
   } catch (err) {
     console.warn('System tray creation non-fatal error:', err.message);
   }
+}
+
+// Rebuilt when a setting shown in it changes.
+function refreshTrayMenu() {
+  if (!tray) return;
+  tray.setContextMenu(Menu.buildFromTemplate([
+    {
+      label: 'Open StarkLLM',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+        } else {
+          createMainWindow();
+        }
+      }
+    },
+    {
+      label: 'Reload Application',
+      click: () => {
+        retryConnection();
+      }
+    },
+    { type: 'separator' },
+    {
+      label: 'Check for Updates...',
+      click: () => updater.check({ manual: true }).catch((e) => logLine(`update check: ${e.message}`))
+    },
+    {
+      label: 'Check for Updates on Start',
+      type: 'checkbox',
+      checked: updater.isEnabled(),
+      click: (item) => {
+        updater.setEnabled(item.checked);
+        refreshTrayMenu();
+      }
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit StarkLLM',
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      }
+    }
+  ]));
 }
 
 app.on('window-all-closed', () => {
