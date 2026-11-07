@@ -1,5 +1,18 @@
 # StarkLLM Release Notes
 
+## Version 2.0.4 — You see what goes online; updates reach you
+
+- **The chat shows when a question leaves your PC.** With a cloud model provider selected in Settings (DeepSeek, OpenRouter, Groq or any non-local address) the input bar says "Cloud: <host> receives your question and document passages", and each such answer says "Answered by <host> (cloud)", also after reopening the chat. With web search on, the chat says the question goes to DuckDuckGo. LM Studio and other servers on your PC or local network count as local.
+- **New versions reach you.** On the first start StarkLLM asks once whether it may check for new versions. If you agree, it asks GitHub for the newest version number on each start (nothing else is sent) and offers the download page. Nothing is installed automatically. The tray menu has "Check for Updates..." and an on/off switch.
+- **Model downloads are retried.** An interrupted download is tried again after 5 and 15 seconds. A dropped connection to Ollama during a download no longer leaves the start screen waiting forever.
+- **Docker in Windows-containers mode** is now explained on the start page, with how to switch to Linux containers, instead of a raw build log.
+- The splash screen says "Private, local-first AI" instead of "100% Private".
+- First runs on real Windows: the installer, the start and the start page are now built, installed and started on a GitHub Windows machine for every change.
+
+Pull requests: #20, #21, #22, #23, #24.
+
+---
+
 ## Version 2.0.3 — Answers from thinking models, CSV files, sources
 
 Fixes for problems reported from a real PC:
