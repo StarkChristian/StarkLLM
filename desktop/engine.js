@@ -181,11 +181,42 @@ function pullModel(name, onStatus) {
           } else if (msg.status) onStatus(`AI model ${name}: ${msg.status}`);
         }
       });
-      res.on('end', () => (failed || res.statusCode >= 400 ? reject(new Error(failed || `HTTP ${res.statusCode}`)) : resolve()));
+      let ended = false;
+      res.on('end', () => {
+        ended = true;
+        failed || res.statusCode >= 400 ? reject(new Error(failed || `HTTP ${res.statusCode}`)) : resolve();
+      });
+      // A dropped connection ends the response without 'end'; without this the start would wait forever.
+      res.on('close', () => {
+        if (!ended) reject(new Error('the connection to Ollama was interrupted'));
+      });
+      res.on('error', () => {});
     });
     req.on('error', reject);
+    // No data for 2 minutes: treat the download as stalled (it is resumed on the next attempt).
+    req.setTimeout(120000, () => req.destroy(new Error('no progress for 2 minutes')));
     req.end(JSON.stringify({ name, stream: true }));
   });
+}
+
+// Ollama resumes a partial download, so a dropped connection costs little. A wrong model name is not retried.
+const PULL_DELAYS_MS = [5000, 15000];
+
+async function pullWithRetry(name, onStatus, { pull = pullModel, wait = sleep, delays = PULL_DELAYS_MS, log: write = log } = {}) {
+  const attempts = delays.length + 1;
+  for (let i = 1; ; i++) {
+    try {
+      await pull(name, onStatus);
+      return;
+    } catch (e) {
+      const permanent = /does not exist|not found|manifest unknown|invalid model name/i.test(e.message);
+      write(`pull ${name} attempt ${i} of ${attempts} failed: ${e.message}`);
+      if (permanent || i >= attempts) throw e;
+      const secs = Math.round(delays[i - 1] / 1000);
+      onStatus(`Download of ${name} was interrupted (${e.message}). Trying again in ${secs} s (attempt ${i + 1} of ${attempts})...`);
+      await wait(delays[i - 1]);
+    }
+  }
 }
 
 // status() also writes the log; progress() only updates the splash screen (download progress is too chatty for the log).
@@ -204,7 +235,7 @@ async function ensureOllama(status, progress, warnings) {
     if (hasModel(models, name)) continue;
     status(`Downloading AI model ${name}...`);
     try {
-      await pullModel(name, progress);
+      await pullWithRetry(name, progress);
       log(`pulled ${name}`);
     } catch (e) {
       log(`pull ${name} failed: ${e.message}`);
@@ -288,4 +319,4 @@ async function startEngine(appUrl, onStatus) {
   return { ok: true, ollama, warnings };
 }
 
-module.exports = { startEngine, userPaths, TEXT_MODEL, EMBEDDING_MODEL };
+module.exports = { startEngine, userPaths, pullWithRetry, TEXT_MODEL, EMBEDDING_MODEL };
