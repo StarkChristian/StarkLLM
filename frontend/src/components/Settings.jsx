@@ -4,6 +4,7 @@ import styles from './Settings.module.css';
 import BackupRestoreSettings from './BackupRestoreSettings';
 import { AVAILABLE_THEMES, applyTheme } from '../utils/themes';
 import { SUPPORTED_LANGUAGES, getCurrentLanguage, setLanguage } from '../utils/languages';
+import { cloudHostFor } from '../utils/cloud';
 
 const SECTIONS = [
   { id: 'account',  label: 'Account',       icon: User },
@@ -701,6 +702,11 @@ print(response.choices[0].message.content)`;
                       value={baseUrl}
                       onChange={e => setBaseUrl(e.target.value)}
                     />
+                    {cloudHostFor('openai_compatible', baseUrl) && (
+                      <div style={{ fontSize: '0.78rem', color: 'var(--warning)', marginTop: 6 }}>
+                        Not local: your questions and the document passages found for them are sent to {cloudHostFor('openai_compatible', baseUrl)}. The chat shows this while it is active.
+                      </div>
+                    )}
                   </div>
 
                   <div className={styles.formGroup} style={{ marginBottom: 0 }}>

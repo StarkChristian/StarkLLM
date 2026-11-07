@@ -273,3 +273,23 @@
 .charCounterOverLimit {
   color: #f59e0b;
 }
+
+/* Shown while a request leaves this PC (web search, cloud model provider). */
+.onlineNote {
+  align-self: center;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.cloudBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--warning);
+  font-size: 0.75rem;
+  cursor: pointer;
+}

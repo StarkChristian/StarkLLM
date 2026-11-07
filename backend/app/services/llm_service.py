@@ -5,6 +5,32 @@ import re
 from typing import Generator, List
 from app.core.config import settings
 
+
+def uses_openai_compatible(provider: str, base_url: str = None) -> bool:
+    """Same routing rule as LLMService.generate_response."""
+    return provider == "openai_compatible" or bool(base_url and "ollama" not in base_url.lower() and not base_url.endswith("/api"))
+
+
+def cloud_host(provider: str, base_url: str = None):
+    """Host name a chat request is sent to when it leaves this PC, else None.
+
+    LM Studio, vLLM and other servers on this PC or the local network count as local.
+    """
+    if not uses_openai_compatible(provider, base_url):
+        return None
+    import ipaddress
+    from urllib.parse import urlparse
+    host = (urlparse(base_url or "https://api.openai.com/v1").hostname or "").lower()
+    if not host or host in ("localhost", "host.docker.internal") or host.endswith((".local", ".localhost", ".internal", ".lan")):
+        return None
+    try:
+        ip = ipaddress.ip_address(host)
+        if ip.is_private or ip.is_loopback or ip.is_link_local:
+            return None
+    except ValueError:
+        pass
+    return host
+
 logger = logging.getLogger(__name__)
 
 RECOMMENDED_MODELS = [
@@ -242,7 +268,7 @@ class LLMService:
         base_url: str = None
     ):
         # OpenAI-Compatible endpoint (Cloud APIs or LM Studio / vLLM)
-        if provider == "openai_compatible" or (base_url and "ollama" not in base_url.lower() and not base_url.endswith("/api")):
+        if uses_openai_compatible(provider, base_url):
             target_base = base_url or "https://api.openai.com/v1"
             if stream:
                 return self._stream_openai_compatible(target_base, api_key, model, messages, options)

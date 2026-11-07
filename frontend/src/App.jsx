@@ -20,6 +20,7 @@ import { useToast } from './components/Toast';
 import { useChatFolders } from './hooks/useChatFolders';
 import { useChatSummary } from './hooks/useChatSummary';
 import { exportChat } from './utils/chatExport';
+import { currentCloudHost } from './utils/cloud';
 
 const NO_ANSWER_TEXT = '*[The model returned no answer. Try again, raise the token limit, or choose another model.]*';
 
@@ -289,6 +290,7 @@ export default function App() {
                 kbSources: m.sources.kb || [],
                 wsSources: m.sources.ws || [],
                 webSources: m.sources.web || [],
+                cloudHost: m.sources.cloud || null,
               } : m))
           : [{ role: 'assistant', content: 'Chat loaded. How can I help you?', timestamp: new Date() }]
       );
@@ -546,6 +548,7 @@ export default function App() {
       const wsSourcesHeader = response.headers.get('X-WS-Sources') ? decodeURIComponent(response.headers.get('X-WS-Sources')) : '';
       const webSourcesHeader = response.headers.get('X-Web-Sources') ? decodeURIComponent(response.headers.get('X-Web-Sources')) : '';
       const webSourcesUrlsHeader = response.headers.get('X-Web-Sources-Urls') ? decodeURIComponent(response.headers.get('X-Web-Sources-Urls')) : '';
+      const cloudHostHeader = response.headers.get('X-Cloud-Provider') || null;
 
       const webTitles = webSourcesHeader ? webSourcesHeader.split(',').filter(Boolean) : [];
       const webUrls = webSourcesUrlsHeader ? webSourcesUrlsHeader.split(',').filter(Boolean) : [];
@@ -574,7 +577,8 @@ export default function App() {
             kbUsed: kbUsedHeader,
             kbSources: kbSourcesHeader ? kbSourcesHeader.split('|').filter(Boolean) : [],
             wsSources: wsSourcesHeader ? wsSourcesHeader.split('|').filter(Boolean) : [],
-            webSources: webSourcesData
+            webSources: webSourcesData,
+            cloudHost: cloudHostHeader
           };
           return msgs;
         });
@@ -1078,6 +1082,8 @@ export default function App() {
               onToggleKb={() => setUseKb(!useKb)}
               useWebSearch={useWebSearch}
               onToggleWebSearch={() => setUseWebSearch(!useWebSearch)}
+              cloudHost={currentCloudHost()}
+              onOpenSettings={() => setActiveView('settings')}
               isGenerating={isGenerating}
               onStopGeneration={handleStopGeneration}
               token={token}
