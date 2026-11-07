@@ -138,6 +138,15 @@ async function dockerRunning(docker) {
   return (await run(docker, ['info', '--format', '{{.ServerVersion}}'], { timeoutMs: 20000 })).code === 0;
 }
 
+// Docker Desktop can run Windows containers instead of Linux containers; StarkLLM's images are Linux images.
+// Found on a GitHub Windows runner: the build then fails with "no matching manifest for windows(...)".
+async function dockerOsType(docker) {
+  const r = await run(docker, ['info', '--format', '{{.OSType}}'], { timeoutMs: 20000 });
+  return r.code === 0 && r.lines.length ? r.lines[r.lines.length - 1].trim().toLowerCase() : '';
+}
+
+const WINDOWS_CONTAINERS = /no matching manifest for windows|image operating system "linux" cannot be used on this platform/i;
+
 async function ollamaModels() {
   const r = await probe(OLLAMA_URL + '/api/tags');
   if (!r.ok) return null;
@@ -243,6 +252,11 @@ async function startEngine(appUrl, onStatus) {
     }
   }
 
+  if ((await dockerOsType(docker)) === 'windows') {
+    log('Docker runs Windows containers; StarkLLM needs Linux containers');
+    return { ok: false, stage: 'docker-windows-containers' };
+  }
+
   const ollama = await ensureOllama(status, onStatus, warnings);
 
   if (await isStarkLLM(appUrl)) {
@@ -271,6 +285,9 @@ async function startEngine(appUrl, onStatus) {
     up = await run(docker, ['start', ...CONTAINERS], { timeoutMs: 120000 });
   }
   up.lines.slice(-60).forEach((l) => log('compose: ' + l));
+  if (up.code !== 0 && up.lines.some((l) => WINDOWS_CONTAINERS.test(l))) {
+    return { ok: false, stage: 'docker-windows-containers' };
+  }
   if (up.code !== 0) {
     const portBusy = up.lines.some((l) => /address already in use|port is already allocated|ports are not available/i.test(l));
     const detail = portBusy
