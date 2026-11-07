@@ -40,6 +40,7 @@ async function diagnose(engine = {}) {
   // The engine start knows better (it also finds docker.exe when it is not on PATH yet).
   if (engine.stage === 'docker-missing') docker = 'missing';
   else if (engine.stage === 'docker-stopped') docker = 'stopped';
+  else if (engine.stage === 'docker-windows-containers') docker = 'windows-containers';
   else if (engine.stage) docker = 'running';
   let models = [];
   try {
@@ -61,6 +62,13 @@ function buildRows(d) {
 
   if (d.docker === 'running') {
     rows.push({ ok: true, title: 'Docker is running' });
+  } else if (d.docker === 'windows-containers') {
+    rows.push({
+      ok: false,
+      title: 'Docker Desktop is set to Windows containers',
+      detail: 'StarkLLM needs Linux containers. Right-click the Docker icon in the taskbar, choose "Switch to Linux containers...", wait until Docker Desktop says "Engine running", then press Retry. Or run this in PowerShell:',
+      code: ['& "$Env:ProgramFiles\\Docker\\Docker\\DockerCli.exe" -SwitchLinuxEngine']
+    });
   } else if (d.docker === 'missing') {
     rows.push({
       ok: false,
