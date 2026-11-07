@@ -9,9 +9,9 @@
 
 **StarkLLM Desktop** is a private, local-first native desktop AI assistant designed for Windows developers, researchers, and technical professionals. It runs in its own **standalone native desktop application window** (similar to Cursor and Claude Desktop—no web browser tabs or address bar needed).
 
-StarkLLM is **completely free** and **open source** under Apache 2.0. It features an integrated Retrieval-Augmented Generation (RAG) engine, in-process local tool calling (MCP Host), folder chat organization, 8 handcrafted visual themes, universal conversation export, and real-time hardware VRAM monitoring—all running 100% on your own PC.
+StarkLLM is **completely free** and **open source** under Apache 2.0. It features an integrated Retrieval-Augmented Generation (RAG) engine, in-process local tool calling (MCP Host), folder chat organization, 8 handcrafted visual themes, universal conversation export, and real-time hardware VRAM monitoring—all running on your own PC by default.
 
-By leveraging Docker Desktop and Ollama on localhost, StarkLLM enforces a strict zero-cloud architecture. Your files, documents, and chats never leave your machine.
+By leveraging Docker Desktop and Ollama on localhost, StarkLLM is local-first: your files, documents and chats stay on your machine. A few optional features go online only when you turn them on or start them: web search (DuckDuckGo), a cloud model provider in Settings (DeepSeek, OpenRouter, Groq, ...), YouTube and GitHub import, market prices, and the update check. The chat shows when a question leaves your PC.
 
 ---
 
