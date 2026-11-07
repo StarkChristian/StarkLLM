@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, select, exists
 from app.db.session import get_db
 from app.db import models
-from app.services.llm_service import llm_service, ModelNotFoundError, LLMBackendError
+from app.services.llm_service import llm_service, ModelNotFoundError, LLMBackendError, cloud_host
 from app.services.rag_service import rag_service
 from app.services.memory_service import memory_service
 from app.services.mcp_service import mcp_service
@@ -401,7 +401,9 @@ async def chat(
             "kb": kb_sources,
             "ws": ws_sources,
             "web": [{"title": t, "url": (web_source_urls[i] if i < len(web_source_urls) else "")} for i, t in enumerate(web_sources)],
+            "cloud": cloud_host(req.provider or "ollama", req.base_url),
         })
+        cloud = cloud_host(req.provider or "ollama", req.base_url) or ""
 
         # ---- Lightweight file list for the system prompt (max 10 most recent)
         MAX_FILES_SHOWN = 10
@@ -725,8 +727,9 @@ WEB SEARCH RESULTS (LIVE DATA)
                     "X-WS-Sources": urllib.parse.quote("|".join(ws_sources)),
                     "X-Web-Sources": urllib.parse.quote(",".join(web_sources)),
                     "X-Web-Sources-Urls": urllib.parse.quote(",".join(web_source_urls)),
+                    "X-Cloud-Provider": cloud,
                     "X-Chat-Renamed": "true" if chat_renamed else "false",
-                    "Access-Control-Expose-Headers": "X-Chat-ID,X-KB-Used,X-KB-Sources,X-WS-Sources,X-Web-Sources,X-Web-Sources-Urls,X-Chat-Renamed",
+                    "Access-Control-Expose-Headers": "X-Chat-ID,X-KB-Used,X-KB-Sources,X-WS-Sources,X-Web-Sources,X-Web-Sources-Urls,X-Cloud-Provider,X-Chat-Renamed",
                 },
             )
         else:
@@ -765,8 +768,9 @@ WEB SEARCH RESULTS (LIVE DATA)
             response.headers["X-WS-Sources"] = urllib.parse.quote("|".join(ws_sources))
             response.headers["X-Web-Sources"] = urllib.parse.quote(",".join(web_sources))
             response.headers["X-Web-Sources-Urls"] = urllib.parse.quote(",".join(web_source_urls))
+            response.headers["X-Cloud-Provider"] = cloud
             response.headers["X-Chat-Renamed"] = "true" if chat_renamed else "false"
-            response.headers["Access-Control-Expose-Headers"] = "X-Chat-ID,X-KB-Used,X-KB-Sources,X-WS-Sources,X-Web-Sources,X-Web-Sources-Urls,X-Chat-Renamed"
+            response.headers["Access-Control-Expose-Headers"] = "X-Chat-ID,X-KB-Used,X-KB-Sources,X-WS-Sources,X-Web-Sources,X-Web-Sources-Urls,X-Cloud-Provider,X-Chat-Renamed"
             
             return {"response": content, "chat_id": chat_obj.id}
 

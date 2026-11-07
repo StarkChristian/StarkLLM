@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import styles from './InputBar.module.css';
-import { Paperclip, Mic, Send, Square, Loader, Database, Globe, FileCode, Settings } from 'lucide-react';
+import { Paperclip, Mic, Send, Square, Loader, Database, Globe, FileCode, Settings, Cloud } from 'lucide-react';
 import PromptTemplateModal from './PromptTemplateModal';
 import { useToast } from './Toast';
 
-export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleKb, useWebSearch, onToggleWebSearch, isGenerating, onStopGeneration, token, activeWorkspace, onOpenKbSettings }) {
+export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleKb, useWebSearch, onToggleWebSearch, cloudHost, onOpenSettings, isGenerating, onStopGeneration, token, activeWorkspace, onOpenKbSettings }) {
   const toast = useToast();
   const [text, setText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -177,6 +177,21 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
           <Globe size={16} />
           {useWebSearch ? 'Web Search ON' : 'Web Search'}
         </button>
+        {useWebSearch && (
+          <span className={styles.onlineNote} role="status">Your question is sent to DuckDuckGo.</span>
+        )}
+        {cloudHost && (
+          <button
+            type="button"
+            className={styles.cloudBadge}
+            onClick={onOpenSettings}
+            title="A cloud model provider is selected in Settings. Click to change it."
+            role="status"
+          >
+            <Cloud size={14} />
+            Cloud: {cloudHost} receives your question and document passages
+          </button>
+        )}
       </div>
 
       <div className={styles.inputWrapper}>
