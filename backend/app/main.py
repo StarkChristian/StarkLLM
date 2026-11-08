@@ -38,7 +38,7 @@ CORS_HEADERS = {
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, Origin, X-Requested-With",
     "Access-Control-Allow-Credentials": "true",
-    "Access-Control-Expose-Headers": "X-Chat-ID, X-KB-Used, X-KB-Sources, X-WS-Sources, X-Web-Sources, X-Web-Sources-Urls, X-Chat-Renamed",
+    "Access-Control-Expose-Headers": "X-Chat-ID, X-KB-Used, X-KB-Sources, X-WS-Sources, X-Web-Sources, X-Web-Sources-Urls, X-Cloud-Provider, X-Chat-Renamed",
     "Access-Control-Max-Age": "600",
 }
 
@@ -71,7 +71,7 @@ async def cors_middleware(request: Request, call_next):
     if origin in ALLOWED_ORIGINS:
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Expose-Headers"] = "X-Chat-ID, X-KB-Used, X-KB-Sources, X-WS-Sources, X-Web-Sources, X-Web-Sources-Urls, X-Chat-Renamed"
+        response.headers["Access-Control-Expose-Headers"] = "X-Chat-ID, X-KB-Used, X-KB-Sources, X-WS-Sources, X-Web-Sources, X-Web-Sources-Urls, X-Cloud-Provider, X-Chat-Renamed"
 
     return response
 

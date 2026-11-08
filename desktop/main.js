@@ -93,7 +93,10 @@ function createMainWindow() {
   });
 
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (url.startsWith('starkllm-retry:')) {
+    if (url.startsWith('file:') && !url.endsWith('splash.html')) {
+      // a file dropped outside the drop area must not replace the app
+      event.preventDefault();
+    } else if (url.startsWith('starkllm-retry:')) {
       event.preventDefault();
       retryConnection();
     } else if (url.startsWith('starkllm-continue:')) {

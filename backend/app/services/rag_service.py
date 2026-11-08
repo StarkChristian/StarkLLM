@@ -1150,12 +1150,12 @@ class RAGService :
             if preferred_sources and source in preferred_sources:
                 rrf_scores [cid ]=rrf_scores .get (cid ,0.0 )+50.0 
             
-            # 2. Fallback heuristic string match boost
-            filename =os .path .basename (source )
+            # 2. Fallback heuristic string match boost. Uploads are stored as '<8 hex>_<name>', so compare
+            #    with the uploaded name: a question naming 'Project card.md' must find that file.
+            filename =meta .get ("file_name")or re .sub (r"^[0-9a-f]{8}_","",os .path .basename (source ))
             if filename :
                 query_lower =query_text .lower ()
                 file_lower =filename .lower ()
-                import re
                 def norm(n): return re.sub(r'[^a-z0-9]', '', n)
                 norm_file = norm(os.path.splitext(file_lower)[0])
                 if norm_file and len(norm_file) >= 3 and norm_file in norm(query_lower):

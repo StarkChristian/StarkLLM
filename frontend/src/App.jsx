@@ -21,6 +21,7 @@ import { useChatFolders } from './hooks/useChatFolders';
 import { useChatSummary } from './hooks/useChatSummary';
 import { exportChat } from './utils/chatExport';
 import { currentCloudHost } from './utils/cloud';
+import { isUploadable } from './utils/uploadTypes';
 
 const NO_ANSWER_TEXT = '*[The model returned no answer. Try again, raise the token limit, or choose another model.]*';
 
@@ -836,6 +837,42 @@ export default function App() {
       return msgs;
     });
   };
+
+  // Files dropped anywhere on the window go to the active workspace. Without this the drop did nothing
+  // (or, in the desktop app, could replace the app with the dropped file).
+  const dropUploadRef = useRef(null);
+  dropUploadRef.current = { upload: handleFileUpload, enabled: !!token && !!activeWorkspace };
+  useEffect(() => {
+    const over = (e) => {
+      if (e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files')) e.preventDefault();
+    };
+    const drop = async (e) => {
+      const files = [...(e.dataTransfer?.files || [])];
+      if (!files.length) return;
+      e.preventDefault();
+      const { upload, enabled } = dropUploadRef.current || {};
+      if (!enabled) {
+        toast.warning('Open a workspace first, then drop the files again.');
+        return;
+      }
+      const skipped = files.filter((f) => !isUploadable(f.name));
+      if (skipped.length) toast.warning(`Not supported: ${skipped.map((f) => f.name).join(', ')}`);
+      for (const f of files.filter((f) => isUploadable(f.name))) {
+        try {
+          await upload(f);
+        } catch (err) {
+          toast.error(`Failed to upload ${f.name}: ${err.message}`);
+        }
+      }
+    };
+    window.addEventListener('dragover', over);
+    window.addEventListener('drop', drop);
+    return () => {
+      window.removeEventListener('dragover', over);
+      window.removeEventListener('drop', drop);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleDeleteDocument = async (documentId) => {
     if (!activeWorkspace) return;
