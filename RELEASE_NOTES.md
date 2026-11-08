@@ -6,10 +6,12 @@
 - **New versions reach you.** On the first start StarkLLM asks once whether it may check for new versions. If you agree, it asks GitHub for the newest version number on each start (nothing else is sent) and offers the download page. Nothing is installed automatically. The tray menu has "Check for Updates..." and an on/off switch.
 - **Model downloads are retried.** An interrupted download is tried again after 5 and 15 seconds. A dropped connection to Ollama during a download no longer leaves the start screen waiting forever.
 - **Docker in Windows-containers mode** is now explained on the start page, with how to switch to Linux containers, instead of a raw build log.
+- **All supported files can be added from the chat:** the paperclip now offers Word, Excel, CSV, Markdown, JSON, XML, HTML and log files (it offered only PDF, text and images) and takes several files at once. Files can also be dropped on the window.
+- File names in answers (such as "card.md") are no longer turned into web links; a question naming an uploaded file finds that file more reliably.
 - The splash screen says "Private, local-first AI" instead of "100% Private".
 - First runs on real Windows: the installer, the start and the start page are now built, installed and started on a GitHub Windows machine for every change.
 
-Pull requests: #20, #21, #22, #23, #24.
+Pull requests: #20, #21, #22, #23, #24, #26.
 
 ---
 

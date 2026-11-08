@@ -2,8 +2,8 @@
 
 **Version:** StarkLLM Desktop v2.0.4  
 **License:** Apache 2.0 (Open Source)  
-**Package:** `StarkLLM-v2.0.4-Setup.exe` (SHA-256: `e1c9ff78a7731f8c1c1bd7ceb9b850fafb69d34578e7e6bdbaf65cce85442fb0`)  
-**Portable:** `StarkLLM-v2.0.4-Portable.exe` (SHA-256: `74b87cd2e16e93512e5c0db30495388f72d8c24a9b4424fa3e405ecd3b0e7c97`)  
+**Package:** `StarkLLM-v2.0.4-Setup.exe` (SHA-256: `0b35f9ea5946357e0f4cff0280c2465f0ff7bfa156013782534e625867240f8e`)  
+**Portable:** `StarkLLM-v2.0.4-Portable.exe` (SHA-256: `8e700da4bdacdb8d7aed25ea4660c5c46a3a8ef099d0577e98275a2f956d077b`)  
 **Official Website:** [https://www.starkllm.com](https://www.starkllm.com)  
 **Documentation & Manual:** [https://www.starkllm.com/manual.html](https://www.starkllm.com/manual.html)
 
@@ -93,7 +93,7 @@ To verify file integrity before running, compare the SHA-256 hash in PowerShell:
 
 ```powershell
 Get-FileHash -Algorithm SHA256 StarkLLM-v2.0.4-Setup.exe
-# Target: e1c9ff78a7731f8c1c1bd7ceb9b850fafb69d34578e7e6bdbaf65cce85442fb0
+# Target: 0b35f9ea5946357e0f4cff0280c2465f0ff7bfa156013782534e625867240f8e
 ```
 
 ---
