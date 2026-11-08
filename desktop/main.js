@@ -5,6 +5,7 @@ const { diagnose, buildErrorPage } = require('./diagnostics');
 const { startEngine, userPaths, secretKey } = require('./engine');
 const crypto = require('crypto');
 const { createUpdater } = require('./updates');
+const { installOllama } = require('./ollama-install');
 const { autoUpdater } = require('electron-updater');
 
 let mainWindow = null;
@@ -109,6 +110,9 @@ function createMainWindow() {
     if (url.startsWith('file:') && !url.endsWith('splash.html')) {
       // a file dropped outside the drop area must not replace the app
       event.preventDefault();
+    } else if (url.startsWith('starkllm-install-ollama:')) {
+      event.preventDefault();
+      installOllamaThenStart();
     } else if (url.startsWith('starkllm-retry:')) {
       event.preventDefault();
       retryConnection();
@@ -199,6 +203,20 @@ async function showApp() {
   await mainWindow.webContents.executeJavaScript("document.body.classList.add('leaving')").catch(() => {});
   await wait(SPLASH_FADE_MS);
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.loadURL(APP_URL);
+}
+
+// "Install Ollama for me" on the what-is-missing page: download, check the signature, install, start again.
+async function installOllamaThenStart() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  splashShownAt = Date.now();
+  await mainWindow.loadFile(path.join(__dirname, 'splash.html'));
+  try {
+    await installOllama({ onStatus: setSplashStatus, log: logLine });
+  } catch (e) {
+    logLine(`Ollama install failed: ${e.message}`);
+    await dialog.showMessageBox(mainWindow, { type: 'warning', title: 'StarkLLM', message: 'Ollama could not be installed.', detail: e.message });
+  }
+  startAndLoad();
 }
 
 function retryConnection() {
