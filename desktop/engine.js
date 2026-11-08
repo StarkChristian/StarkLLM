@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { probe } = require('./diagnostics');
 const { chooseModels } = require('./models');
+const { createPullProgress, createModelProgress, throttle, formatBytes } = require('./progress');
 
 const OLLAMA_URL = process.env.STARKLLM_OLLAMA_URL || 'http://127.0.0.1:11434';
 const TEXT_MODEL = process.env.DEFAULT_TEXT_MODEL || 'qwen2.5:7b';
@@ -217,6 +218,34 @@ async function buildWithoutBake(docker, dir, env, onStatus) {
 function engineImages(version, registry = process.env.STARKLLM_REGISTRY || 'ghcr.io/starkchristian') {
   return { backend: `${registry}/starkllm-backend:${version}`, frontend: `${registry}/starkllm-frontend:${version}` };
 }
+// Compressed layer sizes of a published image, keyed by the short layer id that `docker compose pull` prints,
+// so the start screen can show real overall progress. Returns an empty map if the registry cannot be asked.
+async function imageLayerSizes(image, { fetchImpl = fetch } = {}) {
+  const sizes = new Map();
+  try {
+    const m = image.match(/^([^/]+)\/(.+):([^:]+)$/);
+    if (!m) return sizes;
+    const [, host, repo, tag] = m;
+    const base = (/^(localhost|127\.0\.0\.1)(:|$)/.test(host) ? 'http://' : 'https://') + host;
+    const headers = { Accept: 'application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' };
+    if (host === 'ghcr.io') {
+      const t = await (await fetchImpl(`https://ghcr.io/token?scope=repository:${repo}:pull`, { signal: AbortSignal.timeout(10000) })).json();
+      if (t.token) headers.Authorization = `Bearer ${t.token}`;
+    }
+    const get = async (ref) => (await fetchImpl(`${base}/v2/${repo}/manifests/${ref}`, { headers, signal: AbortSignal.timeout(10000) })).json();
+    let manifest = await get(tag);
+    if (manifest.manifests) {
+      const amd = manifest.manifests.find((x) => x.platform && x.platform.os === 'linux' && x.platform.architecture === 'amd64');
+      if (!amd) return sizes;
+      manifest = await get(amd.digest);
+    }
+    for (const l of manifest.layers || []) sizes.set(String(l.digest).replace(/^sha256:/, '').slice(0, 12), l.size);
+  } catch (e) {
+    log(`layer sizes of ${image} unknown: ${e.message}`);
+  }
+  return sizes;
+}
+
 const usePrebuilt = () => process.env.STARKLLM_PREBUILT === '1' || (app.isPackaged && process.env.STARKLLM_PREBUILT !== '0');
 
 const WINDOWS_CONTAINERS = /no matching manifest for windows|image operating system "linux" cannot be used on this platform/i;
@@ -315,6 +344,8 @@ function size(bytes) {
 
 // Streams Ollama's /api/pull and reports the download progress.
 function pullModel(name, onStatus) {
+  const progress = createModelProgress();
+  const show = throttle((text, f) => onStatus(text, f), 250);
   return new Promise((resolve, reject) => {
     const req = http.request(OLLAMA_URL + '/api/pull', { method: 'POST', headers: { 'Content-Type': 'application/json' } }, (res) => {
       let buf = '';
@@ -332,9 +363,11 @@ function pullModel(name, onStatus) {
             continue;
           }
           if (msg.error) failed = msg.error;
-          else if (msg.total && msg.completed) {
-            onStatus(`Downloading AI model ${name}: ${Math.floor((msg.completed / msg.total) * 100)} % (${size(msg.completed)} of ${size(msg.total)})`);
-          } else if (msg.status) onStatus(`AI model ${name}: ${msg.status}`);
+          else if (progress.feed(msg)) {
+            // one figure for the whole model (it arrives as a few small files and one large one)
+            const t = progress.totals();
+            show(`Downloading AI model ${name}: ${Math.floor((t.completed / t.total) * 100)} % (${size(t.completed)} of ${size(t.total)})`, t.completed / t.total);
+          } else if (msg.status) show(`AI model ${name}: ${msg.status}`);
         }
       });
       let ended = false;
@@ -482,14 +515,17 @@ async function startEngine(appUrl, onStatus) {
     const images = engineImages(app.getVersion());
     env.STARKLLM_BACKEND_IMAGE = images.backend;
     env.STARKLLM_FRONTEND_IMAGE = images.frontend;
-    status(updating
-      ? `Downloading the StarkLLM engine ${app.getVersion()}...`
-      : 'Downloading the StarkLLM engine (about 2 GB, once)...');
+    const label = updating ? `Downloading the StarkLLM engine ${app.getVersion()}` : 'Downloading the StarkLLM engine';
+    status(label + '...');
+    const sizes = new Map([...(await imageLayerSizes(images.backend)), ...(await imageLayerSizes(images.frontend))]);
+    const progress = createPullProgress(sizes);
+    if (sizes.size) log(`engine download: ${sizes.size} layers, ${formatBytes(progress.total())}`);
+    const show = throttle(() => onStatus(progress.text(label), progress.fraction()), 250);
     const pulled = await run(docker, ['compose', '-p', PROJECT, '-f', compose, 'pull'], {
       env,
       cwd: engineDir(),
       timeoutMs: 45 * 60 * 1000,
-      onLine: (line) => onStatus('Engine: ' + line.slice(0, 140))
+      onLine: (line) => { if (progress.feed(line)) show(); }
     });
     if (pulled.code === 0) {
       log(`pulled ${images.backend} and ${images.frontend}`);
@@ -547,4 +583,4 @@ async function startEngine(appUrl, onStatus) {
   return { ok: true, ollama, warnings };
 }
 
-module.exports = { engineImages, secretKey, startEngine, userPaths, pullWithRetry, buildWithoutBake, run, engineIsCurrent, engineFingerprint, TEXT_MODEL, EMBEDDING_MODEL };
+module.exports = { imageLayerSizes, engineImages, secretKey, startEngine, userPaths, pullWithRetry, buildWithoutBake, run, engineIsCurrent, engineFingerprint, TEXT_MODEL, EMBEDDING_MODEL };
