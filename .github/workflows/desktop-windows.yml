@@ -43,14 +43,17 @@ jobs:
           Start-Process $setup.FullName -ArgumentList '/S', '/currentuser' -Wait
           $dir = Join-Path $env:LOCALAPPDATA 'Programs\StarkLLM'
           $files = 'StarkLLM.exe', 'resources\engine\docker-compose.yml', 'resources\engine\backend\Dockerfile', 'resources\engine\frontend\Dockerfile'
-          # The silent installer can return before it has written every file (seen on 8 Nov 2026): wait up to 2 minutes.
-          $deadline = (Get-Date).AddMinutes(2)
+          # The silent installer can return before it has written every file (seen on 8 Nov 2026): wait up to 6 minutes
+          # (Defender scans the unsigned 200 MB installer and its files on the runner).
+          $deadline = (Get-Date).AddMinutes(6)
           do {
             $missing = @($files | Where-Object { -not (Test-Path (Join-Path $dir $_)) })
             if ($missing.Count -eq 0) { break }
             Start-Sleep 3
           } while ((Get-Date) -lt $deadline)
           if ($missing.Count -gt 0) {
+            "still running:"; Get-Process | Where-Object { $_.ProcessName -match 'Setup|StarkLLM|Un_A|nsis' } | Format-Table ProcessName, Id, StartTime -AutoSize | Out-String
+            "Programs:"; Get-ChildItem $env:LOCALAPPDATA\Programs -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
             Get-ChildItem -Path $env:LOCALAPPDATA\Programs, $env:ProgramFiles -Filter StarkLLM.exe -Recurse -Depth 2 -ErrorAction SilentlyContinue | ForEach-Object { "found: $($_.FullName)" }
             throw "missing after install: $($missing -join ', ')"
           }
