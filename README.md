@@ -21,7 +21,7 @@ By leveraging Docker Desktop and Ollama on localhost, StarkLLM is local-first: y
 - 📁 **Chat Folders & Organization**: Organize sessions into custom collapsible folders (e.g., "Research", "Legal Briefs", "Code Reviews").
 - 💾 **Universal 4-Format Export**: Export any conversation into Markdown (`.md`), clean JSON (`.json`), standalone styled HTML (`.html`), or plain text (`.txt`) with preserved citations and timestamps.
 - 🎨 **8 Curated Visual Themes**: Instant hot-swapping between Midnight Indigo, OLED Pitch Black, Liquid Glass, Cyberpunk Rose, Matrix Emerald, Sunset Amber, Arctic Frost, and Daylight Minimal.
-- 🌐 **Demographic Language Roadmap**: 4-tier internationalization engine prioritized strictly by global internet demographics (Tier 0: English, Tier 1: Chinese & Spanish, Tier 2: French & German, Tier 3: Arabic & Persian/Farsi, Tier 4: Portuguese, Russian, Japanese) with zero regional script clutter.
+- 🌐 **Languages**: English interface; German is next. Answers follow the language of your question.
 - 📊 **Hardware Telemetry & Live VRAM Dashboard**: Real-time GPU video memory tracking, container status monitor, indexed chunk counters, and recent chats quick jump list.
 - 🛡️ **Safe In-Process Local Tools (MCP Host)**: Read-only local tools (`list_workspace_files`, `search_local_kb`, `fetch_cited_chunk`) with human confirmation cards, single-use invocation tokens, and prompt injection defense.
 

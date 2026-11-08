@@ -593,7 +593,6 @@ LANGUAGE & WRITING QUALITY
 - Use well-formed paragraphs with logical flow. Avoid one-sentence dumps.
 - Do not repeat the question or pad the answer with filler phrases.
 - Respond natively in the user's language.
-- For RTL languages (Arabic/Persian), maintain natural RTL prose and punctuation.
 - For German, use correct Hochdeutsch.
 - Technical terms (e.g. React, API, Python, Docker) may appear in their Latin script naturally within non-English sentences — this is acceptable and expected.
 
