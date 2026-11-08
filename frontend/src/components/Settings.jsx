@@ -1391,12 +1391,12 @@ print(response.choices[0].message.content)`;
                 </div>
                 
                 <p className={styles.aboutText}>
-                  StarkLLM is a <strong>completely free</strong> and <strong>open source</strong> project intended for <strong>research and non-commercial use</strong>. 
+                  StarkLLM is <strong>free</strong> and <strong>open source</strong> under the <strong>Apache License 2.0</strong>. 
                   It is designed from the ground up with a local-first privacy architecture, ensuring your data stays securely on your machine.
                 </p>
 
                 <p className={styles.aboutText}>
-                  Because the project is open source, you can independently inspect the code and verify that no data is ever sent to external third parties.
+                  Because the code is open, you can check what the app sends over the network: nothing, unless you turn on a cloud model or web search yourself.
                 </p>
 
                 <div className={styles.aboutGrid}>

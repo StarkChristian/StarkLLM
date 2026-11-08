@@ -1,0 +1,7 @@
+StarkLLM
+Copyright 2026 Christian Stark
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+It includes third-party components under their own licenses; see the
+dependency manifests (backend/requirements.txt, frontend/package.json,
+desktop/package.json) and the voice model cards in backend/app/*.onnx.json.
