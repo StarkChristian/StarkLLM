@@ -126,14 +126,18 @@ function createMainWindow() {
   });
 }
 
-function setSplashStatus(text) {
+// fraction: 0..1 for a download with a known size (the bar then shows it), otherwise the bar is an animation.
+function setSplashStatus(text, fraction) {
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents.getURL().startsWith('file:')) return;
+  const f = typeof fraction === 'number' && Number.isFinite(fraction) ? Math.max(0, Math.min(1, fraction)) : null;
   mainWindow.webContents
-    .executeJavaScript(`(function (t, v) {
+    .executeJavaScript(`(function (t, v, f) {
       var s = document.getElementById('statusMsg'); if (s) s.textContent = t;
       var b = document.getElementById('versionBadge'); if (b) b.textContent = 'Desktop v' + v;
-    })(${JSON.stringify(text)}, ${JSON.stringify(app.getVersion())})`)
+      if (window.setProgress) window.setProgress(f);
+    })(${JSON.stringify(text)}, ${JSON.stringify(app.getVersion())}, ${JSON.stringify(f)})`)
     .catch(() => {});
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setProgressBar(f == null ? -1 : f);
 }
 
 // Starts Docker, Ollama and the engine (see engine.js), then shows the app or a page that says what is missing.

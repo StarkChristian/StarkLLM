@@ -54,6 +54,8 @@
 
     .progress { margin-top: 2.6rem; width: 260px; height: 2px; border-radius: 2px; background: rgba(255, 255, 255, .08); overflow: hidden; }
     .progress i { display: block; width: 35%; height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--violet), var(--violet-soft), var(--gold)); animation: slide 1.6s ease-in-out infinite; }
+    /* a download with a known size: the bar shows the real share */
+    .progress.determinate i { width: 0; animation: none; transform: none; transition: width .3s ease; }
     @keyframes slide { from { transform: translateX(-110%); } to { transform: translateX(300%); } }
 
     .status { margin-top: 1rem; min-height: 1.3rem; max-width: 560px; padding-inline: 1rem; font: 400 .82rem/1.5 'Geist Mono', Consolas, monospace; color: var(--muted); overflow-wrap: anywhere; }
@@ -74,5 +76,19 @@
     <p class="status" id="statusMsg" role="status" aria-live="polite">Starting...</p>
   </main>
   <p class="version" id="versionBadge">Desktop</p>
+  <script>
+    // Called by the app (main.js): a number 0..1 shows that share; null goes back to the animation.
+    window.setProgress = function (f) {
+      var bar = document.querySelector('.progress');
+      if (!bar) return;
+      if (typeof f === 'number') {
+        bar.classList.add('determinate');
+        bar.firstElementChild.style.width = (f * 100).toFixed(1) + '%';
+      } else {
+        bar.classList.remove('determinate');
+        bar.firstElementChild.style.width = '';
+      }
+    };
+  </script>
 </body>
 </html>
