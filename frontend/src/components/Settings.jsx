@@ -42,6 +42,14 @@ function Toggle({ checked, onChange, label, hint }) {
 }
 
 export default function Settings({ token, username, activeWorkspace }) {
+  // The About page showed a fixed "v1.0.0-beta"; the engine reports its real version.
+  const [appVersion, setAppVersion] = useState('');
+  useEffect(() => {
+    fetch('/api/v1/version')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && d.version && setAppVersion(d.version))
+      .catch(() => {});
+  }, []);
   // Account
   const [newPassword, setNewPassword] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
@@ -1379,7 +1387,7 @@ print(response.choices[0].message.content)`;
               <div className={styles.aboutCard}>
                 <div className={styles.aboutHeader}>
                   <h4>StarkLLM</h4>
-                  <span className={styles.aboutVersion}>v1.0.0-beta (Snapshot: 2026-10-18)</span>
+                  <span className={styles.aboutVersion}>{appVersion ? `Version ${appVersion}` : 'Version unknown'}</span>
                 </div>
                 
                 <p className={styles.aboutText}>

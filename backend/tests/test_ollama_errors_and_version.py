@@ -150,3 +150,12 @@ def test_a_missing_model_in_a_stream_raises_instead_of_producing_answer_text(mon
     monkeypatch.setattr(requests, "post", lambda url, **kw: FakeResponse(404, {"error": "model not found"}))
     with pytest.raises(L.ModelNotFoundError):
         list(_svc().generate_chat("nope:1b", [{"role": "user", "content": "hi"}], stream=True))
+
+
+def test_the_about_page_can_read_the_version_through_the_api_prefix():
+    # The About page showed a fixed "v1.0.0-beta (Snapshot: 2026-10-18)" in 2.0.4.
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.core.config import settings
+    r = TestClient(app).get("/api/v1/version")
+    assert r.status_code == 200 and r.json() == {"version": settings.VERSION}
