@@ -1,6 +1,17 @@
-// The only bridge from the web UI to the desktop app: lets Settings > About start an update check.
+// The only bridge from the web UI to the desktop app: an update check for Settings > About, and the local session
+// (single user, no sign-up), which is placed before the web UI starts so it opens signed in.
 const { contextBridge, ipcRenderer } = require('electron');
+
+const localToken = () => ipcRenderer.sendSync('desktop:local-token') || null;
+
+try {
+  const t = localToken();
+  if (t && !window.localStorage.getItem('token')) window.localStorage.setItem('token', t);
+} catch (e) {
+  // the web UI shows its login instead
+}
 
 contextBridge.exposeInMainWorld('starkllmDesktop', {
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+  localToken,
 });

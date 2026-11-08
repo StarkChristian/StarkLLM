@@ -83,6 +83,8 @@ export default function LoginSignup({ onLoginSuccess }) {
     }
   };
 
+  const localToken = typeof window !== 'undefined' && window.starkllmDesktop?.localToken ? window.starkllmDesktop.localToken() : null;
+
   return (
     <div className={styles.page}>
       {/* Background glow orbs */}
@@ -96,6 +98,13 @@ export default function LoginSignup({ onLoginSuccess }) {
           <h1 className={styles.brandName}>StarkLLM</h1>
           <p className={styles.brandTagline}>Your private AI assistant</p>
         </div>
+
+        {/* Desktop app, single user on this PC: no account needed (see desktop/preload.js) */}
+        {localToken && (
+          <button type="button" className="btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 16 }} onClick={() => onLoginSuccess(localToken)}>
+            Continue on this PC
+          </button>
+        )}
 
         {/* Tab switcher */}
         <div className={styles.tabs}>
