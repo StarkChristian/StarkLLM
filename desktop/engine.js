@@ -198,7 +198,9 @@ const BAKE_FAILED = /failed to execute bake/i;
 
 async function buildWithoutBake(docker, dir, env, onStatus) {
   for (const service of ['backend', 'frontend']) {
-    const r = await run(docker, ['build', '-t', `${PROJECT}-${service}`, path.join(dir, service)], {
+    // the tag compose expects: the published image name if one is set, else the default local name
+    const tag = (env && env[`STARKLLM_${service.toUpperCase()}_IMAGE`]) || `${PROJECT}-${service}`;
+    const r = await run(docker, ['build', '-t', tag, path.join(dir, service)], {
       env,
       cwd: dir,
       timeoutMs: 45 * 60 * 1000,
@@ -208,6 +210,14 @@ async function buildWithoutBake(docker, dir, env, onStatus) {
   }
   return { code: 0, lines: [] };
 }
+
+// Published engine images (built by .github/workflows/engine-images.yml for every release). Only the installed app
+// uses them: its engine files are those of the release. A run from source always builds.
+// STARKLLM_PREBUILT=0 always builds; =1 also pulls when running from source (tests). STARKLLM_REGISTRY is for tests.
+function engineImages(version, registry = process.env.STARKLLM_REGISTRY || 'ghcr.io/starkchristian') {
+  return { backend: `${registry}/starkllm-backend:${version}`, frontend: `${registry}/starkllm-frontend:${version}` };
+}
+const usePrebuilt = () => process.env.STARKLLM_PREBUILT === '1' || (app.isPackaged && process.env.STARKLLM_PREBUILT !== '0');
 
 const WINDOWS_CONTAINERS = /no matching manifest for windows|image operating system "linux" cannot be used on this platform/i;
 
@@ -467,15 +477,39 @@ async function startEngine(appUrl, onStatus) {
     SECRET_KEY: process.env.SECRET_KEY || secretKey(paths.secret),
     STARKLLM_ENGINE_BUILD: fingerprint
   };
-  status(updating
-    ? `Updating the StarkLLM engine to version ${app.getVersion()} (a few minutes)...`
-    : 'Starting the StarkLLM engine. The first start downloads and builds its components (10-20 minutes, needs internet)...');
-  let up = await run(docker, ['compose', '-p', PROJECT, '-f', compose, 'up', '-d', '--build'], {
-    env,
-    cwd: engineDir(),
-    timeoutMs: 60 * 60 * 1000,
-    onLine: (line) => onStatus('Engine: ' + line.slice(0, 140))
-  });
+  let up = null;
+  if (usePrebuilt()) {
+    const images = engineImages(app.getVersion());
+    env.STARKLLM_BACKEND_IMAGE = images.backend;
+    env.STARKLLM_FRONTEND_IMAGE = images.frontend;
+    status(updating
+      ? `Downloading the StarkLLM engine ${app.getVersion()}...`
+      : 'Downloading the StarkLLM engine (about 2 GB, once)...');
+    const pulled = await run(docker, ['compose', '-p', PROJECT, '-f', compose, 'pull'], {
+      env,
+      cwd: engineDir(),
+      timeoutMs: 45 * 60 * 1000,
+      onLine: (line) => onStatus('Engine: ' + line.slice(0, 140))
+    });
+    if (pulled.code === 0) {
+      log(`pulled ${images.backend} and ${images.frontend}`);
+      up = await run(docker, ['compose', '-p', PROJECT, '-f', compose, 'up', '-d', '--no-build'], { env, cwd: engineDir(), timeoutMs: 10 * 60 * 1000 });
+    } else {
+      pulled.lines.slice(-8).forEach((l) => log('compose pull: ' + l));
+      log('the published engine could not be downloaded; building it on this PC instead');
+    }
+  }
+  if (!up) {
+    status(updating
+      ? `Updating the StarkLLM engine to version ${app.getVersion()} (a few minutes)...`
+      : 'Starting the StarkLLM engine. The first start downloads and builds its components (10-20 minutes, needs internet)...');
+    up = await run(docker, ['compose', '-p', PROJECT, '-f', compose, 'up', '-d', '--build'], {
+      env,
+      cwd: engineDir(),
+      timeoutMs: 60 * 60 * 1000,
+      onLine: (line) => onStatus('Engine: ' + line.slice(0, 140))
+    });
+  }
   if (up.code !== 0 && up.lines.some((l) => BAKE_FAILED.test(l))) {
     up.lines.slice(-20).forEach((l) => log('compose (bake): ' + l));
     status('Building the engine without Docker Bake...');
@@ -513,4 +547,4 @@ async function startEngine(appUrl, onStatus) {
   return { ok: true, ollama, warnings };
 }
 
-module.exports = { startEngine, userPaths, pullWithRetry, buildWithoutBake, run, engineIsCurrent, engineFingerprint, TEXT_MODEL, EMBEDDING_MODEL };
+module.exports = { engineImages, startEngine, userPaths, pullWithRetry, buildWithoutBake, run, engineIsCurrent, engineFingerprint, TEXT_MODEL, EMBEDDING_MODEL };
