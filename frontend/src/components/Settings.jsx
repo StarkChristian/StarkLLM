@@ -1227,7 +1227,7 @@ print(response.choices[0].message.content)`;
                 <h2>Language &amp; Locale</h2>
               </div>
               <p className={styles.panelDesc}>
-                Internationalization roadmap prioritized by global internet demographics. English is the default active system language.
+                English is the interface language. German is the next one.
               </p>
 
               <div className={styles.languageGrid}>
@@ -1270,7 +1270,7 @@ print(response.choices[0].message.content)`;
               <div className={styles.languageRoadmapNotice}>
                 <strong>🌐 StarkLLM Internationalization Architecture</strong>
                 <span>
-                  The initial release is standardized exclusively on 100% clean English for reliable inference, prompt consistency, and document evaluation. Additional language translations (Chinese, Spanish, French, German, Arabic, Persian, etc.) are structured according to global population demographics and scheduled for rollout in upcoming releases.
+                  The initial release is standardized exclusively on 100% clean English for reliable inference, prompt consistency, and document evaluation. A German interface is planned next.
                 </span>
               </div>
             </div>

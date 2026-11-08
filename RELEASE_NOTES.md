@@ -104,8 +104,8 @@ StarkLLM transitions from a browser-hosted interface to a **dedicated native des
    - 8 bespoke palettes with frosted glassmorphism: Midnight Indigo (default), OLED Pitch Black, Liquid Glass, Cyberpunk Rose, Matrix Emerald, Sunset Amber, Arctic Frost, and Daylight Minimal.
    - Instant quick-switch popover in sidebar footer.
 
-5. **Demographic Internationalization & Language Roadmap**:
-   - 4-tier localization engine prioritized strictly by global internet user demographics (English active default, Tier 1 Chinese & Spanish, Tier 2 French & German, Tier 3 Arabic & Persian/Farsi, Tier 4 Portuguese, Russian, Japanese). Zero regional script clutter in UI.
+5. **Interface Languages**:
+   - Localization engine: English is the active default; German is next.
 
 6. **Hardware Telemetry & Live VRAM Dashboard**:
    - Real-time GPU video memory tracking, container status monitor, indexed chunk counters, and recent chats quick jump list.
@@ -224,7 +224,7 @@ This is an official frozen research-beta snapshot of StarkLLM, designed for loca
 ## Known Limitations
 
 - **Backup / Restore UI**: Full automated database and vector backup/restore UI is not yet implemented (manual volume backups supported).
-- **TTS Languages**: High-quality local Piper TTS models are included for English and German; Persian/Arabic TTS is not yet supported.
+- **TTS Languages**: High-quality local Piper TTS models are included for English and German.
 - **Web Search**: Optional live external web search toggle is not integrated; all queries operate exclusively on local documents and knowledge base.
 - **Indexing Progress**: Real-time per-chunk indexing progress indicators in the Knowledge Base UI are basic.
 - **Authentication Key**: The `SECRET_KEY` included in the default `.env` is a research default intended for local single-user research installations. Change it in `.env` if exposing on local network.
