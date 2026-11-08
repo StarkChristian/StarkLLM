@@ -1,9 +1,9 @@
-# StarkLLM Desktop (v2.0.6)
+# StarkLLM Desktop (v2.0.7)
 
-**Version:** StarkLLM Desktop v2.0.6  
+**Version:** StarkLLM Desktop v2.0.7  
 **License:** Apache 2.0 (Open Source)  
-**Package:** `StarkLLM-v2.0.6-Setup.exe` (SHA-256: `1a4359131f87833faa21666647c27fc8b37cde3b1fa189bb8561c61318275fe0`)  
-**Portable:** `StarkLLM-v2.0.6-Portable.exe` (SHA-256: `36614bd5f1ce0941a367a6bb33419d935ef90f28df8127f86d7fe7721649eaba`)  
+**Package:** `StarkLLM-v2.0.7-Setup.exe` (SHA-256: `5577d263e5dd7b8f57837fd47da51af79b8381bf1b66eba9a12ad58e401dc123`)  
+**Portable:** `StarkLLM-v2.0.7-Portable.exe` (SHA-256: `3a5cc3817ee73a0dac34e1806ae77e8c69eb447bf9665a0422121b53ed13365e`)  
 **Official Website:** [https://www.starkllm.com](https://www.starkllm.com)  
 **Documentation & Manual:** [https://www.starkllm.com/manual.html](https://www.starkllm.com/manual.html)
 
@@ -68,13 +68,13 @@ ollama pull nomic-embed-text
 You do not need to open a terminal: StarkLLM starts both programs and downloads the AI models itself.
 
 ### Option A: Windows Installer (Recommended)
-1. Download `StarkLLM-v2.0.6-Setup.exe` from [starkllm.com/download](https://www.starkllm.com/download) or the GitHub release.
+1. Download `StarkLLM-v2.0.7-Setup.exe` from [starkllm.com/download](https://www.starkllm.com/download) or the GitHub release.
 2. Run the setup wizard and start StarkLLM from the desktop shortcut.
 3. **The first start takes 10-20 minutes** (about 5 GB of AI models plus the engine are downloaded and built; the splash screen shows the progress). Later starts take seconds.
 4. If something is missing (Docker Desktop not installed, a busy port, ...), the window says what and how to fix it; the log is in `%APPDATA%\StarkLLM\engine.log`.
 
 ### Option B: Portable Executable
-1. Download `StarkLLM-v2.0.6-Portable.exe` and double-click it. It does the same as the installed app (same data folder).
+1. Download `StarkLLM-v2.0.7-Portable.exe` and double-click it. It does the same as the installed app (same data folder).
 
 ### Option C: Developer / Source Launch
 1. Ensure Docker Desktop and Ollama are running.
@@ -92,8 +92,8 @@ You do not need to open a terminal: StarkLLM starts both programs and downloads 
 To verify file integrity before running, compare the SHA-256 hash in PowerShell:
 
 ```powershell
-Get-FileHash -Algorithm SHA256 StarkLLM-v2.0.6-Setup.exe
-# Target: 1a4359131f87833faa21666647c27fc8b37cde3b1fa189bb8561c61318275fe0
+Get-FileHash -Algorithm SHA256 StarkLLM-v2.0.7-Setup.exe
+# Target: 5577d263e5dd7b8f57837fd47da51af79b8381bf1b66eba9a12ad58e401dc123
 ```
 
 ---
