@@ -8,6 +8,9 @@ import {
 import MarkdownIt from 'markdown-it';
 
 const md = new MarkdownIt({ html: false, linkify: true, typographer: true });
+// Only real links: with fuzzy links on, a file name like 'card.md' became http://card.md (a Moldovan domain).
+md.linkify.set({ fuzzyLink: false, fuzzyEmail: false });
+
 
 export default function StudioModal({
   isOpen,

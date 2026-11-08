@@ -3,6 +3,7 @@ import styles from './InputBar.module.css';
 import { Paperclip, Mic, Send, Square, Loader, Database, Globe, FileCode, Settings, Cloud } from 'lucide-react';
 import PromptTemplateModal from './PromptTemplateModal';
 import { useToast } from './Toast';
+import { UPLOAD_ACCEPT } from '../utils/uploadTypes';
 
 export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleKb, useWebSearch, onToggleWebSearch, cloudHost, onOpenSettings, isGenerating, onStopGeneration, token, activeWorkspace, onOpenKbSettings }) {
   const toast = useToast();
@@ -54,15 +55,20 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
   };
 
   const handleFileChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = [...(e.target.files || [])];
+    if (!files.length) return;
 
     setIsUploading(true);
     try {
-      await onFileUpload(file);
-    } catch (error) {
-      console.error("File upload failed", error);
-      toast.error("Failed to upload file: " + error.message);
+      // one after the other: each upload shows its own progress line in the chat
+      for (const file of files) {
+        try {
+          await onFileUpload(file);
+        } catch (error) {
+          console.error("File upload failed", error);
+          toast.error(`Failed to upload ${file.name}: ${error.message}`);
+        }
+      }
     } finally {
       setIsUploading(false);
       e.target.value = null; // reset
@@ -199,7 +205,7 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
           <button className={styles.iconBtn} onClick={() => setIsTemplatesOpen(true)} title="Prompt Templates">
             <FileCode size={24} />
           </button>
-          <button className={styles.iconBtn} onClick={handleFileClick} disabled={isUploading} title="Attach file">
+          <button className={styles.iconBtn} onClick={handleFileClick} disabled={isUploading} title="Attach files (PDF, Word, Excel, CSV, Markdown, text, JSON, XML, HTML, images) or drop them on the window">
             {isUploading ? <Loader size={24} className="spinner" /> : <Paperclip size={24} />}
           </button>
         </div>
@@ -208,7 +214,8 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
           ref={fileInputRef}
           style={{ display: 'none' }}
           onChange={handleFileChange}
-          accept=".pdf,.txt,.png,.jpg,.jpeg"
+          accept={UPLOAD_ACCEPT}
+          multiple
         />
 
         {isRecording ? (
