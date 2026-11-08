@@ -325,7 +325,7 @@ async def ingest_youtube(
         transcript_list = yt_api.list(video_id)
         transcript = None
         try:
-            transcript = transcript_list.find_transcript(['en', 'fa', 'es', 'de', 'fr', 'zh', 'ja', 'ru', 'ar'])
+            transcript = transcript_list.find_transcript(['en', 'de'])
         except Exception:
             for t in transcript_list:
                 transcript = t
