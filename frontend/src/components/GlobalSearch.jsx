@@ -5,6 +5,7 @@ import {
   ArrowRight, Loader, Command, PlusCircle, Settings, Cpu,
   Sparkles, Brain, Trash2, Layers
 } from 'lucide-react';
+import { serverDate } from '../utils/time';
 
 function useDebounce(value, delay) {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -413,7 +414,7 @@ export default function GlobalSearch({
                       <span className={styles.resultTitle}>{c.title || 'Untitled Conversation'}</span>
                       {c.updated_at && (
                         <span className={styles.resultMeta}>
-                          {new Date(c.updated_at).toLocaleDateString()}
+                          {serverDate(c.updated_at).toLocaleDateString()}
                         </span>
                       )}
                     </div>

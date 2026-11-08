@@ -22,6 +22,7 @@ import { useChatSummary } from './hooks/useChatSummary';
 import { exportChat } from './utils/chatExport';
 import { currentCloudHost } from './utils/cloud';
 import { isUploadable } from './utils/uploadTypes';
+import { serverDate } from './utils/time';
 
 const NO_ANSWER_TEXT = '*[The model returned no answer. Try again, raise the token limit, or choose another model.]*';
 
@@ -455,7 +456,7 @@ export default function App() {
           if (a.is_pinned !== b.is_pinned) {
             return a.is_pinned ? -1 : 1;
           }
-          return new Date(b.created_at) - new Date(a.created_at);
+          return serverDate(b.created_at) - serverDate(a.created_at);
         });
       });
     } catch (err) {

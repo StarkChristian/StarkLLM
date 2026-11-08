@@ -6,6 +6,7 @@ import {
   Globe, Link2, Plus, ArrowRight, Video, GitBranch, StickyNote, Search
 } from 'lucide-react';
 import { useToast } from './Toast';
+import { serverDate } from '../utils/time';
 
 /* --- Formatting Helpers --- */
 function formatBytes(bytes) {
@@ -18,7 +19,7 @@ function formatBytes(bytes) {
 
 function formatRelativeDate(isoString) {
   if (!isoString) return 'Unknown';
-  const date = new Date(isoString);
+  const date = serverDate(isoString);
   const now = new Date();
   const diffHours = (now - date) / (1000 * 60 * 60);
   
@@ -29,7 +30,7 @@ function formatRelativeDate(isoString) {
 
 function formatDateFull(isoString) {
   if (!isoString) return 'Unknown';
-  return new Date(isoString).toLocaleString(undefined, { 
+  return serverDate(isoString).toLocaleString(undefined, { 
     dateStyle: 'medium', timeStyle: 'short' 
   });
 }
