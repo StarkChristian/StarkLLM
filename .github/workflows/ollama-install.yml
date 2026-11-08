@@ -1,0 +1,43 @@
+name: Ollama install (Windows)
+
+# Runs desktop/ollama-install.js on a clean Windows machine: downloads the official installer, checks its signature,
+# installs Ollama for the current user and checks that it answers. The "Install Ollama for me" button uses the same code.
+
+on:
+  pull_request:
+    paths: ['desktop/ollama-install.js', '.github/workflows/ollama-install.yml']
+  workflow_dispatch:
+
+jobs:
+  install:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Signature check works (node.exe is signed by the OpenJS Foundation)
+        working-directory: desktop
+        run: |
+          node -e "const o = require('./ollama-install'); o.powershell('Write-Output hello').then((r) => console.log('raw:', JSON.stringify(r))); o.signature(process.execPath).then((s) => console.log('node.exe:', JSON.stringify(s)), (e) => console.log('error:', e.message))"
+
+      - name: Install Ollama with the app's code
+        working-directory: desktop
+        run: |
+          node -e "require('./ollama-install').installOllama({ onStatus: (t) => { const k = t.replace(/ [(].*/, ''); if (k !== globalThis.last && (!/Downloading Ollama/.test(t) || / [0-9]*0 %/.test(t))) console.log(t); globalThis.last = k }, log: console.log }).then(() => console.log('done'), (e) => { console.error(e.message); process.exit(1) })"
+
+      - name: Ollama is installed and answers
+        shell: pwsh
+        run: |
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\Ollama\ollama.exe'
+          if (-not (Test-Path $exe)) { throw "ollama.exe not found at $exe" }
+          & $exe --version
+          if (-not (Get-Process -Name ollama* -ErrorAction SilentlyContinue)) { Start-Process $exe -ArgumentList 'serve' -WindowStyle Hidden }
+          $ok = $false
+          for ($i = 0; $i -lt 30; $i++) {
+            try { Invoke-RestMethod http://127.0.0.1:11434/api/version | ConvertTo-Json; $ok = $true; break } catch { Start-Sleep 2 }
+          }
+          if (-not $ok) { throw 'Ollama does not answer on 127.0.0.1:11434' }

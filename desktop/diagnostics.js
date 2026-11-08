@@ -1,4 +1,5 @@
 const http = require('http');
+const path = require('path');
 const { execFile } = require('child_process');
 
 const OLLAMA_URL = (process.env.STARKLLM_OLLAMA_URL || 'http://127.0.0.1:11434') + '/api/tags';
@@ -54,7 +55,10 @@ async function diagnose(engine = {}) {
   const missingModels = ollama.ok
     ? [process.env.DEFAULT_EMBEDDING_MODEL || 'nomic-embed-text', process.env.DEFAULT_TEXT_MODEL || 'qwen2.5:7b'].filter((m) => !installed.includes(norm(m)))
     : [];
-  return { docker, ollama: ollama.ok, missingModels, backend: backend.ok, engine };
+  // Ollama's own per-user install location on Windows: if it is not there, the page offers to install it
+  const ollamaApp = path.join(process.env.LOCALAPPDATA || path.join(require('os').homedir(), 'AppData', 'Local'), 'Programs', 'Ollama', 'ollama app.exe');
+  const ollamaInstalled = process.platform !== 'win32' || require('fs').existsSync(ollamaApp);
+  return { docker, ollama: ollama.ok, ollamaInstalled, missingModels, backend: backend.ok, engine };
 }
 
 function buildRows(d) {
@@ -84,7 +88,15 @@ function buildRows(d) {
     });
   }
 
-  if (!d.ollama) {
+  if (!d.ollama && d.ollamaInstalled === false) {
+    rows.push({
+      ok: false,
+      title: 'Ollama is not installed',
+      detail: 'StarkLLM runs its AI models with Ollama (free). It can download the official installer from ollama.com (about 1 GB), check its signature and install it for you; no administrator rights are needed.',
+      action: { href: 'starkllm-install-ollama:', label: 'Install Ollama for me' },
+      link: { href: LINKS.ollama, label: 'or download it yourself' }
+    });
+  } else if (!d.ollama) {
     rows.push({
       ok: false,
       title: 'Ollama is not running',
@@ -126,10 +138,11 @@ function buildErrorPage(d) {
     .map((r) => {
       const code = r.code ? '<pre>' + r.code.map(esc).join('\n') + '</pre>' : '';
       const link = r.link ? '<a class="link" href="' + esc(r.link.href) + '" target="_blank">' + esc(r.link.label) + '</a>' : '';
+      const action = r.action ? '<a class="btn inline" href="' + esc(r.action.href) + '">' + esc(r.action.label) + '</a> ' : '';
       return (
         '<li class="' + (r.ok ? 'ok' : 'fail') + '"><span class="mark">' + (r.ok ? '&#10003;' : '&#10007;') + '</span>' +
         '<div><strong>' + esc(r.title) + '</strong>' +
-        (r.detail ? '<p>' + esc(r.detail) + '</p>' : '') + code + link + '</div></li>'
+        (r.detail ? '<p>' + esc(r.detail) + '</p>' : '') + code + '<div class="row-actions">' + action + link + '</div></div></li>'
       );
     })
     .join('');
@@ -157,6 +170,9 @@ function buildErrorPage(d) {
   .actions { display: flex; gap: 0.8rem; align-items: center; }
   .btn { padding: 0.55rem 1.1rem; border-radius: 10px; background: #6366f1; color: #fff; text-decoration: none; font-size: 0.88rem; font-weight: 600; }
   .actions .link { margin: 0; font-size: 0.85rem; }
+  .row-actions { display: flex; flex-wrap: wrap; gap: 0.8rem; align-items: center; margin-top: 0.5rem; }
+  .row-actions .link { margin: 0; }
+  .btn.inline { display: inline-block; padding: 0.4rem 0.9rem; font-size: 0.82rem; }
 </style>
 </head>
 <body>
