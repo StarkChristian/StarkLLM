@@ -10,7 +10,9 @@ Found in the first full test on a real Windows PC:
 
 - **Installing a new version also updates the engine.** Until now the engine of the previous version kept running after an update, so fixes in the engine and the web UI did not arrive. The app now notices when its engine files changed and rebuilds the engine (a few minutes, once).
 
-Pull requests: #27, #28, #29.
+- **Settings → About shows the installed version** instead of "v1.0.0-beta".
+
+Pull requests: #27, #28, #29, #30.
 
 ---
 
