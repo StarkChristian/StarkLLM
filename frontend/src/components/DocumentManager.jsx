@@ -330,11 +330,14 @@ export default function DocumentManager({
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (!res.ok) throw new Error('Re-index failed');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(typeof body.detail === 'string' ? body.detail : 'Re-index failed');
+      }
       setReindexSuccessIds(prev => new Set([...prev, docId]));
       setTimeout(() => setReindexSuccessIds(prev => { const s = new Set(prev); s.delete(docId); return s; }), 3000);
     } catch (err) {
-      toast.error("Failed to re-index document.");
+      toast.error(`Failed to re-index document: ${err.message}`);
     } finally {
       setReindexingIds(prev => { const s = new Set(prev); s.delete(docId); return s; });
     }

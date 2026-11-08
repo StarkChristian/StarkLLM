@@ -66,3 +66,22 @@ def test_pull_model_reports_an_ollama_error(monkeypatch):
 def test_pull_model_succeeds_on_the_final_success_line(monkeypatch):
     monkeypatch.setattr(L.llm_service, "pull_model_stream", lambda name: iter(['{"status":"downloading"}\n', '{"status":"success"}\n']))
     L.llm_service.pull_model("llava")
+
+
+def test_a_failed_document_keeps_its_file_so_it_can_be_re_indexed(monkeypatch, tmp_path):
+    # Found on Windows: the image failed, its file was deleted, and "Re-index" could never work.
+    from app.api import documents as D
+
+    f = tmp_path / "Whiteboard.png"
+    f.write_bytes(b"\x89PNG")
+    statuses = []
+
+    def fail(*a, **k):
+        raise L.ModelNotFoundError("Model 'llava' not found in Ollama.")
+
+    monkeypatch.setattr(D.rag_service, "add_document", fail)
+    monkeypatch.setattr(D, "_set_doc_status", lambda doc_id, status, error_message=None: statuses.append((status, error_message)))
+    monkeypatch.setattr(D, "_display_name", lambda doc_id: "Whiteboard.png")
+    D._index_document_background(1, 1, 1, str(f))
+    assert f.exists()
+    assert statuses[-1][0] == D.DocStatus.FAILED and "llava" in statuses[-1][1]
