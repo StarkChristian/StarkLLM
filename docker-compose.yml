@@ -1,5 +1,8 @@
 services:
   backend:
+    # The desktop app sets STARKLLM_*_IMAGE to the published image of its version (ghcr.io/starkchristian/...)
+    # and pulls it; without it, or if the pull fails, the image is built from ./backend as before.
+    image: ${STARKLLM_BACKEND_IMAGE:-starkllm-backend}
     build:
       context: ./backend
     container_name: starkllm-backend
@@ -26,6 +29,7 @@ services:
       - "host.docker.internal:host-gateway"
 
   frontend:
+    image: ${STARKLLM_FRONTEND_IMAGE:-starkllm-frontend}
     build:
       context: ./frontend
     container_name: starkllm-frontend
