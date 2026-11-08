@@ -12,7 +12,9 @@ Found in the first full test on a real Windows PC:
 
 - **Settings → About shows the installed version** instead of "v1.0.0-beta".
 
-Pull requests: #27, #28, #29, #30.
+- **Interface languages:** English, with German next.
+
+Pull requests: #27, #28, #29, #30, #32.
 
 ---
 
