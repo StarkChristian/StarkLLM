@@ -1,5 +1,15 @@
 # StarkLLM Release Notes
 
+## Version 2.0.8 — Install Ollama from inside the app, real download progress
+
+- **Ollama is installed for you.** If Ollama is missing, the start window offers "Install Ollama for me". StarkLLM downloads the official installer from ollama.com, runs it only if Windows confirms a valid signature by Ollama Inc., and installs it for the current user without further questions. Then it starts as usual.
+- **Real download progress.** While the engine and the AI models are downloaded, the start window shows a real progress bar with percent and size (for example "37 % (712 MB of 1.1 GB)") instead of a number that jumped around. The taskbar button shows the same progress.
+- **Update from 2.0.6 or 2.0.7:** Settings → About → "Check for updates" → "Download and install".
+
+Pull requests: #43, #44, #45.
+
+---
+
 ## Version 2.0.7 — Faster first start, no sign-up
 
 - **The engine is downloaded instead of built.** For each release, GitHub builds the engine images; StarkLLM downloads the ones of its version instead of building them on your PC (which took 10-20 minutes on the first start and after each update). If the download is not possible, it builds them as before.
