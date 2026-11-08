@@ -1,6 +1,10 @@
 from datetime import datetime, timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+import hashlib
+import hmac
+import secrets
+
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from jose import JWTError, jwt
@@ -115,8 +119,40 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     _record_active_session(user)
     return user
 
+# One person on their own PC should not have to sign up. The desktop app knows the engine's SECRET_KEY (it creates it)
+# and asks for a session with a key derived from it; the backend then signs in a single "local" user. As soon as
+# other accounts exist, this is refused and the normal login is used.
+LOCAL_USERNAME = "local"
+_FALLBACK_SECRET_PREFIX = "starkllm_research_beta_secure_fallback_key"
+
+
+def desktop_key(secret: str) -> str:
+    return hmac.new(secret.encode(), b"starkllm-desktop-session", hashlib.sha256).hexdigest()
+
+
+@router.post("/desktop-session", response_model=Token)
+def desktop_session(x_desktop_key: str = Header(default=""), db: Session = Depends(get_db)):
+    if settings.SECRET_KEY.startswith(_FALLBACK_SECRET_PREFIX) or not hmac.compare_digest(x_desktop_key, desktop_key(settings.SECRET_KEY)):
+        raise HTTPException(status_code=403, detail="Not allowed")
+    users = db.query(User).limit(2).all()
+    if not users:
+        user = User(username=LOCAL_USERNAME, hashed_password=get_password_hash(secrets.token_urlsafe(32)))
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    elif len(users) == 1 and users[0].username == LOCAL_USERNAME:
+        user = users[0]
+    else:
+        raise HTTPException(status_code=409, detail="Accounts exist on this PC; sign in.")
+    token = create_access_token(data={"sub": user.username}, expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+    _record_active_session(user)
+    return {"access_token": token, "token_type": "bearer"}
+
+
 @router.post("/register", response_model=UserResponse)
 def register(user_in: UserCreate, db: Session = Depends(get_db)):
+    if user_in.username.strip().lower() == LOCAL_USERNAME:
+        raise HTTPException(status_code=400, detail="This username is reserved")
     user = _find_user(db, user_in.username)
     if user:
         raise HTTPException(status_code=400, detail="Username already registered")

@@ -2,7 +2,8 @@ const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, dialog, net
 const fs = require('fs');
 const path = require('path');
 const { diagnose, buildErrorPage } = require('./diagnostics');
-const { startEngine, userPaths } = require('./engine');
+const { startEngine, userPaths, secretKey } = require('./engine');
+const crypto = require('crypto');
 const { createUpdater } = require('./updates');
 const { autoUpdater } = require('electron-updater');
 
@@ -40,6 +41,9 @@ if (!gotTheLock) {
 function initApp() {
   updater = createUpdater({ app, dialog, shell, net, autoUpdater, getWindow: () => mainWindow, log: logLine, onChange: () => refreshTrayMenu() });
   // Settings > About in the web UI (only the app's own page may ask)
+  ipcMain.on('desktop:local-token', (event) => {
+    event.returnValue = event.senderFrame && event.senderFrame.url.startsWith(APP_URL) ? localToken : null;
+  });
   ipcMain.handle('updates:check', async (event) => {
     if (!event.senderFrame || !event.senderFrame.url.startsWith(APP_URL)) return { error: 'not allowed' };
     const r = await updater.check({ manual: true });
@@ -165,7 +169,30 @@ const SPLASH_FADE_MS = 350;
 let splashShownAt = 0;
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Single user on this PC: the backend signs in a "local" user when it gets the key derived from the engine's
+// SECRET_KEY (see backend/app/api/auth.py, desktop-session). Refused (409) once other accounts exist.
+const API_URL = `http://127.0.0.1:${process.env.STARKLLM_API_PORT || 8000}`;
+let localToken = null;
+
+async function fetchLocalSession() {
+  try {
+    const secret = process.env.SECRET_KEY || secretKey(userPaths().secret);
+    const key = crypto.createHmac('sha256', secret).update('starkllm-desktop-session').digest('hex');
+    const res = await net.fetch(`${API_URL}/api/v1/auth/desktop-session`, { method: 'POST', headers: { 'X-Desktop-Key': key }, signal: AbortSignal.timeout(8000) });
+    if (res.ok) {
+      localToken = (await res.json()).access_token || null;
+      logLine('signed in as the local user');
+    } else {
+      localToken = null;
+      logLine(`local session not used (${res.status}): accounts exist, the login is shown`);
+    }
+  } catch (e) {
+    logLine(`local session failed: ${e.message}`);
+  }
+}
+
 async function showApp() {
+  await fetchLocalSession();
   const rest = SPLASH_MIN_MS - (Date.now() - splashShownAt);
   if (rest > 0) await wait(rest);
   if (!mainWindow || mainWindow.isDestroyed()) return;
