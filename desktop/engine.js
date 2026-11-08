@@ -9,6 +9,7 @@ const http = require('http');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { probe } = require('./diagnostics');
+const { chooseModels } = require('./models');
 
 const OLLAMA_URL = process.env.STARKLLM_OLLAMA_URL || 'http://127.0.0.1:11434';
 const TEXT_MODEL = process.env.DEFAULT_TEXT_MODEL || 'qwen2.5:7b';
@@ -112,13 +113,17 @@ async function isStarkLLM(appUrl) {
 // backend, which reports it at /health; a running engine is reused only when the fingerprints match.
 const API_URL = `http://127.0.0.1:${process.env.STARKLLM_API_PORT || 8000}`;
 const BIG_FILE = 1024 * 1024; // large files (voice models) count by name and size only
+const FINGERPRINT_SKIP = new Set(['node_modules', '.git', 'dist', '__pycache__', '.pytest_cache', 'data', 'desktop', '.github', 'knowledge_base_data']);
 
 function engineFingerprint(dir) {
   const files = [];
   const walk = (d) => {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {
       const full = path.join(d, e.name);
-      if (e.isDirectory()) walk(full);
+      if (e.isDirectory()) {
+        // From a source checkout the engine folder is the repository; only the engine's own files count.
+        if (!FINGERPRINT_SKIP.has(e.name)) walk(full);
+      }
       else if (e.isFile()) files.push(full);
     }
   };
@@ -216,6 +221,79 @@ async function ollamaModels() {
   }
 }
 
+function postJson(url, body, timeoutMs = 8000) {
+  return new Promise((resolve) => {
+    const req = http.request(url.replace('//localhost:', '//127.0.0.1:'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, timeout: timeoutMs }, (res) => {
+      let buf = '';
+      res.on('data', (c) => { if (buf.length < 1e6) buf += c; });
+      res.on('end', () => { try { resolve(JSON.parse(buf)); } catch (e) { resolve(null); } });
+    });
+    req.on('timeout', () => req.destroy());
+    req.on('error', () => resolve(null));
+    req.end(JSON.stringify(body));
+  });
+}
+
+// Installed models with size, family and what they can do (chat, tools, vision, embedding).
+async function ollamaDetails() {
+  const r = await probe(OLLAMA_URL + '/api/tags');
+  if (!r.ok) return null;
+  let models = [];
+  try {
+    models = JSON.parse(r.body).models || [];
+  } catch (e) {
+    return [];
+  }
+  return Promise.all(models.map(async (m) => {
+    const show = await postJson(OLLAMA_URL + '/api/show', { model: m.name });
+    return {
+      name: m.name,
+      size: m.size || 0,
+      family: (m.details && m.details.family) || '',
+      parameterSize: (m.details && m.details.parameter_size) || '',
+      capabilities: (show && show.capabilities) || [],
+    };
+  }));
+}
+
+// Total RAM, and the video memory of an NVIDIA card if nvidia-smi is there (0 otherwise).
+async function hardware() {
+  const hw = { ramBytes: os.totalmem(), vramBytes: 0 };
+  const r = await run('nvidia-smi', ['--query-gpu=memory.total', '--format=csv,noheader,nounits'], { timeoutMs: 8000 });
+  if (r.code === 0) {
+    const mib = Math.max(0, ...r.lines.map((l) => parseInt(l, 10)).filter(Number.isFinite));
+    hw.vramBytes = mib * 1024 * 1024;
+  }
+  return hw;
+}
+
+// Documents were indexed before if the vector store has collections; their search model must then stay.
+function hasIndex(dataDir) {
+  try {
+    return fs.readdirSync(path.join(dataDir, 'chroma'), { withFileTypes: true }).some((e) => e.isDirectory());
+  } catch (e) {
+    return false;
+  }
+}
+
+const modelsFile = () => path.join(app.getPath('userData'), 'models.json');
+function readSavedModels() {
+  try {
+    return JSON.parse(fs.readFileSync(modelsFile(), 'utf8'));
+  } catch (e) {
+    return null;
+  }
+}
+
+// The models the engine uses; set by ensureOllama and passed to the backend through the environment.
+let chosen = { text: TEXT_MODEL, embedding: EMBEDDING_MODEL, vision: process.env.DEFAULT_VISION_MODEL || 'llava' };
+function useModels(m) {
+  chosen = { text: m.text, embedding: m.embedding, vision: m.vision };
+  process.env.DEFAULT_TEXT_MODEL = m.text;
+  process.env.DEFAULT_EMBEDDING_MODEL = m.embedding;
+  process.env.DEFAULT_VISION_MODEL = m.vision;
+}
+
 function hasModel(available, name) {
   const norm = (n) => (n.includes(':') ? n : n + ':latest');
   return available.map(norm).includes(norm(name));
@@ -297,9 +375,25 @@ async function ensureOllama(status, progress, warnings) {
   }
   if (models === null) {
     log('Ollama not reachable');
+    const saved = readSavedModels();
+    if (saved) useModels(saved);
     return false;
   }
-  for (const name of [EMBEDDING_MODEL, TEXT_MODEL]) {
+  status('Looking at the AI models on this PC...');
+  const installed = (await ollamaDetails()) || [];
+  const hw = await hardware();
+  const choice = chooseModels({ installed, hw, saved: readSavedModels(), existingIndex: hasIndex(userPaths().data) });
+  log(`models: ${installed.length} installed; RAM ${size(hw.ramBytes)}, video memory ${hw.vramBytes ? size(hw.vramBytes) : 'unknown'}`);
+  choice.notes.forEach((n) => log('models: ' + n));
+  log(`models: chat ${choice.text}, search ${choice.embedding}, images ${choice.vision}; downloading: ${choice.pull.join(', ') || 'nothing'}`);
+  useModels(choice);
+  try {
+    fs.writeFileSync(modelsFile(), JSON.stringify({ text: choice.text, embedding: choice.embedding, vision: choice.vision }, null, 2));
+  } catch (e) {
+    log('could not save the model choice: ' + e.message);
+  }
+  if (!choice.pull.length) status(`Using ${choice.text} (already installed)`);
+  for (const name of choice.pull) {
     if (hasModel(models, name)) continue;
     status(`Downloading AI model ${name}...`);
     try {
@@ -351,7 +445,8 @@ async function startEngine(appUrl, onStatus) {
 
   const compose = path.join(engineDir(), 'docker-compose.yml');
   if (!fs.existsSync(compose)) return { ok: false, stage: 'engine', detail: `Engine files are missing: ${compose}` };
-  const fingerprint = engineFingerprint(engineDir());
+  // The chosen models are part of the build: another model needs a recreated backend (its settings change).
+  const fingerprint = crypto.createHash('sha256').update(engineFingerprint(engineDir()) + JSON.stringify(chosen)).digest('hex').slice(0, 16);
 
   let updating = false;
   let reusedOther = false;
