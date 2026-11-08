@@ -51,8 +51,10 @@ function signature(file, runPs = powershell) {
 
 function powershell(script) {
   return new Promise((resolve, reject) => {
-    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true, timeout: 60000 }, (err, stdout) => {
-      if (err) reject(err);
+    // -EncodedCommand (UTF-16LE, base64) so Windows' command-line quoting cannot change the script.
+    const encoded = Buffer.from(script, 'utf16le').toString('base64');
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded], { windowsHide: true, timeout: 120000 }, (err, stdout, stderr) => {
+      if (err) reject(new Error(`${err.message} ${String(stderr).trim()}`.trim()));
       else resolve(String(stdout));
     });
   });

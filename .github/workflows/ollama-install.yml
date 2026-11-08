@@ -22,7 +22,7 @@ jobs:
       - name: Install Ollama with the app's code
         working-directory: desktop
         run: |
-          node -e "require('./ollama-install').installOllama({ onStatus: (t) => { if (!/Downloading Ollama/.test(t) || / [0-9]*0 %/.test(t)) console.log(t) }, log: console.log }).then(() => console.log('done'), (e) => { console.error(e.message); process.exit(1) })"
+          node -e "require('./ollama-install').installOllama({ onStatus: (t) => { const k = t.replace(/ \\(.*/, ''); if (k !== globalThis.last && (!/Downloading Ollama/.test(t) || / [0-9]*0 %/.test(t))) console.log(t); globalThis.last = k }, log: console.log }).then(() => console.log('done'), (e) => { console.error(e.message); process.exit(1) })"
 
       - name: Ollama is installed and answers
         shell: pwsh
