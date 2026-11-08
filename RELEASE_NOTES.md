@@ -1,5 +1,23 @@
 # StarkLLM Release Notes
 
+## Version 2.0.5 — The engine starts with current Docker Desktop on Windows
+
+Found in the first full test on a real Windows PC:
+
+- **The first start no longer stops at "failed to execute bake".** With current Docker Desktop, the engine build stopped after a few seconds when the app started it (the same build worked in PowerShell). The app now starts Docker the way a console does and, if Docker's "Bake" step still fails, builds the two engine images one by one without it.
+- **Images can be added to a workspace.** The app installed only the chat and search models, so every PNG or JPG failed with "model 'llava' not found". The image model is now downloaded the first time an image (or a scanned PDF page) needs it; if that download fails, the document says which command to run.
+- **Re-index works for a document that failed.** The file of a failed document was deleted, so Re-index always said the file was missing. The file now stays until you delete the entry, and a failed re-index says why.
+
+- **Installing a new version also updates the engine.** Until now the engine of the previous version kept running after an update, so fixes in the engine and the web UI did not arrive. The app now notices when its engine files changed and rebuilds the engine (a few minutes, once).
+
+- **Settings → About shows the installed version** instead of "v1.0.0-beta".
+
+- **Interface languages:** English, with German next.
+
+Pull requests: #27, #28, #29, #30, #32.
+
+---
+
 ## Version 2.0.4 — You see what goes online; updates reach you
 
 - **The chat shows when a question leaves your PC.** With a cloud model provider selected in Settings (DeepSeek, OpenRouter, Groq or any non-local address) the input bar says "Cloud: <host> receives your question and document passages", and each such answer says "Answered by <host> (cloud)", also after reopening the chat. With web search on, the chat says the question goes to DuckDuckGo. LM Studio and other servers on your PC or local network count as local.
