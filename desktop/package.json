@@ -75,6 +75,17 @@
     ],
     "portable": {
       "artifactName": "StarkLLM-v${version}-Portable.${ext}"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "StarkChristian",
+        "repo": "StarkLLM",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "6.8.10"
   }
 }

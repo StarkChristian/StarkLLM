@@ -80,5 +80,7 @@ jobs:
           name: starkllm-windows
           path: |
             desktop/dist/*.exe
+            desktop/dist/*.blockmap
+            desktop/dist/latest.yml
             smoke.png
             engine.log
