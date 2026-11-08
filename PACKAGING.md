@@ -28,6 +28,16 @@ Since 2.0.6 the installed app updates itself from GitHub Releases (`electron-upd
 Without `latest.yml` the app falls back to the download page. The release must be published (not a draft or
 pre-release) to be offered. The installer is not code-signed yet, so the app does not check a publisher name.
 
+### Pre-built engine images (GHCR)
+
+Publishing a release starts `.github/workflows/engine-images.yml`, which pushes
+`ghcr.io/starkchristian/starkllm-backend:<version>` and `ghcr.io/starkchristian/starkllm-frontend:<version>`.
+The installed app pulls these instead of building the engine (10-20 minutes) and builds locally only if the pull
+fails. **Once, after the first run:** on GitHub, open each package (Profile → Packages → starkllm-backend /
+starkllm-frontend → Package settings) and set the visibility to **Public**; private packages cannot be pulled
+without a login, and the app then always builds. For an existing tag the workflow can be started by hand
+(Actions → Engine images → Run workflow, version without "v").
+
 ---
 
 ## Automated Packaging (Portable Zip)
