@@ -1,5 +1,17 @@
 # StarkLLM Release Notes
 
+## Version 2.0.6 — Updates from inside the app, and the models you already have
+
+- **Updates from inside the app.** When a new version is published, StarkLLM offers "Download and install". It downloads only the changed parts of the installer in the background (progress on the taskbar button), backs up the database, and installs on restart or when you quit. "Check for updates" is now also in Settings → About. As before, nothing is checked before you agree once, and nothing is downloaded without your click. The portable version still opens the download page. The first update from inside the app is possible from 2.0.6 to the next version.
+- **The models you already have are used.** On the first start StarkLLM looks at the models installed in Ollama and at your RAM and graphics memory, and uses the best ones that fit instead of downloading its defaults. Only what is missing is downloaded. Ollama cloud models are never chosen. If documents were indexed before, their search model stays.
+- **New start screen** with the StarkLLM logo in its real proportions.
+- **Times are shown in your local time.** Upload times, chat times and "Last synced" were one hour early in Germany.
+- **Sources list only the files an answer cites.** Before, every retrieved passage was listed, even when the answer did not use it.
+
+Pull requests: #34, #35, #36, #37.
+
+---
+
 ## Version 2.0.5 — The engine starts with current Docker Desktop on Windows
 
 Found in the first full test on a real Windows PC:
