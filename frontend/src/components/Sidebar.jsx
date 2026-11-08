@@ -10,6 +10,7 @@ import {
 import { SidebarStatusDot } from './SystemStatusWidget';
 import EmptyState from './EmptyState';
 import { AVAILABLE_THEMES, applyTheme, getCurrentTheme } from '../utils/themes';
+import { serverDate } from '../utils/time';
 
 const NAV_ITEMS = [
   { id: 'dashboard',      label: 'Dashboard',      icon: LayoutDashboard },
@@ -156,7 +157,7 @@ export default function Sidebar({
   // Format timestamp nicely
   const formatTime = (ts) => {
     if (!ts) return '';
-    const d = new Date(ts);
+    const d = serverDate(ts);
     const now = new Date();
     const isToday = d.toDateString() === now.toDateString();
     const yesterday = new Date(now);
