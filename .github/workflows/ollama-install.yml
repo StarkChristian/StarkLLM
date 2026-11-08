@@ -19,6 +19,11 @@ jobs:
         with:
           node-version: 20
 
+      - name: Signature check works (node.exe is signed by the OpenJS Foundation)
+        working-directory: desktop
+        run: |
+          node -e "const o = require('./ollama-install'); o.powershell('Write-Output hello').then((r) => console.log('raw:', JSON.stringify(r))); o.signature(process.execPath).then((s) => console.log('node.exe:', JSON.stringify(s)), (e) => console.log('error:', e.message))"
+
       - name: Install Ollama with the app's code
         working-directory: desktop
         run: |

@@ -102,4 +102,4 @@ async function installOllama({ onStatus = () => {}, log = () => {}, deps = {} } 
   log('Ollama installed');
 }
 
-module.exports = { installOllama, trusted, download, INSTALLER_URL };
+module.exports = { installOllama, trusted, download, signature, powershell, INSTALLER_URL };
