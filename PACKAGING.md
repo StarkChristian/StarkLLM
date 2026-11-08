@@ -13,6 +13,21 @@ installers. Releases are built as follows:
    This produces `StarkLLM-v<version>-Setup.exe` and the portable executable in `desktop/dist/`.
 3. Build the zip package with `package-release.ps1` (below). It contains `start.exe`, the backend and the frontend.
 
+### Files every desktop release must contain (in-app updates)
+
+Since 2.0.6 the installed app updates itself from GitHub Releases (`electron-updater`, see `desktop/updates.js`).
+`npx electron-builder --win --x64 --publish never` writes these into `desktop/dist/`; upload **all four** to the release:
+
+| File | Why |
+|---|---|
+| `StarkLLM-v<version>-Setup.exe` | installer, and the file the app downloads |
+| `StarkLLM-v<version>-Setup.exe.blockmap` | lets the app download only the changed parts |
+| `latest.yml` | version, file name, size and SHA-512 the app checks before installing |
+| `StarkLLM-v<version>-Portable.exe` | portable build (cannot update itself; it opens the download page) |
+
+Without `latest.yml` the app falls back to the download page. The release must be published (not a draft or
+pre-release) to be offered. The installer is not code-signed yet, so the app does not check a publisher name.
+
 ---
 
 ## Automated Packaging (Portable Zip)

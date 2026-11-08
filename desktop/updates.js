@@ -1,6 +1,8 @@
-// Tells the user when a newer StarkLLM version is published. Nothing is installed automatically.
-// The check asks GitHub for the newest release number only, and only after the user agreed once
-// (first start), or when they pick "Check for updates" in the tray menu.
+// Tells the user when a newer StarkLLM version is published and, in the installed app, downloads and installs it
+// without a new download from the website (electron-updater: only the changed parts of the installer are fetched).
+// Nothing is checked before the user agreed once (first start), or when they pick "Check for updates" in the
+// tray menu or in Settings > About; nothing is downloaded or installed without their click.
+// The portable exe cannot replace itself: it gets the download page, as before.
 // STARKLLM_UPDATE_CHECK=0 turns the automatic check off (for administrators and tests).
 const fs = require('fs');
 const path = require('path');
@@ -33,7 +35,35 @@ function decide(release, current, settings) {
   return { show: true, latest, url: release.html_url || DOWNLOAD_PAGE };
 }
 
-function createUpdater({ app, dialog, shell, net, getWindow, log = () => {}, onChange = () => {} }) {
+// Copies the database next to the app data before an update, keeping the newest five copies.
+function backupDatabase(userData, version, log = () => {}) {
+  const db = path.join(userData, 'data', 'starkllm.db');
+  if (!fs.existsSync(db)) return null;
+  const dir = path.join(userData, 'backups');
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const target = path.join(dir, `starkllm-${version}-${stamp}.db`);
+    fs.copyFileSync(db, target);
+    const old = fs.readdirSync(dir).filter((f) => /^starkllm-.*\.db$/.test(f)).sort();
+    old.slice(0, Math.max(0, old.length - 5)).forEach((f) => fs.rmSync(path.join(dir, f), { force: true }));
+    log(`database backed up to ${target}`);
+    return target;
+  } catch (e) {
+    log(`database backup before the update failed: ${e.message}`);
+    return null;
+  }
+}
+
+function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null, log = () => {}, onChange = () => {} }) {
+  // Only the installed app can replace itself; the portable exe and runs from source cannot.
+  const selfUpdate = Boolean(autoUpdater && app.isPackaged && !process.env.PORTABLE_EXECUTABLE_DIR);
+  if (selfUpdate) {
+    autoUpdater.autoDownload = false;
+    autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.logger = { info: (m) => log(`updater: ${m}`), warn: (m) => log(`updater: ${m}`), error: (m) => log(`updater error: ${m}`), debug: () => {} };
+  }
+  let busy = false;
   const file = () => path.join(app.getPath('userData'), 'settings.json');
 
   function readSettings() {
@@ -88,6 +118,7 @@ function createUpdater({ app, dialog, shell, net, getWindow, log = () => {}, onC
       if (manual) await dialog.showMessageBox(parent(), { type: 'info', title: 'StarkLLM', message: `StarkLLM ${current} is the newest version.` });
       return d;
     }
+    if (selfUpdate) return offerSelfUpdate(d, current);
     const { response } = await dialog.showMessageBox(parent(), {
       type: 'info',
       title: 'StarkLLM update',
@@ -100,6 +131,56 @@ function createUpdater({ app, dialog, shell, net, getWindow, log = () => {}, onC
     if (response === 0) shell.openExternal(DOWNLOAD_PAGE);
     if (response === 2) writeSettings({ skipVersion: d.latest });
     return d;
+  }
+
+  // Installed app: download in the background (progress on the taskbar button), then restart to install.
+  async function offerSelfUpdate(d, current) {
+    if (busy) return { ...d, busy: true };
+    const { response } = await dialog.showMessageBox(parent(), {
+      type: 'info',
+      title: 'StarkLLM update',
+      message: `StarkLLM ${d.latest} is available.`,
+      detail: `You have version ${current}. StarkLLM can download and install it now; you can keep working while it downloads. Your chats and documents stay, and the database is backed up first.`,
+      buttons: ['Download and install', 'Later', 'Skip this version'],
+      defaultId: 0,
+      cancelId: 1
+    });
+    if (response === 2) writeSettings({ skipVersion: d.latest });
+    if (response !== 0) return d;
+    busy = true;
+    const onProgress = (p) => {
+      const w = parent();
+      if (w) w.setProgressBar(Math.max(0, Math.min(1, (p.percent || 0) / 100)));
+    };
+    autoUpdater.on('download-progress', onProgress);
+    try {
+      const info = await autoUpdater.checkForUpdates();
+      if (!info || !info.updateInfo || !isNewer(info.updateInfo.version, current)) throw new Error('the release has no update files for this app');
+      await autoUpdater.downloadUpdate();
+    } catch (e) {
+      log(`self-update failed: ${e.message}`);
+      const { response: r } = await dialog.showMessageBox(parent(), {
+        type: 'warning', title: 'StarkLLM update', message: 'The update could not be downloaded.',
+        detail: `${e.message}\n\nYou can install it from the download page instead.`,
+        buttons: ['Open download page', 'Close'], defaultId: 0, cancelId: 1
+      });
+      if (r === 0) shell.openExternal(DOWNLOAD_PAGE);
+      return { ...d, error: e.message };
+    } finally {
+      autoUpdater.removeListener('download-progress', onProgress);
+      const w = parent();
+      if (w) w.setProgressBar(-1);
+      busy = false;
+    }
+    log(`update ${d.latest} downloaded`);
+    const { response: restart } = await dialog.showMessageBox(parent(), {
+      type: 'info', title: 'StarkLLM update', message: `StarkLLM ${d.latest} is ready to install.`,
+      detail: 'Restart now to install it, or it is installed when you quit StarkLLM. The first start after the update prepares the new engine (a few minutes).',
+      buttons: ['Restart now', 'When I quit'], defaultId: 0, cancelId: 1
+    });
+    backupDatabase(app.getPath('userData'), current, log);
+    if (restart === 0) setImmediate(() => autoUpdater.quitAndInstall(true, true));
+    return { ...d, downloaded: true };
   }
 
   // On every start: ask once whether checking is OK, then check if the user agreed.
@@ -131,4 +212,4 @@ function createUpdater({ app, dialog, shell, net, getWindow, log = () => {}, onC
   };
 }
 
-module.exports = { createUpdater, parseVersion, isNewer, decide, RELEASES_API, DOWNLOAD_PAGE };
+module.exports = { createUpdater, parseVersion, isNewer, decide, backupDatabase, RELEASES_API, DOWNLOAD_PAGE };

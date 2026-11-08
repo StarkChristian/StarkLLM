@@ -4,6 +4,7 @@ const path = require('path');
 const { diagnose, buildErrorPage } = require('./diagnostics');
 const { startEngine, userPaths } = require('./engine');
 const { createUpdater } = require('./updates');
+const { autoUpdater } = require('electron-updater');
 
 let mainWindow = null;
 let tray = null;
@@ -37,7 +38,13 @@ if (!gotTheLock) {
 }
 
 function initApp() {
-  updater = createUpdater({ app, dialog, shell, net, getWindow: () => mainWindow, log: logLine, onChange: () => refreshTrayMenu() });
+  updater = createUpdater({ app, dialog, shell, net, autoUpdater, getWindow: () => mainWindow, log: logLine, onChange: () => refreshTrayMenu() });
+  // Settings > About in the web UI (only the app's own page may ask)
+  ipcMain.handle('updates:check', async (event) => {
+    if (!event.senderFrame || !event.senderFrame.url.startsWith(APP_URL)) return { error: 'not allowed' };
+    const r = await updater.check({ manual: true });
+    return { latest: r && r.latest, error: r && r.error };
+  });
   createMainWindow();
   createTray();
   // Also when the engine cannot start: an old version is often the reason.
@@ -69,6 +76,7 @@ function createMainWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
       spellcheck: true
     }
   });

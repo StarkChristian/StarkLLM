@@ -23,11 +23,11 @@ test('drafts, pre-releases and skipped versions are not offered', () => {
   assert.strictEqual(decide({ tag_name: 'v2.0.5' }, '2.0.3', { skipVersion: '2.0.4' }).show, true);
 });
 
-function harness({ answers = [], release = { tag_name: 'v2.1.0' }, fail = false, version = '2.0.3' } = {}) {
+function harness({ answers = [], release = { tag_name: 'v2.1.0' }, fail = false, version = '2.0.3', packaged = false, autoUpdater = null } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starkllm-upd-'));
   const calls = { fetch: 0, dialogs: [], opened: [] };
   const deps = {
-    app: { getPath: () => dir, getVersion: () => version },
+    app: { getPath: () => dir, getVersion: () => version, isPackaged: packaged },
     dialog: {
       showMessageBox: async (_w, opts) => {
         calls.dialogs.push(opts.message);
@@ -44,7 +44,8 @@ function harness({ answers = [], release = { tag_name: 'v2.1.0' }, fail = false,
         return { ok: true, status: 200, json: async () => release };
       }
     },
-    getWindow: () => null
+    getWindow: () => null,
+    autoUpdater
   };
   return { u: createUpdater(deps), calls, dir };
 }
@@ -97,5 +98,66 @@ test('STARKLLM_UPDATE_CHECK=0 turns the automatic check off', async () => {
     assert.strictEqual(calls.dialogs.length + calls.fetch, 0);
   } finally {
     delete process.env.STARKLLM_UPDATE_CHECK;
+  }
+});
+
+// A stand-in for electron-updater's autoUpdater.
+function fakeUpdater({ version = '2.1.0', failDownload = false } = {}) {
+  const f = { calls: [], listeners: {} };
+  f.on = (ev, cb) => { f.listeners[ev] = cb; };
+  f.removeListener = (ev) => { delete f.listeners[ev]; };
+  f.checkForUpdates = async () => { f.calls.push('check'); return { updateInfo: { version } }; };
+  f.downloadUpdate = async () => {
+    f.calls.push('download');
+    if (f.listeners['download-progress']) f.listeners['download-progress']({ percent: 50 });
+    if (failDownload) throw new Error('404 latest.yml');
+  };
+  f.quitAndInstall = (silent, runAfter) => { f.calls.push(`install silent=${silent} run=${runAfter}`); };
+  return f;
+}
+const flush = () => new Promise((r) => setImmediate(r));
+
+test('the installed app downloads and installs the update after the user agrees, with a database backup', async () => {
+  const au = fakeUpdater();
+  const { u, calls, dir } = harness({ answers: [0, 0, 0], packaged: true, autoUpdater: au });
+  fs.mkdirSync(path.join(dir, 'data'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'data', 'starkllm.db'), 'db');
+  await u.onStart();
+  await flush();
+  assert.match(calls.dialogs[1], /2\.1\.0 is available/);
+  assert.match(calls.dialogs[2], /ready to install/);
+  assert.deepStrictEqual(au.calls, ['check', 'download', 'install silent=true run=true']);
+  assert.deepStrictEqual(calls.opened, [], 'no website needed');
+  assert.strictEqual(au.autoDownload, false, 'nothing is downloaded without the click');
+  const backups = fs.readdirSync(path.join(dir, 'backups'));
+  assert.strictEqual(backups.length, 1);
+  assert.match(backups[0], /^starkllm-2\.0\.3-.*\.db$/);
+});
+
+test('"Later" downloads nothing', async () => {
+  const au = fakeUpdater();
+  const { u } = harness({ answers: [0, 1], packaged: true, autoUpdater: au });
+  await u.onStart();
+  assert.deepStrictEqual(au.calls, []);
+});
+
+test('a failed download offers the download page instead', async () => {
+  const au = fakeUpdater({ failDownload: true });
+  const { u, calls } = harness({ answers: [0, 0, 0], packaged: true, autoUpdater: au });
+  await u.onStart();
+  assert.match(calls.dialogs[2], /could not be downloaded/);
+  assert.deepStrictEqual(calls.opened, [DOWNLOAD_PAGE]);
+});
+
+test('the portable exe keeps the download page (it cannot replace itself)', async () => {
+  process.env.PORTABLE_EXECUTABLE_DIR = 'C:\\Tools';
+  try {
+    const au = fakeUpdater();
+    const { u, calls } = harness({ answers: [0, 0], packaged: true, autoUpdater: au });
+    await u.onStart();
+    assert.deepStrictEqual(au.calls, []);
+    assert.deepStrictEqual(calls.opened, [DOWNLOAD_PAGE]);
+  } finally {
+    delete process.env.PORTABLE_EXECUTABLE_DIR;
   }
 });

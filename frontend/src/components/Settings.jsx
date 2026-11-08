@@ -44,6 +44,18 @@ function Toggle({ checked, onChange, label, hint }) {
 export default function Settings({ token, username, activeWorkspace }) {
   // The About page showed a fixed "v1.0.0-beta"; the engine reports its real version.
   const [appVersion, setAppVersion] = useState('');
+  // Only in the desktop app (preload.js): starts the same update check as the tray menu.
+  const desktop = typeof window !== 'undefined' ? window.starkllmDesktop : undefined;
+  const [updateState, setUpdateState] = useState('');
+  const checkForUpdates = async () => {
+    setUpdateState('Checking...');
+    try {
+      const r = await desktop.checkForUpdates();
+      setUpdateState(r && r.error ? `Could not check: ${r.error}` : '');
+    } catch (e) {
+      setUpdateState(`Could not check: ${e.message}`);
+    }
+  };
   useEffect(() => {
     fetch('/api/v1/version')
       .then((r) => (r.ok ? r.json() : null))
@@ -1388,7 +1400,13 @@ print(response.choices[0].message.content)`;
                 <div className={styles.aboutHeader}>
                   <h4>StarkLLM</h4>
                   <span className={styles.aboutVersion}>{appVersion ? `Version ${appVersion}` : 'Version unknown'}</span>
+                  {desktop && (
+                    <button type="button" className="btn-primary" style={{ marginLeft: 'auto', alignSelf: 'center' }} onClick={checkForUpdates} disabled={updateState === 'Checking...'}>
+                      {updateState === 'Checking...' ? 'Checking...' : 'Check for updates'}
+                    </button>
+                  )}
                 </div>
+                {updateState && updateState !== 'Checking...' && <p className={styles.aboutText}>{updateState}</p>}
                 
                 <p className={styles.aboutText}>
                   StarkLLM is <strong>free</strong> and <strong>open source</strong> under the <strong>Apache License 2.0</strong>. 
