@@ -6,6 +6,7 @@ Found in the first full test on a real Windows PC:
 
 - **The first start no longer stops at "failed to execute bake".** With current Docker Desktop, the engine build stopped after a few seconds when the app started it (the same build worked in PowerShell). The app now starts Docker the way a console does and, if Docker's "Bake" step still fails, builds the two engine images one by one without it.
 - **Images can be added to a workspace.** The app installed only the chat and search models, so every PNG or JPG failed with "model 'llava' not found". The image model is now downloaded the first time an image (or a scanned PDF page) needs it; if that download fails, the document says which command to run.
+- **Re-index works for a document that failed.** The file of a failed document was deleted, so Re-index always said the file was missing. The file now stays until you delete the entry, and a failed re-index says why.
 
 Pull requests: #27, #28.
 
