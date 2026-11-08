@@ -8,7 +8,9 @@ Found in the first full test on a real Windows PC:
 - **Images can be added to a workspace.** The app installed only the chat and search models, so every PNG or JPG failed with "model 'llava' not found". The image model is now downloaded the first time an image (or a scanned PDF page) needs it; if that download fails, the document says which command to run.
 - **Re-index works for a document that failed.** The file of a failed document was deleted, so Re-index always said the file was missing. The file now stays until you delete the entry, and a failed re-index says why.
 
-Pull requests: #27, #28.
+- **Installing a new version also updates the engine.** Until now the engine of the previous version kept running after an update, so fixes in the engine and the web UI did not arrive. The app now notices when its engine files changed and rebuilds the engine (a few minutes, once).
+
+Pull requests: #27, #28, #29.
 
 ---
 

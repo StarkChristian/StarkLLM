@@ -107,6 +107,46 @@ async function isStarkLLM(appUrl) {
   return r.ok && r.body.includes('<title>StarkLLM</title>');
 }
 
+// Found on Windows (8 Nov 2026): after installing a new version the old engine kept running ("StarkLLM is already
+// running"), so an update never reached the engine. The app now passes a fingerprint of its engine files to the
+// backend, which reports it at /health; a running engine is reused only when the fingerprints match.
+const API_URL = `http://127.0.0.1:${process.env.STARKLLM_API_PORT || 8000}`;
+const BIG_FILE = 1024 * 1024; // large files (voice models) count by name and size only
+
+function engineFingerprint(dir) {
+  const files = [];
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const full = path.join(d, e.name);
+      if (e.isDirectory()) walk(full);
+      else if (e.isFile()) files.push(full);
+    }
+  };
+  walk(dir);
+  const hash = crypto.createHash('sha256');
+  for (const f of files.map((f) => path.relative(dir, f).split(path.sep).join('/')).sort()) {
+    const full = path.join(dir, f);
+    const size = fs.statSync(full).size;
+    hash.update(`${f}\0${size}\0`);
+    if (size <= BIG_FILE) hash.update(fs.readFileSync(full));
+  }
+  return hash.digest('hex').slice(0, 16);
+}
+
+async function engineHealth() {
+  const r = await probe(API_URL + '/health');
+  if (!r.ok) return null;
+  try {
+    return JSON.parse(r.body);
+  } catch (e) {
+    return null;
+  }
+}
+
+function engineIsCurrent(health, fingerprint) {
+  return Boolean(health && health.build) && health.build === fingerprint;
+}
+
 async function waitFor(check, timeoutMs, intervalMs = 2000) {
   const end = Date.now() + timeoutMs;
   while (Date.now() < end) {
@@ -309,21 +349,32 @@ async function startEngine(appUrl, onStatus) {
 
   const ollama = await ensureOllama(status, onStatus, warnings);
 
-  if (await isStarkLLM(appUrl)) {
-    status('StarkLLM is already running.');
-    return { ok: true, ollama, warnings };
-  }
-
   const compose = path.join(engineDir(), 'docker-compose.yml');
   if (!fs.existsSync(compose)) return { ok: false, stage: 'engine', detail: `Engine files are missing: ${compose}` };
+  const fingerprint = engineFingerprint(engineDir());
+
+  let updating = false;
+  let reusedOther = false;
+  if (await isStarkLLM(appUrl)) {
+    const running = await engineHealth();
+    if (engineIsCurrent(running, fingerprint)) {
+      status('StarkLLM is already running.');
+      return { ok: true, ollama, warnings };
+    }
+    log(`running engine ${(running && running.version) || 'unknown'} (build ${(running && running.build) || 'none'}), app ${app.getVersion()} (build ${fingerprint}): updating the engine`);
+    updating = true;
+  }
   const env = {
     ...process.env,
     STARKLLM_DATA_DIR: paths.data,
     STARKLLM_KB_DIR: paths.kb,
     HOST_KB_PATH: paths.kb,
-    SECRET_KEY: process.env.SECRET_KEY || secretKey(paths.secret)
+    SECRET_KEY: process.env.SECRET_KEY || secretKey(paths.secret),
+    STARKLLM_ENGINE_BUILD: fingerprint
   };
-  status('Starting the StarkLLM engine. The first start downloads and builds its components (10-20 minutes, needs internet)...');
+  status(updating
+    ? `Updating the StarkLLM engine to version ${app.getVersion()} (a few minutes)...`
+    : 'Starting the StarkLLM engine. The first start downloads and builds its components (10-20 minutes, needs internet)...');
   let up = await run(docker, ['compose', '-p', PROJECT, '-f', compose, 'up', '-d', '--build'], {
     env,
     cwd: engineDir(),
@@ -342,6 +393,7 @@ async function startEngine(appUrl, onStatus) {
     // Containers from an earlier installation (e.g. a source checkout) carry the same names: reuse them.
     status('Starting the existing StarkLLM containers...');
     up = await run(docker, ['start', ...CONTAINERS], { timeoutMs: 120000 });
+    reusedOther = true; // their version can differ from the app's
   }
   up.lines.slice(-60).forEach((l) => log('compose: ' + l));
   if (up.code !== 0 && up.lines.some((l) => WINDOWS_CONTAINERS.test(l))) {
@@ -356,7 +408,9 @@ async function startEngine(appUrl, onStatus) {
   }
 
   status('Waiting for StarkLLM to answer...');
-  if (!(await waitFor(() => isStarkLLM(appUrl), 180000))) {
+  // After an update the old containers can answer for a moment while compose replaces them.
+  const answers = async () => (await isStarkLLM(appUrl)) && (reusedOther || engineIsCurrent(await engineHealth(), fingerprint));
+  if (!(await waitFor(answers, 180000))) {
     const logs = await run(docker, ['compose', '-p', PROJECT, '-f', compose, 'logs', '--tail', '20'], { env, timeoutMs: 30000 });
     return { ok: false, stage: 'engine', detail: 'The engine started but the web UI does not answer.', log: logs.lines.slice(-20) };
   }
@@ -364,4 +418,4 @@ async function startEngine(appUrl, onStatus) {
   return { ok: true, ollama, warnings };
 }
 
-module.exports = { startEngine, userPaths, pullWithRetry, buildWithoutBake, run, TEXT_MODEL, EMBEDDING_MODEL };
+module.exports = { startEngine, userPaths, pullWithRetry, buildWithoutBake, run, engineIsCurrent, engineFingerprint, TEXT_MODEL, EMBEDDING_MODEL };
