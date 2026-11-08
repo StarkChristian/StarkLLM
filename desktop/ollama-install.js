@@ -53,8 +53,12 @@ function powershell(script) {
   return new Promise((resolve, reject) => {
     // -EncodedCommand (UTF-16LE, base64) so Windows' command-line quoting cannot change the script.
     const encoded = Buffer.from(script, 'utf16le').toString('base64');
-    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded], { windowsHide: true, timeout: 120000 }, (err, stdout, stderr) => {
+    // Without PSModulePath: one inherited from PowerShell 7 stops Windows PowerShell from loading its own modules.
+    const env = { ...process.env };
+    for (const k of Object.keys(env)) if (k.toLowerCase() === 'psmodulepath') delete env[k];
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded], { windowsHide: true, timeout: 120000, env }, (err, stdout, stderr) => {
       if (err) reject(new Error(`${err.message} ${String(stderr).trim()}`.trim()));
+      else if (!String(stdout).trim() && String(stderr).trim()) reject(new Error(String(stderr).trim().slice(0, 500)));
       else resolve(String(stdout));
     });
   });
