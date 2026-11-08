@@ -108,7 +108,9 @@ async def generic_exception_handler(request: Request, exc: Exception):
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "app": settings.PROJECT_NAME, "version": settings.VERSION}
+    # build: fingerprint of the engine files, set by the desktop app; it rebuilds the engine when it differs
+    return {"status": "ok", "app": settings.PROJECT_NAME, "version": settings.VERSION,
+            "build": os.getenv("STARKLLM_ENGINE_BUILD", "")}
 
 # Include routers
 app.include_router(api_router, prefix=settings.API_V1_STR)
