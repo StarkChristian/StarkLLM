@@ -62,7 +62,7 @@ function createMainWindow() {
     minWidth: 1080,
     minHeight: 700,
     title: 'StarkLLM',
-    backgroundColor: '#05070a',
+    backgroundColor: '#07060b',
     icon: iconPath,
     show: true,
     autoHideMenuBar: true,
@@ -74,6 +74,7 @@ function createMainWindow() {
   });
 
   // Load splash screen first
+  splashShownAt = Date.now();
   mainWindow.loadFile(path.join(__dirname, 'splash.html'));
 
   mainWindow.once('ready-to-show', () => {
@@ -136,7 +137,7 @@ async function startAndLoad() {
   starting = false;
   if (!mainWindow || mainWindow.isDestroyed()) return;
   if (result.ok && result.ollama && !result.warnings.length) {
-    mainWindow.loadURL(APP_URL);
+    await showApp();
   } else {
     showEngineProblem(result);
   }
@@ -149,8 +150,25 @@ async function showEngineProblem(result) {
   }
 }
 
+// The start screen stays at least this long, so the logo is seen even when the engine is already running,
+// and fades out instead of jumping to the app.
+const SPLASH_MIN_MS = 1600;
+const SPLASH_FADE_MS = 350;
+let splashShownAt = 0;
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function showApp() {
+  const rest = SPLASH_MIN_MS - (Date.now() - splashShownAt);
+  if (rest > 0) await wait(rest);
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  await mainWindow.webContents.executeJavaScript("document.body.classList.add('leaving')").catch(() => {});
+  await wait(SPLASH_FADE_MS);
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.loadURL(APP_URL);
+}
+
 function retryConnection() {
   if (mainWindow && !mainWindow.isDestroyed()) {
+    splashShownAt = Date.now();
     mainWindow.loadFile(path.join(__dirname, 'splash.html')).then(startAndLoad);
   }
 }

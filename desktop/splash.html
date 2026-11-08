@@ -4,102 +4,75 @@
   <meta charset="UTF-8">
   <title>StarkLLM</title>
   <style>
+    @font-face { font-family: 'Geist'; src: url('assets/fonts/geist-latin-wght-normal.woff2') format('woff2-variations'); font-weight: 100 900; }
+    @font-face { font-family: 'Geist Mono'; src: url('assets/fonts/geist-mono-latin-wght-normal.woff2') format('woff2-variations'); font-weight: 100 900; }
+    :root {
+      --bg: #07060b;
+      --fg: #f2eefb;
+      --muted: #9d96b6;
+      --violet: #8c14fc;
+      --violet-soft: #b777ff;
+      --gold: #d4af37;
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
     body {
-      background: #05070a;
-      color: #f1f5f9;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
+      background:
+        radial-gradient(60% 50% at 50% 42%, rgba(140, 20, 252, .16), transparent 70%),
+        radial-gradient(40% 30% at 50% 46%, rgba(212, 175, 55, .06), transparent 70%),
+        var(--bg);
+      color: var(--fg);
+      font-family: 'Geist', 'Segoe UI', system-ui, sans-serif;
+      display: grid;
+      place-items: center;
       overflow: hidden;
       user-select: none;
       -webkit-app-region: drag;
+      transition: opacity .35s ease;
     }
-    .splash-container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-      padding: 2.5rem;
-      border-radius: 20px;
-      background: rgba(18, 22, 34, 0.7);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      backdrop-filter: blur(20px);
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
-      width: 420px;
+    body.leaving { opacity: 0; }
+    .stage { display: flex; flex-direction: column; align-items: center; text-align: center; animation: rise 1s cubic-bezier(.2, .7, .2, 1) both; }
+    @keyframes rise { from { opacity: 0; transform: translateY(14px) scale(.97); } to { opacity: 1; transform: none; } }
+
+    .mark { position: relative; width: min(300px, 46vw); aspect-ratio: 16 / 9; filter: drop-shadow(0 18px 40px rgba(140, 20, 252, .28)); }
+    .mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    /* a band of light that moves across the silver, clipped to the logo's shape */
+    .mark .shine {
+      position: absolute; inset: 0;
+      -webkit-mask: url('assets/logo-mark.png') center / contain no-repeat;
+      mask: url('assets/logo-mark.png') center / contain no-repeat;
+      background: linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, .75) 50%, transparent 62%);
+      background-size: 260% 100%;
+      background-position: 120% 0;
+      mix-blend-mode: screen;
+      animation: sweep 3.2s ease-in-out 0.6s infinite;
     }
-    .logo-img {
-      width: 80px;
-      height: 80px;
-      border-radius: 18px;
-      margin-bottom: 1.2rem;
-      box-shadow: 0 0 30px rgba(99, 102, 241, 0.4);
-      animation: pulse 2.5s infinite ease-in-out;
-    }
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 20px rgba(99, 102, 241, 0.4)); }
-      50% { transform: scale(1.04); filter: drop-shadow(0 0 35px rgba(139, 92, 246, 0.6)); }
-    }
-    h1 {
-      font-size: 1.8rem;
-      font-weight: 700;
-      letter-spacing: -0.5px;
-      margin-bottom: 0.3rem;
-      background: linear-gradient(135deg, #fff 30%, #818cf8 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    .subtitle {
-      font-size: 0.85rem;
-      color: #94a3b8;
-      margin-bottom: 1.8rem;
-    }
-    .spinner-ring {
-      width: 36px;
-      height: 36px;
-      border: 3px solid rgba(99, 102, 241, 0.2);
-      border-top-color: #6366f1;
-      border-radius: 50%;
-      animation: spin 1s infinite linear;
-      margin-bottom: 1.2rem;
-    }
-    @keyframes spin {
-      100% { transform: rotate(360deg); }
-    }
-    .status-text {
-      font-size: 0.82rem;
-      color: #cbd5e1;
-      min-height: 20px;
-      max-width: 100%;
-      line-height: 1.4;
-      overflow-wrap: anywhere;
-    }
-    .badge-v2 {
-      display: inline-block;
-      margin-top: 1.2rem;
-      padding: 0.2rem 0.6rem;
-      border-radius: 6px;
-      font-size: 0.72rem;
-      font-weight: 600;
-      background: rgba(99, 102, 241, 0.15);
-      border: 1px solid rgba(99, 102, 241, 0.3);
-      color: #a5b4fc;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+    @keyframes sweep { 0% { background-position: 120% 0; } 55%, 100% { background-position: -20% 0; } }
+
+    h1 { margin-top: 2.2rem; font-size: 2.6rem; font-weight: 650; letter-spacing: -.04em; }
+    .tagline { margin-top: .5rem; color: var(--muted); font-size: 1rem; }
+
+    .progress { margin-top: 2.6rem; width: 260px; height: 2px; border-radius: 2px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+    .progress i { display: block; width: 35%; height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--violet), var(--violet-soft), var(--gold)); animation: slide 1.6s ease-in-out infinite; }
+    @keyframes slide { from { transform: translateX(-110%); } to { transform: translateX(300%); } }
+
+    .status { margin-top: 1rem; min-height: 1.3rem; max-width: 560px; padding-inline: 1rem; font: 400 .82rem/1.5 'Geist Mono', Consolas, monospace; color: var(--muted); overflow-wrap: anywhere; }
+    .version { position: fixed; bottom: 1.4rem; left: 0; right: 0; text-align: center; font: 500 .72rem 'Geist Mono', Consolas, monospace; letter-spacing: .14em; text-transform: uppercase; color: rgba(157, 150, 182, .7); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .stage, .mark .shine, .progress i { animation: none; }
+      .progress i { width: 100%; opacity: .5; }
     }
   </style>
 </head>
 <body>
-  <div class="splash-container">
-    <img src="assets/Logo.png" alt="StarkLLM Logo" class="logo-img" />
+  <main class="stage">
+    <div class="mark"><img src="assets/logo-mark.png" alt=""><span class="shine"></span></div>
     <h1>StarkLLM</h1>
-    <p class="subtitle">Private, local-first AI for Windows</p>
-    <div class="spinner-ring"></div>
-    <div class="status-text" id="statusMsg">Starting...</div>
-    <span class="badge-v2" id="versionBadge">Desktop</span>
-  </div>
+    <p class="tagline">Private, local-first AI for your documents</p>
+    <div class="progress" aria-hidden="true"><i></i></div>
+    <p class="status" id="statusMsg" role="status" aria-live="polite">Starting...</p>
+  </main>
+  <p class="version" id="versionBadge">Desktop</p>
 </body>
 </html>
