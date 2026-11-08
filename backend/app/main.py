@@ -110,6 +110,11 @@ async def generic_exception_handler(request: Request, exc: Exception):
 def health_check():
     return {"status": "ok", "app": settings.PROJECT_NAME, "version": settings.VERSION}
 
+@app.get(settings.API_V1_STR + "/version")
+def version():
+    """The web UI only reaches /api/ through its proxy; the About page reads the version here."""
+    return {"version": settings.VERSION}
+
 # Include routers
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
