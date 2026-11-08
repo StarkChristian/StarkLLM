@@ -1,5 +1,15 @@
 # StarkLLM Release Notes
 
+## Version 2.0.7 — Faster first start, no sign-up
+
+- **The engine is downloaded instead of built.** For each release, GitHub builds the engine images; StarkLLM downloads the ones of its version instead of building them on your PC (which took 10-20 minutes on the first start and after each update). If the download is not possible, it builds them as before.
+- **No sign-up on your own PC.** A new installation opens directly in the app. StarkLLM signs you in as the local user of this PC; you can set a password later in Settings → Account. If accounts already exist, the login stays as before; after a logout, "Continue on this PC" signs the local user in again.
+- **First update from inside the app.** Users of 2.0.6 get this version with "Download and install", without the website.
+
+Pull requests: #39, #40, #41.
+
+---
+
 ## Version 2.0.6 — Updates from inside the app, and the models you already have
 
 - **Updates from inside the app.** When a new version is published, StarkLLM offers "Download and install". It downloads only the changed parts of the installer in the background (progress on the taskbar button), backs up the database, and installs on restart or when you quit. "Check for updates" is now also in Settings → About. As before, nothing is checked before you agree once, and nothing is downloaded without your click. The portable version still opens the download page. The first update from inside the app is possible from 2.0.6 to the next version.
