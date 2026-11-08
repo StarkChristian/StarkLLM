@@ -1,5 +1,15 @@
 # StarkLLM Release Notes
 
+## Version 2.0.5 — The engine starts with current Docker Desktop on Windows
+
+Found in the first full test on a real Windows PC:
+
+- **The first start no longer stops at "failed to execute bake".** With current Docker Desktop, the engine build stopped after a few seconds when the app started it (the same build worked in PowerShell). The app now starts Docker the way a console does and, if Docker's "Bake" step still fails, builds the two engine images one by one without it.
+
+Pull requests: #27.
+
+---
+
 ## Version 2.0.4 — You see what goes online; updates reach you
 
 - **The chat shows when a question leaves your PC.** With a cloud model provider selected in Settings (DeepSeek, OpenRouter, Groq or any non-local address) the input bar says "Cloud: <host> receives your question and document passages", and each such answer says "Answered by <host> (cloud)", also after reopening the chat. With web search on, the chat says the question goes to DuckDuckGo. LM Studio and other servers on your PC or local network count as local.
