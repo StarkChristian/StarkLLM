@@ -245,6 +245,19 @@ class LLMService:
             logger.error(f"Error streaming pull for model {model_name}: {e}")
             yield json.dumps({"error": str(e)}) + "\n"
 
+    def pull_model(self, model_name: str, timeout: int = 3600) -> None:
+        """Download a model and wait until it is installed. Raises RuntimeError when the pull fails."""
+        last = {}
+        for line in self.pull_model_stream(model_name):
+            try:
+                last = json.loads(line)
+            except ValueError:
+                continue
+            if last.get("error"):
+                raise RuntimeError(f"Could not download model '{model_name}': {last['error']}")
+        if last.get("status") != "success":
+            raise RuntimeError(f"Download of model '{model_name}' did not finish.")
+
     def delete_model(self, model_name: str) -> bool:
         """Delete an installed model from Ollama."""
         url = f"{self.base_url}/api/delete"

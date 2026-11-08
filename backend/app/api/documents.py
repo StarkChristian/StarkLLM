@@ -63,13 +63,9 @@ def _index_document_background(doc_id: int, workspace_id: int, user_id: int, fil
     except Exception as e:
         logger.error(f"Background indexing failed for doc {doc_id}: {e}", exc_info=True)
         _set_doc_status(doc_id, DocStatus.FAILED, error_message=describe_indexing_error(e))
-        # Clean up file on failure
-        try:
-            if os.path.exists(file_path):
-                os.remove(file_path)
-                logger.info(f"Cleaned up orphaned file after failed index: {file_path}")
-        except Exception as cleanup_err:
-            logger.warning(f"Could not clean up {file_path}: {cleanup_err}")
+        # The file stays on disk: the document entry still points to it, "Re-index" needs it after the cause is
+        # fixed, and deleting the entry removes the file. (Deleting it here made every re-index of a failed
+        # document answer "Original file is missing from disk".)
 
 
 @router.post("/{workspace_id}/upload")
@@ -845,7 +841,7 @@ async def reindex_document(
         raise HTTPException(status_code=404, detail="Document not found")
 
     if not doc.filepath or not os.path.exists(doc.filepath):
-        raise HTTPException(status_code=400, detail="Original file is missing from disk")
+        raise HTTPException(status_code=400, detail="The original file is no longer on this PC. Delete this entry and upload the file again.")
 
     # Set status to EXTRACTING to let client know re-index started
     doc.status = DocStatus.EXTRACTING

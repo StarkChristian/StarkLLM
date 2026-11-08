@@ -65,12 +65,13 @@ function secretKey(file) {
 }
 
 // Runs a command, streams its output lines to onLine, resolves { code, lines } (never rejects).
-function run(cmd, args, { env, timeoutMs = 60000, onLine } = {}) {
+function run(cmd, args, { env, cwd, timeoutMs = 60000, onLine } = {}) {
   return new Promise((resolve) => {
     const lines = [];
     let child;
     try {
-      child = spawn(cmd, args, { env: env || process.env, windowsHide: true });
+      // stdin closed: an open, never-written pipe is not what a console run gives the Docker tools
+      child = spawn(cmd, args, { env: env || process.env, cwd, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     } catch (e) {
       return resolve({ code: -1, lines: [String(e.message)], enoent: e.code === 'ENOENT' });
     }
@@ -183,6 +184,24 @@ async function dockerRunning(docker) {
 async function dockerOsType(docker) {
   const r = await run(docker, ['info', '--format', '{{.OSType}}'], { timeoutMs: 20000 });
   return r.code === 0 && r.lines.length ? r.lines[r.lines.length - 1].trim().toLowerCase() : '';
+}
+
+// Found on a real Windows PC (8 Nov 2026, Docker Desktop, Compose v2 with Bake): started from the app, the build
+// stopped at "load local bake definitions" / "failed to execute bake: exit status 1", while the same command in
+// PowerShell worked. Without Bake the two images are built one by one with plain `docker build`.
+const BAKE_FAILED = /failed to execute bake/i;
+
+async function buildWithoutBake(docker, dir, env, onStatus) {
+  for (const service of ['backend', 'frontend']) {
+    const r = await run(docker, ['build', '-t', `${PROJECT}-${service}`, path.join(dir, service)], {
+      env,
+      cwd: dir,
+      timeoutMs: 45 * 60 * 1000,
+      onLine: (line) => onStatus(`Engine (${service}): ` + line.slice(0, 130))
+    });
+    if (r.code !== 0) return r;
+  }
+  return { code: 0, lines: [] };
 }
 
 const WINDOWS_CONTAINERS = /no matching manifest for windows|image operating system "linux" cannot be used on this platform/i;
@@ -358,9 +377,18 @@ async function startEngine(appUrl, onStatus) {
     : 'Starting the StarkLLM engine. The first start downloads and builds its components (10-20 minutes, needs internet)...');
   let up = await run(docker, ['compose', '-p', PROJECT, '-f', compose, 'up', '-d', '--build'], {
     env,
+    cwd: engineDir(),
     timeoutMs: 60 * 60 * 1000,
     onLine: (line) => onStatus('Engine: ' + line.slice(0, 140))
   });
+  if (up.code !== 0 && up.lines.some((l) => BAKE_FAILED.test(l))) {
+    up.lines.slice(-20).forEach((l) => log('compose (bake): ' + l));
+    status('Building the engine without Docker Bake...');
+    const built = await buildWithoutBake(docker, engineDir(), env, onStatus);
+    up = built.code !== 0
+      ? built
+      : await run(docker, ['compose', '-p', PROJECT, '-f', compose, 'up', '-d', '--no-build'], { env, cwd: engineDir(), timeoutMs: 10 * 60 * 1000 });
+  }
   if (up.code !== 0 && up.lines.some((l) => l.includes('is already in use by container'))) {
     // Containers from an earlier installation (e.g. a source checkout) carry the same names: reuse them.
     status('Starting the existing StarkLLM containers...');
@@ -390,4 +418,4 @@ async function startEngine(appUrl, onStatus) {
   return { ok: true, ollama, warnings };
 }
 
-module.exports = { startEngine, userPaths, pullWithRetry, engineIsCurrent, engineFingerprint, TEXT_MODEL, EMBEDDING_MODEL };
+module.exports = { startEngine, userPaths, pullWithRetry, buildWithoutBake, run, engineIsCurrent, engineFingerprint, TEXT_MODEL, EMBEDDING_MODEL };
