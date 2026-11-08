@@ -2,12 +2,13 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { FolderOpen, FolderPlus, RefreshCw, Zap, ChevronDown, ChevronRight, File, AlertCircle, CheckCircle, Clock, Loader, X, Database, Search, Eye, Info, Trash2, Copy } from 'lucide-react';
 import styles from './KnowledgeBase.module.css';
 import EmptyState from './EmptyState';
+import { serverDate } from '../utils/time';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 function formatDate(dateStr) {
   if (!dateStr) return '—';
-  const d = new Date(dateStr);
+  const d = serverDate(dateStr);
   return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 }
 

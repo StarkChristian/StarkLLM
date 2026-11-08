@@ -41,9 +41,15 @@ jobs:
           $setup = Get-ChildItem desktop/dist/*-Setup.exe | Select-Object -First 1
           Start-Process $setup.FullName -ArgumentList '/S' -Wait
           $dir = Join-Path $env:LOCALAPPDATA 'Programs\StarkLLM'
-          foreach ($f in 'StarkLLM.exe', 'resources\engine\docker-compose.yml', 'resources\engine\backend\Dockerfile', 'resources\engine\frontend\Dockerfile') {
-            if (-not (Test-Path (Join-Path $dir $f))) { throw "missing after install: $f" }
-          }
+          $files = 'StarkLLM.exe', 'resources\engine\docker-compose.yml', 'resources\engine\backend\Dockerfile', 'resources\engine\frontend\Dockerfile'
+          # The silent installer can return before it has written every file (seen on 8 Nov 2026): wait up to 2 minutes.
+          $deadline = (Get-Date).AddMinutes(2)
+          do {
+            $missing = @($files | Where-Object { -not (Test-Path (Join-Path $dir $_)) })
+            if ($missing.Count -eq 0) { break }
+            Start-Sleep 3
+          } while ((Get-Date) -lt $deadline)
+          if ($missing.Count -gt 0) { throw "missing after install: $($missing -join ', ')" }
           "installed to $dir"
 
       - name: Start the installed app and take a screenshot
