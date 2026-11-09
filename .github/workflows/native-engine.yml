@@ -1,0 +1,95 @@
+name: Engine without Docker (Windows)
+
+# Roadmap phase 2: StarkLLM without Docker Desktop. This runs the engine the way a Docker-free StarkLLM would: the
+# backend in a plain Python 3.11 on Windows, serving the built web UI itself (nginx does that in Docker). It shows
+# which parts work natively on Windows and how big the Python runtime is.
+
+on:
+  pull_request:
+    paths: ['backend/**', 'frontend/**', '.github/workflows/native-engine.yml']
+  workflow_dispatch:
+
+jobs:
+  native-engine:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install the backend into its own folder (the future bundled runtime)
+        shell: pwsh
+        run: |
+          python -m venv "$env:RUNNER_TEMP\runtime"
+          & "$env:RUNNER_TEMP\runtime\Scripts\python.exe" -m pip install --quiet --upgrade pip
+          & "$env:RUNNER_TEMP\runtime\Scripts\python.exe" -m pip install --quiet -r backend/requirements.txt
+          if ($LASTEXITCODE -ne 0) { throw "pip install failed ($LASTEXITCODE)" }
+          $mb = [math]::Round(((Get-ChildItem "$env:RUNNER_TEMP\runtime" -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB)
+          "runtime size: $mb MB"
+          Get-ChildItem "$env:RUNNER_TEMP\runtime\Lib\site-packages" -Directory | ForEach-Object {
+            [pscustomobject]@{ Package = $_.Name; MB = [math]::Round(((Get-ChildItem $_.FullName -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB) }
+          } | Sort-Object MB -Descending | Select-Object -First 15 | Format-Table -AutoSize | Out-String
+
+      - name: Build the web UI
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Each backend module imports on Windows
+        shell: pwsh
+        working-directory: backend
+        run: |
+          $py = "$env:RUNNER_TEMP\runtime\Scripts\python.exe"
+          & $py -c "import importlib, pkgutil, app; bad = []
+          for m in pkgutil.walk_packages(app.__path__, 'app.'):
+              try: importlib.import_module(m.name)
+              except Exception as e: bad.append(f'{m.name}: {type(e).__name__}: {e}')
+          print('\n'.join(bad) or 'all modules import')"
+
+      - name: Start the engine without Docker and open the UI
+        shell: pwsh
+        working-directory: backend
+        run: |
+          $py = "$env:RUNNER_TEMP\runtime\Scripts\python.exe"
+          # the backend keeps its database, index and uploads in .\data (the volume in Docker); the knowledge base
+          # folder and Ollama are on this PC instead of /kb_data and host.docker.internal
+          New-Item -ItemType Directory -Force data, "$env:RUNNER_TEMP\kb" | Out-Null
+          $env:KB_DATA_DIR = "$env:RUNNER_TEMP\kb"
+          $env:OLLAMA_BASE_URL = 'http://127.0.0.1:11434'
+          $env:STARKLLM_STATIC_DIR = (Resolve-Path ..\frontend\dist).Path
+          $env:SECRET_KEY = 'ci-only-secret'
+          $env:STARKLLM_ENGINE_BUILD = 'native-ci'
+          & $py -c "from app.db.session import engine, Base; import app.db.models; Base.metadata.create_all(bind=engine)"
+          & "$env:RUNNER_TEMP\runtime\Scripts\alembic.exe" upgrade head
+          $p = Start-Process $py -ArgumentList '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8000' -PassThru -RedirectStandardOutput "$env:RUNNER_TEMP\engine.out" -RedirectStandardError "$env:RUNNER_TEMP\engine.err"
+          $ok = $false
+          for ($i = 0; $i -lt 90; $i++) {
+            try { $h = Invoke-RestMethod http://127.0.0.1:8000/health; $ok = $true; break } catch { Start-Sleep 2 }
+          }
+          Get-Content "$env:RUNNER_TEMP\engine.err" -Tail 40
+          if (-not $ok) { throw 'the engine did not answer on /health' }
+          "health: $($h | ConvertTo-Json -Compress)"
+          $page = Invoke-WebRequest http://127.0.0.1:8000/ -UseBasicParsing
+          if ($page.Content -notmatch '<title>StarkLLM</title>') { throw 'the web UI is not served at /' }
+          $deep = Invoke-WebRequest http://127.0.0.1:8000/settings -UseBasicParsing
+          if ($deep.Content -notmatch '<title>StarkLLM</title>') { throw 'a UI route is not answered with the app' }
+          $api = Invoke-WebRequest http://127.0.0.1:8000/api/v1/does-not-exist -UseBasicParsing -SkipHttpErrorCheck
+          if ($api.StatusCode -ne 404) { throw "an unknown API path should be 404, got $($api.StatusCode)" }
+          "web UI and API answer without Docker"
+          Stop-Process -Id $p.Id -Force
+
+      - name: Backend tests on Windows
+        shell: pwsh
+        working-directory: backend
+        run: |
+          $py = "$env:RUNNER_TEMP\runtime\Scripts\python.exe"
+          & $py -m pip install --quiet pytest
+          & $py -m pytest -q tests --ignore=tests/run_rigorous_e2e.py -p no:cacheprovider
