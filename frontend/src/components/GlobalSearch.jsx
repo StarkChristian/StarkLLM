@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { serverDate } from '../utils/time';
 import { UI_LOCALE } from '../utils/locale';
+import { t } from '../i18n';
 
 function useDebounce(value, delay) {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -54,7 +55,7 @@ export default function GlobalSearch({
   const commands = useMemo(() => [
     {
       id: 'cmd-new-chat',
-      title: 'New Conversation',
+      title: t('New Conversation'),
       subtitle: activeWorkspace ? `Start fresh chat in "${activeWorkspace.name}"` : 'Start a new conversation',
       icon: PlusCircle,
       badge: 'Action',
@@ -63,7 +64,7 @@ export default function GlobalSearch({
     },
     {
       id: 'cmd-model-hub',
-      title: 'Model Hub & Switcher',
+      title: t('Model Hub & Switcher'),
       subtitle: currentModel ? `Active: ${currentModel}` : 'Browse and pull local Ollama models',
       icon: Cpu,
       badge: 'Model',
@@ -72,7 +73,7 @@ export default function GlobalSearch({
     },
     {
       id: 'cmd-documents',
-      title: 'Manage Documents & Connectors',
+      title: t('Manage Documents & Connectors'),
       subtitle: 'Upload files, ingest GitHub repos, Web URLs, YouTube, Notes',
       icon: FolderOpen,
       badge: 'RAG',
@@ -81,7 +82,7 @@ export default function GlobalSearch({
     },
     {
       id: 'cmd-prompts',
-      title: 'Prompt Templates & Personas',
+      title: t('Prompt Templates & Personas'),
       subtitle: 'Pre-engineered system prompts for coding, review, and briefing',
       icon: Sparkles,
       badge: 'Prompts',
@@ -90,7 +91,7 @@ export default function GlobalSearch({
     },
     {
       id: 'cmd-memory',
-      title: 'Neural Semantic Memory',
+      title: t('Neural Semantic Memory'),
       subtitle: 'Manage cross-conversation persistent memories and preferences',
       icon: Brain,
       badge: 'Memory',
@@ -99,7 +100,7 @@ export default function GlobalSearch({
     },
     {
       id: 'cmd-settings',
-      title: 'Settings & Local API Server',
+      title: t('Settings & Local API Server'),
       subtitle: 'OpenAI API compatibility, Cursor/VSCode connection, API keys',
       icon: Settings,
       badge: 'System',
@@ -108,7 +109,7 @@ export default function GlobalSearch({
     },
     {
       id: 'cmd-kb',
-      title: 'Global Knowledge Base',
+      title: t('Global Knowledge Base'),
       subtitle: 'Manage shared vector database collections across workspaces',
       icon: Database,
       badge: 'Storage',
@@ -117,7 +118,7 @@ export default function GlobalSearch({
     },
     {
       id: 'cmd-clear',
-      title: 'Clear Active Chat',
+      title: t('Clear Active Chat'),
       subtitle: 'Reset the messages in current conversation',
       icon: Trash2,
       badge: 'Chat',
@@ -205,7 +206,7 @@ export default function GlobalSearch({
           list.push({
             id: `chat-${c.id}`,
             _type: 'chat_quick',
-            title: c.title || 'Untitled Chat',
+            title: c.title || t('Untitled Chat'),
             icon: MessageCircle,
             badge: 'Recent',
             chat: c
@@ -296,20 +297,20 @@ export default function GlobalSearch({
             ref={inputRef}
             type="text"
             className={styles.input}
-            placeholder="Type a command or search chats, docs, code..."
+            placeholder={t('Type a command or search chats, docs, code...')}
             value={query}
             onChange={e => setQuery(e.target.value)}
-            aria-label="Command palette and global search"
+            aria-label={t('Command palette and global search')}
             spellCheck={false}
             autoComplete="off"
           />
           {query && (
-            <button className={styles.clearBtn} onClick={() => setQuery('')} title="Clear">
+            <button className={styles.clearBtn} onClick={() => setQuery('')} title={t('Clear')}>
               <X size={14} />
             </button>
           )}
-          <button className={styles.closeKbd} onClick={onClose} title="Close (Esc)">
-            <kbd>Esc</kbd>
+          <button className={styles.closeKbd} onClick={onClose} title={t('Close (Esc)')}>
+            <kbd>{t('Esc')}</kbd>
           </button>
         </div>
 
@@ -321,7 +322,7 @@ export default function GlobalSearch({
             <div className={styles.group}>
               <div className={styles.groupLabel}>
                 <Command size={12} />
-                <span>Commands & Quick Actions</span>
+                <span>{t('Commands & Quick Actions')}</span>
                 <span className={styles.groupCount}>{filteredCommands.length}</span>
               </div>
               {filteredCommands.map(cmd => {
@@ -358,7 +359,7 @@ export default function GlobalSearch({
             <div className={styles.group}>
               <div className={styles.groupLabel}>
                 <Layers size={12} />
-                <span>Switch Workspace</span>
+                <span>{t('Switch Workspace')}</span>
                 <span className={styles.groupCount}>{workspaces.length}</span>
               </div>
               {workspaces.map(ws => {
@@ -379,9 +380,9 @@ export default function GlobalSearch({
                       {ws.description && <span className={styles.contentSnippet}>{ws.description}</span>}
                     </div>
                     {ws.id === activeWorkspace?.id ? (
-                      <span className={styles.activeBadge}>Active</span>
+                      <span className={styles.activeBadge}>{t('Active')}</span>
                     ) : (
-                      <span className={styles.workspaceBadge}>Workspace</span>
+                      <span className={styles.workspaceBadge}>{t('Workspace')}</span>
                     )}
                     <ArrowRight size={13} className={styles.resultArrow} />
                   </button>
@@ -395,7 +396,7 @@ export default function GlobalSearch({
             <div className={styles.group}>
               <div className={styles.groupLabel}>
                 <MessageCircle size={12} />
-                <span>Recent Conversations</span>
+                <span>{t('Recent Conversations')}</span>
                 <span className={styles.groupCount}>{Math.min(5, chats.length)}</span>
               </div>
               {chats.slice(0, 5).map(c => {
@@ -412,14 +413,14 @@ export default function GlobalSearch({
                       <MessageCircle size={15} />
                     </div>
                     <div className={styles.resultBody}>
-                      <span className={styles.resultTitle}>{c.title || 'Untitled Conversation'}</span>
+                      <span className={styles.resultTitle}>{c.title || t('Untitled Conversation')}</span>
                       {c.updated_at && (
                         <span className={styles.resultMeta}>
                           {serverDate(c.updated_at).toLocaleDateString(UI_LOCALE)}
                         </span>
                       )}
                     </div>
-                    <span className={styles.chatBadge}>Chat</span>
+                    <span className={styles.chatBadge}>{t('Chat')}</span>
                     <ArrowRight size={13} className={styles.resultArrow} />
                   </button>
                 );
@@ -442,7 +443,7 @@ export default function GlobalSearch({
                 <div className={styles.group}>
                   <div className={styles.groupLabel}>
                     <FolderOpen size={12} />
-                    <span>Workspaces</span>
+                    <span>{t('Workspaces')}</span>
                     <span className={styles.groupCount}>{results.workspaces.length}</span>
                   </div>
                   {results.workspaces.map(item => {
@@ -460,7 +461,7 @@ export default function GlobalSearch({
                           <span className={styles.resultTitle}>{item.name || item.title}</span>
                           {item.content_snippet && <span className={styles.contentSnippet}>{item.content_snippet}</span>}
                         </div>
-                        <span className={styles.workspaceBadge}>Workspace</span>
+                        <span className={styles.workspaceBadge}>{t('Workspace')}</span>
                         <ArrowRight size={13} className={styles.resultArrow} />
                       </button>
                     );
@@ -473,7 +474,7 @@ export default function GlobalSearch({
                 <div className={styles.group}>
                   <div className={styles.groupLabel}>
                     <MessageCircle size={12} />
-                    <span>Chats</span>
+                    <span>{t('Chats')}</span>
                     <span className={styles.groupCount}>{results.chats.length}</span>
                   </div>
                   {results.chats.map(item => {
@@ -493,11 +494,11 @@ export default function GlobalSearch({
                           {item.workspace_name && (
                             <span className={styles.resultMeta}>
                               {item.workspace_name}
-                              {item.match_type === 'content' && <span className={styles.matchBadge}>in messages</span>}
+                              {item.match_type === 'content' && <span className={styles.matchBadge}>{t('in messages')}</span>}
                             </span>
                           )}
                         </div>
-                        <span className={styles.chatBadge}>Chat</span>
+                        <span className={styles.chatBadge}>{t('Chat')}</span>
                         <ArrowRight size={13} className={styles.resultArrow} />
                       </button>
                     );
@@ -510,7 +511,7 @@ export default function GlobalSearch({
                 <div className={styles.group}>
                   <div className={styles.groupLabel}>
                     <FileText size={12} />
-                    <span>Documents</span>
+                    <span>{t('Documents')}</span>
                     <span className={styles.groupCount}>{results.documents.length}</span>
                   </div>
                   {results.documents.map(item => {
@@ -532,12 +533,12 @@ export default function GlobalSearch({
                           {item.workspace_name && (
                             <span className={styles.resultMeta}>
                               {item.workspace_name}
-                              {item.match_type === 'content' && <span className={styles.matchBadge}>in content</span>}
-                              {item.doc_type === 'knowledge_base' && <span className={styles.kbBadge}>Knowledge Base</span>}
+                              {item.match_type === 'content' && <span className={styles.matchBadge}>{t('in content')}</span>}
+                              {item.doc_type === 'knowledge_base' && <span className={styles.kbBadge}>{t('Knowledge Base')}</span>}
                             </span>
                           )}
                         </div>
-                        <span className={styles.docBadge}>Doc</span>
+                        <span className={styles.docBadge}>{t('Doc')}</span>
                         <ArrowRight size={13} className={styles.resultArrow} />
                       </button>
                     );
@@ -551,8 +552,8 @@ export default function GlobalSearch({
           {query.trim() && filteredCommands.length === 0 && results && totalResultsCount === 0 && !loading && (
             <div className={styles.emptyState}>
               <Search size={28} className={styles.emptyIcon} />
-              <p className={styles.emptyTitle}>No matching commands or results</p>
-              <p className={styles.emptyHint}>Try a different search keyword or press Esc to return.</p>
+              <p className={styles.emptyTitle}>{t('No matching commands or results')}</p>
+              <p className={styles.emptyHint}>{t('Try a different search keyword or press Esc to return.')}</p>
             </div>
           )}
         </div>
@@ -560,9 +561,9 @@ export default function GlobalSearch({
         {/* ── Footer ── */}
         <div className={styles.footer}>
           <div className={styles.footerHints}>
-            <span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span>
-            <span><kbd>↵</kbd> Select</span>
-            <span><kbd>Esc</kbd> Close</span>
+            <span><kbd>↑</kbd><kbd>↓</kbd> {t('Navigate')}</span>
+            <span><kbd>↵</kbd> {t('Select')}</span>
+            <span><kbd>{t('Esc')}</kbd> {t('Close')}</span>
           </div>
           {query.trim() && totalResultsCount > 0 && (
             <span className={styles.footerCount}>

@@ -1279,7 +1279,7 @@ print(response.choices[0].message.content)`;
               <div className={styles.languageRoadmapNotice}>
                 <strong>{t('German interface')}</strong>
                 <span>
-                  {t('The start page, the side bar and the sign-in are in German; the other pages follow step by step and are shown in English until then.')}
+                  {t('The interface is in German. Answers of the AI follow the language of your question.')}
                 </span>
               </div>
             </div>
