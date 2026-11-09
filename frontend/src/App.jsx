@@ -292,6 +292,7 @@ export default function App() {
                 kbUsed: !!m.sources.kb_used,
                 kbSources: m.sources.kb || [],
                 wsSources: m.sources.ws || [],
+                evidence: m.sources.evidence || null,
                 webSources: m.sources.web || [],
                 cloudHost: m.sources.cloud || null,
               } : m))
@@ -1112,6 +1113,7 @@ export default function App() {
               onRetryMessage={handleSendMessage}
               onSelectStarter={handleSendMessage}
               workspaceId={activeWorkspace?.id}
+              chatId={activeChatId}
               token={token}
             />
             <InputBar 

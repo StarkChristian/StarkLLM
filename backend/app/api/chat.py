@@ -31,6 +31,15 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+def _citation_filename(meta: dict) -> str:
+    return (
+        meta.get("file_name")
+        # Files indexed before file_name was stored: drop the 8-character upload prefix ("529bb309_notes.md").
+        or re.sub(r"^[0-9a-f]{8}_", "", os.path.basename(meta.get("source") or meta.get("file_path") or ""))
+        or "unknown file"
+    )
+
+
 def _build_citation_label(r: dict) -> tuple[str, str]:
     """
     Constructs honest, verifiable citation labels for LLM context and UI headers.
@@ -39,12 +48,7 @@ def _build_citation_label(r: dict) -> tuple[str, str]:
     TXT/MD: includes chunk locator ('notes.md (Chunk 2)')
     """
     meta = r.get("metadata", {}) or {}
-    filename = (
-        meta.get("file_name")
-        # Files indexed before file_name was stored: drop the 8-character upload prefix ("529bb309_notes.md").
-        or re.sub(r"^[0-9a-f]{8}_", "", os.path.basename(meta.get("source") or meta.get("file_path") or ""))
-        or "unknown file"
-    )
+    filename = _citation_filename(meta)
     locator = meta.get("locator")
     if not locator:
         if "page" in meta and meta["page"] is not None:
@@ -68,6 +72,41 @@ def _build_citation_label(r: dict) -> tuple[str, str]:
     else:
         label = filename
     return label, label
+
+
+EVIDENCE_CHARS = 700
+EVIDENCE_PER_SOURCE = 3
+
+
+def _citation_evidence(results, scope: str, doc_ids: dict) -> list:
+    """What the answer was built from, so the user can check it: per source label the file, the page and the passages
+    (word for word). doc_ids maps a workspace file path to its document id, so the UI can open the document."""
+    by_label = {}
+    for r in results or []:
+        meta = r.get("metadata") or {}
+        if not meta:
+            continue
+        label, _ = _build_citation_label(r)
+        page = meta.get("page")
+        try:
+            page = int(page) + 1 if page is not None else None
+        except (TypeError, ValueError):
+            page = None
+        entry = by_label.get(label)
+        if entry is None:
+            path = meta.get("file_path") or meta.get("source") or ""
+            entry = by_label[label] = {
+                "label": label,
+                "file": _citation_filename(meta),
+                "page": page,
+                "scope": scope,
+                "document_id": meta.get("document_id") if scope == "kb" else doc_ids.get(path),
+                "passages": [],
+            }
+        text = _strip_tool_fences(r.get("content") or "").strip()
+        if text and len(entry["passages"]) < EVIDENCE_PER_SOURCE and text[:EVIDENCE_CHARS] not in entry["passages"]:
+            entry["passages"].append(text[:EVIDENCE_CHARS])
+    return list(by_label.values())
 
 
 # Regex to strip fenced ```tool_call ... ``` blocks from retrieved document chunks.
@@ -396,10 +435,19 @@ async def chat(
         # Unpack Web
         web_sources, web_source_urls, web_context = web_data
 
+        ws_paths = {(r.get("metadata") or {}).get("source") for r in (ws_results or [])} - {None, ""}
+        doc_ids = {}
+        if ws_paths:
+            for d in db.query(models.Document).filter(models.Document.workspace_id == req.workspace_id,
+                                                      models.Document.filepath.in_(ws_paths)).all():
+                doc_ids[d.filepath] = d.id
+        evidence = _citation_evidence(ws_results, "ws", doc_ids) + _citation_evidence(kb_results, "kb", {})
+
         sources_json = json.dumps({
             "kb_used": bool(req.use_knowledge_base and kb_results),
             "kb": kb_sources,
             "ws": ws_sources,
+            "evidence": evidence,
             "web": [{"title": t, "url": (web_source_urls[i] if i < len(web_source_urls) else "")} for i, t in enumerate(web_sources)],
             "cloud": cloud_host(req.provider or "ollama", req.base_url),
         })

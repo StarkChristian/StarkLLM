@@ -232,12 +232,19 @@
   max-width: 100%;
   box-shadow: 0 2px 8px rgba(0,0,0,0.2);
   transition: all 0.2s ease;
+  font-family: inherit;
+  text-align: start;
 }
 
-.sourceGroup:hover {
+button.sourceGroup {
+  cursor: pointer;
+}
+
+.sourceGroup:hover,
+button.sourceGroup:focus-visible {
   background-color: var(--bg-active);
   border-color: var(--accent-bright);
-  color: #fff;
+  color: var(--text-primary);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
 }
