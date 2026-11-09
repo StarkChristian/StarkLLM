@@ -31,10 +31,18 @@ export default function TelegramSettings({ token }) {
     }
   };
 
+  // quiet refresh: the code expires and the paired list changes when the phone sends the code; it must not disable
+  // the buttons or clear an error the user is reading
+  const refresh = async () => {
+    try {
+      const res = await fetch('/api/v1/telegram', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setStatus(await res.json());
+    } catch (_) { /* next try in 5 seconds */ }
+  };
+
   useEffect(() => {
     call('GET');
-    // the code expires and the paired list changes when the phone sends the code
-    const timer = setInterval(() => call('GET'), 5000);
+    const timer = setInterval(refresh, 5000);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

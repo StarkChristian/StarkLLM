@@ -192,3 +192,9 @@ def test_settings_api_checks_the_token_and_pairs(tmp_path, monkeypatch):
     assert c.delete("/telegram/chats/42").json()["chats"] == []
     r = c.put("/telegram", json={"token": ""})
     assert r.json()["configured"] is False and tb.load_state() == {}
+
+
+def test_the_bot_token_is_not_written_to_the_log():
+    # httpx logs request URLs at INFO, and Telegram URLs contain the token (seen in the engine log)
+    import logging
+    assert logging.getLogger("httpx").getEffectiveLevel() >= logging.WARNING

@@ -22,6 +22,8 @@ from typing import Callable, Optional
 import httpx
 
 logger = logging.getLogger(__name__)
+# httpx logs every request URL at INFO, and Telegram's URLs contain the bot token: keep it out of the engine log
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 API = "https://api.telegram.org"
 STATE_FILE = os.path.join(os.path.abspath("data"), "telegram.json")
