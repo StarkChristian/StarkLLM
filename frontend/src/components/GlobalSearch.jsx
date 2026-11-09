@@ -56,7 +56,7 @@ export default function GlobalSearch({
     {
       id: 'cmd-new-chat',
       title: t('New Conversation'),
-      subtitle: activeWorkspace ? `Start fresh chat in "${activeWorkspace.name}"` : 'Start a new conversation',
+      subtitle: activeWorkspace ? t('New chat in "{workspace}"', { workspace: activeWorkspace.name }) : t('Start a new conversation'),
       icon: PlusCircle,
       badge: 'Action',
       kbd: 'N',
@@ -65,7 +65,7 @@ export default function GlobalSearch({
     {
       id: 'cmd-model-hub',
       title: t('Model Hub & Switcher'),
-      subtitle: currentModel ? `Active: ${currentModel}` : 'Browse and pull local Ollama models',
+      subtitle: currentModel ? t('Active: {model}', { model: currentModel }) : t('Browse and pull local Ollama models'),
       icon: Cpu,
       badge: 'Model',
       kbd: 'M',
@@ -74,7 +74,7 @@ export default function GlobalSearch({
     {
       id: 'cmd-documents',
       title: t('Manage Documents & Connectors'),
-      subtitle: 'Upload files, ingest GitHub repos, Web URLs, YouTube, Notes',
+      subtitle: t('Upload files, add GitHub repositories, web pages, YouTube, notes'),
       icon: FolderOpen,
       badge: 'RAG',
       kbd: 'D',
@@ -83,7 +83,7 @@ export default function GlobalSearch({
     {
       id: 'cmd-prompts',
       title: t('Prompt Templates & Personas'),
-      subtitle: 'Pre-engineered system prompts for coding, review, and briefing',
+      subtitle: t('Ready-made prompts for coding, review and briefings'),
       icon: Sparkles,
       badge: 'Prompts',
       kbd: 'P',
@@ -92,7 +92,7 @@ export default function GlobalSearch({
     {
       id: 'cmd-memory',
       title: t('Neural Semantic Memory'),
-      subtitle: 'Manage cross-conversation persistent memories and preferences',
+      subtitle: t('Facts and preferences StarkLLM remembers across chats'),
       icon: Brain,
       badge: 'Memory',
       kbd: 'B',
@@ -101,7 +101,7 @@ export default function GlobalSearch({
     {
       id: 'cmd-settings',
       title: t('Settings & Local API Server'),
-      subtitle: 'OpenAI API compatibility, Cursor/VSCode connection, API keys',
+      subtitle: t('OpenAI-compatible API, Cursor/VSCode connection, API keys'),
       icon: Settings,
       badge: 'System',
       kbd: 'S',
@@ -110,7 +110,7 @@ export default function GlobalSearch({
     {
       id: 'cmd-kb',
       title: t('Global Knowledge Base'),
-      subtitle: 'Manage shared vector database collections across workspaces',
+      subtitle: t('Folders shared by all workspaces'),
       icon: Database,
       badge: 'Storage',
       kbd: 'K',
@@ -119,7 +119,7 @@ export default function GlobalSearch({
     {
       id: 'cmd-clear',
       title: t('Clear Active Chat'),
-      subtitle: 'Reset the messages in current conversation',
+      subtitle: t('Remove the messages of the current chat'),
       icon: Trash2,
       badge: 'Chat',
       kbd: 'C',

@@ -70,7 +70,7 @@ export default function OnboardingWizard({ token, onComplete }) {
           scheduleRetry();
         } else {
           setIsStarting(false);
-          setErrorMsg(`Server returned ${res.status}. The backend did not start within ${STARTUP_RETRY_TIMEOUT_SEC} seconds.`);
+          setErrorMsg(t('Server returned {status}. The backend did not start within {seconds} seconds.', { status: res.status, seconds: STARTUP_RETRY_TIMEOUT_SEC }));
         }
       } else {
         if (!mountedRef.current) return;

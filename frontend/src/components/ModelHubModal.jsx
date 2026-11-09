@@ -142,14 +142,14 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
       await loadData();
     } catch (err) {
       console.error('Pull failed:', err);
-      toast.error(`Download failed: ${err.message}`);
+      toast.error(t('Download failed: {error}', { error: err.message }));
     } finally {
       setPullingModel(null);
     }
   };
 
   const handleDeleteModel = async (modelName) => {
-    if (!window.confirm(`Are you sure you want to delete ${modelName}? This will free disk space.`)) {
+    if (!window.confirm(t('Delete {model}? This frees disk space.', { model: modelName }))) {
       return;
     }
 
@@ -335,7 +335,7 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
                           className={styles.installBtn}
                           onClick={() => {
                             if (onModelSelect) onModelSelect(model.name);
-                            toast.success(`Switched active model to ${model.name}`);
+                            toast.success(t('Now using {model}', { model: model.name }));
                             onClose();
                           }}
                         >
@@ -413,7 +413,7 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
                             className={styles.installBtn}
                             onClick={() => {
                               if (onModelSelect) onModelSelect(m.name);
-                              toast.success(`Active model set to ${m.name}`);
+                              toast.success(t('Now using {model}', { model: m.name }));
                               onClose();
                             }}
                           >

@@ -340,7 +340,7 @@ export default function DocumentManager({
       setReindexSuccessIds(prev => new Set([...prev, docId]));
       setTimeout(() => setReindexSuccessIds(prev => { const s = new Set(prev); s.delete(docId); return s; }), 3000);
     } catch (err) {
-      toast.error(`Failed to re-index document: ${err.message}`);
+      toast.error(t('Re-indexing failed: {error}', { error: err.message }));
     } finally {
       setReindexingIds(prev => { const s = new Set(prev); s.delete(docId); return s; });
     }
@@ -671,7 +671,7 @@ export default function DocumentManager({
 
               <div style={{ display: 'flex', gap: '5px', overflowX: 'auto', paddingBottom: '2px' }}>
                 {[
-                  { id: 'all', label: `All (${documents.length})` },
+                  { id: 'all', label: t('All ({count})', { count: documents.length }) },
                   { id: 'files', label: t('Files') },
                   { id: 'web', label: t('Web') },
                   { id: 'youtube', label: t('YouTube') },
