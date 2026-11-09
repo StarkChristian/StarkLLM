@@ -129,10 +129,15 @@ from app.services.kb_service import kb_service
 @app.on_event("startup")
 def on_startup():
     kb_service.start_background_watcher()
+    # Telegram bridge (off unless the user switched it on in Settings)
+    from app.api.telegram import start_if_enabled
+    start_if_enabled()
 
 @app.on_event("shutdown")
 def on_shutdown():
     kb_service.stop_background_watcher()
+    from app.api.telegram import bridge
+    bridge.stop()
 
 
 # ---------------------------------------------------------------------------
