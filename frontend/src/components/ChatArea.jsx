@@ -12,6 +12,7 @@ import { useToast } from './Toast';
 import ToolCallCard from './ToolCallCard';
 import { serverDate } from '../utils/time';
 import { citedSources } from '../utils/sources';
+import { UI_LOCALE } from '../utils/locale';
 
 const STARTER_PROMPTS = [
   {
@@ -426,7 +427,7 @@ const ChatMessageRenderer = React.memo(({
         <div className={styles.metaRow}>
           {msg.timestamp && (
             <span className={styles.timestamp}>
-              {serverDate(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {serverDate(msg.timestamp).toLocaleTimeString(UI_LOCALE, { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
           {msg.speedStats && msg.role === 'assistant' && (
@@ -442,7 +443,7 @@ const ChatMessageRenderer = React.memo(({
             if (wordCount < 80) return null;
             return (
               <span className={styles.speedBadge} title={`${wordCount} words`} style={{ background: 'rgba(99,102,241,0.08)', borderColor: 'rgba(99,102,241,0.2)', color: 'var(--accent-bright)' }}>
-                {wordCount.toLocaleString()} words
+                {wordCount.toLocaleString(UI_LOCALE)} words
               </span>
             );
           })()}

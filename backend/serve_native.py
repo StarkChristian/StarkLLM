@@ -13,6 +13,18 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+PACKAGE = os.path.dirname(HERE)
+
+
+def use_bundled_tesseract(package=PACKAGE, env=os.environ):
+    """The package brings Tesseract (OCR) in tesseract\\; the OCR service finds it through these variables.
+    A Tesseract set in STARKLLM_TESSERACT wins."""
+    exe = os.path.join(package, "tesseract", "tesseract.exe")
+    if env.get("STARKLLM_TESSERACT") or not os.path.isfile(exe):
+        return False
+    env["STARKLLM_TESSERACT"] = exe
+    env["TESSDATA_PREFIX"] = os.path.join(package, "tesseract", "tessdata")
+    return True
 
 
 def prepare_database():
@@ -39,6 +51,7 @@ def main(argv=None):
     if HERE not in sys.path:
         sys.path.insert(0, HERE)
     os.makedirs("data", exist_ok=True)
+    use_bundled_tesseract()
     prepare_database()
 
     import uvicorn

@@ -1,3 +1,5 @@
+import { UI_LOCALE } from './locale';
+
 /**
  * Chat Export Utility
  * Handles exporting chat history to Markdown, JSON, HTML, or Plain Text.
@@ -8,7 +10,7 @@ export function exportChat(messages, chats, activeChatId, format = 'md') {
 
   const activeChat = chats.find(c => c.id === activeChatId);
   const chatTitle = activeChat?.title || 'StarkLLM Chat';
-  const exportDate = new Date().toLocaleString();
+  const exportDate = new Date().toLocaleString(UI_LOCALE);
 
   let content = '';
   let ext = format;
@@ -35,7 +37,7 @@ export function exportChat(messages, chats, activeChatId, format = 'md') {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/\n/g, '<br/>');
-      const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : '';
+      const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString(UI_LOCALE) : '';
 
       return `
       <div class="message-card" style="background: ${msgBg}; border-left: 4px solid ${roleBg};">
@@ -141,7 +143,7 @@ export function exportChat(messages, chats, activeChatId, format = 'md') {
 
       const role = msg.role === 'user' ? '🧑 **User**' : '🤖 **Assistant**';
       const timestamp = msg.timestamp
-        ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        ? new Date(msg.timestamp).toLocaleTimeString(UI_LOCALE, { hour: '2-digit', minute: '2-digit' })
         : '';
 
       content += `### ${role}${timestamp ? `  ·  ${timestamp}` : ''}\n\n`;
@@ -180,7 +182,7 @@ export function exportChat(messages, chats, activeChatId, format = 'md') {
 
       const role = msg.role === 'user' ? 'User' : 'Assistant';
       const timestamp = msg.timestamp
-        ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        ? new Date(msg.timestamp).toLocaleTimeString(UI_LOCALE, { hour: '2-digit', minute: '2-digit' })
         : '';
 
       content += `[${role}]${timestamp ? `  ${timestamp}` : ''}\n`;

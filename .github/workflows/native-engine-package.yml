@@ -4,6 +4,7 @@ name: Engine package for Windows (no Docker)
 #   runtime\   the embeddable Python 3.11 from python.org with the backend's packages in Lib\site-packages
 #   backend\   the backend code and serve_native.py
 #   ui\        the built web UI (served by the backend)
+#   tesseract\ Tesseract OCR (UB Mannheim's signed Windows build) with German, English and orientation data
 # Then it unpacks the zip into a new folder the way the desktop app will (tar.exe, part of Windows) and starts the
 # engine from it, with Python not on PATH, to show the package needs nothing else.
 
@@ -16,6 +17,12 @@ on:
 
 env:
   PYTHON_EMBED: https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip
+  # Tesseract for Windows as recommended by the Tesseract project, signed by Universitaet Mannheim. Pinned by hash.
+  TESSERACT_SETUP: https://github.com/UB-Mannheim/tesseract/releases/download/v5.4.0.20240606/tesseract-ocr-w64-setup-5.4.0.20240606.exe
+  TESSERACT_SETUP_SHA256: c885fff6998e0608ba4bb8ab51436e1c6775c2bafc2559a19b423e18678b60c9
+  # German model from tessdata_fast, the same file the Docker engine gets from Debian's tesseract-ocr-deu
+  TESSDATA_DEU: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/deu.traineddata
+  TESSDATA_DEU_SHA256: 19d219bbb6672c869d20a9636c6816a81eb9a71796cb93ebe0cb1530e2cdb22d
 
 permissions:
   contents: write   # attach the zip to a published release
@@ -72,6 +79,42 @@ jobs:
           @{ version = $version; commit = "$env:GITHUB_SHA"; python = '3.11.9' } | ConvertTo-Json | Set-Content "$env:PKG\engine.json"
           "VERSION=$version" | Out-File -Append $env:GITHUB_ENV
 
+      - name: Tesseract (OCR) into the package
+        shell: pwsh
+        run: |
+          $setup = "$env:RUNNER_TEMP\tesseract-setup.exe"
+          Invoke-WebRequest $env:TESSERACT_SETUP -OutFile $setup
+          $hash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne $env:TESSERACT_SETUP_SHA256) { throw "Tesseract setup has hash $hash, expected $env:TESSERACT_SETUP_SHA256" }
+          $sig = Get-AuthenticodeSignature $setup
+          if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'Mannheim') { throw "Tesseract setup signature: $($sig.Status) $($sig.SignerCertificate.Subject)" }
+          $x = "$env:RUNNER_TEMP\tesseract-x"
+          7z x -y "-o$x" $setup | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "7z could not unpack the Tesseract setup ($LASTEXITCODE)" }
+          # only what tesseract.exe loads (found with objdump); the training tools and their GUI libraries stay out
+          $files = 'tesseract.exe', 'libtesseract-5.dll', 'libarchive-13.dll', 'libleptonica-6.dll', 'libtiff-6.dll',
+            'libgcc_s_seh-1.dll', 'libstdc++-6.dll', 'libwinpthread-1.dll', 'libb2-1.dll', 'libbz2-1.dll',
+            'libcrypto-3-x64.dll', 'libexpat-1.dll', 'libiconv-2.dll', 'liblz4.dll', 'liblzma-5.dll', 'zlib1.dll',
+            'libzstd.dll', 'libgif-7.dll', 'libjpeg-8.dll', 'libopenjp2-7.dll', 'libpng16-16.dll', 'libwebp-7.dll',
+            'libwebpmux-3.dll', 'libdeflate.dll', 'libjbig-0.dll', 'libLerc.dll', 'libsharpyuv-0.dll'
+          $t = "$env:PKG\tesseract"
+          New-Item -ItemType Directory -Force "$t\tessdata" | Out-Null
+          foreach ($f in $files) { Copy-Item "$x\$f" $t }
+          Copy-Item "$x\tessdata\eng.traineddata", "$x\tessdata\osd.traineddata", "$x\tessdata\pdf.ttf" "$t\tessdata"
+          Copy-Item -Recurse "$x\tessdata\configs" "$t\tessdata"
+          Invoke-WebRequest $env:TESSDATA_DEU -OutFile "$t\tessdata\deu.traineddata"
+          $hash = (Get-FileHash "$t\tessdata\deu.traineddata" -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne $env:TESSDATA_DEU_SHA256) { throw "deu.traineddata has hash $hash, expected $env:TESSDATA_DEU_SHA256" }
+          Copy-Item -Recurse "$x\doc" "$t\doc"   # LICENSE (Apache-2.0), AUTHORS
+          if (-not (Test-Path "$t\doc\LICENSE")) { throw 'the Tesseract license is missing' }
+          # it must run from its folder alone: only Windows itself on PATH, so no DLL is borrowed from Git or MSYS
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+          $env:TESSDATA_PREFIX = "$t\tessdata"
+          $langs = & "$t\tesseract.exe" --list-langs 2>&1
+          if ($LASTEXITCODE -ne 0) { throw "tesseract.exe does not start from the package: $langs" }
+          foreach ($l in 'deu', 'eng', 'osd') { if (-not ($langs -match "^$l$")) { throw "language $l missing: $langs" } }
+          "tesseract: $((Get-ChildItem $t -Recurse -File | Measure-Object Length -Sum).Sum / 1MB) MB, languages: $($langs -join ' ')"
+
       - name: Zip
         shell: pwsh
         run: |
@@ -88,8 +131,8 @@ jobs:
       - name: The package runs on its own
         shell: pwsh
         run: |
-          # no Python on PATH and a new folder, like on a user's PC
-          $env:PATH = ($env:PATH -split ';' | Where-Object { $_ -notmatch 'Python' }) -join ';'
+          # no Python, Git or MSYS on PATH and a new folder, like on a user's PC
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot;$env:SystemRoot\System32\WindowsPowerShell\v1.0"
           $dir = "$env:RUNNER_TEMP\unpacked"
           New-Item -ItemType Directory -Force $dir | Out-Null
           tar.exe -xf $env:ZIP -C $dir
@@ -113,8 +156,18 @@ jobs:
           $page = Invoke-WebRequest http://127.0.0.1:8765/ -UseBasicParsing
           if ($page.Content -notmatch '<title>StarkLLM</title>') { throw 'the web UI is not served' }
           if (-not (Test-Path "$home2\data\starkllm.db")) { throw 'the database is not in the user folder' }
+          if (-not $h.ocr.available -or $h.ocr.languages -notcontains 'deu') { throw "the engine has no German OCR: $($h.ocr | ConvertTo-Json -Compress)" }
           "python used: $((Get-Process -Id $p.Id).Path)"
           "the engine runs from the package"
+          # OCR from the package reads a German sample exactly
+          $env:STARKLLM_TESSERACT = "$dir\tesseract\tesseract.exe"
+          $env:TESSDATA_PREFIX = "$dir\tesseract\tessdata"
+          $env:PYTHONIOENCODING = 'utf-8'
+          Push-Location $home2
+          & "$dir\runtime\python.exe" -m app.services.ocr_service
+          $code = $LASTEXITCODE
+          Pop-Location
+          if ($code -ne 0) { throw "the OCR self-test failed ($code)" }
           Stop-Process -Id $p.Id -Force
 
       - uses: actions/upload-artifact@v4

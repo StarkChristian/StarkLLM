@@ -21,6 +21,8 @@ htmlcov/
 node_modules/
 dist/
 build/
+# electron-builder resources (installer additions) are source files
+!desktop/build/
 .next/
 
 # IDE and temporary files

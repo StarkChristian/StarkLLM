@@ -3,13 +3,14 @@ import { FolderOpen, FolderPlus, RefreshCw, Zap, ChevronDown, ChevronRight, File
 import styles from './KnowledgeBase.module.css';
 import EmptyState from './EmptyState';
 import { serverDate } from '../utils/time';
+import { UI_LOCALE } from '../utils/locale';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 function formatDate(dateStr) {
   if (!dateStr) return '—';
   const d = serverDate(dateStr);
-  return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  return d.toLocaleString(UI_LOCALE, { dateStyle: 'medium', timeStyle: 'short' });
 }
 
 function formatBytes(bytes) {

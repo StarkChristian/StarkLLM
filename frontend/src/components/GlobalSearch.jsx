@@ -6,6 +6,7 @@ import {
   Sparkles, Brain, Trash2, Layers
 } from 'lucide-react';
 import { serverDate } from '../utils/time';
+import { UI_LOCALE } from '../utils/locale';
 
 function useDebounce(value, delay) {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -414,7 +415,7 @@ export default function GlobalSearch({
                       <span className={styles.resultTitle}>{c.title || 'Untitled Conversation'}</span>
                       {c.updated_at && (
                         <span className={styles.resultMeta}>
-                          {serverDate(c.updated_at).toLocaleDateString()}
+                          {serverDate(c.updated_at).toLocaleDateString(UI_LOCALE)}
                         </span>
                       )}
                     </div>
