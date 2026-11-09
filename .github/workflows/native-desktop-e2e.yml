@@ -13,6 +13,8 @@ on:
 jobs:
   package:
     uses: ./.github/workflows/native-engine-package.yml
+    permissions:
+      contents: write   # the package workflow asks for it (it attaches the zip to releases)
 
   desktop:
     needs: package
