@@ -4,6 +4,7 @@ import { Paperclip, Mic, Send, Square, Loader, Database, Globe, FileCode, Settin
 import PromptTemplateModal from './PromptTemplateModal';
 import { useToast } from './Toast';
 import { UPLOAD_ACCEPT } from '../utils/uploadTypes';
+import { UI_LOCALE } from '../utils/locale';
 
 export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleKb, useWebSearch, onToggleWebSearch, cloudHost, onOpenSettings, isGenerating, onStopGeneration, token, activeWorkspace, onOpenKbSettings }) {
   const toast = useToast();
@@ -271,10 +272,10 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
       {text.length > 0 && (
         <div className={styles.charCounter}>
           <span className={text.length > 8000 ? styles.charCounterWarn : ''}>
-            {text.length.toLocaleString()} chars
+            {text.length.toLocaleString(UI_LOCALE)} chars
           </span>
           <span className={styles.charCounterDot}>·</span>
-          <span>~{estimatedTokens.toLocaleString()} tokens</span>
+          <span>~{estimatedTokens.toLocaleString(UI_LOCALE)} tokens</span>
           {text.length > 8000 && (
             <span className={styles.charCounterOverLimit}> · Long message — consider splitting</span>
           )}
