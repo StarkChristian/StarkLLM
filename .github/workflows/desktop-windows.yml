@@ -82,7 +82,8 @@ jobs:
           Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
 
       - name: Update still installs when the old uninstaller fails
-        shell: pwsh
+        # Windows PowerShell: Add-Type can build the stand-in uninstaller .exe only there
+        shell: powershell
         run: |
           # Seen on a real PC with Smart App Control (9 Nov 2026): the old version's uninstaller ended with code 2 and the
           # update stopped with "The old application files could not be uninstalled". Here a stand-in uninstaller always
