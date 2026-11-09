@@ -1138,6 +1138,7 @@ export default function App() {
               workspaceId={activeWorkspace?.id}
               chatId={activeChatId}
               onUpload={handleFileUpload}
+              newestDocument={[...workspaceDocs].filter(d => d.status === 'indexed').sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0]?.filename}
               token={token}
             />
             <InputBar 

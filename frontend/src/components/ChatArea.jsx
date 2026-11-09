@@ -31,7 +31,9 @@ const STARTER_PROMPTS = [
     icon: FileText,
     title: t('What does this letter want from me?'),
     desc: t('Sender, request and deadline, in simple words'),
-    prompt: t('Explain my newest document in simple words: who sent it, what it wants from me, and by when. Name the page you read it on.')
+    prompt: t('Explain my newest document in simple words: who sent it, what it wants from me, and by when. Name the page you read it on.'),
+    // with the newest file's name, so the model does not have to guess which document is meant
+    promptFor: (name) => t('Explain the document "{name}" in simple words: who sent it, what it wants from me, and by when.', { name })
   },
   {
     icon: CalendarClock,
@@ -302,7 +304,7 @@ const ChatMessageRenderer = React.memo(({
                       onClick={() => onInspectSources && onInspectSources(msg, shown.ws)}
                     >
                       <Database size={11} className={styles.sourceIcon} />
-                      <span>{t('Documents')}: {shown.ws.map((l) => readableSource(l)).join(', ')}</span>
+                      <span>{t('Documents')}: {shown.ws.map((l) => readableSource(l)).join(' | ')}</span>
                     </button>
                   )}
                   {shown.kb && shown.kb.length > 0 && (
@@ -313,7 +315,7 @@ const ChatMessageRenderer = React.memo(({
                       onClick={() => onInspectSources && onInspectSources(msg, shown.kb)}
                     >
                       <Database size={11} className={styles.sourceIcon} />
-                      <span>{t('Knowledge base')}: {shown.kb.map((l) => readableSource(l)).join(', ')}</span>
+                      <span>{t('Knowledge base')}: {shown.kb.map((l) => readableSource(l)).join(' | ')}</span>
                     </button>
                   )}
                   {msg.webSources && msg.webSources.length > 0 && (
@@ -470,6 +472,7 @@ export default function ChatArea({
   workspaceId,
   chatId,
   onUpload,
+  newestDocument,
   token
 }) {
   const toast = useToast();
@@ -748,7 +751,7 @@ export default function ChatArea({
                   className={styles.suggestionCard}
                   onClick={() => {
                     if (item.upload) starterFileRef.current && starterFileRef.current.click();
-                    else if (onSelectStarter) onSelectStarter(item.prompt);
+                    else if (onSelectStarter) onSelectStarter(item.promptFor && newestDocument ? item.promptFor(newestDocument) : item.prompt);
                   }}
                 >
                   <div className={styles.suggestionHeader}>

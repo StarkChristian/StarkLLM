@@ -225,6 +225,7 @@
   "Executive Strategic Briefing": "Briefing für die Geschäftsleitung",
   "Expand system status": "Systemstatus aufklappen",
   "Explain my newest document in simple words: who sent it, what it wants from me, and by when. Name the page you read it on.": "Erkläre mein neuestes Dokument in einfachen Worten: wer es geschickt hat, was es von mir will und bis wann. Nenne die Seite, auf der du es gelesen hast.",
+  "Explain the document \"{name}\" in simple words: who sent it, what it wants from me, and by when.": "Erkläre das Dokument „{name}“ in einfachen Worten: wer es geschickt hat, was es von mir will und bis wann.",
   "Export Backup": "Sicherung erstellen",
   "Export chat": "Chat exportieren",
   "Extracting": "Text wird gelesen",
