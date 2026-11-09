@@ -1,5 +1,18 @@
 # StarkLLM Release Notes
 
+## Version 2.0.9 — Updates that do not stop, honest prices, safer engine updates
+
+- **Updates no longer stop at "The old application files could not be uninstalled".** On Windows 11 with Smart App Control, the update from 2.0.7 to 2.0.8 stopped there and StarkLLM stayed on the old version. The installer now closes StarkLLM itself and installs over the old files when the old version's uninstaller fails. Your chats and documents are not touched.
+- **Back to the previous engine if a new one does not start.** Before an engine update StarkLLM keeps the running engine. If the new engine does not start or does not answer within three minutes, StarkLLM starts the previous one again and says so. It tries the new engine again a day later, or at once with Retry.
+- **Market prices are real or not shown.** Before the first update, and whenever CoinGecko or Yahoo Finance did not answer, the dashboard showed built-in example prices from 2024 with small random changes. It now shows only real prices: the last loaded price with its time, or "not available".
+- **One date and number format.** Dates and numbers followed the Windows language and mixed with the English interface ("Montag, 9. November 2026", "$74.114"); they now match the interface.
+- **Dashboard:** the header is no longer cut off, the three widgets have the same height, and the system status shows the full model name.
+- **winget:** `packaging/winget` holds the manifest for `winget install StarkChristian.StarkLLM` (not yet published in the winget catalogue).
+
+Pull requests: #47, #48, #49, #50.
+
+---
+
 ## Version 2.0.8 — Install Ollama from inside the app, real download progress
 
 - **Ollama is installed for you.** If Ollama is missing, the start window offers "Install Ollama for me". StarkLLM downloads the official installer from ollama.com, runs it only if Windows confirms a valid signature by Ollama Inc., and installs it for the current user without further questions. Then it starts as usual.
