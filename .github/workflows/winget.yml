@@ -35,8 +35,7 @@ jobs:
           # manifest, so SmartScreen is switched off on this throwaway runner only.
           New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' -Force | Out-Null
           Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' -Name EnableSmartScreen -Value 0 -Type DWord
-          New-Item -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer' -Force | Out-Null
-          Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer' -Name SmartScreenEnabled -Value 'Off'
+          Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer' -Name SmartScreenEnabled -Value 'Off' -ErrorAction SilentlyContinue
           $out = "$env:RUNNER_TEMP\winget-install.txt"
           $p = Start-Process winget -ArgumentList 'install', '--manifest', $env:MANIFEST_DIR, '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity', '--verbose-logs' -PassThru -NoNewWindow -RedirectStandardOutput $out
           if (-not $p.WaitForExit(12 * 60 * 1000)) {
