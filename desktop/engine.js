@@ -523,6 +523,14 @@ async function startEngine(appUrl, onStatus) {
   if (native.engineMode({ dockerFound: Boolean(docker) }) === 'native') {
     return startNativeEngine(appUrl, { status, onStatus, warnings, paths });
   }
+  // On Windows a Docker that cannot run StarkLLM (stopped, or set to Windows containers) is not a dead end: the
+  // engine without Docker runs instead (found on GitHub's Windows machines, which have Docker with Windows containers).
+  // STARKLLM_ENGINE=docker keeps the old behaviour: the page that explains how to fix Docker.
+  const withoutDocker = (reason) => {
+    log(`${reason}; using the StarkLLM engine without Docker`);
+    return startNativeEngine(appUrl, { status, onStatus, warnings, paths });
+  };
+  const fallBack = IS_WIN && process.env.STARKLLM_ENGINE !== 'docker';
   if (!docker) {
     log('Docker not found (not installed or not on PATH)');
     return { ok: false, stage: 'docker-missing' };
@@ -532,16 +540,19 @@ async function startEngine(appUrl, onStatus) {
       status('Starting Docker Desktop (this can take a minute)...');
       if (!(await waitFor(() => dockerRunning(docker), 240000, 4000))) {
         log('Docker Desktop was started but its engine did not come up within 4 minutes');
+        if (fallBack) return withoutDocker('Docker Desktop did not start');
         return { ok: false, stage: 'docker-stopped' };
       }
     } else {
       log('Docker is installed but its engine is not running');
+      if (fallBack) return withoutDocker('Docker is not running');
       return { ok: false, stage: 'docker-stopped' };
     }
   }
 
   if ((await dockerOsType(docker)) === 'windows') {
     log('Docker runs Windows containers; StarkLLM needs Linux containers');
+    if (fallBack) return withoutDocker('Docker runs Windows containers');
     return { ok: false, stage: 'docker-windows-containers' };
   }
 
