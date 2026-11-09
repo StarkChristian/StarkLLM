@@ -92,12 +92,12 @@ jobs:
           $exe = Join-Path $dir 'StarkLLM.exe'
           Add-Type -OutputType ConsoleApplication -OutputAssembly "$env:RUNNER_TEMP\fails.exe" -TypeDefinition 'public static class P { public static int Main() { return 2; } }'
           Copy-Item "$env:RUNNER_TEMP\fails.exe" (Join-Path $dir 'Uninstall StarkLLM.exe') -Force
+          # mark the installed exe as old (before the app runs and locks it), to see that the update replaced it
+          (Get-Item $exe).LastWriteTimeUtc = (Get-Date).ToUniversalTime().AddDays(-1)
+          $before = (Get-Item $exe).LastWriteTimeUtc
           $env:STARKLLM_UPDATE_CHECK = '0'
           $app = Start-Process $exe -PassThru
           Start-Sleep 15
-          $before = (Get-Item $exe).LastWriteTimeUtc
-          (Get-Item $exe).LastWriteTimeUtc = $before.AddDays(-1)
-          $before = (Get-Item $exe).LastWriteTimeUtc
           $setup = Get-ChildItem desktop/dist/*-Setup.exe | Select-Object -First 1
           $p = Start-Process $setup.FullName -ArgumentList '--updated', '/S', '/currentuser' -PassThru
           if (-not $p.WaitForExit(8 * 60 * 1000)) {
