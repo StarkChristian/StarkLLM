@@ -2,7 +2,7 @@ const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, dialog, net
 const fs = require('fs');
 const path = require('path');
 const { diagnose, buildErrorPage } = require('./diagnostics');
-const { startEngine, userPaths, secretKey } = require('./engine');
+const { startEngine, userPaths, secretKey, apiUrl, stopNativeEngine } = require('./engine');
 const crypto = require('crypto');
 const { createUpdater } = require('./updates');
 const { installOllama } = require('./ollama-install');
@@ -179,14 +179,13 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Single user on this PC: the backend signs in a "local" user when it gets the key derived from the engine's
 // SECRET_KEY (see backend/app/api/auth.py, desktop-session). Refused (409) once other accounts exist.
-const API_URL = `http://127.0.0.1:${process.env.STARKLLM_API_PORT || 8000}`;
 let localToken = null;
 
 async function fetchLocalSession() {
   try {
     const secret = process.env.SECRET_KEY || secretKey(userPaths().secret);
     const key = crypto.createHmac('sha256', secret).update('starkllm-desktop-session').digest('hex');
-    const res = await net.fetch(`${API_URL}/api/v1/auth/desktop-session`, { method: 'POST', headers: { 'X-Desktop-Key': key }, signal: AbortSignal.timeout(8000) });
+    const res = await net.fetch(`${apiUrl()}/api/v1/auth/desktop-session`, { method: 'POST', headers: { 'X-Desktop-Key': key }, signal: AbortSignal.timeout(8000) });
     if (res.ok) {
       localToken = (await res.json()).access_token || null;
       logLine('signed in as the local user');
@@ -307,4 +306,6 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   isQuitting = true;
+  // the engine without Docker is a child of the app; Docker's engine keeps running as before
+  stopNativeEngine();
 });

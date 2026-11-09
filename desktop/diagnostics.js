@@ -39,7 +39,8 @@ function dockerState() {
 async function diagnose(engine = {}) {
   let [docker, ollama, backend] = await Promise.all([dockerState(), probe(OLLAMA_URL), probe(HEALTH_URL)]);
   // The engine start knows better (it also finds docker.exe when it is not on PATH yet).
-  if (engine.stage === 'docker-missing') docker = 'missing';
+  if (engine.native) docker = 'not-needed'; // the engine without Docker (native-engine.js)
+  else if (engine.stage === 'docker-missing') docker = 'missing';
   else if (engine.stage === 'docker-stopped') docker = 'stopped';
   else if (engine.stage === 'docker-windows-containers') docker = 'windows-containers';
   else if (engine.stage) docker = 'running';
@@ -64,7 +65,9 @@ async function diagnose(engine = {}) {
 function buildRows(d) {
   const rows = [];
 
-  if (d.docker === 'running') {
+  if (d.docker === 'not-needed') {
+    rows.push({ ok: true, title: 'StarkLLM runs without Docker on this PC' });
+  } else if (d.docker === 'running') {
     rows.push({ ok: true, title: 'Docker is running' });
   } else if (d.docker === 'windows-containers') {
     rows.push({
