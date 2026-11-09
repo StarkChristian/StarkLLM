@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.9.0.schema.json
+PackageIdentifier: StarkChristian.StarkLLM
+PackageVersion: 2.0.8
+InstallerType: nullsoft
+Scope: user
+InstallModes:
+  - interactive
+  - silent
+InstallerSwitches:
+  Silent: /S /currentuser
+  SilentWithProgress: /S /currentuser
+UpgradeBehavior: install
+ReleaseDate: 2026-11-08
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/StarkChristian/StarkLLM/releases/download/v2.0.8/StarkLLM-v2.0.8-Setup.exe
+    InstallerSha256: FF82565BE40509686E3E61E1572C9DA0191C3017DCBA6D7D3D4D109E50152FBA
+ManifestType: installer
+ManifestVersion: 1.9.0

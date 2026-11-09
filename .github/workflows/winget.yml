@@ -1,0 +1,43 @@
+name: winget manifest
+
+# Checks the winget manifest in packaging/winget on a clean Windows machine: winget validates it, installs StarkLLM
+# from it (download, hash check, silent per-user install) and the installed app is where winget expects it.
+
+on:
+  pull_request:
+    paths: ['packaging/winget/**', '.github/workflows/winget.yml']
+  workflow_dispatch:
+
+jobs:
+  validate-and-install:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: winget validates the manifest
+        shell: pwsh
+        run: |
+          winget --version
+          winget settings --enable LocalManifestFiles
+          $dir = Get-ChildItem packaging/winget/manifests -Recurse -Filter '*.installer.yaml' | Sort-Object FullName | Select-Object -Last 1 | ForEach-Object DirectoryName
+          "manifest: $dir"
+          winget validate --manifest $dir
+          if ($LASTEXITCODE -ne 0) { throw "winget validate failed ($LASTEXITCODE)" }
+          "MANIFEST_DIR=$dir" | Out-File -Append $env:GITHUB_ENV
+
+      - name: winget installs StarkLLM from the manifest
+        shell: pwsh
+        run: |
+          winget install --manifest $env:MANIFEST_DIR --accept-package-agreements --accept-source-agreements --disable-interactivity
+          if ($LASTEXITCODE -ne 0) { throw "winget install failed ($LASTEXITCODE)" }
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\StarkLLM\StarkLLM.exe'
+          $deadline = (Get-Date).AddMinutes(6)
+          while (-not (Test-Path $exe) -and (Get-Date) -lt $deadline) { Start-Sleep 3 }
+          if (-not (Test-Path $exe)) { throw "StarkLLM.exe not found at $exe" }
+          "installed: $exe $((Get-Item $exe).VersionInfo.ProductVersion)"
+          # the entry Windows (and winget) use to find the installed app
+          Get-ChildItem HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall | ForEach-Object { Get-ItemProperty $_.PSPath } |
+            Where-Object { $_.DisplayName -like 'StarkLLM*' } |
+            Format-List PSChildName, DisplayName, DisplayVersion, Publisher, InstallLocation | Out-String
+          winget list --name StarkLLM --disable-interactivity
