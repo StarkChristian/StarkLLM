@@ -36,6 +36,10 @@ jobs:
           New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' -Force | Out-Null
           Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' -Name EnableSmartScreen -Value 0 -Type DWord
           Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer' -Name SmartScreenEnabled -Value 'Off' -ErrorAction SilentlyContinue
+          # Second run: then Windows asks "The publisher could not be verified ... Unknown Publisher" (Open File -
+          # Security Warning) for the unsigned installer downloaded from the internet. Here .exe is marked low-risk.
+          New-Item -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Associations' -Force | Out-Null
+          Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Associations' -Name LowRiskFileTypes -Value '.exe'
           $out = "$env:RUNNER_TEMP\winget-install.txt"
           $p = Start-Process winget -ArgumentList 'install', '--manifest', $env:MANIFEST_DIR, '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity', '--verbose-logs' -PassThru -NoNewWindow -RedirectStandardOutput $out
           if (-not $p.WaitForExit(12 * 60 * 1000)) {
