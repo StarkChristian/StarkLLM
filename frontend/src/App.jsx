@@ -1113,6 +1113,7 @@ export default function App() {
             onSelectWorkspace={handleSelectWorkspace}
             chats={chats}
             onSelectChat={handleSelectChat}
+            onUpload={activeWorkspace ? handleFileUpload : null}
           />
         )}
 

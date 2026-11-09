@@ -184,3 +184,96 @@ async def get_system_status(
 
     return result
 
+
+
+# ---------------------------------------------------------------- the document home (overview page)
+
+HOME_RECENT = 8
+HOME_SCAN = 60          # newest documents searched for dates
+HOME_PAST_DAYS = 14     # dates that passed lately stay visible, marked as passed
+HOME_DATES = 20
+
+
+def _pages_by_where(collection, where: dict) -> dict:
+    """Indexed text of one document, joined per page (1-based)."""
+    try:
+        got = collection.get(where=where, include=["documents", "metadatas"])
+    except Exception:
+        return {}
+    parts = {}
+    for text, meta in zip(got.get("documents") or [], got.get("metadatas") or []):
+        meta = meta or {}
+        try:
+            page = int(meta["page"]) + 1 if meta.get("page") is not None else 1
+        except (TypeError, ValueError):
+            page = 1
+        parts.setdefault(page, []).append((meta.get("chunk") or meta.get("chunk_index") or 0, text or ""))
+    return {p: "\n\n".join(t for _, t in sorted(items, key=lambda x: x[0])) for p, items in parts.items()}
+
+
+@router.get("/home")
+def get_document_home(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """The newest documents (workspaces and knowledge-base folders) and the deadlines and payment dates in them.
+    Dates come from fixed rules over the indexed text, so each one is in the document, with its sentence and page."""
+    from datetime import date, timedelta
+    from app.services.dates_service import find_dates
+    from app.services.rag_service import rag_service
+
+    user_id = current_user.id
+    ws_docs = (
+        db.query(models.Document, models.Workspace)
+        .join(models.Workspace, models.Document.workspace_id == models.Workspace.id)
+        .filter(models.Workspace.user_id == user_id, models.Document.status == models.DocStatus.INDEXED)
+        .order_by(models.Document.created_at.desc())
+        .limit(HOME_SCAN)
+        .all()
+    )
+    kb_docs = (
+        db.query(models.KnowledgeBaseDocument)
+        .join(models.KnowledgeBaseFolder, models.KnowledgeBaseDocument.folder_id == models.KnowledgeBaseFolder.id)
+        .filter(models.KnowledgeBaseFolder.user_id == user_id, models.KnowledgeBaseDocument.status == "indexed")
+        .order_by(models.KnowledgeBaseDocument.indexed_at.desc())
+        .limit(HOME_SCAN)
+        .all()
+    )
+
+    items = []
+    for doc, ws in ws_docs:
+        items.append({"scope": "ws", "id": doc.id, "workspace_id": ws.id, "workspace": ws.name, "filename": doc.filename,
+                      "file_type": doc.file_type, "added": doc.created_at.isoformat() if doc.created_at else None,
+                      "_where": ("ws", ws.id, {"source": doc.filepath})})
+    for doc in kb_docs:
+        added = doc.indexed_at or doc.created_at
+        items.append({"scope": "kb", "id": doc.id, "workspace_id": None, "workspace": None, "filename": doc.file_name,
+                      "file_type": doc.file_type, "added": added.isoformat() if added else None,
+                      "_where": ("kb", None, {"document_id": doc.id})})
+    items.sort(key=lambda i: i["added"] or "", reverse=True)
+    items = items[:HOME_SCAN]
+
+    today = date.today()
+    first = today - timedelta(days=HOME_PAST_DAYS)
+    collections = {}
+    dates = []
+    for item in items:
+        scope, ws_id, where = item.pop("_where")
+        key = (scope, ws_id)
+        if key not in collections:
+            try:
+                collections[key] = (rag_service.get_or_create_kb_collection(user_id) if scope == "kb"
+                                    else rag_service.get_or_create_collection(ws_id, user_id))
+            except Exception:
+                collections[key] = None
+        if collections[key] is None:
+            continue
+        for page, text in sorted(_pages_by_where(collections[key], where).items()):
+            for f in find_dates(text):
+                if f.date < first.isoformat():
+                    continue
+                dates.append({**f.__dict__, "page": page, "passed": f.date < today.isoformat(),
+                              "scope": item["scope"], "document_id": item["id"], "workspace_id": item["workspace_id"],
+                              "filename": item["filename"]})
+    dates.sort(key=lambda d: (d["date"], d["filename"]))
+    return {"today": today.isoformat(), "recent": items[:HOME_RECENT], "dates": dates[:HOME_DATES]}
