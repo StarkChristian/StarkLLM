@@ -574,3 +574,13 @@ button.sourceGroup:focus-visible {
   background: var(--bg-hover);
   color: var(--text-primary);
 }
+
+.welcomeNotice {
+  margin: 0 0 12px;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  background: var(--bg-active);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  text-align: center;
+}

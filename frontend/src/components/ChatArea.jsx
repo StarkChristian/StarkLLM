@@ -719,11 +719,10 @@ export default function ChatArea({
     }
   };
 
-  const isWelcomeState = messages.length === 0 || (messages.length === 1 && (
-    messages[0].content.includes('Start a new chat') || 
-    messages[0].content.includes('Welcome') || 
-    messages[0].content.includes('created')
-  ));
+  // The start page stays until the first question: upload notes ("… is ready") are shown on it, above the
+  // suggestions, so "What does this letter want from me?" is one click away after adding a letter.
+  const isWelcomeState = messages.every((m) => m.role === 'system');
+  const notices = isWelcomeState ? messages : [];
 
   return (
     <div className={styles.container}>
@@ -734,6 +733,10 @@ export default function ChatArea({
           <p className={styles.welcomeSubtitle}>
             {t('Your private assistant for letters and documents, on this PC.')}
           </p>
+
+          {notices.map((m, i) => (
+            <p key={i} className={styles.welcomeNotice} role="status">{m.content}</p>
+          ))}
 
           <div className={styles.suggestionsGrid}>
             {STARTER_PROMPTS.map((item, idx) => {
