@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
     DEFAULT_TEXT_MODEL: str = os.getenv("DEFAULT_TEXT_MODEL", "qwen2.5:7b")
     DEFAULT_VISION_MODEL: str = os.getenv("DEFAULT_VISION_MODEL", "llava")
+    # Tesseract languages for photos and scans, joined with "+"; missing ones are skipped with a warning
+    OCR_LANGUAGES: str = os.getenv("OCR_LANGUAGES", "deu+eng")
     DEFAULT_EMBEDDING_MODEL: str = os.getenv("DEFAULT_EMBEDDING_MODEL", "nomic-embed-text")
     # Thinking models (qwen3, deepseek-r1, ...) write a hidden draft first; with a token limit that draft can use the
     # whole budget and leave no answer. Off by default; OLLAMA_THINK=true turns it on (only for models that support it).
