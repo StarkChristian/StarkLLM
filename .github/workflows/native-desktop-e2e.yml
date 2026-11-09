@@ -1,0 +1,136 @@
+name: StarkLLM without Docker (Windows, end to end)
+
+# Roadmap phase 2. GitHub's Windows machines have no Docker Desktop, like many users' PCs. This installs the app and
+# Ollama the way a user would, gives the app the engine package built in this run (instead of the release download),
+# and checks that StarkLLM starts by itself without Docker: engine up, web UI loaded, signed in as the local user,
+# and an answer from the local model through the engine.
+
+on:
+  pull_request:
+    paths: ['desktop/**', 'backend/**', 'frontend/**', '.github/workflows/native-desktop-e2e.yml', '.github/workflows/native-engine-package.yml']
+  workflow_dispatch:
+
+jobs:
+  package:
+    uses: ./.github/workflows/native-engine-package.yml
+    permissions:
+      contents: write   # the package workflow asks for it (it attaches the zip to releases)
+
+  desktop:
+    needs: package
+    runs-on: windows-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: starkllm-engine-win-x64
+          path: engine-package
+
+      - name: Install Ollama with the app's code ("Install Ollama for me")
+        working-directory: desktop
+        run: |
+          node -e "require('./ollama-install').installOllama({ log: console.log }).then(() => console.log('Ollama installed'), (e) => { console.error(e.message); process.exit(1) })"
+
+      - name: Two small models (the test machine has no GPU)
+        shell: pwsh
+        run: |
+          $ollama = Join-Path $env:LOCALAPPDATA 'Programs\Ollama\ollama.exe'
+          if (-not (Get-Process -Name ollama* -ErrorAction SilentlyContinue)) { Start-Process $ollama -ArgumentList 'serve' -WindowStyle Hidden; Start-Sleep 5 }
+          & $ollama pull qwen2.5:0.5b
+          & $ollama pull nomic-embed-text
+          & $ollama list
+          # the app keeps a saved choice when the models are installed (desktop/models.js)
+          New-Item -ItemType Directory -Force "$env:APPDATA\StarkLLM" | Out-Null
+          '{"text":"qwen2.5:0.5b","embedding":"nomic-embed-text","vision":"qwen2.5:0.5b"}' | Set-Content "$env:APPDATA\StarkLLM\models.json"
+
+      - name: Build and install the app
+        shell: pwsh
+        working-directory: desktop
+        run: |
+          npm ci --no-audit --no-fund
+          npx electron-builder --win nsis --x64 --publish never
+          $setup = Get-ChildItem dist/*-Setup.exe | Select-Object -First 1
+          Start-Process $setup.FullName -ArgumentList '/S', '/currentuser' -Wait
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\StarkLLM\StarkLLM.exe'
+          $deadline = (Get-Date).AddMinutes(6)
+          while (-not (Test-Path $exe) -and (Get-Date) -lt $deadline) { Start-Sleep 3 }
+          if (-not (Test-Path $exe)) { throw 'the app was not installed' }
+          if (Get-Command docker -ErrorAction SilentlyContinue) { 'note: docker is on PATH' } else { 'no Docker on this machine' }
+
+      - name: StarkLLM starts without Docker
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem engine-package/*.zip | Select-Object -First 1
+          $env:STARKLLM_ENGINE_PACKAGE = $zip.FullName
+          $env:STARKLLM_UPDATE_CHECK = '0'
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\StarkLLM\StarkLLM.exe'
+          $log = "$env:APPDATA\StarkLLM\engine.log"
+          $started = Get-Date
+          $app = Start-Process $exe -PassThru
+          $deadline = (Get-Date).AddMinutes(20)
+          $result = $null
+          while ((Get-Date) -lt $deadline) {
+            Start-Sleep 10
+            if ($app.HasExited) { throw "the app exited with code $($app.ExitCode)" }
+            if (Test-Path $log) {
+              if (Select-String -Path $log -Pattern '^\S+ Ready\.' -Quiet) { $result = 'ready'; break }
+              if (Select-String -Path $log -Pattern 'engine package: |did not start|could not be downloaded' -Quiet) { $result = 'failed'; break }
+            }
+          }
+          Start-Sleep 20
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+          [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+          $bmp.Save("$PWD\native-app.png")
+          Get-Content $log
+          if (Test-Path "$env:APPDATA\StarkLLM\engine-native.log") { '--- engine-native.log'; Get-Content "$env:APPDATA\StarkLLM\engine-native.log" -Tail 40 }
+          if ($result -ne 'ready') { throw "StarkLLM did not get ready without Docker ($result)" }
+          "ready after $([math]::Round(((Get-Date) - $started).TotalSeconds)) s"
+          $h = Invoke-RestMethod http://127.0.0.1:5173/health
+          "health: $($h | ConvertTo-Json -Compress)"
+          if ($h.build -notlike 'native-*') { throw 'the engine answering is not the engine without Docker' }
+          "ENGINE_PID=$((Get-Process python -ErrorAction SilentlyContinue | Select-Object -First 1).Id)" | Out-File -Append $env:GITHUB_ENV
+
+      - name: Signed in as the local user, and the local model answers through the engine
+        shell: pwsh
+        run: |
+          # the same key the desktop app sends (desktop/main.js, backend/app/api/auth.py)
+          $secret = (Get-Content "$env:APPDATA\StarkLLM\secret.key" -Raw).Trim()
+          $hmac = New-Object System.Security.Cryptography.HMACSHA256
+          $hmac.Key = [Text.Encoding]::UTF8.GetBytes($secret)
+          $key = -join ($hmac.ComputeHash([Text.Encoding]::UTF8.GetBytes('starkllm-desktop-session')) | ForEach-Object { $_.ToString('x2') })
+          $s = Invoke-RestMethod -Method Post http://127.0.0.1:5173/api/v1/auth/desktop-session -Headers @{ 'X-Desktop-Key' = $key }
+          if (-not $s.access_token) { throw 'no local session' }
+          'signed in as the local user'
+          $body = @{ model = 'qwen2.5:0.5b'; messages = @(@{ role = 'user'; content = 'Reply with the single word: ready' }) } | ConvertTo-Json -Depth 4
+          $r = Invoke-RestMethod -Method Post http://127.0.0.1:5173/v1/chat/completions -Headers @{ Authorization = "Bearer $($s.access_token)" } -ContentType 'application/json' -Body $body -TimeoutSec 300
+          "model answer: $($r.choices[0].message.content)"
+          if (-not $r.choices[0].message.content) { throw 'no answer from the model' }
+
+      - name: Quitting StarkLLM stops the engine
+        shell: pwsh
+        run: |
+          Get-Process StarkLLM -ErrorAction SilentlyContinue | ForEach-Object { $_.CloseMainWindow() | Out-Null }
+          Start-Sleep 15
+          Get-Process StarkLLM -ErrorAction SilentlyContinue | Stop-Process -Force
+          Start-Sleep 5
+          $left = Get-Process python -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$env:LOCALAPPDATA\StarkLLM\engine\*" }
+          if ($left) { $left | Format-Table Id, Path | Out-String; throw 'the engine still runs after StarkLLM quit' }
+          'engine stopped with the app'
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-desktop-e2e
+          path: |
+            native-app.png
+            ${{ env.APPDATA }}/StarkLLM/engine.log
+            ${{ env.APPDATA }}/StarkLLM/engine-native.log
+          if-no-files-found: ignore

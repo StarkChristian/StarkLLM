@@ -11,6 +11,7 @@ const { spawn } = require('child_process');
 const { probe } = require('./diagnostics');
 const { chooseModels } = require('./models');
 const { createPullProgress, createModelProgress, throttle, formatBytes } = require('./progress');
+const native = require('./native-engine');
 
 const OLLAMA_URL = process.env.STARKLLM_OLLAMA_URL || 'http://127.0.0.1:11434';
 const TEXT_MODEL = process.env.DEFAULT_TEXT_MODEL || 'qwen2.5:7b';
@@ -113,6 +114,11 @@ async function isStarkLLM(appUrl) {
 // running"), so an update never reached the engine. The app now passes a fingerprint of its engine files to the
 // backend, which reports it at /health; a running engine is reused only when the fingerprints match.
 const API_URL = `http://127.0.0.1:${process.env.STARKLLM_API_PORT || 8000}`;
+// Without Docker the engine serves the API and the web UI on one port (the app's); set when it starts.
+let nativeApiUrl = null;
+function apiUrl() {
+  return nativeApiUrl || API_URL;
+}
 const BIG_FILE = 1024 * 1024; // large files (voice models) count by name and size only
 const FINGERPRINT_SKIP = new Set(['node_modules', '.git', 'dist', '__pycache__', '.pytest_cache', 'data', 'desktop', '.github', 'knowledge_base_data']);
 
@@ -140,7 +146,7 @@ function engineFingerprint(dir) {
 }
 
 async function engineHealth() {
-  const r = await probe(API_URL + '/health');
+  const r = await probe(apiUrl() + '/health');
   if (!r.ok) return null;
   try {
     return JSON.parse(r.body);
@@ -450,6 +456,58 @@ async function ensureOllama(status, progress, warnings) {
   return true;
 }
 
+// StarkLLM without Docker Desktop (roadmap phase 2): the engine package with its own Python (native-engine.js).
+const NATIVE_ANSWER_MS = Number(process.env.STARKLLM_ENGINE_ANSWER_MS) || 180000;
+async function startNativeEngine(appUrl, { status, onStatus, warnings, paths }) {
+  const port = Number(new URL(appUrl).port) || 5173;
+  nativeApiUrl = `http://127.0.0.1:${port}`;
+  log('no Docker: using the StarkLLM engine without Docker');
+  const ollama = await ensureOllama(status, onStatus, warnings);
+  const build = 'native-' + crypto.createHash('sha256').update(app.getVersion() + JSON.stringify(chosen)).digest('hex').slice(0, 12);
+
+  if (await isStarkLLM(appUrl)) {
+    const running = await engineHealth();
+    if (engineIsCurrent(running, build)) {
+      status('StarkLLM is already running.');
+      return { ok: true, ollama, warnings, native: true };
+    }
+    return { ok: false, native: true, stage: 'engine', detail: `Another StarkLLM engine already uses port ${port}. Quit it (or Docker Desktop's StarkLLM containers) and press Retry.` };
+  }
+
+  let dir;
+  try {
+    dir = await native.ensurePackage(app.getVersion(), path.join(LOCAL_APP_DATA, 'StarkLLM', 'engine'), {
+      onStatus: (text, fraction) => onStatus(text, fraction), log
+    });
+  } catch (e) {
+    log('engine package: ' + e.message);
+    return { ok: false, native: true, stage: 'engine', detail: `The StarkLLM engine could not be downloaded: ${e.message}. Check the internet connection and press Retry.` };
+  }
+
+  status('Starting the StarkLLM engine...');
+  const env = native.nativeEnv(dir, {
+    kbDir: paths.kb,
+    secret: process.env.SECRET_KEY || secretKey(paths.secret),
+    build,
+    ollamaUrl: OLLAMA_URL
+  });
+  const logFile = path.join(app.getPath('userData'), 'engine-native.log');
+  const child = native.startNative(dir, { port, userDir: app.getPath('userData'), env, logFile });
+  let exited = null;
+  child.on('exit', (code) => { exited = code; });
+  const answers = async () => exited === null && (await isStarkLLM(appUrl)) && engineIsCurrent(await engineHealth(), build);
+  if (!(await waitFor(async () => exited !== null || (await answers()), NATIVE_ANSWER_MS))) {
+    native.stopNative();
+  }
+  if (exited !== null || !(await answers())) {
+    let tail = [];
+    try { tail = fs.readFileSync(logFile, 'utf8').split(/\r?\n/).filter(Boolean).slice(-12); } catch (e) { /* no log yet */ }
+    return { ok: false, native: true, stage: 'engine', detail: `The StarkLLM engine did not start. Its log is in ${logFile}.`, log: tail };
+  }
+  status('Ready.');
+  return { ok: true, ollama, warnings, native: true };
+}
+
 // Returns { ok, ollama, warnings } or { ok: false, stage, detail, log }.
 async function startEngine(appUrl, onStatus) {
   const status = (text) => {
@@ -462,6 +520,17 @@ async function startEngine(appUrl, onStatus) {
 
   status('Checking Docker...');
   const docker = await findDocker();
+  if (native.engineMode({ dockerFound: Boolean(docker) }) === 'native') {
+    return startNativeEngine(appUrl, { status, onStatus, warnings, paths });
+  }
+  // On Windows a Docker that cannot run StarkLLM (stopped, or set to Windows containers) is not a dead end: the
+  // engine without Docker runs instead (found on GitHub's Windows machines, which have Docker with Windows containers).
+  // STARKLLM_ENGINE=docker keeps the old behaviour: the page that explains how to fix Docker.
+  const withoutDocker = (reason) => {
+    log(`${reason}; using the StarkLLM engine without Docker`);
+    return startNativeEngine(appUrl, { status, onStatus, warnings, paths });
+  };
+  const fallBack = IS_WIN && process.env.STARKLLM_ENGINE !== 'docker';
   if (!docker) {
     log('Docker not found (not installed or not on PATH)');
     return { ok: false, stage: 'docker-missing' };
@@ -471,16 +540,19 @@ async function startEngine(appUrl, onStatus) {
       status('Starting Docker Desktop (this can take a minute)...');
       if (!(await waitFor(() => dockerRunning(docker), 240000, 4000))) {
         log('Docker Desktop was started but its engine did not come up within 4 minutes');
+        if (fallBack) return withoutDocker('Docker Desktop did not start');
         return { ok: false, stage: 'docker-stopped' };
       }
     } else {
       log('Docker is installed but its engine is not running');
+      if (fallBack) return withoutDocker('Docker is not running');
       return { ok: false, stage: 'docker-stopped' };
     }
   }
 
   if ((await dockerOsType(docker)) === 'windows') {
     log('Docker runs Windows containers; StarkLLM needs Linux containers');
+    if (fallBack) return withoutDocker('Docker runs Windows containers');
     return { ok: false, stage: 'docker-windows-containers' };
   }
 
@@ -583,4 +655,4 @@ async function startEngine(appUrl, onStatus) {
   return { ok: true, ollama, warnings };
 }
 
-module.exports = { imageLayerSizes, engineImages, secretKey, startEngine, userPaths, pullWithRetry, buildWithoutBake, run, engineIsCurrent, engineFingerprint, TEXT_MODEL, EMBEDDING_MODEL };
+module.exports = { apiUrl, stopNativeEngine: native.stopNative, imageLayerSizes, engineImages, secretKey, startEngine, userPaths, pullWithRetry, buildWithoutBake, run, engineIsCurrent, engineFingerprint, TEXT_MODEL, EMBEDDING_MODEL };
