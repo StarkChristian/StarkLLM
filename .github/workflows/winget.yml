@@ -29,8 +29,21 @@ jobs:
       - name: winget installs StarkLLM from the manifest
         shell: pwsh
         run: |
-          winget install --manifest $env:MANIFEST_DIR --accept-package-agreements --accept-source-agreements --disable-interactivity
-          if ($LASTEXITCODE -ne 0) { throw "winget install failed ($LASTEXITCODE)" }
+          $out = "$env:RUNNER_TEMP\winget-install.txt"
+          $p = Start-Process winget -ArgumentList 'install', '--manifest', $env:MANIFEST_DIR, '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity', '--verbose-logs' -PassThru -NoNewWindow -RedirectStandardOutput $out
+          if (-not $p.WaitForExit(12 * 60 * 1000)) {
+            Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+            $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+            $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+            [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+            $bmp.Save("$PWD\winget-stuck.png")
+            Get-Content $out -Tail 30
+            Get-Process | Where-Object { $_.ProcessName -match 'StarkLLM|Setup|winget|AppInstaller' } | Format-Table ProcessName, Id, StartTime -AutoSize | Out-String
+            Get-ChildItem "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\DiagOutputDir" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime | Select-Object -Last 1 | Get-Content -Tail 60
+            throw 'winget install did not finish within 12 minutes (see winget-stuck.png)'
+          }
+          Get-Content $out | Where-Object { $_ -notmatch '^\s*[-\\|/]\s*$' -and $_ -notmatch '[\u2580-\u259F]' }
+          if ($p.ExitCode -ne 0) { throw "winget install failed ($($p.ExitCode))" }
           $exe = Join-Path $env:LOCALAPPDATA 'Programs\StarkLLM\StarkLLM.exe'
           $deadline = (Get-Date).AddMinutes(6)
           while (-not (Test-Path $exe) -and (Get-Date) -lt $deadline) { Start-Sleep 3 }
@@ -41,3 +54,10 @@ jobs:
             Where-Object { $_.DisplayName -like 'StarkLLM*' } |
             Format-List PSChildName, DisplayName, DisplayVersion, Publisher, InstallLocation | Out-String
           winget list --name StarkLLM --disable-interactivity
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: winget-check
+          path: winget-stuck.png
+          if-no-files-found: ignore
