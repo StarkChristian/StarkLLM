@@ -1,0 +1,133 @@
+name: Engine package for Windows (no Docker)
+
+# Roadmap phase 2: builds the StarkLLM engine as one zip that runs without Docker and without an installed Python:
+#   runtime\   the embeddable Python 3.11 from python.org with the backend's packages in Lib\site-packages
+#   backend\   the backend code and serve_native.py
+#   ui\        the built web UI (served by the backend)
+# Then it unpacks the zip into a new folder the way the desktop app will (tar.exe, part of Windows) and starts the
+# engine from it, with Python not on PATH, to show the package needs nothing else.
+
+on:
+  pull_request:
+    paths: ['backend/**', 'frontend/**', '.github/workflows/native-engine-package.yml']
+  workflow_dispatch:
+  release:
+    types: [published]
+
+env:
+  PYTHON_EMBED: https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip
+
+permissions:
+  contents: write   # attach the zip to a published release
+
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      # the same Python version as the embeddable one, only to install the packages into the package folder
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.9'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Embeddable Python
+        shell: pwsh
+        run: |
+          $pkg = "$env:RUNNER_TEMP\starkllm-engine"
+          New-Item -ItemType Directory -Force "$pkg\runtime" | Out-Null
+          Invoke-WebRequest $env:PYTHON_EMBED -OutFile "$env:RUNNER_TEMP\embed.zip"
+          Expand-Archive "$env:RUNNER_TEMP\embed.zip" "$pkg\runtime"
+          # python311._pth replaces sys.path: the standard library, the packages and the backend code; "import site"
+          # lets the packages register themselves. PYTHONPATH and an installed Python are ignored.
+          Set-Content "$pkg\runtime\python311._pth" "python311.zip`r`n.`r`nLib\site-packages`r`n..\backend`r`nimport site"
+          "PKG=$pkg" | Out-File -Append $env:GITHUB_ENV
+
+      - name: Backend packages into the package
+        shell: pwsh
+        run: |
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet --no-compile --target "$env:PKG\runtime\Lib\site-packages" -r backend/requirements.txt
+          if ($LASTEXITCODE -ne 0) { throw "pip install failed ($LASTEXITCODE)" }
+          # scripts (uvicorn.exe, ...) are not used: the engine starts with serve_native.py
+          Remove-Item -Recurse -Force "$env:PKG\runtime\Lib\site-packages\bin" -ErrorAction SilentlyContinue
+
+      - name: Backend code and web UI into the package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "$env:PKG\backend" | Out-Null
+          Copy-Item -Recurse backend/app, backend/alembic, backend/alembic.ini, backend/serve_native.py "$env:PKG\backend"
+          Get-ChildItem "$env:PKG\backend" -Recurse -Directory -Filter __pycache__ | Remove-Item -Recurse -Force
+          Push-Location frontend
+          npm ci --no-audit --no-fund
+          npm run build
+          Pop-Location
+          Copy-Item -Recurse frontend/dist "$env:PKG\ui"
+          $version = (Select-String -Path backend/app/core/config.py -Pattern 'VERSION: str = "([^"]+)"').Matches[0].Groups[1].Value
+          @{ version = $version; commit = "$env:GITHUB_SHA"; python = '3.11.9' } | ConvertTo-Json | Set-Content "$env:PKG\engine.json"
+          "VERSION=$version" | Out-File -Append $env:GITHUB_ENV
+
+      - name: Zip
+        shell: pwsh
+        run: |
+          $mb = [math]::Round(((Get-ChildItem $env:PKG -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB)
+          "unpacked: $mb MB"
+          $zip = "StarkLLM-engine-v$env:VERSION-win-x64.zip"
+          7z a -tzip -mx=7 $zip "$env:PKG\*" | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "7z failed ($LASTEXITCODE)" }
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  $zip" | Set-Content "$zip.sha256"
+          "zip: $zip $([math]::Round((Get-Item $zip).Length / 1MB)) MB, sha256 $hash"
+          "ZIP=$zip" | Out-File -Append $env:GITHUB_ENV
+
+      - name: The package runs on its own
+        shell: pwsh
+        run: |
+          # no Python on PATH and a new folder, like on a user's PC
+          $env:PATH = ($env:PATH -split ';' | Where-Object { $_ -notmatch 'Python' }) -join ';'
+          $dir = "$env:RUNNER_TEMP\unpacked"
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          tar.exe -xf $env:ZIP -C $dir
+          if ($LASTEXITCODE -ne 0) { throw "tar could not unpack the zip ($LASTEXITCODE)" }
+          $home2 = "$env:RUNNER_TEMP\user-StarkLLM"
+          New-Item -ItemType Directory -Force $home2, "$env:RUNNER_TEMP\kb" | Out-Null
+          $env:STARKLLM_STATIC_DIR = "$dir\ui"
+          $env:KB_DATA_DIR = "$env:RUNNER_TEMP\kb"
+          $env:OLLAMA_BASE_URL = 'http://127.0.0.1:11434'
+          $env:SECRET_KEY = 'ci-only-secret'
+          $started = Get-Date
+          $p = Start-Process "$dir\runtime\python.exe" -ArgumentList "$dir\backend\serve_native.py", '--port', '8765' -WorkingDirectory $home2 -PassThru -RedirectStandardOutput "$env:RUNNER_TEMP\engine.out" -RedirectStandardError "$env:RUNNER_TEMP\engine.err"
+          $ok = $false
+          for ($i = 0; $i -lt 120; $i++) {
+            if ($p.HasExited) { break }
+            try { $h = Invoke-RestMethod http://127.0.0.1:8765/health; $ok = $true; break } catch { Start-Sleep 2 }
+          }
+          Get-Content "$env:RUNNER_TEMP\engine.err" -Tail 30
+          if (-not $ok) { throw 'the engine from the package did not answer' }
+          "answered after $([math]::Round(((Get-Date) - $started).TotalSeconds)) s: $($h | ConvertTo-Json -Compress)"
+          $page = Invoke-WebRequest http://127.0.0.1:8765/ -UseBasicParsing
+          if ($page.Content -notmatch '<title>StarkLLM</title>') { throw 'the web UI is not served' }
+          if (-not (Test-Path "$home2\data\starkllm.db")) { throw 'the database is not in the user folder' }
+          "python used: $((Get-Process -Id $p.Id).Path)"
+          "the engine runs from the package"
+          Stop-Process -Id $p.Id -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: starkllm-engine-win-x64
+          path: |
+            ${{ env.ZIP }}
+            ${{ env.ZIP }}.sha256
+          retention-days: 14
+
+      - name: Attach to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: gh release upload "${{ github.event.release.tag_name }}" $env:ZIP "$env:ZIP.sha256" --clobber
