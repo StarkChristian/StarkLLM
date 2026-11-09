@@ -240,7 +240,7 @@ export default function SystemStatusWidget({ token }) {
           )}
 
           {timeAgo && (
-            <p className={styles.lastChecked}>Last checked: {timeAgo}</p>
+            <p className={styles.lastChecked}>{t('Last checked: {time}', { time: timeAgo })}</p>
           )}
         </div>
       )}
