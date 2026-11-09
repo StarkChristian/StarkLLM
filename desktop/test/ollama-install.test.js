@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { installOllama, trusted } = require('../ollama-install');
+const { installOllama, trusted, powershell, signature, SIGNATURE_SCRIPT } = require('../ollama-install');
 const { buildErrorPage } = require('../diagnostics');
 
 function deps(sig) {
@@ -46,4 +46,18 @@ test('the start page offers "Install Ollama for me" only when Ollama is not inst
   const base = { docker: 'running', ollama: false, missingModels: [], backend: true, engine: { ok: true, logFile: 'engine.log' } };
   assert.match(buildErrorPage({ ...base, ollamaInstalled: false }), /href="starkllm-install-ollama:">Install Ollama for me</);
   assert.doesNotMatch(buildErrorPage({ ...base, ollamaInstalled: true }), /starkllm-install-ollama/);
+});
+
+test('the signature check runs plain PowerShell, never an encoded command', async () => {
+  let seen;
+  const run = (file, args, opts, cb) => { seen = { file, args, opts }; cb(null, 'Valid|CN=Ollama Inc., O=Ollama Inc.\r\n', ''); };
+  const sig = await signature('C:\\Users\\a b\\AppData\\Local\\Temp\\O\'Setup.exe', (script, env) => powershell(script, env, run));
+  assert.deepStrictEqual(sig, { status: 'Valid', subject: 'CN=Ollama Inc., O=Ollama Inc.' });
+  assert.strictEqual(seen.file, 'powershell.exe');
+  assert.deepStrictEqual(seen.args, ['-NoProfile', '-NonInteractive', '-Command', SIGNATURE_SCRIPT]);
+  assert.ok(!seen.args.some((a) => /encoded/i.test(a)));
+  // the path (with a space and a quote) reaches PowerShell only through the environment
+  assert.strictEqual(seen.opts.env.STARKLLM_SIGNED_FILE, "C:\\Users\\a b\\AppData\\Local\\Temp\\O'Setup.exe");
+  assert.ok(!SIGNATURE_SCRIPT.includes('"'));
+  await assert.rejects(powershell('Write-Output "x"', {}, run), /double quotes/);
 });
