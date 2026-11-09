@@ -470,6 +470,14 @@ function readRollback(file = rollbackFile()) {
   }
 }
 
+function forgetFailedUpdate() {
+  try {
+    fs.rmSync(rollbackFile(), { force: true });
+  } catch (e) {
+    log('could not remove ' + rollbackFile() + ': ' + e.message);
+  }
+}
+
 // true: the update to this build failed less than a day ago and the previous engine is still running
 function skipFailedUpdate(state, fingerprint, runningBuild, now = Date.now()) {
   return Boolean(state && state.failedBuild === fingerprint && state.previousBuild && state.previousBuild === runningBuild
@@ -649,12 +657,12 @@ async function startEngine(appUrl, onStatus) {
   if (!(await waitFor(answers, ENGINE_ANSWER_MS))) {
     const logs = await run(docker, ['compose', '-p', PROJECT, '-f', compose, 'logs', '--tail', '20'], { env, timeoutMs: 30000 });
     logs.lines.forEach((l) => log('engine: ' + l));
-    if (await goBack('it did not answer within 3 minutes')) return { ok: true, ollama, warnings };
+    if (await goBack(`it did not answer within ${Math.round(ENGINE_ANSWER_MS / 60000)} minutes`)) return { ok: true, ollama, warnings };
     return { ok: false, stage: 'engine', detail: 'The engine started but the web UI does not answer.', log: logs.lines.slice(-20) };
   }
-  if (updating) fs.rmSync(rollbackFile(), { force: true });
+  if (updating) forgetFailedUpdate();
   status('Ready.');
   return { ok: true, ollama, warnings };
 }
 
-module.exports = { skipFailedUpdate, keepRollbackImages, rollbackEngine, imageLayerSizes, engineImages, secretKey, startEngine, userPaths, pullWithRetry, buildWithoutBake, run, engineIsCurrent, engineFingerprint, TEXT_MODEL, EMBEDDING_MODEL };
+module.exports = { forgetFailedUpdate, skipFailedUpdate, keepRollbackImages, rollbackEngine, imageLayerSizes, engineImages, secretKey, startEngine, userPaths, pullWithRetry, buildWithoutBake, run, engineIsCurrent, engineFingerprint, TEXT_MODEL, EMBEDDING_MODEL };

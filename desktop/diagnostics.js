@@ -134,6 +134,18 @@ function esc(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
+// Warnings that are notes, not something missing (e.g. StarkLLM went back to the previous engine).
+const isNote = (w) => typeof w !== 'string';
+const onlyNotes = (d) => d.engine.ok && d.ollama && (d.engine.warnings || []).length > 0 && d.engine.warnings.every(isNote);
+
+function heading(d) {
+  if (!d.engine.ok) return 'StarkLLM could not start';
+  if (!d.ollama) return 'StarkLLM is running without its AI runtime';
+  const notes = (d.engine.warnings || []).filter(isNote);
+  if (onlyNotes(d)) return notes.length === 1 ? notes[0].title : 'StarkLLM is running';
+  return 'StarkLLM is running, but an AI model is missing';
+}
+
 function buildErrorPage(d) {
   const rows = buildRows(d)
     .map((r) => {
@@ -178,8 +190,8 @@ function buildErrorPage(d) {
 </head>
 <body>
 <div class="card">
-  <h1>${!d.engine.ok ? 'StarkLLM could not start' : !d.ollama ? 'StarkLLM is running without its AI runtime' : 'StarkLLM is running, but an AI model is missing'}</h1>
-  <p class="sub">Here is what this PC is missing:</p>
+  <h1>${heading(d)}</h1>
+  <p class="sub">${onlyNotes(d) ? 'StarkLLM works; please note:' : 'Here is what this PC is missing:'}</p>
   <ul>${rows}</ul>
   <div class="actions">
     <a class="btn" href="starkllm-retry:">Retry</a>
