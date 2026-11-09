@@ -11,6 +11,7 @@ on:
   pull_request:
     paths: ['backend/**', 'frontend/**', '.github/workflows/native-engine-package.yml']
   workflow_dispatch:
+  workflow_call:   # the end-to-end test (native-desktop-e2e.yml) builds the package first
   release:
     types: [published]
 
