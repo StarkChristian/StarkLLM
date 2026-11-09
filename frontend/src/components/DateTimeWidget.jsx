@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, Calendar } from 'lucide-react';
 import styles from './DateTimeWidget.module.css';
+import { UI_LOCALE } from '../utils/locale';
 
 export default function DateTimeWidget() {
   const [time, setTime] = useState(new Date());
@@ -13,11 +14,11 @@ export default function DateTimeWidget() {
   }, []);
 
   const formatTime = (date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    return date.toLocaleTimeString(UI_LOCALE, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
   };
 
   const formatDate = (date) => {
-    return date.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    return date.toLocaleDateString(UI_LOCALE, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   };
 
   return (

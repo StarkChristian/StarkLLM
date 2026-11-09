@@ -35,13 +35,14 @@ from app.db.models import KnowledgeBaseFolder, KnowledgeBaseDocument, KBDocStatu
 from app.services.rag_service import rag_service
 from app.services.llm_service import llm_service, describe_indexing_error
 from app.services.vision_service import vision_service
+from app.services.ocr_service import ocr_service, PICTURE_EXTENSIONS
 
 logger = logging.getLogger(__name__)
 
 # Supported file formats for the Knowledge Base indexer.
 # CSV and JSON are intentionally omitted until a meaningful chunking strategy
 # is implemented; they are not claimed in README or UI.
-SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".png", ".jpg", ".jpeg", ".txt", ".md", ".markdown", ".csv", ".json", ".xlsx", ".html", ".xml", ".log"}
+SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff", ".txt", ".md", ".markdown", ".csv", ".json", ".xlsx", ".html", ".xml", ".log"}
 
 
 
@@ -462,6 +463,28 @@ class KBService:
             start = next_start
         return chunks
 
+    @staticmethod
+    def _add_picture_text(chunks, metadatas, ids, picture, base_meta, id_base, place, count,
+                          page=None, vision_locator=None):
+        """Add the text read from a photo or scanned page; returns the new running chunk count."""
+        base = dict(base_meta)
+        if page is not None:
+            base["page"] = page
+        if picture.method == "vision":
+            count += 1
+            chunks.append(picture.text)
+            metadatas.append({**base, "chunk_index": count, "locator": vision_locator or place})
+            ids.append(f"{id_base}_vis")
+            return count
+        for idx, chunk in enumerate(rag_service._semantic_chunk_text(picture.text)):
+            if chunk.strip():
+                count += 1
+                chunks.append(chunk.strip())
+                metadatas.append({**base, "chunk_index": count, "type": "ocr",
+                                  "ocr_confidence": picture.confidence, "locator": f"{place} (OCR)"})
+                ids.append(f"{id_base}_ocr_{idx}")
+        return count
+
     def index_document(self, db: Session, document_id: int) -> bool:
         """
         Extracts content from a file according to its type, chunks the content,
@@ -489,6 +512,14 @@ class KBService:
             metadatas = []
             ids = []
             file_prefix = hashlib.md5(file_path.encode()).hexdigest()[:8]
+            base_meta = {
+                "source": "knowledge_base",
+                "user_id": folder.user_id,
+                "folder_id": doc.folder_id,
+                "document_id": document_id,
+                "file_name": doc.file_name,
+                "file_path": file_path,
+            }
 
             if file_type == "pdf":
                 if not fitz:
@@ -518,42 +549,18 @@ class KBService:
                                 })
                                 ids.append(f"kb_doc_{document_id}_{file_prefix}_p{page_num}_c{idx}")
                     else:
-                        temp_path = None
+                        # a scan: OCR, or the vision model when OCR finds no readable text
                         try:
-                            pix = page.get_pixmap()
-                            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-                                temp_path = tmp.name
-                            pix.save(temp_path)
-
-                            pdf_vision_prompt = (
-                                "This is a scanned page from a PDF document. "
-                                "Please extract the content carefully, paying special attention "
-                                "to any text, tables, handwriting, and layout. "
-                                "Provide a detailed transcription/description of the page content."
+                            scanned = ocr_service.text_of_scanned_pdf_page(page, page_num)
+                        except Exception as scan_err:
+                            logger.error(f"KB: OCR/Vision failed on page {page_num}: {scan_err}")
+                            scanned = None
+                        if scanned:
+                            pdf_chunk_count = self._add_picture_text(
+                                chunks, metadatas, ids, scanned, base_meta,
+                                f"kb_doc_{document_id}_{file_prefix}_p{page_num}", f"Page {page_num + 1}",
+                                pdf_chunk_count, page=page_num, vision_locator=f"Page {page_num + 1} (Vision)",
                             )
-                            description = vision_service.generate_image_description(
-                                temp_path, prompt=pdf_vision_prompt
-                            )
-                            if description and description.strip():
-                                pdf_chunk_count += 1
-                                chunks.append(description.strip())
-                                metadatas.append({
-                                    "source": "knowledge_base",
-                                    "user_id": folder.user_id,
-                                    "folder_id": doc.folder_id,
-                                    "document_id": document_id,
-                                    "file_name": doc.file_name,
-                                    "file_path": file_path,
-                                    "chunk_index": pdf_chunk_count,
-                                    "page": page_num,
-                                    "locator": f"Page {page_num + 1} (Vision)"
-                                })
-                                ids.append(f"kb_doc_{document_id}_{file_prefix}_p{page_num}_vis")
-                        except Exception as vis_err:
-                            logger.error(f"KB: Vision fallback failed on page {page_num}: {vis_err}")
-                        finally:
-                            if temp_path and os.path.exists(temp_path):
-                                os.remove(temp_path)
 
             elif file_type == "docx":
                 if not docx:
@@ -602,24 +609,20 @@ class KBService:
                             })
                             ids.append(f"kb_doc_{document_id}_{file_prefix}_c{docx_chunk_count}")
 
-            elif file_type in ["png", "jpg", "jpeg"]:
-                logger.info(f"KB: Generating vision description for image: {file_path}")
-                description = vision_service.generate_image_description(file_path)
-                if description and description.strip():
-                    chunks.append(description.strip())
-                    metadatas.append({
-                        "source": "knowledge_base",
-                        "user_id": folder.user_id,
-                        "folder_id": doc.folder_id,
-                        "document_id": document_id,
-                        "file_name": doc.file_name,
-                        "file_path": file_path,
-                        "chunk_index": 1,
-                        "locator": "Image"
-                    })
-                    ids.append(f"kb_doc_{document_id}_{file_prefix}_desc")
-                else:
-                    raise ValueError("Vision service returned empty description for the image")
+            elif "." + file_type in PICTURE_EXTENSIONS:
+                logger.info(f"KB: Reading picture: {file_path}")
+                pages = ocr_service.text_of_picture(file_path)
+                if not pages:
+                    raise ValueError("No text could be read from the picture and the vision model returned nothing")
+                several = len(pages) > 1 or any(p.page > 0 for p in pages)
+                count = 0
+                for picture in pages:
+                    place = f"Page {picture.page + 1}" if several else "Image"
+                    count = self._add_picture_text(
+                        chunks, metadatas, ids, picture, base_meta,
+                        f"kb_doc_{document_id}_{file_prefix}" + (f"_p{picture.page}" if several else ""), place,
+                        count, page=picture.page if several else None, vision_locator=place,
+                    )
 
             elif file_type in ["txt", "md", "markdown", "csv", "json", "xml", "log", "xlsx"]:
                 logger.info(f"KB: Extracting text/data file ({file_type}): {file_path}")

@@ -11,6 +11,7 @@ import { SidebarStatusDot } from './SystemStatusWidget';
 import EmptyState from './EmptyState';
 import { AVAILABLE_THEMES, applyTheme, getCurrentTheme } from '../utils/themes';
 import { serverDate } from '../utils/time';
+import { UI_LOCALE } from '../utils/locale';
 
 const NAV_ITEMS = [
   { id: 'dashboard',      label: 'Dashboard',      icon: LayoutDashboard },
@@ -163,10 +164,10 @@ export default function Sidebar({
     const yesterday = new Date(now);
     yesterday.setDate(now.getDate() - 1);
     const isYesterday = d.toDateString() === yesterday.toDateString();
-    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const time = d.toLocaleTimeString(UI_LOCALE, { hour: '2-digit', minute: '2-digit' });
     if (isToday) return time;
     if (isYesterday) return `Yesterday`;
-    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return d.toLocaleDateString(UI_LOCALE, { month: 'short', day: 'numeric' });
   };
 
   // Close workspace dropdown when clicking outside

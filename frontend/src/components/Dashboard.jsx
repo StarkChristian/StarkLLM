@@ -191,7 +191,7 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
       {/* ── Hero header ── */}
       <div className={styles.hero}>
         <div className={styles.heroContent}>
-          <p className={styles.heroGreeting}>{greeting}, {username || 'User'} 👋</p>
+          <p className={styles.heroGreeting}>{greeting}{username && username !== 'local' ? `, ${username}` : ''} 👋</p>
           <h1 className={styles.heroTitle}>Your StarkLLM Dashboard</h1>
           <p className={styles.heroSubtitle}>
             Private AI assistant with full Knowledge Base and RAG retrieval support.

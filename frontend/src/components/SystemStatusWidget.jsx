@@ -4,6 +4,7 @@ import {
   Activity, RefreshCw, Server, Cpu, Zap, Brain,
   CheckCircle2, XCircle, AlertTriangle, HelpCircle, Wifi
 } from 'lucide-react';
+import { UI_LOCALE } from '../utils/locale';
 
 /* ── helpers ─────────────────────────────────────────── */
 const STATUS_META = {
@@ -84,7 +85,8 @@ export default function SystemStatusWidget({ token }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastChecked, setLastChecked] = useState(null);
-  const [expanded, setExpanded] = useState(false);
+  // open by default: collapsed, the card was a thin strip next to the clock and the prices
+  const [expanded, setExpanded] = useState(true);
 
   const fetchStatus = useCallback(async () => {
     setLoading(true);
@@ -117,11 +119,11 @@ export default function SystemStatusWidget({ token }) {
     ? `${data.ollama.latency_ms} ms`
     : null;
 
-  // Shorten model name for display
-  const shortModel = (name) => name?.split(':')[0] ?? '—';
+  // Full model name: "qwen3.8" hid which size (27b) is used
+  const shortModel = (name) => name ?? '—';
 
   const timeAgo = lastChecked
-    ? lastChecked.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    ? lastChecked.toLocaleTimeString(UI_LOCALE, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     : null;
 
   return (

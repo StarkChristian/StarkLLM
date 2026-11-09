@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useToast } from './Toast';
 import { serverDate } from '../utils/time';
+import { UI_LOCALE } from '../utils/locale';
 
 /* --- Formatting Helpers --- */
 function formatBytes(bytes) {
@@ -30,7 +31,7 @@ function formatRelativeDate(isoString) {
 
 function formatDateFull(isoString) {
   if (!isoString) return 'Unknown';
-  return serverDate(isoString).toLocaleString(undefined, { 
+  return serverDate(isoString).toLocaleString(UI_LOCALE, { 
     dateStyle: 'medium', timeStyle: 'short' 
   });
 }
