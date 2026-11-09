@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
 import { t } from '../i18n';
+import { useEscape } from '../utils/useEscape';
 
 const md = new MarkdownIt({ html: false, linkify: true, typographer: true });
 // Only real links: with fuzzy links on, a file name like 'card.md' became http://card.md (a Moldovan domain).
@@ -24,6 +25,7 @@ export default function StudioModal({
   selectedModel = ""
 }) {
   const [activeTab, setActiveTab] = useState('podcast'); // 'podcast' | 'briefing' | 'study_guide' | 'comparison'
+  useEscape(onClose, isOpen);
   const [focusQuery, setFocusQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -218,7 +220,7 @@ export default function StudioModal({
             <input
               type="text"
               className={styles.focusInput}
-              placeholder={`Optional: specific question or angle for this ${activeTab}...`}
+              placeholder={t('Optional: a question or angle to focus on')}
               value={focusQuery}
               onChange={e => setFocusQuery(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleGenerate()}

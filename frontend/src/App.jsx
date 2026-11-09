@@ -241,7 +241,7 @@ export default function App() {
         await loadChat(data[0].id);
       } else {
         setActiveChatId(null);
-        setMessages([{ role: 'assistant', content: t('Start a new chat to begin.') }]);
+        setMessages([]);  // the start page with suggestions
       }
     } catch (err) {
       console.error('Error fetching chats:', err);
@@ -341,6 +341,25 @@ export default function App() {
     }, 2000);
   };
 
+  // The upload line in the chat says when the document is ready (or why it could not be read)
+  useEffect(() => {
+    if (!workspaceDocs.length) return;
+    setMessages(prev => {
+      let changed = false;
+      const next = prev.map(m => {
+        if (!m.uploadId) return m;
+        const d = workspaceDocs.find(x => x.id === m.uploadId);
+        if (!d || !TERMINAL_STATUSES.includes(d.status)) return m;
+        changed = true;
+        const name = d.filename || '';
+        return d.status === 'failed'
+          ? { role: 'system', content: t('{name} could not be read: {error}', { name, error: d.error_message || t('unknown error') }) }
+          : { role: 'system', content: t('{name} is ready. Ask me about it.', { name }) };
+      });
+      return changed ? next : prev;
+    });
+  }, [workspaceDocs]);
+
   // Cleanup polling on unmount or when workspace changes
   useEffect(() => {
     return () => {
@@ -410,7 +429,7 @@ export default function App() {
           await loadChat(remaining[0].id);
         } else {
           setActiveChatId(null);
-          setMessages([{ role: 'assistant', content: t('Start a new chat to begin.') }]);
+          setMessages([]);
         }
       }
     } catch (err) {
@@ -771,7 +790,7 @@ export default function App() {
     if (!activeWorkspace) { toast.warning(t('Please create or select a workspace before uploading files.')); return; }
     const formData = new FormData();
     formData.append('file', file);
-    setMessages(prev => [...prev, { role: 'system', content: `Uploading ${file.name}…` }]);
+    setMessages(prev => [...prev, { role: 'system', content: t('Uploading {name}…', { name: file.name }) }]);
 
     let response;
     try {
@@ -782,10 +801,10 @@ export default function App() {
       });
     } catch (networkErr) {
       // Network-level failure (CORS, DNS, offline, etc.)
-      const errorMsg = `Network error — please check your connection and try again. (${networkErr.message})`;
+      const errorMsg = t('No connection to the StarkLLM engine ({error}). Try again in a moment.', { error: networkErr.message });
       setMessages(prev => {
         const msgs = [...prev];
-        msgs[msgs.length - 1] = { role: 'system', content: `❌ Failed to upload ${file.name}: ${errorMsg}` };
+        msgs[msgs.length - 1] = { role: 'system', content: t('{name} could not be uploaded: {error}', { name: file.name, error: errorMsg }) };
         return msgs;
       });
       throw new Error(errorMsg);
@@ -793,13 +812,13 @@ export default function App() {
 
     if (response.status === 401) { handleLogout(); return; }
     if (!response.ok) {
-      let errorMsg = 'Upload failed';
+      let errorMsg = t('Upload failed');
       // Determine a human-readable error based on HTTP status
       if (response.status === 413) {
         const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
-        errorMsg = `File too large (${sizeMB} MB). Maximum allowed upload size is 100 MB.`;
+        errorMsg = t('The file is too large ({size} MB). Files can be up to 100 MB.', { size: sizeMB });
       } else if (response.status === 502 || response.status === 503 || response.status === 504) {
-        errorMsg = `Server is temporarily unavailable (HTTP ${response.status}). Please try again in a moment.`;
+        errorMsg = t('The StarkLLM engine is busy or restarting (HTTP {status}). Try again in a moment.', { status: response.status });
       } else {
         // Try to parse JSON detail from the backend
         const err = await response.json().catch(() => null);
@@ -808,12 +827,12 @@ export default function App() {
         } else {
           // Fallback: try to read the raw text body for clues
           const rawText = err ? JSON.stringify(err) : await response.text().catch(() => '');
-          errorMsg = `Upload failed (HTTP ${response.status})${rawText ? ': ' + rawText.substring(0, 200) : ''}`;
+          errorMsg = t('Upload failed (HTTP {status})', { status: response.status }) + (rawText ? ': ' + rawText.substring(0, 200) : '');
         }
       }
       setMessages(prev => {
         const msgs = [...prev];
-        msgs[msgs.length - 1] = { role: 'system', content: `❌ Failed to upload ${file.name}: ${errorMsg}` };
+        msgs[msgs.length - 1] = { role: 'system', content: t('{name} could not be uploaded: {error}', { name: file.name, error: errorMsg }) };
         return msgs;
       });
       throw new Error(errorMsg);
@@ -835,7 +854,8 @@ export default function App() {
       const msgs = [...prev];
       msgs[msgs.length - 1] = {
         role: 'system',
-        content: `📄 ${file.name} uploaded. Indexing in progress — you can continue chatting while it processes.`
+        uploadId: newDoc.id,
+        content: t('Reading {name}… You can keep chatting meanwhile.', { name: file.name })
       };
       return msgs;
     });
@@ -1165,6 +1185,7 @@ export default function App() {
           workspaceId={activeWorkspace.id}
           documents={workspaceDocs}
           onDeleteDocument={handleDeleteDocument}
+          onUpload={handleFileUpload}
           token={token}
         />
       )}

@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styles from './DocumentManager.module.css';
 import { 
   X, FileText, Trash2, Eye, Calendar, HardDrive, File, 
   CheckCircle2, AlertTriangle, RefreshCw, Loader, XCircle,
-  Globe, Link2, Plus, ArrowRight, Video, GitBranch, StickyNote, Search
+  Globe, Link2, Plus, ArrowRight, Video, GitBranch, StickyNote, Search, Upload, ExternalLink
 } from 'lucide-react';
+import DocumentViewerModal from './DocumentViewerModal';
+import { useEscape } from '../utils/useEscape';
+import { UPLOAD_ACCEPT } from '../utils/uploadTypes';
 import { useToast } from './Toast';
 import { serverDate } from '../utils/time';
 import { UI_LOCALE } from '../utils/locale';
@@ -25,9 +28,9 @@ function formatRelativeDate(isoString) {
   const now = new Date();
   const diffHours = (now - date) / (1000 * 60 * 60);
   
-  if (diffHours < 24) return 'Today';
-  if (diffHours < 48) return 'Yesterday';
-  return Math.floor(diffHours / 24) + ' days ago';
+  if (diffHours < 24) return t('Today');
+  if (diffHours < 48) return t('Yesterday');
+  return t('{count} days ago', { count: Math.floor(diffHours / 24) });
 }
 
 function formatDateFull(isoString) {
@@ -106,9 +109,13 @@ export default function DocumentManager({
   workspaceId, 
   documents, 
   onDeleteDocument,
+  onUpload,
   token 
 }) {
   const toast = useToast();
+  const fileInputRef = useRef(null);
+  const [viewing, setViewing] = useState(null);
+  useEscape(onClose, isOpen);
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [previewText, setPreviewText] = useState("");
   const [loadingPreview, setLoadingPreview] = useState(false);
@@ -376,7 +383,30 @@ export default function DocumentManager({
         <div className={styles.header}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             <h2>{t('Workspace Documents')}</h2>
-            
+
+            {onUpload && (
+              <>
+                <button className={styles.uploadBtn} onClick={() => fileInputRef.current && fileInputRef.current.click()}>
+                  <Upload size={14} />
+                  <span>{t('Upload files')}</span>
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept={UPLOAD_ACCEPT}
+                  hidden
+                  onChange={async (e) => {
+                    const files = [...(e.target.files || [])];
+                    e.target.value = '';
+                    for (const f of files) {
+                      try { await onUpload(f); } catch (_) { /* the chat shows the error */ }
+                    }
+                  }}
+                />
+              </>
+            )}
+
             <button 
               className="badge badge-accent"
               style={{ 
@@ -755,6 +785,12 @@ export default function DocumentManager({
                   </div>
 
                   <div className={styles.actionButtons}>
+                    {selectedDoc.status === 'indexed' && (
+                      <button className={styles.actionBtnSecondary} onClick={() => setViewing(selectedDoc.id)}>
+                        <ExternalLink size={14} />
+                        {t('Open')}
+                      </button>
+                    )}
                     <button 
                       className={styles.actionBtnSecondary}
                       onClick={() => handleReindex(selectedDoc.id)}
@@ -870,6 +906,15 @@ export default function DocumentManager({
 
         </div>
       </div>
+      {viewing && (
+        <DocumentViewerModal
+          isOpen
+          onClose={() => setViewing(null)}
+          workspaceId={workspaceId}
+          documentId={viewing}
+          token={token}
+        />
+      )}
     </div>
   );
 }

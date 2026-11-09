@@ -11,11 +11,12 @@
   animation: fadeIn 0.2s ease;
 }
 
+/* Opaque, from the theme: readable where a background blur is not available (some graphics drivers, Remote
+   Desktop) and in the light themes. */
 .modal {
-  background: rgba(8, 10, 16, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(48px) saturate(1.8);
-  -webkit-backdrop-filter: blur(48px) saturate(1.8);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-xl);
   width: 90vw;
   max-width: 1000px;
@@ -34,8 +35,27 @@
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+}
+
+.uploadBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.uploadBtn:hover,
+.uploadBtn:focus-visible {
+  background: var(--accent-hover);
 }
 
 .header h2 {

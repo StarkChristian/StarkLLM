@@ -1269,7 +1269,6 @@ print(response.choices[0].message.content)`;
 
                       <div className={styles.languageFooterRow}>
                         <span>{lang.region}</span>
-                        <strong>{lang.users}</strong>
                       </div>
                     </div>
                   );
@@ -1277,9 +1276,9 @@ print(response.choices[0].message.content)`;
               </div>
 
               <div className={styles.languageRoadmapNotice}>
-                <strong>{t('German interface')}</strong>
+                <strong>{t('Answers')}</strong>
                 <span>
-                  {t('The interface is in German. Answers of the AI follow the language of your question.')}
+                  {t('The AI answers in the language of your question, whatever the interface language.')}
                 </span>
               </div>
             </div>
