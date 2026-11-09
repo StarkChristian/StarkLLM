@@ -407,9 +407,13 @@ button.sourceGroup:focus-visible {
   flex-direction: column;
   gap: 6px;
   backdrop-filter: blur(8px);
+  font: inherit;
+  color: inherit;
+  text-align: start;
 }
 
-.suggestionCard:hover {
+.suggestionCard:hover,
+.suggestionCard:focus-visible {
   background: rgba(99, 102, 241, 0.08);
   border-color: rgba(99, 102, 241, 0.35);
   transform: translateY(-2px);

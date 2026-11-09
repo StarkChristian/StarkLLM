@@ -165,8 +165,8 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
       actionLabel: t('View Docs'),
     },
     {
-      label: t('RAG Status'),
-      value: t('Active'),
+      label: t('Document search'),
+      value: t('Ready'),
       icon: Zap,
       color: '#22c55e',
       glow: 'rgba(34,197,94,0.2)',
@@ -195,7 +195,7 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
           <p className={styles.heroGreeting}>{greeting}{username && username !== 'local' ? `, ${username}` : ''} 👋</p>
           <h1 className={styles.heroTitle}>{t('Your StarkLLM Dashboard')}</h1>
           <p className={styles.heroSubtitle}>
-            {t('Private AI assistant with full Knowledge Base and RAG retrieval support.')}
+            {t('Your private assistant for letters and documents, on this PC.')}
           </p>
         </div>
         <img src="/Logo.png" alt="StarkLLM" className={styles.heroLogo} />
@@ -295,8 +295,8 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
         <div className={styles.featureBannerContent}>
           <Zap size={20} className={styles.featureBannerIcon} />
           <div>
-            <strong>{t('Advanced RAG Active')}</strong>
-            <p>{t('Semantic Chunking · Query Rewriting · Hybrid Search (TF-IDF + Vector) · Context Compression')}</p>
+            <strong>{t('Answers with sources from your documents')}</strong>
+            <p>{t('StarkLLM searches your documents by meaning and by exact words, and names the page it read.')}</p>
           </div>
         </div>
         <button className="btn-secondary" onClick={(e) => { e.stopPropagation(); onViewChange('settings'); }} style={{ fontSize: '0.8rem', padding: '7px 14px' }}>

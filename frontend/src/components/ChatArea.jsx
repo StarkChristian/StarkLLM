@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import styles from './ChatArea.module.css';
 import { 
   User, Bot, Volume2, Square, Database, Copy, Check, Globe, RefreshCw, 
-  Edit2, Download, FileText, AlertTriangle, Sparkles, Code, BookOpen,
+  Edit2, Download, FileText, AlertTriangle, Sparkles, Code, BookOpen, Upload, CalendarClock,
   ThumbsUp, ThumbsDown, Zap, Cloud
 } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
@@ -16,31 +16,34 @@ import SourcesModal from './SourcesModal';
 import DocumentViewerModal from './DocumentViewerModal';
 import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
+import { UPLOAD_ACCEPT } from '../utils/uploadTypes';
 
+// The start page of a chat: what StarkLLM is for. The first card opens the file picker, the others ask about the
+// documents of this workspace.
 const STARTER_PROMPTS = [
   {
-    icon: Sparkles,
-    title: t('Deep Tech Explainer'),
-    desc: t('Explain Homomorphic Encryption & ZK Proofs simply'),
-    prompt: t('Can you explain how Homomorphic Encryption and Zero-Knowledge Proofs work together to preserve privacy in modern AI, in simple terms?')
-  },
-  {
-    icon: Code,
-    title: t('Code Architecture & Review'),
-    desc: t('Analyze code for performance bottlenecks & security'),
-    prompt: t('Act as a principal software architect. Review my codebase architecture and suggest optimizations for concurrency and memory usage.')
-  },
-  {
-    icon: BookOpen,
-    title: t('Workspace Knowledge Query'),
-    desc: t('Synthesize insights and answers from indexed documents'),
-    prompt: t('Based on my indexed workspace documents and knowledge base, what are the primary takeaways and key insights?')
+    icon: Upload,
+    title: t('Add a letter or document'),
+    desc: t('A photo, a scan or a file: StarkLLM reads it on this PC'),
+    upload: true
   },
   {
     icon: FileText,
-    title: t('Executive Strategic Briefing'),
-    desc: t('Draft a concise summary on local open-source AI'),
-    prompt: t('Draft an executive briefing summarizing recent advancements in open-weight models, local inference speed, and private enterprise AI.')
+    title: t('What does this letter want from me?'),
+    desc: t('Sender, request and deadline, in simple words'),
+    prompt: t('Explain my newest document in simple words: who sent it, what it wants from me, and by when. Name the page you read it on.')
+  },
+  {
+    icon: CalendarClock,
+    title: t('My deadlines and payments'),
+    desc: t('Every date and amount in my documents'),
+    prompt: t('List every deadline, due date and payment in my documents, sorted by date, with the amount and the document it comes from.')
+  },
+  {
+    icon: BookOpen,
+    title: t('Overview of my documents'),
+    desc: t('What each document is about, by sender'),
+    prompt: t('Give me a short overview of my documents: what each one is about, grouped by sender.')
   }
 ];
 
@@ -466,9 +469,11 @@ export default function ChatArea({
   onSelectStarter,
   workspaceId,
   chatId,
+  onUpload,
   token
 }) {
   const toast = useToast();
+  const starterFileRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const messagesEndRef = useRef(null);
   
@@ -727,28 +732,44 @@ export default function ChatArea({
           <img src="/Logo.png" alt="StarkLLM" className={styles.welcomeLogo} />
           <h1 className={styles.welcomeTitle}>StarkLLM</h1>
           <p className={styles.welcomeSubtitle}>
-            {t('Private AI assistant with personal Knowledge Base and RAG retrieval.')}
+            {t('Your private assistant for letters and documents, on this PC.')}
           </p>
 
           <div className={styles.suggestionsGrid}>
             {STARTER_PROMPTS.map((item, idx) => {
               const Icon = item.icon;
               return (
-                <div 
-                  key={idx} 
+                <button
+                  type="button"
+                  key={idx}
                   className={styles.suggestionCard}
-                  onClick={() => onSelectStarter && onSelectStarter(item.prompt)}
-                  role="button"
-                  tabIndex={0}
+                  onClick={() => {
+                    if (item.upload) starterFileRef.current && starterFileRef.current.click();
+                    else if (onSelectStarter) onSelectStarter(item.prompt);
+                  }}
                 >
                   <div className={styles.suggestionHeader}>
                     <Icon size={16} className={styles.suggestionIcon} />
                     <span>{item.title}</span>
                   </div>
                   <div className={styles.suggestionDesc}>{item.desc}</div>
-                </div>
+                </button>
               );
             })}
+            <input
+              ref={starterFileRef}
+              type="file"
+              multiple
+              accept={UPLOAD_ACCEPT}
+              hidden
+              onChange={async (e) => {
+                const files = [...(e.target.files || [])];
+                e.target.value = '';
+                for (const f of files) {
+                  try { onUpload && (await onUpload(f)); } catch (_) { /* the chat shows the error */ }
+                }
+              }}
+            />
           </div>
         </div>
       ) : (

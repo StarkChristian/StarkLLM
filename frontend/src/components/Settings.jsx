@@ -10,9 +10,9 @@ import { cloudHostFor } from '../utils/cloud';
 const SECTIONS = [
   { id: 'account',  label: t('Account'),       icon: User },
   { id: 'instructions', label: t('Custom Instructions'), icon: FileText },
-  { id: 'workspace-prompt', label: t('Workspace AI Persona'), icon: BrainCircuit },
+  { id: 'workspace-prompt', label: t('Instructions for this workspace'), icon: BrainCircuit },
   { id: 'model',    label: t('Model Settings'),icon: Cpu },
-  { id: 'rag',      label: t('RAG Engine'),    icon: Database },
+  { id: 'rag',      label: t('Document search'), icon: Database },
   { id: 'kb',       label: t('Knowledge Base'), icon: Shield },
   { id: 'mcp',      label: t('Local Tools'),   icon: Terminal },
   { id: 'dev-api',  label: t('Local API Server (OpenAI)'), icon: Server },
@@ -339,7 +339,10 @@ print(response.choices[0].message.content)`;
     applyTheme(newTheme);
   };
 
-  const [activeSection, setActiveSection] = useState('account');
+  // The local user of the desktop app has no account to manage (no password, nothing to sign out of)
+  const isLocal = username === 'local';
+  const sections = isLocal ? SECTIONS.filter((s) => s.id !== 'account') : SECTIONS;
+  const [activeSection, setActiveSection] = useState(sections[0].id);
 
   const getHeaders = (extra = {}) => ({
     Authorization: `Bearer ${token}`,
@@ -414,7 +417,7 @@ print(response.choices[0].message.content)`;
       <div className={styles.layout}>
         {/* ── Sidebar nav ── */}
         <nav className={styles.sideNav}>
-          {SECTIONS.map(({ id, label, icon: Icon }) => (
+          {sections.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               className={`${styles.sideNavItem} ${activeSection === id ? styles.sideNavActive : ''}`}
@@ -541,7 +544,7 @@ print(response.choices[0].message.content)`;
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <BrainCircuit size={18} />
-                <h2>{t('Workspace AI Persona')}</h2>
+                <h2>{t('Instructions for this workspace')}</h2>
               </div>
               <p className={styles.panelDesc}>
                 {t('Define a custom system prompt for the')} <strong>{activeWorkspace?.name || 'active workspace'}</strong>.
@@ -837,7 +840,7 @@ print(response.choices[0].message.content)`;
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <Cpu size={18} />
-                <h2>{t('RAG Engine Settings')}</h2>
+                <h2>{t('Document search')}</h2>
               </div>
               <p className={styles.panelDesc}>
                 {t('Configure how StarkLLM processes and retrieves documents. These settings affect retrieval quality and performance.')}
@@ -871,7 +874,7 @@ print(response.choices[0].message.content)`;
               </div>
 
               <button className="btn-primary" onClick={saveRag}>
-                {ragSaved ? <><CheckCircle size={14} /> {t('Saved!')}</> : <><Save size={14} /> {t('Save RAG Settings')}</>}
+                {ragSaved ? <><CheckCircle size={14} /> {t('Saved!')}</> : <><Save size={14} /> {t('Save')}</>}
               </button>
 
               <div className={styles.infoBox}>

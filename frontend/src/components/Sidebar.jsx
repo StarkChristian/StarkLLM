@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import styles from './Sidebar.module.css';
 import {
   LayoutDashboard, MessageSquare, Database, Settings,
-  Plus, LogOut, ChevronRight, Trash2, Check, X,
+  Plus, LogOut, Monitor, ChevronRight, Trash2, Check, X,
   MessageCircle, ChevronDown, FileText, FolderOpen, BrainCircuit,
   Pencil, Search, Pin, PinOff, AlignLeft, SearchCheck,
   FolderPlus, Folder, MoveRight, Cpu, Sparkles, Palette
@@ -60,6 +60,8 @@ export default function Sidebar({
   onOpenModelHub,
   onOpenStudio,
 }) {
+  // The single local user of the desktop app has no account: nothing to sign out of.
+  const isLocal = username === 'local';
   const isChat = activeView === 'chat';
   const [deletingChatId, setDeletingChatId] = useState(null);
   const [deletingDocId, setDeletingDocId] = useState(null);
@@ -684,9 +686,9 @@ export default function Sidebar({
       <div className={styles.footer}>
         <div className={styles.userInfo}>
           <div className={styles.avatar}>
-            {username ? username[0].toUpperCase() : '?'}
+            {isLocal ? <Monitor size={14} /> : (username ? username[0].toUpperCase() : '?')}
           </div>
-          <span className={styles.username}>{username || t('User')}</span>
+          <span className={styles.username}>{isLocal ? t('This PC') : (username || t('User'))}</span>
           <SidebarStatusDot token={token} />
         </div>
         <div className={styles.footerActions} ref={themePopoverRef}>
@@ -720,9 +722,11 @@ export default function Sidebar({
             </div>
           )}
 
-          <button className={styles.logoutBtn} onClick={onLogout} title={t('Log out')}>
-            <LogOut size={16} />
-          </button>
+          {!isLocal && (
+            <button className={styles.logoutBtn} onClick={onLogout} title={t('Log out')}>
+              <LogOut size={16} />
+            </button>
+          )}
         </div>
       </div>
     </div>
