@@ -1,0 +1,13 @@
+# Only for the answer-quality evaluation (backend/test_eval.py, app/services/eval_service.py), not for the engine.
+# The engine does not import any of these; leaving them out makes the Docker image and the Python runtime of
+# StarkLLM without Docker much smaller.
+#   pip install -r requirements.txt -r requirements-eval.txt
+datasets
+langchain==1.4.7
+langchain-community==0.4.2
+langchain-core==1.7.0
+ragas==0.4.3
+pandas==3.1.0
+langchain-google-vertexai==3.2.4
+langchain-openai==1.7.2
+langchain-ollama==1.1.0
