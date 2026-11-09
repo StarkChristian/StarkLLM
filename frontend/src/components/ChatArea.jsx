@@ -13,31 +13,32 @@ import ToolCallCard from './ToolCallCard';
 import { serverDate } from '../utils/time';
 import { citedSources } from '../utils/sources';
 import { UI_LOCALE } from '../utils/locale';
+import { t } from '../i18n';
 
 const STARTER_PROMPTS = [
   {
     icon: Sparkles,
-    title: "Deep Tech Explainer",
-    desc: "Explain Homomorphic Encryption & ZK Proofs simply",
-    prompt: "Can you explain how Homomorphic Encryption and Zero-Knowledge Proofs work together to preserve privacy in modern AI, in simple terms?"
+    title: t('Deep Tech Explainer'),
+    desc: t('Explain Homomorphic Encryption & ZK Proofs simply'),
+    prompt: t('Can you explain how Homomorphic Encryption and Zero-Knowledge Proofs work together to preserve privacy in modern AI, in simple terms?')
   },
   {
     icon: Code,
-    title: "Code Architecture & Review",
-    desc: "Analyze code for performance bottlenecks & security",
-    prompt: "Act as a principal software architect. Review my codebase architecture and suggest optimizations for concurrency and memory usage."
+    title: t('Code Architecture & Review'),
+    desc: t('Analyze code for performance bottlenecks & security'),
+    prompt: t('Act as a principal software architect. Review my codebase architecture and suggest optimizations for concurrency and memory usage.')
   },
   {
     icon: BookOpen,
-    title: "Workspace Knowledge Query",
-    desc: "Synthesize insights and answers from indexed documents",
-    prompt: "Based on my indexed workspace documents and knowledge base, what are the primary takeaways and key insights?"
+    title: t('Workspace Knowledge Query'),
+    desc: t('Synthesize insights and answers from indexed documents'),
+    prompt: t('Based on my indexed workspace documents and knowledge base, what are the primary takeaways and key insights?')
   },
   {
     icon: FileText,
-    title: "Executive Strategic Briefing",
-    desc: "Draft a concise summary on local open-source AI",
-    prompt: "Draft an executive briefing summarizing recent advancements in open-weight models, local inference speed, and private enterprise AI."
+    title: t('Executive Strategic Briefing'),
+    desc: t('Draft a concise summary on local open-source AI'),
+    prompt: t('Draft an executive briefing summarizing recent advancements in open-weight models, local inference speed, and private enterprise AI.')
   }
 ];
 
@@ -62,9 +63,9 @@ const md = new MarkdownIt({
 
     const encoded = encodeURIComponent(str);
     const isRunnable = ['python', 'py', 'python3'].includes((validLang || '').toLowerCase());
-    const runBtn = isRunnable ? `<button class="run-code-btn" data-lang="${validLang}" data-code="${encoded}" title="Run code in local Python sandbox"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>Run</span></button>` : '';
+    const runBtn = isRunnable ? `<button class="run-code-btn" data-lang="${validLang}" data-code="${encoded}" title={t('Run code in local Python sandbox')}><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>{t('Run')}</span></button>` : '';
 
-    return `<div class="code-block-wrapper"><div class="code-block-header"><span class="code-block-lang">${displayLang}</span><div class="code-block-actions">${runBtn}<button class="copy-code-btn" data-code="${encoded}" title="Copy code"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span>Copy</span></button></div></div><pre><code class="hljs ${validLang}">${highlightedCode}</code></pre></div>`;
+    return `<div class="code-block-wrapper"><div class="code-block-header"><span class="code-block-lang">${displayLang}</span><div class="code-block-actions">${runBtn}<button class="copy-code-btn" data-code="${encoded}" title={t('Copy code')}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span>{t('Copy')}</span></button></div></div><pre><code class="hljs ${validLang}">${highlightedCode}</code></pre></div>`;
   }
 });
 // Only real links: with fuzzy links on, a file name like 'card.md' became http://card.md (a Moldovan domain).
@@ -245,8 +246,8 @@ const ChatMessageRenderer = React.memo(({
                 rows={Math.min(10, editText.split('\n').length + 1)}
               />
               <div className={styles.editActions}>
-                <button className={styles.editCancelBtn} onClick={handleCancelEdit}>Cancel</button>
-                <button className={styles.editSaveBtn} onClick={() => handleSaveEdit(i)}>Save & Submit</button>
+                <button className={styles.editCancelBtn} onClick={handleCancelEdit}>{t('Cancel')}</button>
+                <button className={styles.editSaveBtn} onClick={() => handleSaveEdit(i)}>{t('Save & Submit')}</button>
               </div>
             </div>
           ) : msg.role === 'assistant' && msg.content === '' ? (
@@ -283,7 +284,7 @@ const ChatMessageRenderer = React.memo(({
               {msg.role === 'assistant' && ((shown.ws && shown.ws.length > 0) || (shown.kb && shown.kb.length > 0) || (msg.webSources && msg.webSources.length > 0) || msg.cloudHost) && (
                 <div className={styles.sourcesContainer}>
                   {msg.cloudHost && (
-                    <div className={styles.sourceGroup} title="This answer was generated by a cloud model provider, not on this PC">
+                    <div className={styles.sourceGroup} title={t('This answer was generated by a cloud model provider, not on this PC')}>
                       <Cloud size={11} className={styles.sourceIcon} />
                       <span>Answered by {msg.cloudHost} (cloud)</span>
                     </div>
@@ -291,7 +292,7 @@ const ChatMessageRenderer = React.memo(({
                   {shown.ws && shown.ws.length > 0 && (
                     <div 
                       className={styles.sourceGroup} 
-                      title="Retrieved from Workspace Documents — click to inspect citations"
+                      title={t('Retrieved from Workspace Documents — click to inspect citations')}
                       style={{ cursor: 'pointer' }}
                       onClick={() => onInspectSources && onInspectSources('Workspace Documents', shown.ws)}
                     >
@@ -302,7 +303,7 @@ const ChatMessageRenderer = React.memo(({
                   {shown.kb && shown.kb.length > 0 && (
                     <div 
                       className={styles.sourceGroup} 
-                      title="Retrieved from Personal Knowledge Base — click to inspect citations"
+                      title={t('Retrieved from Personal Knowledge Base — click to inspect citations')}
                       style={{ cursor: 'pointer' }}
                       onClick={() => onInspectSources && onInspectSources('Personal Knowledge Base', shown.kb)}
                     >
@@ -354,7 +355,7 @@ const ChatMessageRenderer = React.memo(({
                 className={styles.chatRetryBtn} 
                 onClick={() => onRetryMessage(msg.failedText)}
               >
-                <RefreshCw size={12} /> Retry
+                <RefreshCw size={12} /> {t('Retry')}
               </button>
             )}
           </div>
@@ -365,7 +366,7 @@ const ChatMessageRenderer = React.memo(({
               <button 
                 className={`${styles.actionBtn} ${copiedIndex === i ? styles.success : ''}`}
                 onClick={() => handleCopy(msg.content, i)}
-                title="Copy to clipboard"
+                title={t('Copy to clipboard')}
               >
                 {copiedIndex === i ? <Check size={14} /> : <Copy size={14} />}
               </button>
@@ -374,7 +375,7 @@ const ChatMessageRenderer = React.memo(({
                 <button 
                   className={styles.actionBtn} 
                   onClick={() => handleStartEdit(i, msg.content)}
-                  title="Edit message"
+                  title={t('Edit message')}
                 >
                   <Edit2 size={14} />
                 </button>
@@ -384,7 +385,7 @@ const ChatMessageRenderer = React.memo(({
                 <button 
                   className={styles.actionBtn} 
                   onClick={() => onRegenerate(i)}
-                  title="Regenerate response"
+                  title={t('Regenerate response')}
                 >
                   <RefreshCw size={14} />
                 </button>
@@ -395,7 +396,7 @@ const ChatMessageRenderer = React.memo(({
                   <button
                     className={`${styles.actionBtn} ${localFeedback === 'positive' ? styles.feedbackActive : ''}`}
                     onClick={() => handleFeedback('positive')}
-                    title="Good response"
+                    title={t('Good response')}
                     style={localFeedback === 'positive' ? { color: 'var(--success)', background: 'rgba(16,185,129,0.12)' } : {}}
                   >
                     <ThumbsUp size={14} />
@@ -403,7 +404,7 @@ const ChatMessageRenderer = React.memo(({
                   <button
                     className={`${styles.actionBtn} ${localFeedback === 'negative' ? styles.feedbackActive : ''}`}
                     onClick={() => handleFeedback('negative')}
-                    title="Bad response"
+                    title={t('Bad response')}
                     style={localFeedback === 'negative' ? { color: 'var(--danger)', background: 'rgba(239,68,68,0.12)' } : {}}
                   >
                     <ThumbsDown size={14} />
@@ -415,7 +416,7 @@ const ChatMessageRenderer = React.memo(({
                 <button 
                   className={`${styles.actionBtn} ${playingIndex === i ? styles.playing : ''}`} 
                   onClick={() => playAudio(msg.content, i)}
-                  title={playingIndex === i ? "Stop audio" : "Play audio"}
+                  title={playingIndex === i ? t('Stop audio') : t('Play audio')}
                 >
                   {playingIndex === i ? <Square size={14} fill="currentColor" /> : <Volume2 size={14} />}
                 </button>
@@ -489,7 +490,7 @@ export default function ChatArea({
         const span = btn.querySelector('span');
         if (span) {
           const originalText = span.textContent;
-          span.textContent = 'Copied!';
+          span.textContent = t('Copied!');
           btn.classList.add('copied');
           setTimeout(() => {
             span.textContent = originalText;
@@ -516,7 +517,7 @@ export default function ChatArea({
 
       const span = btn.querySelector('span');
       const originalText = span ? span.textContent : 'Run';
-      if (span) span.textContent = 'Running...';
+      if (span) span.textContent = t('Running...');
       btn.disabled = true;
 
       try {
@@ -543,7 +544,7 @@ export default function ChatArea({
               <span class="code-output-indicator"></span>
               <span>Output (${execTime})</span>
             </div>
-            <button class="code-output-close" title="Close output">✕</button>
+            <button class="code-output-close" title={t('Close output')}>✕</button>
           </div>
           <pre class="code-output-body">${outputText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
         `;
@@ -557,9 +558,9 @@ export default function ChatArea({
           <div class="code-output-header">
             <div class="code-output-title-wrap">
               <span class="code-output-indicator"></span>
-              <span>Execution Error</span>
+              <span>{t('Execution Error')}</span>
             </div>
-            <button class="code-output-close" title="Close output">✕</button>
+            <button class="code-output-close" title={t('Close output')}>✕</button>
           </div>
           <pre class="code-output-body">${String(err.message || err).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
         `;
@@ -694,7 +695,7 @@ export default function ChatArea({
       if (currentAudioRef.current) {
         currentAudioRef.current = null;
       }
-      toast.error("Failed to play audio: " + error.message);
+      toast.error(t('Failed to play audio: ') + error.message);
     }
   };
 
@@ -711,7 +712,7 @@ export default function ChatArea({
           <img src="/Logo.png" alt="StarkLLM" className={styles.welcomeLogo} />
           <h1 className={styles.welcomeTitle}>StarkLLM</h1>
           <p className={styles.welcomeSubtitle}>
-            Private AI assistant with personal Knowledge Base and RAG retrieval.
+            {t('Private AI assistant with personal Knowledge Base and RAG retrieval.')}
           </p>
 
           <div className={styles.suggestionsGrid}>
@@ -743,7 +744,7 @@ export default function ChatArea({
                 <button
                   className={styles.exportBtn}
                   onClick={onSummarize}
-                  title="Summarize this chat"
+                  title={t('Summarize this chat')}
                 >
                   <FileText size={18} />
                 </button>
@@ -753,23 +754,23 @@ export default function ChatArea({
                   <button
                     className={styles.exportBtn}
                     onClick={() => setShowExportMenu(!showExportMenu)}
-                    title="Export chat"
+                    title={t('Export chat')}
                   >
                     <Download size={18} />
                   </button>
                   {showExportMenu && (
                     <div className={styles.exportMenu}>
                       <button onClick={() => { onExport('md'); setShowExportMenu(false); }}>
-                        📄 Markdown (.md)
+                        {t('📄 Markdown (.md)')}
                       </button>
                       <button onClick={() => { onExport('html'); setShowExportMenu(false); }}>
-                        🖨️ Printable HTML / PDF (.html)
+                        {t('🖨️ Printable HTML / PDF (.html)')}
                       </button>
                       <button onClick={() => { onExport('json'); setShowExportMenu(false); }}>
-                        📋 Structured Data (.json)
+                        {t('📋 Structured Data (.json)')}
                       </button>
                       <button onClick={() => { onExport('txt'); setShowExportMenu(false); }}>
-                        📝 Plain Text (.txt)
+                        {t('📝 Plain Text (.txt)')}
                       </button>
                     </div>
                   )}
@@ -859,7 +860,7 @@ export default function ChatArea({
             </div>
             <div style={{ padding: '20px', maxHeight: '420px', overflowY: 'auto' }}>
               <p style={{ margin: '0 0 14px 0', fontSize: '0.85rem', color: '#9ca3af', lineHeight: 1.5 }}>
-                The assistant retrieved and synthesized the following document citations to ground its answer accurately in your data:
+                {t('The assistant retrieved and synthesized the following document citations to ground its answer accurately in your data:')}
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {inspectingSource.sources.map((src, sIdx) => (
@@ -893,7 +894,7 @@ export default function ChatArea({
                         fontWeight: 500
                       }}
                     >
-                      Cited Source
+                      {t('Cited Source')}
                     </span>
                   </div>
                 ))}
@@ -911,7 +912,7 @@ export default function ChatArea({
                 onClick={() => setInspectingSource(null)}
                 style={{ padding: '7px 18px', fontSize: '0.85rem' }}
               >
-                Close
+                {t('Close')}
               </button>
             </div>
           </div>
