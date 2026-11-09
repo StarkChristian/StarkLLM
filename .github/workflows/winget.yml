@@ -64,7 +64,7 @@ jobs:
           Get-ChildItem HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall | ForEach-Object { Get-ItemProperty $_.PSPath } |
             Where-Object { $_.DisplayName -like 'StarkLLM*' } |
             Format-List PSChildName, DisplayName, DisplayVersion, Publisher, InstallLocation | Out-String
-          winget list --name StarkLLM --disable-interactivity
+          winget list --name StarkLLM --accept-source-agreements --disable-interactivity
 
       - uses: actions/upload-artifact@v4
         if: always()

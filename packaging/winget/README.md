@@ -23,7 +23,13 @@ winget installs only what is in microsoft/winget-pkgs. To publish a version, cop
 
 ## New version
 
-Copy the folder of the last version, change `PackageVersion`, `InstallerUrl`, `InstallerSha256` (upper case) and
-`ReleaseDate`, and `ReleaseNotesUrl` in the locale file.
+Copy the folder of the last version, change `PackageVersion`, `InstallerUrl`, `InstallerSha256` (upper case),
+`ReleaseDate`, the version in `AppsAndFeaturesEntries`, and `ReleaseNotesUrl` in the locale file.
 
-The installer is not code-signed yet; winget accepts it, Windows SmartScreen may still warn on the first start.
+## Unsigned installer
+
+The installer is not code-signed yet. winget accepts the manifest and installs it, but on a normal Windows PC the
+install is not silent: the workflow found that Windows first shows SmartScreen ("Windows protected your PC") and then
+"The publisher could not be verified ... Unknown Publisher" for the downloaded installer; the user has to click
+"More info > Run anyway" and "Run". The workflow switches both off on its throwaway runner to check the manifest.
+Code signing removes both prompts.
