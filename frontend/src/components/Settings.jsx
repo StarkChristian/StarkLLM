@@ -3,7 +3,8 @@ import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, 
 import styles from './Settings.module.css';
 import BackupRestoreSettings from './BackupRestoreSettings';
 import { AVAILABLE_THEMES, applyTheme } from '../utils/themes';
-import { SUPPORTED_LANGUAGES, getCurrentLanguage, setLanguage } from '../utils/languages';
+import { t, language, setLanguage } from '../i18n';
+import { SUPPORTED_LANGUAGES } from '../utils/languages';
 import { cloudHostFor } from '../utils/cloud';
 
 const SECTIONS = [
@@ -1239,21 +1240,17 @@ print(response.choices[0].message.content)`;
                 <h2>Language &amp; Locale</h2>
               </div>
               <p className={styles.panelDesc}>
-                English is the interface language. German is the next one.
+                {t('Without a choice here, StarkLLM uses the language of Windows. The page reloads when you change it.')}
               </p>
 
               <div className={styles.languageGrid}>
                 {SUPPORTED_LANGUAGES.map(lang => {
-                  const isActive = lang.code === 'en';
+                  const isActive = lang.code === language();
                   return (
                     <div
                       key={lang.code}
                       className={`${styles.languageCard} ${isActive ? styles.languageCardActive : ''}`}
-                      onClick={() => {
-                        if (lang.status === 'active') {
-                          setLanguage(lang.code);
-                        }
-                      }}
+                      onClick={() => setLanguage(lang.code)}
                     >
                       <div className={styles.languageHeaderRow}>
                         <div className={styles.languageTitleGroup}>
@@ -1264,9 +1261,9 @@ print(response.choices[0].message.content)`;
                           </div>
                         </div>
                         {isActive ? (
-                          <span className={styles.languageBadgeActive}>Active</span>
+                          <span className={styles.languageBadgeActive}>{t('Active')}</span>
                         ) : (
-                          <span className={styles.languageBadgeRoadmap}>{lang.statusLabel}</span>
+                          <span className={styles.languageBadgeRoadmap}>{t('Select')}</span>
                         )}
                       </div>
 
@@ -1280,9 +1277,9 @@ print(response.choices[0].message.content)`;
               </div>
 
               <div className={styles.languageRoadmapNotice}>
-                <strong>🌐 StarkLLM Internationalization Architecture</strong>
+                <strong>{t('German interface')}</strong>
                 <span>
-                  The initial release is standardized exclusively on 100% clean English for reliable inference, prompt consistency, and document evaluation. A German interface is planned next.
+                  {t('The start page, the side bar and the sign-in are in German; the other pages follow step by step and are shown in English until then.')}
                 </span>
               </div>
             </div>

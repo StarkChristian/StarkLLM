@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, Server, Cpu, Brain, Zap, X } from 'lucide-react';
 import styles from './HealthBanner.module.css';
+import { t } from '../i18n';
 
 export default function HealthBanner({ token }) {
   const [data, setData] = useState(null);
@@ -33,16 +34,16 @@ export default function HealthBanner({ token }) {
   const errors = [];
   
   if (data.backend?.status === 'offline') {
-    errors.push({ icon: Server, msg: data.backend.error || "Backend is unreachable." });
+    errors.push({ icon: Server, msg: data.backend.error || t('Backend is unreachable.') });
   } else {
     if (data.ollama?.status === 'offline' || data.ollama?.status === 'degraded') {
-      errors.push({ icon: Cpu, msg: data.ollama.error || "Ollama is offline." });
+      errors.push({ icon: Cpu, msg: data.ollama.error || t('Ollama is offline.') });
     }
     if (data.text_model?.status === 'missing') {
-      errors.push({ icon: Brain, msg: data.text_model.error || `Text model missing.` });
+      errors.push({ icon: Brain, msg: data.text_model.error || t('Text model missing.') });
     }
     if (data.embedding_model?.status === 'missing') {
-      errors.push({ icon: Zap, msg: data.embedding_model.error || `Embedding model missing.` });
+      errors.push({ icon: Zap, msg: data.embedding_model.error || t('Embedding model missing.') });
     }
   }
 
@@ -55,7 +56,7 @@ export default function HealthBanner({ token }) {
           <AlertTriangle size={18} />
         </div>
         <div className={styles.errorList}>
-          <h4 className={styles.bannerTitle}>System Issues Detected</h4>
+          <h4 className={styles.bannerTitle}>{t('System Issues Detected')}</h4>
           {errors.map((err, idx) => (
             <div key={idx} className={styles.errorItem}>
               <err.icon size={14} className={styles.itemIcon} />
@@ -67,7 +68,7 @@ export default function HealthBanner({ token }) {
       <button 
         className={styles.dismissBtn} 
         onClick={() => setDismissed(true)}
-        title="Dismiss warning"
+        title={t('Dismiss warning')}
       >
         <X size={16} />
       </button>

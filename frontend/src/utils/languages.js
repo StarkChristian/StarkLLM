@@ -1,6 +1,6 @@
 /**
  * StarkLLM interface languages.
- * English is the primary language; German is the second and comes next.
+ * English is the primary language; German is the second. Choosing and translating: src/i18n.
  */
 
 export const SUPPORTED_LANGUAGES = [
@@ -21,22 +21,9 @@ export const SUPPORTED_LANGUAGES = [
     nativeName: 'Deutsch',
     region: 'Germany, Austria, Switzerland',
     users: '180M+ users',
-    status: 'roadmap',
-    statusLabel: 'Next',
+    status: 'active',
+    statusLabel: 'Active',
     dir: 'ltr',
     flag: '🇩🇪'
   }
 ];
-
-export function getCurrentLanguage() {
-  return localStorage.getItem('ui_language') || 'en';
-}
-
-export function setLanguage(code) {
-  localStorage.setItem('ui_language', code);
-  const lang = SUPPORTED_LANGUAGES.find(l => l.code === code);
-  if (lang) {
-    document.documentElement.setAttribute('lang', lang.code);
-    document.documentElement.setAttribute('dir', lang.dir || 'ltr');
-  }
-}

@@ -5,14 +5,15 @@ import {
   CheckCircle2, XCircle, AlertTriangle, HelpCircle, Wifi
 } from 'lucide-react';
 import { UI_LOCALE } from '../utils/locale';
+import { t } from '../i18n';
 
 /* ── helpers ─────────────────────────────────────────── */
 const STATUS_META = {
-  online:   { label: 'Online',   color: '#22c55e', Icon: CheckCircle2 },
-  offline:  { label: 'Offline',  color: '#ef4444', Icon: XCircle },
-  missing:  { label: 'Missing',  color: '#f59e0b', Icon: AlertTriangle },
-  degraded: { label: 'Degraded', color: '#f59e0b', Icon: AlertTriangle },
-  unknown:  { label: 'Unknown',  color: '#768396', Icon: HelpCircle },
+  online:   { label: t('Online'),   color: '#22c55e', Icon: CheckCircle2 },
+  offline:  { label: t('Offline'),  color: '#ef4444', Icon: XCircle },
+  missing:  { label: t('Missing'),  color: '#f59e0b', Icon: AlertTriangle },
+  degraded: { label: t('Degraded'), color: '#f59e0b', Icon: AlertTriangle },
+  unknown:  { label: t('Unknown'),  color: '#768396', Icon: HelpCircle },
 };
 
 function StatusBadge({ status }) {
@@ -132,13 +133,13 @@ export default function SystemStatusWidget({ token }) {
       <button
         className={styles.header}
         onClick={() => setExpanded(prev => !prev)}
-        title={expanded ? 'Collapse' : 'Expand system status'}
+        title={expanded ? t('Collapse') : t('Expand system status')}
       >
         <div className={styles.headerLeft}>
           <div className={styles.headerIcon} style={{ '--icon-color': overallColor }}>
             <Activity size={15} />
           </div>
-          <span className={styles.headerTitle}>System Status</span>
+          <span className={styles.headerTitle}>{t('System Status')}</span>
           {/* Animated pulse dot */}
           <span
             className={`${styles.pulseOuter} ${overall === 'online' ? styles.pulseGreen : overall === 'offline' ? styles.pulseRed : styles.pulseAmber}`}
@@ -151,7 +152,7 @@ export default function SystemStatusWidget({ token }) {
           <button
             className={`${styles.refreshBtn} ${loading ? styles.spinning : ''}`}
             onClick={(e) => { e.stopPropagation(); fetchStatus(); }}
-            title="Refresh status"
+            title={t('Refresh status')}
             disabled={loading}
           >
             <RefreshCw size={13} />
@@ -186,7 +187,7 @@ export default function SystemStatusWidget({ token }) {
           <StatusRow
             icon={Server}
             iconColor="#6366f1"
-            label="Backend API"
+            label={t('Backend API')}
             sublabel="FastAPI server"
             status={data?.backend?.status ?? 'online'}
             error={data?.backend?.error}
@@ -203,7 +204,7 @@ export default function SystemStatusWidget({ token }) {
           <StatusRow
             icon={Brain}
             iconColor="#8b5cf6"
-            label="Text Model"
+            label={t('Text Model')}
             sublabel={data?.text_model?.name ?? '—'}
             status={data?.text_model?.status ?? 'unknown'}
             error={data?.text_model?.error}
@@ -211,7 +212,7 @@ export default function SystemStatusWidget({ token }) {
           <StatusRow
             icon={Zap}
             iconColor="#f59e0b"
-            label="Embedding Model"
+            label={t('Embedding Model')}
             sublabel={data?.embedding_model?.name ?? '—'}
             status={data?.embedding_model?.status ?? 'unknown'}
             error={data?.embedding_model?.error}
@@ -220,7 +221,7 @@ export default function SystemStatusWidget({ token }) {
           {/* Available models list */}
           {data?.available_models?.length > 0 && (
             <div className={styles.modelList}>
-              <span className={styles.modelListLabel}>Pulled models</span>
+              <span className={styles.modelListLabel}>{t('Pulled models')}</span>
               <div className={styles.modelPills}>
                 {data.available_models.map((m) => (
                   <span
