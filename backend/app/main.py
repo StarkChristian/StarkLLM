@@ -209,7 +209,8 @@ def launcher_register_kb_folder(
 
     # 3. Path sanitization
     folder_path = body.folder_path.strip()
-    if _re.match(r'^[A-Za-z]:[/\\]', folder_path) or folder_path.startswith('\\\\'):
+    # only in the (Linux) container; without Docker the backend runs on Windows and these paths are real
+    if os.name != "nt" and (_re.match(r'^[A-Za-z]:[/\\]', folder_path) or folder_path.startswith('\\\\')):
         raise HTTPException(
             status_code=422,
             detail="Windows host paths cannot be registered directly. Use container path."
