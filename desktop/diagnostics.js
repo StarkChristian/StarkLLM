@@ -124,7 +124,8 @@ function buildRows(d) {
       code: d.engine.log && d.engine.log.length ? d.engine.log : null
     });
   }
-  for (const w of d.engine.warnings || []) rows.push({ ok: false, title: 'Download failed', detail: w });
+  // a warning is a text (a model download failed) or { title, detail }
+  for (const w of d.engine.warnings || []) rows.push(typeof w === 'string' ? { ok: false, title: 'Download failed', detail: w } : { ok: false, ...w });
 
   return rows;
 }

@@ -450,6 +450,52 @@ async function ensureOllama(status, progress, warnings) {
   return true;
 }
 
+// Going back to the previous engine when an updated engine does not start (roadmap phase 1).
+// Before the update the images of the running engine get a "rollback" tag, so they stay on the PC even when the new
+// engine replaces the "starkllm-backend" image or uses other images. If the new engine does not start or does not
+// answer, StarkLLM starts the tagged images again. The failed build is remembered for a day, so StarkLLM does not
+// spend several minutes on the same failing update at every start.
+const ROLLBACK_RETRY_MS = 24 * 60 * 60 * 1000;
+const ENGINE_ANSWER_MS = Number(process.env.STARKLLM_ENGINE_ANSWER_MS) || 180000;
+
+function rollbackFile() {
+  return path.join(app.getPath('userData'), 'engine-rollback.json');
+}
+
+function readRollback(file = rollbackFile()) {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (e) {
+    return null;
+  }
+}
+
+// true: the update to this build failed less than a day ago and the previous engine is still running
+function skipFailedUpdate(state, fingerprint, runningBuild, now = Date.now()) {
+  return Boolean(state && state.failedBuild === fingerprint && state.previousBuild && state.previousBuild === runningBuild
+    && now - state.at < ROLLBACK_RETRY_MS);
+}
+
+async function keepRollbackImages(docker, runningBuild, { runCmd = run } = {}) {
+  const images = {};
+  for (const service of ['backend', 'frontend']) {
+    const r = await runCmd(docker, ['inspect', '-f', '{{.Image}}', `${PROJECT}-${service}`], { timeoutMs: 20000 });
+    const id = r.code === 0 && r.lines.length ? r.lines[r.lines.length - 1].trim() : '';
+    if (!id) return null;
+    const tag = `${PROJECT}-${service}:rollback`;
+    if ((await runCmd(docker, ['tag', id, tag], { timeoutMs: 20000 })).code !== 0) return null;
+    images[service] = tag;
+  }
+  return { ...images, build: runningBuild || '' };
+}
+
+async function rollbackEngine({ docker, compose, env, previous, answers, runCmd = run, wait = waitFor, cwd = engineDir() }) {
+  const back = { ...env, STARKLLM_BACKEND_IMAGE: previous.backend, STARKLLM_FRONTEND_IMAGE: previous.frontend, STARKLLM_ENGINE_BUILD: previous.build };
+  const up = await runCmd(docker, ['compose', '-p', PROJECT, '-f', compose, 'up', '-d', '--no-build'], { env: back, cwd, timeoutMs: 10 * 60 * 1000 });
+  up.lines.slice(-20).forEach((l) => log('compose (previous engine): ' + l));
+  return up.code === 0 && (await wait(answers, 180000));
+}
+
 // Returns { ok, ollama, warnings } or { ok: false, stage, detail, log }.
 async function startEngine(appUrl, onStatus) {
   const status = (text) => {
@@ -493,14 +539,22 @@ async function startEngine(appUrl, onStatus) {
 
   let updating = false;
   let reusedOther = false;
+  let previous = null;
   if (await isStarkLLM(appUrl)) {
     const running = await engineHealth();
     if (engineIsCurrent(running, fingerprint)) {
       status('StarkLLM is already running.');
       return { ok: true, ollama, warnings };
     }
+    if (skipFailedUpdate(readRollback(), fingerprint, running && running.build)) {
+      log(`the update to engine build ${fingerprint} failed less than a day ago; using the previous engine`);
+      warnings.push({ title: 'Still using the previous engine', detail: `The engine of StarkLLM ${app.getVersion()} did not start on this PC, so StarkLLM uses the previous engine. It tries the new engine again tomorrow. The details are in ${paths.log}.` });
+      return { ok: true, ollama, warnings };
+    }
     log(`running engine ${(running && running.version) || 'unknown'} (build ${(running && running.build) || 'none'}), app ${app.getVersion()} (build ${fingerprint}): updating the engine`);
     updating = true;
+    previous = await keepRollbackImages(docker, running && running.build);
+    log(previous ? `kept the previous engine as ${previous.backend} and ${previous.frontend}` : 'could not keep the previous engine images');
   }
   const env = {
     ...process.env,
@@ -564,6 +618,23 @@ async function startEngine(appUrl, onStatus) {
   if (up.code !== 0 && up.lines.some((l) => WINDOWS_CONTAINERS.test(l))) {
     return { ok: false, stage: 'docker-windows-containers' };
   }
+  const goBack = async (reason) => {
+    if (!previous) return false;
+    status('The new engine did not start; going back to the previous engine...');
+    const ok = await rollbackEngine({ docker, compose, env, previous, answers: () => isStarkLLM(appUrl) });
+    log(ok ? `went back to the previous engine (${reason})` : 'the previous engine did not start either');
+    if (!ok) return false;
+    try {
+      fs.writeFileSync(rollbackFile(), JSON.stringify({ failedBuild: fingerprint, previousBuild: previous.build, at: Date.now(), reason }));
+    } catch (e) {
+      log('could not write ' + rollbackFile() + ': ' + e.message);
+    }
+    warnings.push({ title: 'Went back to the previous engine', detail: `The engine of StarkLLM ${app.getVersion()} did not start (${reason}), so StarkLLM started the previous engine again. Your chats and documents are unchanged. It tries the new engine again tomorrow. The details are in ${paths.log}.` });
+    return true;
+  };
+  if (up.code !== 0 && !up.lines.some((l) => /address already in use|port is already allocated|ports are not available/i.test(l)) && (await goBack('it could not be started'))) {
+    return { ok: true, ollama, warnings };
+  }
   if (up.code !== 0) {
     const portBusy = up.lines.some((l) => /address already in use|port is already allocated|ports are not available/i.test(l));
     const detail = portBusy
@@ -575,12 +646,15 @@ async function startEngine(appUrl, onStatus) {
   status('Waiting for StarkLLM to answer...');
   // After an update the old containers can answer for a moment while compose replaces them.
   const answers = async () => (await isStarkLLM(appUrl)) && (reusedOther || engineIsCurrent(await engineHealth(), fingerprint));
-  if (!(await waitFor(answers, 180000))) {
+  if (!(await waitFor(answers, ENGINE_ANSWER_MS))) {
     const logs = await run(docker, ['compose', '-p', PROJECT, '-f', compose, 'logs', '--tail', '20'], { env, timeoutMs: 30000 });
+    logs.lines.forEach((l) => log('engine: ' + l));
+    if (await goBack('it did not answer within 3 minutes')) return { ok: true, ollama, warnings };
     return { ok: false, stage: 'engine', detail: 'The engine started but the web UI does not answer.', log: logs.lines.slice(-20) };
   }
+  if (updating) fs.rmSync(rollbackFile(), { force: true });
   status('Ready.');
   return { ok: true, ollama, warnings };
 }
 
-module.exports = { imageLayerSizes, engineImages, secretKey, startEngine, userPaths, pullWithRetry, buildWithoutBake, run, engineIsCurrent, engineFingerprint, TEXT_MODEL, EMBEDDING_MODEL };
+module.exports = { skipFailedUpdate, keepRollbackImages, rollbackEngine, imageLayerSizes, engineImages, secretKey, startEngine, userPaths, pullWithRetry, buildWithoutBake, run, engineIsCurrent, engineFingerprint, TEXT_MODEL, EMBEDDING_MODEL };
