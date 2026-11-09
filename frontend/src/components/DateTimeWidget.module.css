@@ -49,10 +49,8 @@
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
-  background: linear-gradient(90deg, #ffffff 0%, rgba(212, 175, 55, 0.9) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  /* one colour: the white-to-gold gradient made the hours white and the seconds gold, and the white part was
+     hard to read on light themes */
 }
 
 .dateDisplay {
