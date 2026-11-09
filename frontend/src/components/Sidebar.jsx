@@ -618,7 +618,7 @@ export default function Sidebar({
             onClick={() => setDocsCollapsed(prev => !prev)}
           >
             <span className={styles.sectionLabel}>
-              Documents{workspaceDocs.length > 0 ? ` (${workspaceDocs.length})` : ''}
+              {t('Documents')}{workspaceDocs.length > 0 ? ` (${workspaceDocs.length})` : ''}
             </span>
             <ChevronDown
               size={12}

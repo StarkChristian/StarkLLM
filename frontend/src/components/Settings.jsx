@@ -779,7 +779,7 @@ print(response.choices[0].message.content)`;
 
               <div className={styles.formGroup}>
                 <label className={styles.label}>
-                  Temperature ({temperature})
+                  {t('Temperature ({value})', { value: temperature })}
                 </label>
                 <input 
                   type="range" 
@@ -795,7 +795,7 @@ print(response.choices[0].message.content)`;
 
               <div className={styles.formGroup}>
                 <label className={styles.label}>
-                  Top P ({topP})
+                  {t('Top P ({value})', { value: topP })}
                 </label>
                 <input 
                   type="range" 
