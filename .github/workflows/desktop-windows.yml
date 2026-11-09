@@ -81,6 +81,40 @@ jobs:
           if (Test-Path $log) { Copy-Item $log engine.log; Get-Content $log } else { throw 'engine.log was not written' }
           Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
 
+      - name: Update still installs when the old uninstaller fails
+        shell: pwsh
+        run: |
+          # Seen on a real PC with Smart App Control (9 Nov 2026): the old version's uninstaller ended with code 2 and the
+          # update stopped with "The old application files could not be uninstalled". Here a stand-in uninstaller always
+          # ends with code 2, the app is running, and the same installer is run the way the in-app update runs it.
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\StarkLLM'
+          $exe = Join-Path $dir 'StarkLLM.exe'
+          Add-Type -OutputType ConsoleApplication -OutputAssembly "$env:RUNNER_TEMP\fails.exe" -TypeDefinition 'public static class P { public static int Main() { return 2; } }'
+          Copy-Item "$env:RUNNER_TEMP\fails.exe" (Join-Path $dir 'Uninstall StarkLLM.exe') -Force
+          $env:STARKLLM_UPDATE_CHECK = '0'
+          $app = Start-Process $exe -PassThru
+          Start-Sleep 15
+          $before = (Get-Item $exe).LastWriteTimeUtc
+          (Get-Item $exe).LastWriteTimeUtc = $before.AddDays(-1)
+          $before = (Get-Item $exe).LastWriteTimeUtc
+          $setup = Get-ChildItem desktop/dist/*-Setup.exe | Select-Object -First 1
+          $p = Start-Process $setup.FullName -ArgumentList '--updated', '/S', '/currentuser' -PassThru
+          if (-not $p.WaitForExit(8 * 60 * 1000)) {
+            Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+            $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+            $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+            [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+            $bmp.Save("$PWD\update-stuck.png")
+            throw 'the installer did not finish within 8 minutes (an error message is probably open, see update-stuck.png)'
+          }
+          "installer exit code: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { throw "the installer ended with code $($p.ExitCode)" }
+          $deadline = (Get-Date).AddMinutes(6)
+          while (((Get-Item $exe).LastWriteTimeUtc -eq $before) -and ((Get-Date) -lt $deadline)) { Start-Sleep 3 }
+          if ((Get-Item $exe).LastWriteTimeUtc -eq $before) { throw 'StarkLLM.exe was not replaced by the update' }
+          if (-not $app.HasExited) { throw 'the running app was not closed by the update' }
+          "updated over the failing uninstaller"
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -90,4 +124,5 @@ jobs:
             desktop/dist/*.blockmap
             desktop/dist/latest.yml
             smoke.png
+            update-stuck.png
             engine.log
