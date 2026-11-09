@@ -266,3 +266,24 @@ def test_health_reports_whether_ocr_works():
 
     body = TestClient(app).get("/health").json()
     assert set(body["ocr"]) == {"available", "languages"}
+
+
+@needs_german_ocr
+def test_the_self_test_reads_its_german_sample_exactly():
+    report = O.self_test()
+    assert report["ok"], report
+    assert report["status"]["languages"][:1] == ["deu"]
+
+
+def test_the_engine_package_uses_its_own_tesseract(tmp_path):
+    import serve_native
+
+    exe = tmp_path / "tesseract" / "tesseract.exe"
+    env = {}
+    assert not serve_native.use_bundled_tesseract(str(tmp_path), env) and env == {}  # no Tesseract in the package
+    exe.parent.mkdir()
+    exe.write_bytes(b"MZ")
+    assert serve_native.use_bundled_tesseract(str(tmp_path), env)
+    assert env == {"STARKLLM_TESSERACT": str(exe), "TESSDATA_PREFIX": str(tmp_path / "tesseract" / "tessdata")}
+    own = {"STARKLLM_TESSERACT": "D:/tools/tesseract.exe"}
+    assert not serve_native.use_bundled_tesseract(str(tmp_path), own) and own == {"STARKLLM_TESSERACT": "D:/tools/tesseract.exe"}

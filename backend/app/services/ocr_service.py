@@ -250,4 +250,43 @@ class OcrService:
                 os.remove(temp_path)
 
 
+SELF_TEST_LINES = ["Bescheid über Einkommensteuer 2025", "Nachzahlung: 1.234,56 EUR bis zum 15.12.2026", "Größe, Straße, Fälligkeit"]
+SELF_TEST_FONTS = [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "C:\\Windows\\Fonts\\arial.ttf",
+    "C:\\Windows\\Fonts\\segoeui.ttf",
+]
+
+
+def self_test() -> dict:
+    """Render a German sample, read it back and say whether every line came out exactly (for CI and diagnostics)."""
+    import time
+    from PIL import ImageDraw, ImageFont
+
+    status = ocr_service.status()
+    if not status["available"]:
+        return {"ok": False, "status": status, "missing_lines": SELF_TEST_LINES}
+    font_path = next((p for p in SELF_TEST_FONTS if os.path.exists(p)), None)
+    font = ImageFont.truetype(font_path, 40) if font_path else ImageFont.load_default(size=40)
+    img = Image.new("L", (1600, 400), 255)
+    draw = ImageDraw.Draw(img)
+    for i, line in enumerate(SELF_TEST_LINES):
+        draw.text((60, 60 + i * 100), line, fill=0, font=font)
+    started = time.monotonic()
+    result = ocr_service.read_image(img)
+    missing = [line for line in SELF_TEST_LINES if line not in result.text]
+    return {"ok": not missing, "status": status, "missing_lines": missing, "text": result.text,
+            "confidence": result.confidence, "seconds": round(time.monotonic() - started, 2)}
+
+
 ocr_service = OcrService()
+
+
+if __name__ == "__main__":  # python -m app.services.ocr_service
+    import json
+    import sys
+
+    report = self_test()
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    sys.exit(0 if report["ok"] else 1)
