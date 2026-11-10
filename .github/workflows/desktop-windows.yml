@@ -40,7 +40,9 @@ jobs:
         run: |
           $setup = Get-ChildItem desktop/dist/*-Setup.exe | Select-Object -First 1
           # /currentuser: the runner is elevated, which can make the assisted installer pick "all users" (Program Files)
-          Start-Process $setup.FullName -ArgumentList '/S', '/currentuser' -Wait
+          $started = Get-Date
+          $p = Start-Process $setup.FullName -ArgumentList '/S', '/currentuser' -Wait -PassThru
+          "installer exit code $($p.ExitCode) after $([math]::Round(((Get-Date) - $started).TotalSeconds)) s"
           $dir = Join-Path $env:LOCALAPPDATA 'Programs\StarkLLM'
           $files = 'StarkLLM.exe', 'resources\engine\docker-compose.yml', 'resources\engine\backend\Dockerfile', 'resources\engine\frontend\Dockerfile'
           # The silent installer can return before it has written every file (seen on 8 Nov 2026): wait up to 6 minutes
@@ -55,6 +57,11 @@ jobs:
             "still running:"; Get-Process | Where-Object { $_.ProcessName -match 'Setup|StarkLLM|Un_A|nsis' } | Format-Table ProcessName, Id, StartTime -AutoSize | Out-String
             "Programs:"; Get-ChildItem $env:LOCALAPPDATA\Programs -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
             Get-ChildItem -Path $env:LOCALAPPDATA\Programs, $env:ProgramFiles -Filter StarkLLM.exe -Recurse -Depth 2 -ErrorAction SilentlyContinue | ForEach-Object { "found: $($_.FullName)" }
+            "Defender detections:"; Get-MpThreatDetection -ErrorAction SilentlyContinue | Format-List InitialDetectionTime, ThreatID, Resources, ActionSuccess | Out-String
+            "Defender events:"; Get-WinEvent -LogName 'Microsoft-Windows-Windows Defender/Operational' -MaxEvents 15 -ErrorAction SilentlyContinue | Where-Object { $_.TimeCreated -gt $started } | Format-List TimeCreated, Id, Message | Out-String -Width 300
+            "Application errors:"; Get-WinEvent -FilterHashtable @{ LogName = 'Application'; Level = 2; StartTime = $started } -MaxEvents 10 -ErrorAction SilentlyContinue | Format-List TimeCreated, ProviderName, Message | Out-String -Width 300
+            "Setup file still there: $(Test-Path $setup.FullName)"
+            "NSIS temp folders:"; Get-ChildItem $env:TEMP -Directory -Filter 'ns*.tmp' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
             throw "missing after install: $($missing -join ', ')"
           }
           "installed to $dir"
