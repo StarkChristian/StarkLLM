@@ -5,7 +5,7 @@ name: Windows trust (signing, App Control)
 # Microsoft does not know is blocked (the 2.0.8 update and the 2.0.10 installer were, on a real PC).
 #
 # This builds the installer, signs every file with a test certificate (later: Azure Artifact Signing, the same
-# script), turns on an App Control policy in audit mode that trusts Windows and that certificate, installs, starts and
+# script), turns on an App Control policy in audit mode that trusts Microsoft-signed files and that certificate, installs, starts and
 # uninstalls StarkLLM, and reads which of our files App Control would have blocked (event 3076).
 #   signed:   no file may be flagged, and every file must carry a valid signature
 #   unsigned: the same build without signing must be flagged, or the check itself would be blind
@@ -77,10 +77,13 @@ jobs:
         working-directory: desktop
         run: npx electron-builder --win nsis --x64 --publish never
 
-      - name: App Control in audit mode (trusts Windows and the test certificate)
+      - name: App Control in audit mode (trusts Microsoft-signed files and the test certificate, like Smart App Control)
         run: |
           $xml = Join-Path $env:RUNNER_TEMP 'starkllm-audit.xml'
-          Copy-Item "$env:windir\schemas\CodeIntegrity\ExamplePolicies\DefaultWindows_Audit.xml" $xml
+          # AllowMicrosoft: Windows and every Microsoft-signed file (Electron ships Microsoft's d3dcompiler_47.dll), as
+          # Smart App Control does; DefaultWindows would also flag Microsoft redistributables
+          Copy-Item "$env:windir\schemas\CodeIntegrity\ExamplePolicies\AllowMicrosoft.xml" $xml
+          Set-RuleOption -FilePath $xml -Option 3   # audit mode: log, do not block
           Set-CIPolicyIdInfo -FilePath $xml -PolicyName 'StarkLLM CI audit' -ResetPolicyID | Out-Null
           if ($env:TEST_CERT) { Add-SignerRule -FilePath $xml -CertificatePath $env:TEST_CERT -User }
           $id = ([xml](Get-Content $xml)).SiPolicy.PolicyID
