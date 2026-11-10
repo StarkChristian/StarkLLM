@@ -28,7 +28,17 @@
         "nsis",
         "portable"
       ],
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.ico",
+      "signtoolOptions": {
+        "sign": "./build/sign.js",
+        "signingHashAlgorithms": [
+          "sha256"
+        ]
+      },
+      "signExts": [
+        ".dll",
+        ".node"
+      ]
     },
     "nsis": {
       "oneClick": false,
