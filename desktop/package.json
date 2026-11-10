@@ -14,12 +14,12 @@
   },
   "devDependencies": {
     "electron": "^33.2.0",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "26.18.1"
   },
   "build": {
     "appId": "com.starkllm.desktop",
     "productName": "StarkLLM",
-    "copyright": "Copyright \u00a9 2026 Christian Stark",
+    "copyright": "Copyright © 2026 Christian Stark",
     "directories": {
       "output": "dist"
     },
