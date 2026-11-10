@@ -18,6 +18,7 @@ For each StarkLLM desktop release (`X.Y.Z`). The rules behind it are in [docs/RU
       README.
 - [ ] Engine images for the version are on GHCR (`engine-images` workflow) and can be pulled.
 - [ ] Website shows the new version (built from the latest release).
+- [ ] The SBOM workflow attached `sbom-desktop`, `sbom-frontend` and `sbom-engine` to the release.
 
 ## After
 
