@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import styles from './Toast.module.css';
 import { X, CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react';
+import { t } from '../i18n';
 
 const ToastContext = createContext(null);
 
@@ -61,7 +62,7 @@ export function ToastProvider({ children }) {
               <button
                 className={styles.dismissBtn}
                 onClick={() => dismiss(t.id)}
-                aria-label="Dismiss"
+                aria-label={t('Dismiss')}
               >
                 <X size={13} />
               </button>

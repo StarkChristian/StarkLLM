@@ -6,11 +6,15 @@ import {
   VolumeX, HelpCircle, Eye, EyeOff 
 } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
+import { t } from '../i18n';
 
 const md = new MarkdownIt({ html: false, linkify: true, typographer: true });
 // Only real links: with fuzzy links on, a file name like 'card.md' became http://card.md (a Moldovan domain).
 md.linkify.set({ fuzzyLink: false, fuzzyEmail: false });
 
+
+// the generate button names the tab: "Generate podcast"
+const TAB_NAMES = { podcast: t('podcast'), briefing: t('briefing'), study_guide: t('study guide'), comparison: t('comparison') };
 
 export default function StudioModal({
   isOpen,
@@ -72,7 +76,7 @@ export default function StudioModal({
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || 'Failed to synthesize studio overview');
+        throw new Error(errData.detail || t('Failed to synthesize studio overview'));
       }
 
       const data = await res.json();
@@ -88,7 +92,7 @@ export default function StudioModal({
         setCurrentTurnIndex(0);
       }
     } catch (err) {
-      setError(err.message || 'Generation failed');
+      setError(err.message || t('Generation failed'));
     } finally {
       setLoading(false);
     }
@@ -174,9 +178,9 @@ export default function StudioModal({
           <div className={styles.headerTitleArea}>
             <Sparkles size={22} color="#c084fc" />
             <h2 className={styles.title}>
-              StarkLLM Studio
+              {t('StarkLLM Studio')}
             </h2>
-            <span className={styles.studioBadge}>AI Studio Mode</span>
+            <span className={styles.studioBadge}>{t('AI Studio Mode')}</span>
           </div>
           <button className={styles.closeBtn} onClick={onClose}>✕</button>
         </div>
@@ -186,25 +190,25 @@ export default function StudioModal({
             className={`${styles.tabBtn} ${activeTab === 'podcast' ? styles.activeTab : ''}`}
             onClick={() => setActiveTab('podcast')}
           >
-            <Headphones size={16} /> Audio Overview (Podcast)
+            <Headphones size={16} /> {t('Audio Overview (Podcast)')}
           </button>
           <button
             className={`${styles.tabBtn} ${activeTab === 'briefing' ? styles.activeTab : ''}`}
             onClick={() => setActiveTab('briefing')}
           >
-            <FileText size={16} /> Executive Briefing
+            <FileText size={16} /> {t('Executive Briefing')}
           </button>
           <button
             className={`${styles.tabBtn} ${activeTab === 'study_guide' ? styles.activeTab : ''}`}
             onClick={() => setActiveTab('study_guide')}
           >
-            <BookOpen size={16} /> Study Guide & Quiz
+            <BookOpen size={16} /> {t('Study Guide & Quiz')}
           </button>
           <button
             className={`${styles.tabBtn} ${activeTab === 'comparison' ? styles.activeTab : ''}`}
             onClick={() => setActiveTab('comparison')}
           >
-            <Layers size={16} /> Comparative Analysis
+            <Layers size={16} /> {t('Comparative Analysis')}
           </button>
         </div>
 
@@ -225,7 +229,7 @@ export default function StudioModal({
               disabled={loading}
             >
               <Sparkles size={16} />
-              {loading ? 'Synthesizing...' : `Generate ${activeTab.replace('_', ' ')}`}
+              {loading ? t('Synthesizing...') : t('Generate {what}', { what: TAB_NAMES[activeTab] || activeTab })}
             </button>
           </div>
 
@@ -243,7 +247,7 @@ export default function StudioModal({
                   <div className={styles.playerDeck}>
                     <div className={styles.playerHeader}>
                       <div className={styles.playerInfo}>
-                        <div className={styles.playerTitle}>{results.podcast.title || 'Workspace Deep Dive'}</div>
+                        <div className={styles.playerTitle}>{results.podcast.title || t('Workspace Deep Dive')}</div>
                         <div className={styles.playerSubtitle}>{results.podcast.summary}</div>
                       </div>
                       <div className={styles.playerControls}>
@@ -261,10 +265,10 @@ export default function StudioModal({
                           value={playbackSpeed}
                           onChange={e => setPlaybackSpeed(parseFloat(e.target.value))}
                         >
-                          <option value="0.9">0.9x Speed</option>
-                          <option value="1.0">1.0x Normal</option>
-                          <option value="1.2">1.2x Speed</option>
-                          <option value="1.4">1.4x Fast</option>
+                          <option value="0.9">{t('0.9x Speed')}</option>
+                          <option value="1.0">{t('1.0x Normal')}</option>
+                          <option value="1.2">{t('1.2x Speed')}</option>
+                          <option value="1.4">{t('1.4x Fast')}</option>
                         </select>
                         <button className={styles.playPauseBtn} onClick={togglePlayPodcast} title={isPlaying ? "Pause" : "Play"}>
                           {isPlaying ? <Pause size={20} /> : <Play size={20} style={{ marginLeft: 2 }} />}
@@ -295,12 +299,12 @@ export default function StudioModal({
               ) : (
                 <div className={styles.emptyState}>
                   <Headphones size={48} color="#6366f1" />
-                  <h3>Offline Audio Overview</h3>
+                  <h3>{t('Offline Audio Overview')}</h3>
                   <p style={{ maxWidth: 460 }}>
-                    Transform your workspace documents into an engaging 2-speaker podcast discussion (Alex & Taylor) completely offline.
+                    {t('Transform your workspace documents into an engaging 2-speaker podcast discussion (Alex & Taylor) completely offline.')}
                   </p>
                   <button className={styles.genBtn} onClick={() => handleGenerate('podcast')} disabled={loading}>
-                    <Sparkles size={16} /> Generate Audio Overview
+                    <Sparkles size={16} /> {t('Generate Audio Overview')}
                   </button>
                 </div>
               )}
@@ -317,7 +321,7 @@ export default function StudioModal({
                       {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy'}
                     </button>
                     <button className={styles.tabBtn} onClick={() => handleDownloadMarkdown(results.briefing, 'executive_briefing.md')}>
-                      <Download size={14} /> Download .md
+                      <Download size={14} /> {t('Download .md')}
                     </button>
                   </div>
                   <div
@@ -328,12 +332,12 @@ export default function StudioModal({
               ) : (
                 <div className={styles.emptyState}>
                   <FileText size={48} color="#818cf8" />
-                  <h3>Executive Strategic Briefing</h3>
+                  <h3>{t('Executive Strategic Briefing')}</h3>
                   <p style={{ maxWidth: 460 }}>
-                    Synthesizes all workspace files into an executive briefing covering Strategic Highlights, Risk Matrix, and Action Items.
+                    {t('Synthesizes all workspace files into an executive briefing covering Strategic Highlights, Risk Matrix, and Action Items.')}
                   </p>
                   <button className={styles.genBtn} onClick={() => handleGenerate('briefing')} disabled={loading}>
-                    <Sparkles size={16} /> Generate Briefing
+                    <Sparkles size={16} /> {t('Generate Briefing')}
                   </button>
                 </div>
               )}
@@ -345,12 +349,12 @@ export default function StudioModal({
             <div>
               {results.study_guide?.quiz ? (
                 <div>
-                  <h3 style={{ color: '#fff', marginBottom: '0.4rem' }}>{results.study_guide.title || 'Interactive Master Study Guide'}</h3>
+                  <h3 style={{ color: '#fff', marginBottom: '0.4rem' }}>{results.study_guide.title || t('Interactive Master Study Guide')}</h3>
                   <p style={{ color: '#a1a1aa', fontSize: '0.9rem', marginBottom: '1.5rem' }}>{results.study_guide.overview}</p>
 
                   {results.study_guide.concepts?.length > 0 && (
                     <div style={{ marginBottom: '2rem' }}>
-                      <h4 style={{ color: '#c084fc', marginBottom: '0.8rem' }}>Core Concepts & Glossary</h4>
+                      <h4 style={{ color: '#c084fc', marginBottom: '0.8rem' }}>{t('Core Concepts & Glossary')}</h4>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
                         {results.study_guide.concepts.map((c, i) => (
                           <div key={i} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', padding: '1rem' }}>
@@ -362,7 +366,7 @@ export default function StudioModal({
                     </div>
                   )}
 
-                  <h4 style={{ color: '#38bdf8', marginBottom: '1rem' }}>Flashcard Self-Test Quiz</h4>
+                  <h4 style={{ color: '#38bdf8', marginBottom: '1rem' }}>{t('Flashcard Self-Test Quiz')}</h4>
                   <div className={styles.quizGrid}>
                     {results.study_guide.quiz.map((q, idx) => (
                       <div key={idx} className={styles.quizCard}>
@@ -372,7 +376,7 @@ export default function StudioModal({
                             className={styles.revealBtn}
                             onClick={() => setRevealedQuiz(prev => ({ ...prev, [idx]: !prev[idx] }))}
                           >
-                            {revealedQuiz[idx] ? <EyeOff size={14} /> : <Eye size={14} />} {revealedQuiz[idx] ? 'Hide' : 'Reveal Answer'}
+                            {revealedQuiz[idx] ? <EyeOff size={14} /> : <Eye size={14} />} {revealedQuiz[idx] ? t('Hide') : t('Reveal Answer')}
                           </button>
                         </div>
                         <p className={styles.quizQuestion}>{q.question}</p>
@@ -386,12 +390,12 @@ export default function StudioModal({
               ) : (
                 <div className={styles.emptyState}>
                   <BookOpen size={48} color="#38bdf8" />
-                  <h3>Master Study Guide & Flashcard Quiz</h3>
+                  <h3>{t('Master Study Guide & Flashcard Quiz')}</h3>
                   <p style={{ maxWidth: 460 }}>
-                    Generates core concept definitions and an interactive question-and-answer quiz derived strictly from your documents.
+                    {t('Generates core concept definitions and an interactive question-and-answer quiz derived strictly from your documents.')}
                   </p>
                   <button className={styles.genBtn} onClick={() => handleGenerate('study_guide')} disabled={loading}>
-                    <Sparkles size={16} /> Generate Study Guide
+                    <Sparkles size={16} /> {t('Generate Study Guide')}
                   </button>
                 </div>
               )}
@@ -408,7 +412,7 @@ export default function StudioModal({
                       {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy'}
                     </button>
                     <button className={styles.tabBtn} onClick={() => handleDownloadMarkdown(results.comparison, 'comparative_analysis.md')}>
-                      <Download size={14} /> Download .md
+                      <Download size={14} /> {t('Download .md')}
                     </button>
                   </div>
                   <div
@@ -419,12 +423,12 @@ export default function StudioModal({
               ) : (
                 <div className={styles.emptyState}>
                   <Layers size={48} color="#4ade80" />
-                  <h3>Cross-Document Comparative Analysis</h3>
+                  <h3>{t('Cross-Document Comparative Analysis')}</h3>
                   <p style={{ maxWidth: 460 }}>
-                    Examines divergent themes, conflicting facts, and synergies across all indexed documents in this workspace.
+                    {t('Examines divergent themes, conflicting facts, and synergies across all indexed documents in this workspace.')}
                   </p>
                   <button className={styles.genBtn} onClick={() => handleGenerate('comparison')} disabled={loading}>
-                    <Sparkles size={16} /> Generate Comparison
+                    <Sparkles size={16} /> {t('Generate Comparison')}
                   </button>
                 </div>
               )}

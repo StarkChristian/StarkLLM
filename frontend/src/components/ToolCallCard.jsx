@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styles from './ToolCallCard.module.css';
 import { Terminal, Check, X, AlertTriangle, Play, Loader2, Send } from 'lucide-react';
+import { t } from '../i18n';
 
 const TOOL_DESCRIPTIONS = {
   list_workspace_files: "Lists documents and files uploaded to the current workspace (read-only).",
   search_local_kb: "Searches the local Knowledge Base index and returns passage locators (read-only).",
-  fetch_cited_chunk: "Fetches the exact text chunk for a cited document locator from local Chroma store."
+  fetch_cited_chunk: t('Fetches the exact text chunk for a cited document locator from local Chroma store.')
 };
 
 export default function ToolCallCard({
@@ -37,7 +38,7 @@ export default function ToolCallCard({
   const pendingRegisteredRef = useRef(false);
 
   const toolName = parsedCall?.name || '';
-  const toolDesc = TOOL_DESCRIPTIONS[toolName] || "Local read-only tool.";
+  const toolDesc = TOOL_DESCRIPTIONS[toolName] || t('Local read-only tool.');
 
   // Execution Gate: register pending tool call server-side on mount
   useEffect(() => {
@@ -83,7 +84,7 @@ export default function ToolCallCard({
     return (
       <div className={`${styles.statusChip} ${styles.statusChipError}`}>
         <AlertTriangle size={14} />
-        <span>⚠️ Malformed Tool Call JSON from model</span>
+        <span>{t('⚠️ Malformed Tool Call JSON from model')}</span>
       </div>
     );
   }
@@ -98,7 +99,7 @@ export default function ToolCallCard({
       JSON.parse(val);
       setJsonError(null);
     } catch (err) {
-      setJsonError("Invalid JSON syntax: " + err.message);
+      setJsonError(t('Invalid JSON syntax: ') + err.message);
     }
   };
 
@@ -124,12 +125,12 @@ export default function ToolCallCard({
     try {
       argsObj = JSON.parse(editedArgs);
     } catch (err) {
-      setJsonError("Cannot run: JSON is invalid.");
+      setJsonError(t('Cannot run: JSON is invalid.'));
       return;
     }
 
     if (!callId) {
-      setExecError("Execution Gate Error: No authorized server-side pending call ID.");
+      setExecError(t('Execution Gate Error: No authorized server-side pending call ID.'));
       setStatus('error');
       return;
     }
@@ -161,7 +162,7 @@ export default function ToolCallCard({
         onToolExecuted(toolName, argsObj, data.result);
       }
     } catch (err) {
-      setExecError(err.message || 'Execution error');
+      setExecError(err.message || t('Execution error'));
       setStatus('error');
     }
   };
@@ -178,23 +179,23 @@ export default function ToolCallCard({
       <div className={styles.toolHeader}>
         <div className={styles.toolTitleWrap}>
           <Terminal size={16} color="#d4af37" />
-          <span className={styles.toolBadge}>Local Tool Call</span>
+          <span className={styles.toolBadge}>{t('Local Tool Call')}</span>
           <span className={styles.toolName}>{toolName}</span>
         </div>
 
         {status === 'cancelled' && (
           <span className={`${styles.statusChip} ${styles.statusChipCancelled}`}>
-            <X size={12} /> Cancelled
+            <X size={12} /> {t('Cancelled')}
           </span>
         )}
         {status === 'executed' && (
           <span className={`${styles.statusChip} ${styles.statusChipSuccess}`}>
-            <Check size={12} /> Executed
+            <Check size={12} /> {t('Executed')}
           </span>
         )}
         {status === 'error' && (
           <span className={`${styles.statusChip} ${styles.statusChipError}`}>
-            <AlertTriangle size={12} /> Execution Error
+            <AlertTriangle size={12} /> {t('Execution Error')}
           </span>
         )}
       </div>
@@ -204,9 +205,9 @@ export default function ToolCallCard({
       {status === 'pending' && (
         <>
           <div className={styles.argsLabel}>
-            <span>Arguments (Editable):</span>
+            <span>{t('Arguments (Editable):')}</span>
             <span className={styles.argsLabelNote}>
-              {callId ? `Gated ID: ${callId.slice(0, 10)}...` : (gatePending ? 'Authorizing...' : '')}
+              {callId ? `Gated ID: ${callId.slice(0, 10)}...` : (gatePending ? t('Authorizing...') : '')}
             </span>
           </div>
           <textarea
@@ -221,7 +222,7 @@ export default function ToolCallCard({
 
           <div className={styles.btnRow}>
             <button className={styles.cancelBtn} onClick={handleCancel}>
-              <X size={13} style={{ marginRight: '4px', verticalAlign: 'middle' }} /> Cancel
+              <X size={13} style={{ marginRight: '4px', verticalAlign: 'middle' }} /> {t('Cancel')}
             </button>
             <button
               className={styles.confirmBtn}
@@ -243,7 +244,7 @@ export default function ToolCallCard({
       {status === 'executed' && execResult && (
         <div>
           <div className={styles.argsLabel} style={{ color: '#10b981', marginTop: '0.4rem' }}>
-            Tool Result:
+            {t('Tool Result:')}
           </div>
           <div className={styles.resultBox}>
             {typeof execResult === 'object' ? JSON.stringify(execResult, null, 2) : String(execResult)}
@@ -251,7 +252,7 @@ export default function ToolCallCard({
           {onSendToolResult && (
             <div className={styles.btnRow} style={{ marginTop: '0.6rem' }}>
               <button className={styles.confirmBtn} onClick={handleSendToChat}>
-                <Send size={13} /> Send Result to Assistant
+                <Send size={13} /> {t('Send Result to Assistant')}
               </button>
             </div>
           )}
@@ -260,7 +261,7 @@ export default function ToolCallCard({
 
       {status === 'error' && execError && (
         <div className={styles.argsError} style={{ marginTop: '0.5rem' }}>
-          <strong>Error:</strong> {execError}
+          <strong>{t('Error:')}</strong> {execError}
         </div>
       )}
     </div>

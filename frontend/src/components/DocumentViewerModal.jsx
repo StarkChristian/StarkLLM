@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styles from './DocumentViewerModal.module.css';
 import { FileText, Download, Search, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import { t } from '../i18n';
 
 export default function DocumentViewerModal({
   isOpen,
@@ -66,7 +67,7 @@ export default function DocumentViewerModal({
         }
       } catch (err) {
         if (isMounted) {
-          setError(err.message || 'Error loading document');
+          setError(err.message || t('Error loading document'));
         }
       } finally {
         if (isMounted) {
@@ -115,7 +116,7 @@ export default function DocumentViewerModal({
           <div className={styles.titleArea}>
             <FileText size={20} color="#818cf8" />
             <h3 className={styles.title} title={docData?.filename || initialFilename}>
-              {docData?.filename || initialFilename || 'Document Viewer'}
+              {docData?.filename || initialFilename || t('Document Viewer')}
             </h3>
             {docData?.file_type && (
               <span className={styles.badge}>{docData.file_type}</span>
@@ -126,12 +127,12 @@ export default function DocumentViewerModal({
               <button
                 className={styles.iconBtn}
                 onClick={handleDownload}
-                title="Download original file"
+                title={t('Download original file')}
               >
                 <Download size={16} />
               </button>
             )}
-            <button className={styles.closeBtn} onClick={onClose} title="Close">
+            <button className={styles.closeBtn} onClick={onClose} title={t('Close')}>
               ✕
             </button>
           </div>
@@ -142,7 +143,7 @@ export default function DocumentViewerModal({
             <Search size={14} color="#a1a1aa" />
             <input
               type="text"
-              placeholder="Search in document..."
+              placeholder={t('Search in document...')}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
             />
@@ -173,7 +174,7 @@ export default function DocumentViewerModal({
           {loading ? (
             <div className={styles.loading}>
               <div className={styles.spinner} />
-              <span>Extracting and loading document passages...</span>
+              <span>{t('Extracting and loading document passages...')}</span>
             </div>
           ) : error ? (
             <div style={{ color: '#ef4444', textAlign: 'center', padding: '2rem' }}>

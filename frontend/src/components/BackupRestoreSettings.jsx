@@ -3,6 +3,7 @@ import { Download, Upload, AlertTriangle, Loader, CheckCircle } from 'lucide-rea
 import styles from './Settings.module.css'; // Reusing standard Settings styles
 
 import { useToast } from './Toast';
+import { t } from '../i18n';
 
 export default function BackupRestoreSettings({ token }) {
   const toast = useToast();
@@ -20,7 +21,7 @@ export default function BackupRestoreSettings({ token }) {
       
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
-        throw new Error(err.detail || 'Backup failed');
+        throw new Error(err.detail || t('Backup failed'));
       }
 
       // Trigger download
@@ -59,7 +60,7 @@ export default function BackupRestoreSettings({ token }) {
     // Reset file input so the same file can be selected again if needed
     e.target.value = null;
 
-    if (!window.confirm("DANGER: Restoring from a backup will overwrite ALL your current workspaces, chats, documents, and settings. This cannot be undone. Are you sure you want to proceed?")) {
+    if (!window.confirm(t('DANGER: Restoring from a backup will overwrite ALL your current workspaces, chats, documents, and settings. This cannot be undone. Are you sure you want to proceed?'))) {
       return;
     }
 
@@ -79,12 +80,12 @@ export default function BackupRestoreSettings({ token }) {
       const data = await response.json().catch(() => ({}));
       
       if (!response.ok) {
-        throw new Error(data.detail || 'Restore failed');
+        throw new Error(data.detail || t('Restore failed'));
       }
 
       setRestoreStatus({
         type: 'success',
-        message: 'Restore completed successfully! The application will now reload to apply the changes.'
+        message: t('Restore completed successfully! The application will now reload to apply the changes.')
       });
       
       // Give the user a moment to see the success message before reloading
@@ -105,9 +106,9 @@ export default function BackupRestoreSettings({ token }) {
 
   return (
     <div className={styles.settingsSection}>
-      <h3 className={styles.sectionTitle}>Backup & Restore</h3>
+      <h3 className={styles.sectionTitle}>{t('Backup & Restore')}</h3>
       <p className={styles.sectionDesc}>
-        Safely export and import your local application data, including chats, uploaded documents, and vector embeddings.
+        {t('Safely export and import your local application data, including chats, uploaded documents, and vector embeddings.')}
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginTop: '20px' }}>
@@ -123,10 +124,10 @@ export default function BackupRestoreSettings({ token }) {
           gap: '12px'
         }}>
           <h4 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Download size={18} /> Export Backup
+            <Download size={18} /> {t('Export Backup')}
           </h4>
           <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-            Creates a downloadable .zip archive of all your current StarkLLM data. Keep this safe!
+            {t('Creates a downloadable .zip archive of all your current StarkLLM data. Keep this safe!')}
           </p>
           <button 
             className={styles.primaryBtn} 
@@ -134,7 +135,7 @@ export default function BackupRestoreSettings({ token }) {
             disabled={isBackingUp}
             style={{ width: 'fit-content', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
-            {isBackingUp ? <><Loader size={16} className="spinner" /> Zipping data...</> : 'Download Backup'}
+            {isBackingUp ? <><Loader size={16} className="spinner" /> {t('Zipping data...')}</> : t('Download Backup')}
           </button>
         </div>
 
@@ -149,10 +150,10 @@ export default function BackupRestoreSettings({ token }) {
           gap: '12px'
         }}>
           <h4 style={{ margin: 0, fontSize: '1rem', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Upload size={18} /> Restore from Backup
+            <Upload size={18} /> {t('Restore from Backup')}
           </h4>
           <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-            Upload a previously exported .zip backup. <strong style={{ color: '#ef4444' }}>Warning: This will permanently overwrite your current data.</strong>
+            {t('Upload a previously exported .zip backup.')} <strong style={{ color: '#ef4444' }}>{t('Warning: This will permanently overwrite your current data.')}</strong>
           </p>
           
           <input
@@ -169,7 +170,7 @@ export default function BackupRestoreSettings({ token }) {
             disabled={isRestoring}
             style={{ width: 'fit-content', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
-            {isRestoring ? <><Loader size={16} className="spinner" /> Restoring...</> : 'Select Backup Zip'}
+            {isRestoring ? <><Loader size={16} className="spinner" /> {t('Restoring...')}</> : t('Select Backup Zip')}
           </button>
 
           {restoreStatus && (

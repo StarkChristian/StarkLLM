@@ -3,23 +3,24 @@ import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, 
 import styles from './Settings.module.css';
 import BackupRestoreSettings from './BackupRestoreSettings';
 import { AVAILABLE_THEMES, applyTheme } from '../utils/themes';
-import { SUPPORTED_LANGUAGES, getCurrentLanguage, setLanguage } from '../utils/languages';
+import { t, language, setLanguage } from '../i18n';
+import { SUPPORTED_LANGUAGES } from '../utils/languages';
 import { cloudHostFor } from '../utils/cloud';
 
 const SECTIONS = [
-  { id: 'account',  label: 'Account',       icon: User },
-  { id: 'instructions', label: 'Custom Instructions', icon: FileText },
-  { id: 'workspace-prompt', label: 'Workspace AI Persona', icon: BrainCircuit },
-  { id: 'model',    label: 'Model Settings',icon: Cpu },
-  { id: 'rag',      label: 'RAG Engine',    icon: Database },
-  { id: 'kb',       label: 'Knowledge Base', icon: Shield },
-  { id: 'mcp',      label: 'Local Tools',   icon: Terminal },
-  { id: 'dev-api',  label: 'Local API Server (OpenAI)', icon: Server },
-  { id: 'ui',       label: 'Appearance',    icon: Palette },
-  { id: 'language', label: 'Language & Locale', icon: Globe },
-  { id: 'shortcuts', label: 'Keyboard Shortcuts', icon: Keyboard },
-  { id: 'system',   label: 'Backup & Restore', icon: Archive },
-  { id: 'about',    label: 'About StarkLLM',icon: Info },
+  { id: 'account',  label: t('Account'),       icon: User },
+  { id: 'instructions', label: t('Custom Instructions'), icon: FileText },
+  { id: 'workspace-prompt', label: t('Workspace AI Persona'), icon: BrainCircuit },
+  { id: 'model',    label: t('Model Settings'),icon: Cpu },
+  { id: 'rag',      label: t('RAG Engine'),    icon: Database },
+  { id: 'kb',       label: t('Knowledge Base'), icon: Shield },
+  { id: 'mcp',      label: t('Local Tools'),   icon: Terminal },
+  { id: 'dev-api',  label: t('Local API Server (OpenAI)'), icon: Server },
+  { id: 'ui',       label: t('Appearance'),    icon: Palette },
+  { id: 'language', label: t('Language & Locale'), icon: Globe },
+  { id: 'shortcuts', label: t('Keyboard Shortcuts'), icon: Keyboard },
+  { id: 'system',   label: t('Backup & Restore'), icon: Archive },
+  { id: 'about',    label: t('About StarkLLM'),icon: Info },
 ];
 
 function Toggle({ checked, onChange, label, hint }) {
@@ -51,9 +52,9 @@ export default function Settings({ token, username, activeWorkspace }) {
     setUpdateState('Checking...');
     try {
       const r = await desktop.checkForUpdates();
-      setUpdateState(r && r.error ? `Could not check: ${r.error}` : '');
+      setUpdateState(r && r.error ? t('Could not check: {error}', { error: r.error }) : '');
     } catch (e) {
-      setUpdateState(`Could not check: ${e.message}`);
+      setUpdateState(t('Could not check: {error}', { error: e.message }));
     }
   };
   useEffect(() => {
@@ -349,11 +350,11 @@ print(response.choices[0].message.content)`;
   const handleChangePassword = async (e) => {
     e.preventDefault();
     if (newPassword !== confirmPw) {
-      setPwMsg({ type: 'error', text: 'Passwords do not match.' });
+      setPwMsg({ type: 'error', text: t('Passwords do not match.') });
       return;
     }
     if (newPassword.length < 6) {
-      setPwMsg({ type: 'error', text: 'Password must be at least 6 characters.' });
+      setPwMsg({ type: 'error', text: t('Password must be at least 6 characters.') });
       return;
     }
     setPwLoading(true);
@@ -365,15 +366,15 @@ print(response.choices[0].message.content)`;
         body: JSON.stringify({ new_password: newPassword })
       });
       if (res.ok) {
-        setPwMsg({ type: 'success', text: 'Password changed successfully!' });
+        setPwMsg({ type: 'success', text: t('Password changed successfully!') });
         setNewPassword('');
         setConfirmPw('');
       } else {
         const err = await res.json().catch(() => ({}));
-        setPwMsg({ type: 'error', text: err.detail || 'Failed to change password.' });
+        setPwMsg({ type: 'error', text: err.detail || t('Failed to change password.') });
       }
     } catch {
-      setPwMsg({ type: 'error', text: 'Network error. Please try again.' });
+      setPwMsg({ type: 'error', text: t('Network error. Please try again.') });
     }
     setPwLoading(false);
   };
@@ -406,8 +407,8 @@ print(response.choices[0].message.content)`;
   return (
     <div className={styles.page}>
       <div className={styles.pageHeader}>
-        <h1 className={styles.pageTitle}>Settings</h1>
-        <p className={styles.pageSubtitle}>Manage your account and application preferences.</p>
+        <h1 className={styles.pageTitle}>{t('Settings')}</h1>
+        <p className={styles.pageSubtitle}>{t('Manage your account and application preferences.')}</p>
       </div>
 
       <div className={styles.layout}>
@@ -434,13 +435,13 @@ print(response.choices[0].message.content)`;
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <User size={18} />
-                <h2>Account Settings</h2>
+                <h2>{t('Account Settings')}</h2>
               </div>
 
               <div className={styles.formGroup}>
-                <label className={styles.label}>Username</label>
+                <label className={styles.label}>{t('Username')}</label>
                 <div className={styles.staticField}>{username || '—'}</div>
-                <p className={styles.hint}>Your username cannot be changed after registration.</p>
+                <p className={styles.hint}>{t('Your username cannot be changed after registration.')}</p>
               </div>
 
               <div className={styles.divider} />
@@ -448,15 +449,15 @@ print(response.choices[0].message.content)`;
               <form onSubmit={handleChangePassword} className={styles.form}>
                 <div className={styles.panelSubheader}>
                   <Shield size={15} />
-                  Change Password
+                  {t('Change Password')}
                 </div>
 
                 <div className={styles.formGroup}>
-                  <label className={styles.label}>New Password</label>
+                  <label className={styles.label}>{t('New Password')}</label>
                   <input
                     type="password"
                     className="input-field"
-                    placeholder="Enter new password"
+                    placeholder={t('Enter new password')}
                     value={newPassword}
                     onChange={e => setNewPassword(e.target.value)}
                     minLength={6}
@@ -465,11 +466,11 @@ print(response.choices[0].message.content)`;
                 </div>
 
                 <div className={styles.formGroup}>
-                  <label className={styles.label}>Confirm Password</label>
+                  <label className={styles.label}>{t('Confirm Password')}</label>
                   <input
                     type="password"
                     className="input-field"
-                    placeholder="Re-enter new password"
+                    placeholder={t('Re-enter new password')}
                     value={confirmPw}
                     onChange={e => setConfirmPw(e.target.value)}
                     required
@@ -483,7 +484,7 @@ print(response.choices[0].message.content)`;
                 )}
 
                 <button type="submit" className="btn-primary" disabled={pwLoading} style={{ marginTop: 4 }}>
-                  {pwLoading ? 'Saving…' : <><Save size={14} /> Change Password</>}
+                  {pwLoading ? t('Saving…') : <><Save size={14} /> {t('Change Password')}</>}
                 </button>
               </form>
             </div>
@@ -494,17 +495,17 @@ print(response.choices[0].message.content)`;
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <FileText size={18} />
-                <h2>Custom Instructions</h2>
+                <h2>{t('Custom Instructions')}</h2>
               </div>
               <p className={styles.panelDesc}>
-                Personalize how StarkLLM interacts with you globally. These settings shape the AI's default behavior and persona.
+                {t('Personalize how StarkLLM interacts with you globally. These settings shape the AI\'s default behavior and persona.')}
               </p>
 
               <div className={styles.formGroup}>
-                <label className={styles.label}>Profile Context</label>
+                <label className={styles.label}>{t('Profile Context')}</label>
                 <textarea
                   className="input-field"
-                  placeholder="What would you like StarkLLM to know about you to provide better responses? (e.g. I work as a frontend developer, I live in Berlin...)"
+                  placeholder={t('What would you like StarkLLM to know about you to provide better responses? (e.g. I work as a frontend developer, I live in Berlin...)')}
                   rows={4}
                   value={profileContext}
                   onChange={e => setProfileContext(e.target.value)}
@@ -513,10 +514,10 @@ print(response.choices[0].message.content)`;
               </div>
 
               <div className={styles.formGroup}>
-                <label className={styles.label}>Custom Instructions</label>
+                <label className={styles.label}>{t('Custom Instructions')}</label>
                 <textarea
                   className="input-field"
-                  placeholder="How would you like StarkLLM to respond? (e.g. Always be concise, use bullet points, adopt a formal tone...)"
+                  placeholder={t('How would you like StarkLLM to respond? (e.g. Always be concise, use bullet points, adopt a formal tone...)')}
                   rows={4}
                   value={customInstructions}
                   onChange={e => setCustomInstructions(e.target.value)}
@@ -530,7 +531,7 @@ print(response.choices[0].message.content)`;
                 disabled={instructionsLoading}
                 style={{ marginTop: 12 }}
               >
-                {instructionsLoading ? 'Saving…' : instructionsSaved ? <><CheckCircle size={14} /> Saved!</> : <><Save size={14} /> Save Instructions</>}
+                {instructionsLoading ? t('Saving…') : instructionsSaved ? <><CheckCircle size={14} /> {t('Saved!')}</> : <><Save size={14} /> {t('Save Instructions')}</>}
               </button>
             </div>
           )}
@@ -540,21 +541,21 @@ print(response.choices[0].message.content)`;
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <BrainCircuit size={18} />
-                <h2>Workspace AI Persona</h2>
+                <h2>{t('Workspace AI Persona')}</h2>
               </div>
               <p className={styles.panelDesc}>
-                Define a custom system prompt for the <strong>{activeWorkspace?.name || 'active workspace'}</strong>.
+                {t('Define a custom system prompt for the')} <strong>{activeWorkspace?.name || 'active workspace'}</strong>.
                 This overrides the default StarkLLM identity for this specific workspace only — perfect for specialized roles like a coding assistant, legal analyst, or language tutor.
               </p>
 
               {!activeWorkspace ? (
                 <div className={styles.msg}>
-                  No active workspace selected. Switch to a workspace to configure its AI persona.
+                  {t('No active workspace selected. Switch to a workspace to configure its AI persona.')}
                 </div>
               ) : (
                 <>
                   <div className={styles.formGroup}>
-                    <label className={styles.label}>Workspace System Prompt</label>
+                    <label className={styles.label}>{t('Workspace System Prompt')}</label>
                     <textarea
                       className="input-field"
                       placeholder={`Example:\nYou are a senior Python software engineer specializing in data pipelines and ML systems. Always provide production-ready code with error handling. Prefer asyncio for I/O-bound tasks. When reviewing code, highlight security issues first.`}
@@ -564,7 +565,7 @@ print(response.choices[0].message.content)`;
                       style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '0.85rem' }}
                     />
                     <p className={styles.hint}>
-                      Leave empty to use the default StarkLLM personality. Changes apply to all new messages in this workspace.
+                      {t('Leave empty to use the default StarkLLM personality. Changes apply to all new messages in this workspace.')}
                     </p>
                   </div>
 
@@ -574,7 +575,7 @@ print(response.choices[0].message.content)`;
                       onClick={saveWsSystemPrompt}
                       disabled={wsPromptLoading}
                     >
-                      {wsPromptLoading ? 'Saving…' : wsPromptSaved ? <><CheckCircle size={14} /> Saved!</> : <><Save size={14} /> Save Persona</>}
+                      {wsPromptLoading ? t('Saving…') : wsPromptSaved ? <><CheckCircle size={14} /> {t('Saved!')}</> : <><Save size={14} /> {t('Save Persona')}</>}
                     </button>
                     {wsSystemPrompt && (
                       <button
@@ -582,7 +583,7 @@ print(response.choices[0].message.content)`;
                         onClick={() => { setWsSystemPrompt(''); saveWsSystemPrompt(); }}
                         style={{ opacity: 0.7 }}
                       >
-                        Clear
+                        {t('Clear')}
                       </button>
                     )}
                   </div>
@@ -596,14 +597,14 @@ print(response.choices[0].message.content)`;
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <Cpu size={18} />
-                <h2>Model & Generation</h2>
+                <h2>{t('Model & Generation')}</h2>
               </div>
               <p className={styles.panelDesc}>
-                Fine-tune the language model's output generation parameters.
+                {t('Fine-tune the language model\'s output generation parameters.')}
               </p>
 
               <div className={styles.formGroup}>
-                <label className={styles.label}>AI Inference Provider</label>
+                <label className={styles.label}>{t('AI Inference Provider')}</label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 4 }}>
                   <button 
                     type="button"
@@ -618,8 +619,8 @@ print(response.choices[0].message.content)`;
                       textAlign: 'left'
                     }}
                   >
-                    <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: 2 }}>🏠 Local Ollama</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>100% Private & Offline</div>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: 2 }}>{t('🏠 Local Ollama')}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{t('100% Private & Offline')}</div>
                   </button>
 
                   <button 
@@ -635,8 +636,8 @@ print(response.choices[0].message.content)`;
                       textAlign: 'left'
                     }}
                   >
-                    <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: 2 }}>🌐 Custom / Cloud API</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>DeepSeek, OpenRouter, Groq, LM Studio</div>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: 2 }}>{t('🌐 Custom / Cloud API')}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{t('DeepSeek, OpenRouter, Groq, LM Studio')}</div>
                   </button>
                 </div>
               </div>
@@ -653,7 +654,7 @@ print(response.choices[0].message.content)`;
                   gap: 12
                 }}>
                   <div>
-                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, display: 'block', marginBottom: 6 }}>Quick Presets</label>
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, display: 'block', marginBottom: 6 }}>{t('Quick Presets')}</label>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       <button 
                         type="button" 
@@ -664,7 +665,7 @@ print(response.choices[0].message.content)`;
                           setCustomModel('deepseek-chat');
                         }}
                       >
-                        DeepSeek (V3)
+                        {t('DeepSeek (V3)')}
                       </button>
                       <button 
                         type="button" 
@@ -675,7 +676,7 @@ print(response.choices[0].message.content)`;
                           setCustomModel('deepseek-reasoner');
                         }}
                       >
-                        DeepSeek R1 (Reasoning)
+                        {t('DeepSeek R1 (Reasoning)')}
                       </button>
                       <button 
                         type="button" 
@@ -686,7 +687,7 @@ print(response.choices[0].message.content)`;
                           setCustomModel('anthropic/claude-3.5-sonnet');
                         }}
                       >
-                        OpenRouter (Claude 3.5)
+                        {t('OpenRouter (Claude 3.5)')}
                       </button>
                       <button 
                         type="button" 
@@ -697,7 +698,7 @@ print(response.choices[0].message.content)`;
                           setCustomModel('llama-3.3-70b-versatile');
                         }}
                       >
-                        Groq Cloud (Fast)
+                        {t('Groq Cloud (Fast)')}
                       </button>
                       <button 
                         type="button" 
@@ -708,17 +709,17 @@ print(response.choices[0].message.content)`;
                           setCustomModel('local-model');
                         }}
                       >
-                        LM Studio (Local)
+                        {t('LM Studio (Local)')}
                       </button>
                     </div>
                   </div>
 
                   <div className={styles.formGroup} style={{ marginBottom: 0 }}>
-                    <label className={styles.label}>Base URL</label>
+                    <label className={styles.label}>{t('Base URL')}</label>
                     <input 
                       type="text" 
                       className="input-field" 
-                      placeholder="e.g. https://api.deepseek.com/v1"
+                      placeholder={t('e.g. https://api.deepseek.com/v1')}
                       value={baseUrl}
                       onChange={e => setBaseUrl(e.target.value)}
                     />
@@ -730,47 +731,47 @@ print(response.choices[0].message.content)`;
                   </div>
 
                   <div className={styles.formGroup} style={{ marginBottom: 0 }}>
-                    <label className={styles.label}>API Key</label>
+                    <label className={styles.label}>{t('API Key')}</label>
                     <input 
                       type="password" 
                       className="input-field" 
-                      placeholder="sk-..."
+                      placeholder={t('sk-...')}
                       value={apiKey}
                       onChange={e => setApiKey(e.target.value)}
                     />
                   </div>
 
                   <div className={styles.formGroup} style={{ marginBottom: 0 }}>
-                    <label className={styles.label}>Model ID</label>
+                    <label className={styles.label}>{t('Model ID')}</label>
                     <input 
                       type="text" 
                       className="input-field" 
-                      placeholder="e.g. deepseek-chat, gpt-4o, claude-3-5-sonnet"
+                      placeholder={t('e.g. deepseek-chat, gpt-4o, claude-3-5-sonnet')}
                       value={customModel}
                       onChange={e => setCustomModel(e.target.value)}
                     />
                   </div>
 
                   <div style={{ fontSize: '0.75rem', color: '#f59e0b', background: 'rgba(245, 158, 11, 0.08)', padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                    🔒 <strong>Privacy Note:</strong> When using external cloud APIs, chat messages are transmitted to the external provider's servers.
+                    🔒 <strong>{t('Privacy Note:')}</strong> {t('When using external cloud APIs, chat messages are transmitted to the external provider\'s servers.')}
                   </div>
                 </div>
               )}
 
               {provider === 'ollama' && (
                 <div className={styles.formGroup}>
-                  <label className={styles.label}>Local Ollama Model</label>
+                  <label className={styles.label}>{t('Local Ollama Model')}</label>
                   <select 
                     className="input-field" 
                     value={modelName} 
                     onChange={(e) => setModelName(e.target.value)}
                   >
-                    <option value="">Default Backend Model</option>
+                    <option value="">{t('Default Backend Model')}</option>
                     {availableModels.map(m => (
                       <option key={m} value={m}>{m}</option>
                     ))}
                   </select>
-                  <p className={styles.hint}>Choose the active local AI model to use for chat.</p>
+                  <p className={styles.hint}>{t('Choose the active local AI model to use for chat.')}</p>
                 </div>
               )}
 
@@ -778,7 +779,7 @@ print(response.choices[0].message.content)`;
 
               <div className={styles.formGroup}>
                 <label className={styles.label}>
-                  Temperature ({temperature})
+                  {t('Temperature ({value})', { value: temperature })}
                 </label>
                 <input 
                   type="range" 
@@ -789,12 +790,12 @@ print(response.choices[0].message.content)`;
                   onChange={(e) => setTemperature(parseFloat(e.target.value))}
                   style={{ width: '100%', accentColor: 'var(--accent-color)' }}
                 />
-                <p className={styles.hint}>Higher values make output more creative. Lower values make it more deterministic.</p>
+                <p className={styles.hint}>{t('Higher values make output more creative. Lower values make it more deterministic.')}</p>
               </div>
 
               <div className={styles.formGroup}>
                 <label className={styles.label}>
-                  Top P ({topP})
+                  {t('Top P ({value})', { value: topP })}
                 </label>
                 <input 
                   type="range" 
@@ -805,27 +806,27 @@ print(response.choices[0].message.content)`;
                   onChange={(e) => setTopP(parseFloat(e.target.value))}
                   style={{ width: '100%', accentColor: 'var(--accent-color)' }}
                 />
-                <p className={styles.hint}>Controls diversity via nucleus sampling.</p>
+                <p className={styles.hint}>{t('Controls diversity via nucleus sampling.')}</p>
               </div>
 
               <div className={styles.formGroup}>
-                <label className={styles.label}>Max Tokens</label>
+                <label className={styles.label}>{t('Max Tokens')}</label>
                 <input 
                   type="number" 
                   className="input-field" 
-                  placeholder="e.g. 1024 (leave empty for model default)"
+                  placeholder={t('e.g. 1024 (leave empty for model default)')}
                   value={maxTokens}
                   onChange={(e) => setMaxTokens(e.target.value)}
                 />
-                <p className={styles.hint}>Maximum length of the generated response.</p>
+                <p className={styles.hint}>{t('Maximum length of the generated response.')}</p>
               </div>
 
               <div style={{ display: 'flex', gap: '8px', marginTop: 12 }}>
                 <button className="btn-primary" onClick={saveModelSettings} disabled={modelLoading}>
-                  {modelLoading ? 'Saving…' : modelSaved ? <><CheckCircle size={14} /> Saved!</> : <><Save size={14} /> Save Settings</>}
+                  {modelLoading ? t('Saving…') : modelSaved ? <><CheckCircle size={14} /> {t('Saved!')}</> : <><Save size={14} /> {t('Save Settings')}</>}
                 </button>
                 <button className="btn-secondary" onClick={resetModelSettings} disabled={modelLoading}>
-                  Reset to Defaults
+                  {t('Reset to Defaults')}
                 </button>
               </div>
             </div>
@@ -836,45 +837,45 @@ print(response.choices[0].message.content)`;
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <Cpu size={18} />
-                <h2>RAG Engine Settings</h2>
+                <h2>{t('RAG Engine Settings')}</h2>
               </div>
               <p className={styles.panelDesc}>
-                Configure how StarkLLM processes and retrieves documents. These settings affect retrieval quality and performance.
+                {t('Configure how StarkLLM processes and retrieves documents. These settings affect retrieval quality and performance.')}
               </p>
 
               <div className={styles.toggleGroup}>
                 <Toggle
                   checked={semanticChunking}
                   onChange={setSemanticChunking}
-                  label="Semantic Chunking"
-                  hint="Splits documents at semantic boundaries instead of fixed character counts. Improves context quality."
+                  label={t('Semantic Chunking')}
+                  hint={t('Splits documents at semantic boundaries instead of fixed character counts. Improves context quality.')}
                 />
                 <Toggle
                   checked={hybridSearch}
                   onChange={setHybridSearch}
-                  label="Hybrid Search (Vector + TF-IDF)"
-                  hint="Combines vector similarity and keyword relevance using Reciprocal Rank Fusion."
+                  label={t('Hybrid Search (Vector + TF-IDF)')}
+                  hint={t('Combines vector similarity and keyword relevance using Reciprocal Rank Fusion.')}
                 />
                 <Toggle
                   checked={queryRewriting}
                   onChange={setQueryRewriting}
-                  label="Query Rewriting"
-                  hint="Generates expanded query variants using the LLM to improve recall."
+                  label={t('Query Rewriting')}
+                  hint={t('Generates expanded query variants using the LLM to improve recall.')}
                 />
                 <Toggle
                   checked={contextCompression}
                   onChange={setContextCompression}
-                  label="Context Compression"
-                  hint="Removes duplicate sentences across retrieved chunks before sending to the LLM."
+                  label={t('Context Compression')}
+                  hint={t('Removes duplicate sentences across retrieved chunks before sending to the LLM.')}
                 />
               </div>
 
               <button className="btn-primary" onClick={saveRag}>
-                {ragSaved ? <><CheckCircle size={14} /> Saved!</> : <><Save size={14} /> Save RAG Settings</>}
+                {ragSaved ? <><CheckCircle size={14} /> {t('Saved!')}</> : <><Save size={14} /> {t('Save RAG Settings')}</>}
               </button>
 
               <div className={styles.infoBox}>
-                <strong>Note:</strong> These settings are stored locally. The backend defaults are controlled via <code>config.py</code>.
+                <strong>{t('Note:')}</strong> {t('These settings are stored locally. The backend defaults are controlled via')} <code>{t('config.py')}</code>.
               </div>
             </div>
           )}
@@ -884,33 +885,33 @@ print(response.choices[0].message.content)`;
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <Database size={18} />
-                <h2>Knowledge Base Settings</h2>
+                <h2>{t('Knowledge Base Settings')}</h2>
               </div>
               <p className={styles.panelDesc}>
-                Control how documents are indexed and managed in your personal Knowledge Base.
+                {t('Control how documents are indexed and managed in your personal Knowledge Base.')}
               </p>
 
               <div className={styles.toggleGroup}>
                 <Toggle
                   checked={autoIndex}
                   onChange={setAutoIndex}
-                  label="Auto-index on Upload"
-                  hint="Automatically start indexing documents when they are added to a folder."
+                  label={t('Auto-index on Upload')}
+                  hint={t('Automatically start indexing documents when they are added to a folder.')}
                 />
               </div>
 
               <div className={styles.formGroup}>
-                <label className={styles.label}>Supported File Types</label>
+                <label className={styles.label}>{t('Supported File Types')}</label>
                 <div className={styles.tagList}>
                   {['PDF', 'DOCX', 'PNG', 'JPG', 'JPEG'].map(t => (
                     <span key={t} className="badge badge-accent">{t}</span>
                   ))}
                 </div>
-                <p className={styles.hint}>Only the formats listed above can be indexed in the Knowledge Base.</p>
+                <p className={styles.hint}>{t('Only the formats listed above can be indexed in the Knowledge Base.')}</p>
               </div>
 
               <button className="btn-primary" onClick={saveKb}>
-                {kbSaved ? <><CheckCircle size={14} /> Saved!</> : <><Save size={14} /> Save KB Settings</>}
+                {kbSaved ? <><CheckCircle size={14} /> {t('Saved!')}</> : <><Save size={14} /> {t('Save KB Settings')}</>}
               </button>
             </div>
           )}
@@ -920,10 +921,10 @@ print(response.choices[0].message.content)`;
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <Terminal size={18} />
-                <h2>Local MCP Host (Model Context Protocol)</h2>
+                <h2>{t('Local MCP Host (Model Context Protocol)')}</h2>
               </div>
               <p className={styles.panelDesc}>
-                StarkLLM acts as a local, read-only MCP host for the model. All tool calls require explicit manual confirmation in the UI before execution, with arguments visible and editable.
+                {t('StarkLLM acts as a local, read-only MCP host for the model. All tool calls require explicit manual confirmation in the UI before execution, with arguments visible and editable.')}
               </p>
 
               <div className={styles.toggleGroup}>
@@ -933,14 +934,14 @@ print(response.choices[0].message.content)`;
                     setMcpEnabled(val);
                     saveMcpSettings({ enabled: val });
                   }}
-                  label="Enable Local MCP Host"
-                  hint="Allow the model to request local read-only tool calls (Workspace file listing, KB search, chunk inspection)."
+                  label={t('Enable Local MCP Host')}
+                  hint={t('Allow the model to request local read-only tool calls (Workspace file listing, KB search, chunk inspection).')}
                 />
               </div>
 
               <div className={styles.divider} />
 
-              <h3 className={styles.h3} style={{ marginTop: '1.2rem', marginBottom: '0.6rem' }}>Active Read-Only Tools</h3>
+              <h3 className={styles.h3} style={{ marginTop: '1.2rem', marginBottom: '0.6rem' }}>{t('Active Read-Only Tools')}</h3>
               <div className={styles.toggleGroup}>
                 <Toggle
                   checked={mcpTools.list_workspace_files !== false}
@@ -949,8 +950,8 @@ print(response.choices[0].message.content)`;
                     setMcpTools(updated);
                     saveMcpSettings({ tools: updated });
                   }}
-                  label="list_workspace_files"
-                  hint="Lists files and document metadata in the user's active workspace."
+                  label={t('list_workspace_files')}
+                  hint={t('Lists files and document metadata in the user\'s active workspace.')}
                 />
                 <Toggle
                   checked={mcpTools.search_local_kb !== false}
@@ -959,8 +960,8 @@ print(response.choices[0].message.content)`;
                     setMcpTools(updated);
                     saveMcpSettings({ tools: updated });
                   }}
-                  label="search_local_kb"
-                  hint="Performs hybrid retrieval against the local Knowledge Base and returns passage locators."
+                  label={t('search_local_kb')}
+                  hint={t('Performs hybrid retrieval against the local Knowledge Base and returns passage locators.')}
                 />
                 <Toggle
                   checked={mcpTools.fetch_cited_chunk !== false}
@@ -969,28 +970,28 @@ print(response.choices[0].message.content)`;
                     setMcpTools(updated);
                     saveMcpSettings({ tools: updated });
                   }}
-                  label="fetch_cited_chunk"
-                  hint="Fetches the exact text chunk for a cited document locator."
+                  label={t('fetch_cited_chunk')}
+                  hint={t('Fetches the exact text chunk for a cited document locator.')}
                 />
               </div>
 
               <div className={styles.divider} />
 
               <div className={styles.formGroup}>
-                <label className={styles.label}>Configured Servers (Local Only)</label>
+                <label className={styles.label}>{t('Configured Servers (Local Only)')}</label>
                 <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.8rem 1rem', borderRadius: '6px', border: '1px solid #333', fontSize: '0.88rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <strong>StarkLLM Builtin (In-Process)</strong>
-                    <span className="badge badge-success" style={{ fontSize: '0.75rem' }}>CONNECTED (READ-ONLY)</span>
+                    <strong>{t('StarkLLM Builtin (In-Process)')}</strong>
+                    <span className="badge badge-success" style={{ fontSize: '0.75rem' }}>{t('CONNECTED (READ-ONLY)')}</span>
                   </div>
                   <p style={{ color: 'var(--text-secondary)', margin: '0.4rem 0 0', fontSize: '0.82rem' }}>
-                    Type: in-process &bull; Zero network egress &bull; Localhost only
+                    {t('Type: in-process • Zero network egress • Localhost only')}
                   </p>
                 </div>
               </div>
 
               <div className={styles.infoBox} style={{ marginTop: '1.2rem' }}>
-                <strong>Zero-Cloud Guarantee:</strong> Tool execution runs 100% on your local machine. No external MCP registry is contacted, and every tool call requires manual user confirmation before running.
+                <strong>{t('Zero-Cloud Guarantee:')}</strong> {t('Tool execution runs 100% on your local machine. No external MCP registry is contacted, and every tool call requires manual user confirmation before running.')}
               </div>
             </div>
           )}
@@ -1000,10 +1001,10 @@ print(response.choices[0].message.content)`;
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <Server size={18} />
-                <h2>Local OpenAI-Compatible API Server</h2>
+                <h2>{t('Local OpenAI-Compatible API Server')}</h2>
               </div>
               <p className={styles.panelDesc}>
-                Connect external developer tools (Cursor, VSCode Continue, Obsidian, Python SDK, cURL) directly to your local StarkLLM instance.
+                {t('Connect external developer tools (Cursor, VSCode Continue, Obsidian, Python SDK, cURL) directly to your local StarkLLM instance.')}
               </p>
 
               {/* Endpoint Status Card */}
@@ -1022,10 +1023,10 @@ print(response.choices[0].message.content)`;
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                     <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }}></span>
-                    <strong style={{ color: '#10b981', fontSize: '0.88rem' }}>Server Active &amp; Ready</strong>
+                    <strong style={{ color: '#10b981', fontSize: '0.88rem' }}>{t('Server Active & Ready')}</strong>
                   </div>
                   <div style={{ fontFamily: 'monospace', fontSize: '0.82rem', color: '#e5e7eb' }}>
-                    Base URL: <code style={{ color: '#6ee7b7' }}>http://localhost:8000/v1</code>
+                    {t('Base URL:')} <code style={{ color: '#6ee7b7' }}>http://localhost:8000/v1</code>
                   </div>
                 </div>
                 <button
@@ -1036,7 +1037,7 @@ print(response.choices[0].message.content)`;
                   style={{ padding: '6px 14px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px', background: '#10b981' }}
                 >
                   {testingApi ? <Loader size={13} className="animate-spin" /> : <Play size={13} />}
-                  <span>{apiLatency !== null ? `Online (${apiLatency}ms)` : 'Test Connection'}</span>
+                  <span>{apiLatency !== null ? t('Online ({ms} ms)', { ms: apiLatency }) : t('Test Connection')}</span>
                 </button>
               </div>
 
@@ -1050,20 +1051,20 @@ print(response.choices[0].message.content)`;
                   borderRadius: '8px'
                 }}>
                   <h4 style={{ margin: '0 0 10px 0', fontSize: '0.85rem', fontWeight: 600, color: '#f3f4f6' }}>
-                    1. Cursor / VSCode Continue Settings
+                    {t('1. Cursor / VSCode Continue Settings')}
                   </h4>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
                     <div style={{ padding: '8px 12px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px' }}>
-                      <span style={{ fontSize: '0.7rem', color: '#9ca3af', display: 'block' }}>Base URL</span>
+                      <span style={{ fontSize: '0.7rem', color: '#9ca3af', display: 'block' }}>{t('Base URL')}</span>
                       <code style={{ fontSize: '0.8rem', color: '#818cf8' }}>http://localhost:8000/v1</code>
                     </div>
                     <div style={{ padding: '8px 12px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px' }}>
-                      <span style={{ fontSize: '0.7rem', color: '#9ca3af', display: 'block' }}>Model ID</span>
-                      <code style={{ fontSize: '0.8rem', color: '#818cf8' }}>starkllm-default</code>
+                      <span style={{ fontSize: '0.7rem', color: '#9ca3af', display: 'block' }}>{t('Model ID')}</span>
+                      <code style={{ fontSize: '0.8rem', color: '#818cf8' }}>{t('starkllm-default')}</code>
                     </div>
                     <div style={{ padding: '8px 12px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px' }}>
-                      <span style={{ fontSize: '0.7rem', color: '#9ca3af', display: 'block' }}>API Key (Any string)</span>
-                      <code style={{ fontSize: '0.8rem', color: '#818cf8' }}>stark-local</code>
+                      <span style={{ fontSize: '0.7rem', color: '#9ca3af', display: 'block' }}>{t('API Key (Any string)')}</span>
+                      <code style={{ fontSize: '0.8rem', color: '#818cf8' }}>{t('stark-local')}</code>
                     </div>
                   </div>
                 </div>
@@ -1077,7 +1078,7 @@ print(response.choices[0].message.content)`;
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                     <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: '#f3f4f6' }}>
-                      2. Python (openai SDK)
+                      {t('2. Python (openai SDK)')}
                     </h4>
                     <button
                       type="button"
@@ -1085,7 +1086,7 @@ print(response.choices[0].message.content)`;
                       onClick={() => handleCopySnippet(pythonSnippet, 'py')}
                       style={{ cursor: 'pointer', padding: '3px 8px', fontSize: '0.72rem' }}
                     >
-                      {copiedSnippet === 'py' ? 'Copied!' : 'Copy Code'}
+                      {copiedSnippet === 'py' ? t('Copied!') : t('Copy Code')}
                     </button>
                   </div>
                   <pre style={{
@@ -1112,7 +1113,7 @@ print(response.choices[0].message.content)`;
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                     <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: '#f3f4f6' }}>
-                      3. cURL Command
+                      {t('3. cURL Command')}
                     </h4>
                     <button
                       type="button"
@@ -1120,7 +1121,7 @@ print(response.choices[0].message.content)`;
                       onClick={() => handleCopySnippet(curlSnippet, 'curl')}
                       style={{ cursor: 'pointer', padding: '3px 8px', fontSize: '0.72rem' }}
                     >
-                      {copiedSnippet === 'curl' ? 'Copied!' : 'Copy cURL'}
+                      {copiedSnippet === 'curl' ? t('Copied!') : t('Copy cURL')}
                     </button>
                   </div>
                   <pre style={{
@@ -1146,14 +1147,14 @@ print(response.choices[0].message.content)`;
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <Palette size={18} />
-                <h2>Appearance</h2>
+                <h2>{t('Appearance')}</h2>
               </div>
               <p className={styles.panelDesc}>
-                Customize the visual experience of StarkLLM.
+                {t('Customize the visual experience of StarkLLM.')}
               </p>
 
               <div className={styles.formGroup}>
-                <label className={styles.label}>Font Size</label>
+                <label className={styles.label}>{t('Font Size')}</label>
                 <div className={styles.segmentedControl}>
                   {['small', 'medium', 'large'].map(size => (
                     <button
@@ -1169,7 +1170,7 @@ print(response.choices[0].message.content)`;
 
               <div className={styles.formGroup}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '8px' }}>
-                  <label className={styles.label} style={{ margin: 0 }}>Color Theme & Palette</label>
+                  <label className={styles.label} style={{ margin: 0 }}>{t('Color Theme & Palette')}</label>
                   <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                     {AVAILABLE_THEMES.length} Presets Available
                   </span>
@@ -1194,9 +1195,9 @@ print(response.choices[0].message.content)`;
                           }}
                         >
                           <div className={styles.themeDotGroup}>
-                            <span className={styles.themeDot} style={{ background: t.bg }} title="Background" />
-                            <span className={styles.themeDot} style={{ background: t.card }} title="Surface" />
-                            <span className={styles.themeDot} style={{ background: t.accent, boxShadow: `0 0 8px ${t.accent}` }} title="Accent" />
+                            <span className={styles.themeDot} style={{ background: t.bg }} title={t('Background')} />
+                            <span className={styles.themeDot} style={{ background: t.card }} title={t('Surface')} />
+                            <span className={styles.themeDot} style={{ background: t.accent, boxShadow: `0 0 8px ${t.accent}` }} title={t('Accent')} />
                           </div>
                           <div
                             style={{
@@ -1226,7 +1227,7 @@ print(response.choices[0].message.content)`;
               </div>
 
               <button className="btn-primary" onClick={saveUi}>
-                {uiSaved ? <><CheckCircle size={14} /> Applied!</> : <><Save size={14} /> Apply Settings</>}
+                {uiSaved ? <><CheckCircle size={14} /> {t('Applied!')}</> : <><Save size={14} /> {t('Apply Settings')}</>}
               </button>
             </div>
           )}
@@ -1236,24 +1237,20 @@ print(response.choices[0].message.content)`;
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <Globe size={24} className={styles.panelIcon} />
-                <h2>Language &amp; Locale</h2>
+                <h2>{t('Language & Locale')}</h2>
               </div>
               <p className={styles.panelDesc}>
-                English is the interface language. German is the next one.
+                {t('Without a choice here, StarkLLM uses the language of Windows. The page reloads when you change it.')}
               </p>
 
               <div className={styles.languageGrid}>
                 {SUPPORTED_LANGUAGES.map(lang => {
-                  const isActive = lang.code === 'en';
+                  const isActive = lang.code === language();
                   return (
                     <div
                       key={lang.code}
                       className={`${styles.languageCard} ${isActive ? styles.languageCardActive : ''}`}
-                      onClick={() => {
-                        if (lang.status === 'active') {
-                          setLanguage(lang.code);
-                        }
-                      }}
+                      onClick={() => setLanguage(lang.code)}
                     >
                       <div className={styles.languageHeaderRow}>
                         <div className={styles.languageTitleGroup}>
@@ -1264,9 +1261,9 @@ print(response.choices[0].message.content)`;
                           </div>
                         </div>
                         {isActive ? (
-                          <span className={styles.languageBadgeActive}>Active</span>
+                          <span className={styles.languageBadgeActive}>{t('Active')}</span>
                         ) : (
-                          <span className={styles.languageBadgeRoadmap}>{lang.statusLabel}</span>
+                          <span className={styles.languageBadgeRoadmap}>{t('Select')}</span>
                         )}
                       </div>
 
@@ -1280,9 +1277,9 @@ print(response.choices[0].message.content)`;
               </div>
 
               <div className={styles.languageRoadmapNotice}>
-                <strong>🌐 StarkLLM Internationalization Architecture</strong>
+                <strong>{t('German interface')}</strong>
                 <span>
-                  The initial release is standardized exclusively on 100% clean English for reliable inference, prompt consistency, and document evaluation. A German interface is planned next.
+                  {t('The interface is in German. Answers of the AI follow the language of your question.')}
                 </span>
               </div>
             </div>
@@ -1293,44 +1290,44 @@ print(response.choices[0].message.content)`;
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <Keyboard size={18} />
-                <h2>Keyboard Shortcuts</h2>
+                <h2>{t('Keyboard Shortcuts')}</h2>
               </div>
               <p className={styles.panelDesc}>
-                Quick reference for all keyboard shortcuts available in StarkLLM.
+                {t('Quick reference for all keyboard shortcuts available in StarkLLM.')}
               </p>
 
               {[
                 {
-                  category: 'Navigation & Search',
+                  category: t('Navigation & Search'),
                   shortcuts: [
-                    { keys: ['Ctrl', 'K'], desc: 'Open Global Search / Command Palette' },
-                    { keys: ['Esc'], desc: 'Close modal, dialog, or dropdown' },
+                    { keys: ['Ctrl', 'K'], desc: t('Open Global Search / Command Palette') },
+                    { keys: ['Esc'], desc: t('Close modal, dialog, or dropdown') },
                   ]
                 },
                 {
-                  category: 'Chat',
+                  category: t('Chat'),
                   shortcuts: [
-                    { keys: ['Enter'], desc: 'Send message' },
-                    { keys: ['Shift', 'Enter'], desc: 'Insert new line in message' },
-                    { keys: ['Ctrl', 'Z'], desc: 'Undo text in input field' },
+                    { keys: ['Enter'], desc: t('Send message') },
+                    { keys: ['Shift', 'Enter'], desc: t('Insert new line in message') },
+                    { keys: ['Ctrl', 'Z'], desc: t('Undo text in input field') },
                   ]
                 },
                 {
-                  category: 'Message Actions',
+                  category: t('Message Actions'),
                   shortcuts: [
-                    { keys: ['Click Copy'], desc: 'Copy message content to clipboard' },
-                    { keys: ['Click Edit ✏️'], desc: 'Edit a user message (re-runs from that point)' },
-                    { keys: ['Click Regenerate ↺'], desc: 'Regenerate the last AI response' },
+                    { keys: ['Click Copy'], desc: t('Copy message content to clipboard') },
+                    { keys: ['Click Edit ✏️'], desc: t('Edit a user message (re-runs from that point)') },
+                    { keys: ['Click Regenerate ↺'], desc: t('Regenerate the last AI response') },
                   ]
                 },
                 {
-                  category: 'Input Bar',
+                  category: t('Input Bar'),
                   shortcuts: [
-                    { keys: ['Paperclip 📎'], desc: 'Attach file (PDF, TXT, PNG, JPG)' },
-                    { keys: ['Mic 🎙️'], desc: 'Start / Stop voice recording (Whisper transcription)' },
-                    { keys: ['FileCode 📝'], desc: 'Open Prompt Templates library' },
-                    { keys: ['Database 🗃️'], desc: 'Toggle Knowledge Base retrieval' },
-                    { keys: ['Globe 🌐'], desc: 'Toggle Web Search' },
+                    { keys: ['Paperclip 📎'], desc: t('Attach file (PDF, TXT, PNG, JPG)') },
+                    { keys: ['Mic 🎙️'], desc: t('Start / Stop voice recording (Whisper transcription)') },
+                    { keys: ['FileCode 📝'], desc: t('Open Prompt Templates library') },
+                    { keys: ['Database 🗃️'], desc: t('Toggle Knowledge Base retrieval') },
+                    { keys: ['Globe 🌐'], desc: t('Toggle Web Search') },
                   ]
                 },
               ].map(group => (
@@ -1393,55 +1390,55 @@ print(response.choices[0].message.content)`;
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <Info size={18} />
-                <h2>About StarkLLM</h2>
+                <h2>{t('About StarkLLM')}</h2>
               </div>
               
               <div className={styles.aboutCard}>
                 <div className={styles.aboutHeader}>
                   <h4>StarkLLM</h4>
-                  <span className={styles.aboutVersion}>{appVersion ? `Version ${appVersion}` : 'Version unknown'}</span>
+                  <span className={styles.aboutVersion}>{appVersion ? t('Version {version}', { version: appVersion }) : t('Version unknown')}</span>
                   {desktop && (
                     <button type="button" className="btn-primary" style={{ marginLeft: 'auto', alignSelf: 'center' }} onClick={checkForUpdates} disabled={updateState === 'Checking...'}>
-                      {updateState === 'Checking...' ? 'Checking...' : 'Check for updates'}
+                      {updateState === 'Checking...' ? t('Checking...') : t('Check for updates')}
                     </button>
                   )}
                 </div>
                 {updateState && updateState !== 'Checking...' && <p className={styles.aboutText}>{updateState}</p>}
                 
                 <p className={styles.aboutText}>
-                  StarkLLM is <strong>free</strong> and <strong>open source</strong> under the <strong>Apache License 2.0</strong>. 
+                  {t('StarkLLM is')} <strong>{t('free')}</strong> {t('and')} <strong>{t('open source')}</strong> {t('under the')} <strong>{t('Apache License 2.0')}</strong>. 
                   It is designed from the ground up with a local-first privacy architecture, ensuring your data stays securely on your machine.
                 </p>
 
                 <p className={styles.aboutText}>
-                  Because the code is open, you can check what the app sends over the network: nothing, unless you turn on a cloud model or web search yourself.
+                  {t('Because the code is open, you can check what the app sends over the network: nothing, unless you turn on a cloud model or web search yourself.')}
                 </p>
 
                 <div className={styles.aboutGrid}>
                   <div className={styles.aboutGridItem}>
-                    <span className={styles.aboutLabel}>Created by</span>
-                    <span className={styles.aboutValue}>Christian Stark</span>
+                    <span className={styles.aboutLabel}>{t('Created by')}</span>
+                    <span className={styles.aboutValue}>{t('Christian Stark')}</span>
                   </div>
                   <div className={styles.aboutGridItem}>
-                    <span className={styles.aboutLabel}>Contact Email</span>
+                    <span className={styles.aboutLabel}>{t('Contact Email')}</span>
                     <span className={styles.aboutValue}>
-                      <a href="mailto:info@starkllm.com">info@starkllm.com</a>
+                      <a href="mailto:info@starkllm.com">{t('info@starkllm.com')}</a>
                     </span>
                   </div>
                   <div className={styles.aboutGridItem}>
-                    <span className={styles.aboutLabel}>Official Website</span>
+                    <span className={styles.aboutLabel}>{t('Official Website')}</span>
                     <span className={styles.aboutValue}>
                       <a href="https://starkllm.com" target="_blank" rel="noreferrer">https://starkllm.com</a>
                     </span>
                   </div>
                   <div className={styles.aboutGridItem}>
-                    <span className={styles.aboutLabel}>Location</span>
-                    <span className={styles.aboutValue}>Maxstr. 14<br/><span className={styles.aboutMuted}>52070 Aachen</span></span>
+                    <span className={styles.aboutLabel}>{t('Location')}</span>
+                    <span className={styles.aboutValue}>{t('Maxstr. 14')}<br/><span className={styles.aboutMuted}>{t('52070 Aachen')}</span></span>
                   </div>
                 </div>
 
                 <div className={styles.aboutLegal}>
-                  <strong>No Warranty / No Liability:</strong> This software is provided "as is", 
+                  <strong>{t('No Warranty / No Liability:')}</strong> This software is provided "as is", 
                   without warranty of any kind, express or implied. In no event shall the authors 
                   be liable for any claim, damages or other liability.
                 </div>

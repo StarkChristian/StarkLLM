@@ -65,6 +65,11 @@
   transition: var(--transition-fast);
   text-align: left;
 }
+/* icons keep their size when a (German) label wraps onto two lines */
+.sideNavItem svg {
+  flex-shrink: 0;
+}
+
 .sideNavItem:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
