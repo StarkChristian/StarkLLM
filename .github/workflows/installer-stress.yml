@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        builder: ['25.1.8', '26.18.1']
+        builder: ['26.18.1']
         attempt: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     runs-on: windows-latest
     timeout-minutes: 60
