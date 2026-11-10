@@ -217,6 +217,7 @@ def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool 
     and by the chat, which hands these dates to the model for questions like "what is due in the next two weeks?"."""
     from datetime import date, timedelta
     from app.services.dates_service import find_dates, letter_date, replaced_letters, sender
+    from app.services.document_checks import findings
     from app.services.rag_service import rag_service
 
     q = (db.query(models.Document, models.Workspace)
@@ -277,6 +278,10 @@ def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool 
     for item, pages, letter in zip(items, pages_of, letters):
         if letter[1] and letter in replaced:
             item["replaced"] = True
+            continue
+        full = "\n".join(text for _, text in sorted(pages.items()))
+        if any(f["kind"] in ("scam_signs", "ai_instructions") for f in findings([{"file": item["filename"], "text": full}])):
+            item["suspicious"] = True  # a scam's "deadline" is not something to do
             continue
         for page, text in sorted(pages.items()):
             for f in find_dates(text):

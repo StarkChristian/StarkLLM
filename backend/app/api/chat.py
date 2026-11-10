@@ -265,7 +265,88 @@ def language_of(message: str):
     return ranked[0][0]
 
 
-def _document_warnings(ws_results, kb_results, workspace_id: int, user_id: int) -> list:
+# Nouns of the question that appear in no document: a small model otherwise answers "how much is my household
+# insurance?" with the car insurance premium. Only capitalised words inside the question (German nouns, names) count;
+# everyday words that every letter has are left out.
+_GENERIC_NOUNS = {
+    "dokument", "dokumente", "dokumenten", "brief", "briefe", "briefen", "schreiben", "unterlagen", "datei", "dateien",
+    "termin", "termine", "terminen", "frist", "fristen", "betrag", "beträge", "beitrag", "beiträge", "kosten", "rechnung",
+    "rechnungen", "woche", "wochen", "monat", "monate", "monaten", "jahres", "jahresende", "ende", "liste", "zahlung",
+    "zahlungen", "geld", "euro", "betrug", "mahnung", "frage", "fragen", "hilfe", "worten", "sprache", "dank",
+}
+
+
+def _terms_missing(message: str, workspace_id: int, user_id: int, use_kb: bool) -> list:
+    # capitalised words that do not start a sentence (German nouns and names)
+    words = re.findall(r"(?<![.!?:]\s)(?<=[\s,(\"'])([A-ZÄÖÜ][\wäöüß-]{5,})", message or "")
+    terms = [w for w in dict.fromkeys(words) if w.lower() not in _GENERIC_NOUNS][:4]
+    if not terms:
+        return []
+    def plain(x):
+        return x.lower().replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
+    try:
+        from app.db.session import SessionLocal
+        db = SessionLocal()
+        try:
+            names = [plain(n) for (n,) in db.query(models.Document.filename)
+                     .filter(models.Document.workspace_id == workspace_id).all()]
+        finally:
+            db.close()
+        cols = [rag_service.get_or_create_collection(workspace_id, user_id)]
+        if use_kb:
+            cols.append(rag_service.get_or_create_kb_collection(user_id))
+        missing = []
+        def in_documents(word):
+            if any(plain(word) in n for n in names):
+                return True  # in a file name ("Fitnessstudio_Kuendigung.pdf")
+            for form in {word, word.lower(), word.capitalize()}:
+                for col in cols:
+                    if col.get(where_document={"$contains": form}, limit=1, include=[]).get("ids"):
+                        return True
+            return False
+
+        def compound_found(word):
+            # German compounds: "Mietkaution" is found when "Miet…" and "…kaution" both are ("Miete", "Kaution"),
+            # "Kündigungsfrist" via "Kündigung" + "Frist"; "Hausratversicherung" stays missing without "Hausrat"
+            w = word.lower()
+            for i in range(4, len(w) - 3):
+                head, tail = w[:i], w[i:]
+                tails = {tail, tail.rstrip("s")} | ({tail[:-2]} if tail.endswith("en") and len(tail) > 5 else set())
+                if any(len(x) >= 4 and in_documents(x) for x in tails) and (in_documents(head) or in_documents(head.rstrip("s"))):
+                    return True
+            return False
+
+        for term in terms:
+            parts = [p for p in term.split("-") if len(p) >= 4] or [term]
+            if not (in_documents(term) or all(in_documents(p) or compound_found(p) for p in parts)):
+                missing.append(term)
+        return missing
+    except Exception as e:
+        logger.warning(f"term check skipped: {e}")
+        return []
+
+
+# words that are generic for the "not in any document" check but do name a letter ("Ist die Mahnung echt?")
+_NAMES_A_LETTER = {"mahnung", "rechnung", "rechnungen", "betrug", "zahlung", "beitrag"}
+
+
+def _is_about(message: str, file: str, text: str) -> bool:
+    """Does the question refer to this document? Its sender, subject or file name shares a word with the question
+    ("Finanzamt", "Inkasso", "Paket", "gewonnen")."""
+    head = (file or "") + " " + (text or "")[:600]
+    head = head.lower().replace("_", " ").replace("-", " ")
+    for word in re.findall(r"[a-zäöüß]{5,}", (message or "").lower()):
+        if (word in _GENERIC_NOUNS and word not in _NAMES_A_LETTER) or word in {"meine", "meinen", "meiner", "haben", "bekommen", "können", "sollte",
+                                                "sollen", "welche", "diese", "dieser", "einen", "einer", "wegen", "bitte"}:
+            continue
+        # from the start of a word: "inkassobüro" ~ "Inkasso", "zollgebühr" ~ "Zollgebühr", but not "kündigung" in
+        # "Pfändungsankündigung"
+        if re.search(r"(?<![a-zäöüß])" + re.escape(word[:7]), head):
+            return True
+    return False
+
+
+def _document_warnings(ws_results, kb_results, workspace_id: int, user_id: int, message: str = "") -> list:
     """Rule-based warnings about the retrieved passages (see document_checks). When a passage asks for payment to an
     account, the other letters of the same sender in the workspace are looked up too, so a fake letter is compared
     with the real ones even if those were not retrieved for this question."""
@@ -285,7 +366,32 @@ def _document_warnings(ws_results, kb_results, workspace_id: int, user_id: int) 
                         passages.append({"file": _citation_filename(meta or {}), "text": text})
     except Exception as e:  # a warning that cannot be computed must never block the answer
         logger.warning(f"document checks skipped: {e}")
-    return findings(passages)
+    found = findings(passages)
+    # Only documents the question is about get a warning: retrieval always brings a few passages, and a red box for a
+    # fake letter that merely came along with a question about the rent contract made every answer look alarming.
+    # The best match counts as relevant; others when the question names their sender, subject or file.
+    texts = {}
+    for p in passages:
+        texts[p["file"]] = texts.get(p["file"], "") + "\n" + p["text"]
+    ranked = [_citation_filename(r.get("metadata") or {}) for r in list(ws_results or []) + list(kb_results or [])]
+    top = ranked[:1]
+
+    def relevant(file):
+        return file in top or _is_about(message, file, texts.get(file, ""))
+
+    out = []
+    for f in found:
+        files = [f["file"]] if "file" in f else [x for a in f.get("accounts", []) for x in a.get("files", [])]
+        if "file" in f:
+            # a scam or a manipulated letter: also when it is the best match for a vague question
+            keep = any(relevant(x) for x in files)
+        else:
+            # two accounts of one sender: only when the question is about that sender (a genuine tax notice that is
+            # merely the best match for a question about medicine gives no warning)
+            keep = any(_is_about(message, x, texts.get(x, "")) for x in files)
+        if keep:
+            out.append(f)
+    return out
 
 
 class ChatRequest(BaseModel):
@@ -482,6 +588,14 @@ async def chat(
                 .all()
             )
         docs_available = ws_indexed_docs > 0 or len(kb_docs) > 0
+        missing_terms = (await asyncio.to_thread(_terms_missing, req.message, req.workspace_id, current_user.id,
+                                                 bool(req.use_knowledge_base)) if docs_available else [])
+        missing_section = ("\nNOT IN THE DOCUMENTS (checked by StarkLLM): no document contains the word(s) "
+                           + ", ".join(f'"{t}"' for t in missing_terms)
+                           + ". Answer about them only if a document clearly covers the same thing under another name "
+                             "(for example \"Kfz-Versicherung\" for \"Autoversicherung\"). Otherwise say plainly that you did "
+                             "not find it in the documents, and never take a number from a document about something else.\n"
+                           if missing_terms else "")
         dates_section = (_dates_section(db, current_user.id, req.workspace_id, bool(req.use_knowledge_base))
                          if docs_available and DATE_QUESTION.search(req.message) else "")
 
@@ -618,7 +732,8 @@ async def chat(
                                                       models.Document.filepath.in_(ws_paths)).all():
                 doc_ids[d.filepath] = d.id
         evidence = _citation_evidence(ws_results, "ws", doc_ids) + _citation_evidence(kb_results, "kb", {})
-        warnings = (await asyncio.to_thread(_document_warnings, ws_results, kb_results, req.workspace_id, current_user.id)
+        warnings = (await asyncio.to_thread(_document_warnings, ws_results, kb_results, req.workspace_id, current_user.id,
+                                        req.message)
                     if (ws_results or kb_results) else [])
 
         sources_json = json.dumps({
@@ -782,7 +897,10 @@ GENERAL CONVERSATION MODE
 
         # ---- MCP Tools Section (Read-Only Local Host)
         mcp_section = ""
-        active_tools = mcp_service.get_active_tools()
+        # The tools are for when the passages are not enough. With passages (or the dates list) in the prompt, small
+        # models wrote a tool call instead of answering from them (scenario test: "what do I have to pay by the end of
+        # the year?" got a search_local_kb call although every date was listed).
+        active_tools = mcp_service.get_active_tools() if not (ws_context or kb_context or dates_section) else []
         if active_tools:
             tool_descs = []
             for t in active_tools:
@@ -873,7 +991,7 @@ LANGUAGE & WRITING QUALITY
 - For German, use correct Hochdeutsch.
 - Technical terms (e.g. React, API, Python, Docker) may appear in their Latin script naturally within non-English sentences — this is acceptable and expected.
 
-{web_block}{mode_instructions}{dates_section}{safety_section}{language_rule}
+{web_block}{mode_instructions}{dates_section}{missing_section}{safety_section}{language_rule}
 """
         logger.info(
             f"DEBUG: System prompt built. WS context: {len(ws_context)} chars, "

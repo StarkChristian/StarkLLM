@@ -95,12 +95,19 @@ def write_photo(text: str, path: Path, seed=11):
     table.filter(ImageFilter.GaussianBlur(0.8)).save(path, "JPEG", quality=80)
 
 
+def write_screenshot(text: str, path: Path):
+    """A phone screenshot of a text message: plain, sharp, narrow."""
+    page = render_page(text, width=900, size=28, margin=50).convert("RGB")
+    page = page.crop((0, 0, page.width, 60 + 50 * len(text.splitlines())))
+    page.save(path, "PNG")
+
+
 def main(folder: str):
     out = Path(folder)
     out.mkdir(parents=True, exist_ok=True)
     for d in DOCUMENTS:
         target = out / d["file"]
-        {"pdf": write_pdf, "scan": write_scan, "photo": write_photo}[d["kind"]](d["text"], target)
+        {"pdf": write_pdf, "scan": write_scan, "photo": write_photo, "screenshot": write_screenshot}[d["kind"]](d["text"], target)
         print(f"{d['kind']:5}  {target.name}")
 
 

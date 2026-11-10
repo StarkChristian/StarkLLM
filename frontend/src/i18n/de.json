@@ -739,5 +739,16 @@
   "Replaced by a newer letter": "Durch neueres Schreiben ersetzt",
   "at {time}": "um {time} Uhr",
   "{file} contains text that tries to instruct AI assistants. Genuine letters never do this: treat it as a possible scam.": "{file} enthält Text, der KI-Assistenten Anweisungen geben will. Echte Schreiben tun das nie: Behandeln Sie es als möglichen Betrug.",
-  "Two letters from {sender} name different bank accounts ({accounts}). Before you pay, check with the sender using a phone number or address you already know.": "Zwei Schreiben von {sender} nennen unterschiedliche Bankkonten ({accounts}). Prüfen Sie vor einer Zahlung beim Absender nach, über eine Telefonnummer oder Adresse, die Sie bereits kennen."
+  "Two letters from {sender} name different bank accounts ({accounts}). Before you pay, check with the sender using a phone number or address you already know.": "Zwei Schreiben von {sender} nennen unterschiedliche Bankkonten ({accounts}). Prüfen Sie vor einer Zahlung beim Absender nach, über eine Telefonnummer oder Adresse, die Sie bereits kennen.",
+  "Possible scam": "Möglicher Betrug",
+  "an authority asks for payment to a foreign account": "eine Behörde verlangt Zahlung auf ein ausländisches Konto",
+  "payment to a foreign account": "Zahlung auf ein ausländisches Konto",
+  "payment with vouchers, gift cards or crypto": "Zahlung mit Gutscheinen, Geschenkkarten oder Kryptowährung",
+  "payment through a link": "Zahlung über einen Link",
+  "a fee before a prize or money is paid out": "eine Gebühr, bevor ein Gewinn oder Geld ausgezahlt wird",
+  "a threat of arrest or police over money": "Drohung mit Haft oder Polizei wegen Geld",
+  "extreme time pressure": "extremer Zeitdruck",
+  "a request to keep it secret": "die Bitte, es geheim zu halten",
+  "{file} shows several typical signs of a scam: {signs}. Do not pay, click links or send codes. Check with the organisation using contact details you already know.": "{file} zeigt mehrere typische Merkmale von Betrug: {signs}. Zahlen Sie nicht, klicken Sie keine Links an und geben Sie keine Codes weiter. Fragen Sie bei der Stelle über Kontaktdaten nach, die Sie bereits kennen.",
+  "{sender} announces a new bank account ({accounts}). That is normal, but before you change a standing order, you can confirm it using the phone number you already know.": "{sender} teilt eine neue Bankverbindung mit ({accounts}). Das ist üblich, aber bevor Sie einen Dauerauftrag ändern, können Sie es über die Telefonnummer bestätigen lassen, die Sie bereits kennen."
 }

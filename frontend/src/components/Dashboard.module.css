@@ -561,3 +561,12 @@ button.wsRow {
   border: none;
   cursor: pointer;
 }
+.docSuspicious {
+  font-size: 0.72rem;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.14);
+  color: var(--danger, #ef4444);
+  font-weight: 600;
+  white-space: nowrap;
+}

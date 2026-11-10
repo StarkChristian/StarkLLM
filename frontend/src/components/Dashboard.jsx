@@ -247,6 +247,7 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
                     <span className={styles.docIcon}>{IMAGE_TYPES.has((doc.file_type || '').toLowerCase()) ? <Image size={16} /> : <FileText size={16} />}</span>
                     <span className={styles.docName}>{doc.filename}</span>
                     {doc.replaced && <span className={styles.docReplaced}>{t('Replaced by a newer letter')}</span>}
+                    {doc.suspicious && <span className={styles.docSuspicious}>{t('Possible scam')}</span>}
                     <span className={styles.docWhere}>
                       {doc.scope === 'kb' ? t('Knowledge base') : doc.workspace}
                       {doc.added ? ` · ${new Date(doc.added).toLocaleDateString(UI_LOCALE)}` : ''}

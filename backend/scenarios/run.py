@@ -36,9 +36,11 @@ EXPECTED_DATES = [
     ("Scan_Bank_Entgelte.pdf", "2027-01-31"),
     ("Offer_Letter_Bright_Harbor.pdf", "2026-11-25"),
     ("Fitnessstudio_Kuendigungsbestaetigung.pdf", "2027-03-31"),
+    ("Mahnung_Stadtwerke.pdf", "2026-11-27"),
 ]
 # dates that must not be shown as something to do
 UNWANTED_DATES = [
+    ("Gewinnbenachrichtigung.pdf", "2026-11-05"),      # a scam's date is not something to do
     ("Nebenkostenabrechnung_2025.pdf", "2026-11-30"),  # replaced by the corrected letter
     ("Arztbrief_Orthopaedie.pdf", "1991-06-14"),       # date of birth
 ]
@@ -83,9 +85,15 @@ class Api:
                          content_type=f"multipart/form-data; boundary={boundary}")
 
 
-def check(question, answer, sources):
+def check(question, answer, sources, warnings=()):
     a = answer or ""
     failed, notes = [], []
+    shown = [f"{w.get('kind')}:{w.get('file') or w.get('sender')}" for w in warnings]
+    for want in question.get("warn", []):
+        if not any(x.startswith(want) or want in x for x in shown):
+            failed.append(f"no warning {want}")
+    if question.get("warn_none") and shown:
+        failed.append(f"false alarm {shown}")
     for p in question.get("must", []):
         if not re.search(p, a, re.IGNORECASE | re.DOTALL):
             failed.append(f"missing /{p}/")
@@ -183,7 +191,7 @@ def main():
             answer, chat_id = f"ERROR {e}", None
         seconds = round(time.time() - t0)
         chats[q["id"]] = chat_id
-        sources = []
+        sources, warnings = [], []
         if chat_id:
             msgs = api.call("GET", f"/api/v1/chat/session/{chat_id}").get("messages", [])
             last = [m for m in msgs if m.get("role") == "assistant"][-1:]
@@ -191,11 +199,12 @@ def main():
                 try:
                     src = json.loads(last[0]["sources"]) if isinstance(last[0]["sources"], str) else last[0]["sources"]
                     sources = list(src.get("ws", [])) + list(src.get("kb", []))
+                    warnings = list(src.get("warnings") or [])
                 except (ValueError, AttributeError):
                     pass
-        failed, notes = check(q, answer, sources)
+        failed, notes = check(q, answer, sources, warnings)
         report["answers"].append({"id": q["id"], "tests": q["tests"], "q": q["q"], "answer": answer,
-                                  "sources": sources, "seconds": seconds, "ok": not failed, "failed": failed,
+                                  "sources": sources, "warnings": warnings, "seconds": seconds, "ok": not failed, "failed": failed,
                                   "notes": notes})
         print(f"{'PASS' if not failed else 'FAIL'} {seconds:4}s {q['id']:16} {'; '.join(failed + notes)[:160]}",
               flush=True)

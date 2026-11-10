@@ -152,3 +152,17 @@ def test_pdf_text_with_plain_line_breaks_gives_the_right_amount_and_sentence():
     found = find_dates(pdf)
     assert [(f.date, f.amount) for f in found] == [("2026-12-15", "412,00 EUR")]
     assert found[0].text == "Die Nachzahlung von 412,00 EUR ist fällig am 15.12.2026."
+
+
+def test_home_marks_a_scam_and_leaves_out_its_deadline(tmp_path):
+    soon = (date.today() + timedelta(days=3)).strftime("%d.%m.%Y")
+    letters = [("Gewinn.pdf", f"Sie haben 25.000,00 EUR gewonnen. Zahlen Sie die Bearbeitungsgebühr von 450,00 EUR "
+                              f"bis zum {soon} mit Paysafecard-Gutscheinen."),
+               ("Rechnung.pdf", f"Bitte zahlen Sie 49,90 EUR bis zum {soon}.")]
+    (user_id, ws_id), name = _user_with_documents(tmp_path, letters)
+    try:
+        body = client.get("/api/v1/dashboard/home", headers={"Authorization": f"Bearer {create_access_token({'sub': name})}"}).json()
+    finally:
+        rag_service.chroma_client.delete_collection(f"user_{user_id}_workspace_{ws_id}")
+    assert [d["filename"] for d in body["dates"]] == ["Rechnung.pdf"]
+    assert [d["filename"] for d in body["recent"] if d.get("suspicious")] == ["Gewinn.pdf"]
