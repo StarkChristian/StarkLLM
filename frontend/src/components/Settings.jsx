@@ -903,8 +903,8 @@ print(response.choices[0].message.content)`;
               <div className={styles.formGroup}>
                 <label className={styles.label}>{t('Supported File Types')}</label>
                 <div className={styles.tagList}>
-                  {['PDF', 'DOCX', 'PNG', 'JPG', 'JPEG'].map(t => (
-                    <span key={t} className="badge badge-accent">{t}</span>
+                  {['PDF', 'DOCX', 'PNG', 'JPG', 'JPEG'].map(fmt => (
+                    <span key={fmt} className="badge badge-accent">{fmt}</span>
                   ))}
                 </div>
                 <p className={styles.hint}>{t('Only the formats listed above can be indexed in the Knowledge Base.')}</p>
@@ -1176,13 +1176,13 @@ print(response.choices[0].message.content)`;
                   </span>
                 </div>
                 <div className={styles.themeGrid}>
-                  {AVAILABLE_THEMES.map(t => {
-                    const isSelected = theme === t.id;
+                  {AVAILABLE_THEMES.map(th => {
+                    const isSelected = theme === th.id;
                     return (
                       <div
-                        key={t.id}
+                        key={th.id}
                         className={`${styles.themeCard} ${isSelected ? styles.themeCardActive : ''}`}
-                        onClick={() => handleThemeChange(t.id)}
+                        onClick={() => handleThemeChange(th.id)}
                         role="button"
                         tabIndex={0}
                       >
@@ -1190,21 +1190,21 @@ print(response.choices[0].message.content)`;
                         <div
                           className={styles.themePreviewBanner}
                           style={{
-                            background: t.card,
-                            borderLeft: `4px solid ${t.accent}`
+                            background: th.card,
+                            borderLeft: `4px solid ${th.accent}`
                           }}
                         >
                           <div className={styles.themeDotGroup}>
-                            <span className={styles.themeDot} style={{ background: t.bg }} title={t('Background')} />
-                            <span className={styles.themeDot} style={{ background: t.card }} title={t('Surface')} />
-                            <span className={styles.themeDot} style={{ background: t.accent, boxShadow: `0 0 8px ${t.accent}` }} title={t('Accent')} />
+                            <span className={styles.themeDot} style={{ background: th.bg }} title={t('Background')} />
+                            <span className={styles.themeDot} style={{ background: th.card }} title={t('Surface')} />
+                            <span className={styles.themeDot} style={{ background: th.accent, boxShadow: `0 0 8px ${th.accent}` }} title={t('Accent')} />
                           </div>
                           <div
                             style={{
                               width: '28px',
                               height: '14px',
                               borderRadius: '4px',
-                              background: t.gradient,
+                              background: th.gradient,
                               opacity: 0.95
                             }}
                           />
@@ -1213,10 +1213,10 @@ print(response.choices[0].message.content)`;
                         {/* Text info */}
                         <div className={styles.themeCardBody}>
                           <div className={styles.themeTitleRow}>
-                            <span className={styles.themeName}>{t.name}</span>
-                            <span className={styles.themeBadge}>{t.badge}</span>
+                            <span className={styles.themeName}>{th.name}</span>
+                            <span className={styles.themeBadge}>{th.badge}</span>
                           </div>
-                          <p className={styles.themeDesc}>{t.desc}</p>
+                          <p className={styles.themeDesc}>{th.desc}</p>
                         </div>
 
                         {isSelected && <CheckCircle size={18} className={styles.themeCheck} />}
