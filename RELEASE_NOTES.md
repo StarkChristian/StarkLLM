@@ -1,5 +1,14 @@
 # StarkLLM Release Notes
 
+## Version 2.0.10 — The installer no longer stops at the start, German interface
+
+- **The installer no longer stops at the start.** About one first installation in five ended after two seconds without a message and without installing anything: the installer crashed (exit code -1073741819) while reading the per-user Programs folder. The fix comes with electron-builder 26.18.1; 20 first installations on fresh Windows machines ran without a fault (before: 2 crashes in 10).
+- **StarkLLM speaks German.** The whole interface is available in German: Settings → Language. Without a choice, StarkLLM follows the language of Windows. Answers of the AI follow the language of your question.
+
+Pull requests: #55, #68.
+
+---
+
 ## Version 2.0.9 — Updates that do not stop, honest prices, safer engine updates
 
 - **Updates no longer stop at "The old application files could not be uninstalled".** On Windows 11 with Smart App Control, the update from 2.0.7 to 2.0.8 stopped there and StarkLLM stayed on the old version. The installer now closes StarkLLM itself and installs over the old files when the old version's uninstaller fails. Your chats and documents are not touched.
