@@ -330,12 +330,12 @@ def _terms_missing(message: str, workspace_id: int, user_id: int, use_kb: bool) 
 _NAMES_A_LETTER = {"mahnung", "rechnung", "rechnungen", "betrug", "zahlung", "beitrag"}
 
 
-def _is_about(message: str, file: str, text: str) -> bool:
-    """Does the question refer to this document? Its sender, subject or file name shares a word with the question
-    ("Finanzamt", "Inkasso", "Paket", "gewonnen")."""
+def _about_words(message: str, file: str, text: str, generic: bool) -> bool:
     head = (file or "") + " " + (text or "")[:600]
     head = head.lower().replace("_", " ").replace("-", " ")
     for word in re.findall(r"[a-zäöüß]{5,}", (message or "").lower()):
+        if (word in _NAMES_A_LETTER) != generic:
+            continue
         if (word in _GENERIC_NOUNS and word not in _NAMES_A_LETTER) or word in {"meine", "meinen", "meiner", "haben", "bekommen", "können", "sollte",
                                                 "sollen", "welche", "diese", "dieser", "einen", "einer", "wegen", "bitte"}:
             continue
@@ -344,6 +344,18 @@ def _is_about(message: str, file: str, text: str) -> bool:
         if re.search(r"(?<![a-zäöüß])" + re.escape(word[:7]), head):
             return True
     return False
+
+
+def _is_about(message: str, file: str, text: str, others=()) -> bool:
+    """Does the question refer to this document? Its sender, subject or file name shares a word with the question
+    ("Finanzamt", "Inkasso", "Paket", "gewonnen"). A word that only names a kind of letter ("Mahnung") counts only
+    when the question names no particular sender among the other documents: "Die Stadtwerke haben mir eine Mahnung
+    geschickt" is about the Stadtwerke, not about the tax office's reminder."""
+    if _about_words(message, file, text, generic=False):
+        return True
+    if not _about_words(message, file, text, generic=True):
+        return False
+    return not any(_about_words(message, f, t, generic=False) for f, t in others if f != file)
 
 
 def _document_warnings(ws_results, kb_results, workspace_id: int, user_id: int, message: str = "") -> list:
@@ -376,8 +388,10 @@ def _document_warnings(ws_results, kb_results, workspace_id: int, user_id: int, 
     ranked = [_citation_filename(r.get("metadata") or {}) for r in list(ws_results or []) + list(kb_results or [])]
     top = ranked[:1]
 
+    others = list(texts.items())
+
     def relevant(file):
-        return file in top or _is_about(message, file, texts.get(file, ""))
+        return file in top or _is_about(message, file, texts.get(file, ""), others)
 
     out = []
     for f in found:
@@ -388,7 +402,7 @@ def _document_warnings(ws_results, kb_results, workspace_id: int, user_id: int, 
         else:
             # two accounts of one sender: only when the question is about that sender (a genuine tax notice that is
             # merely the best match for a question about medicine gives no warning)
-            keep = any(_is_about(message, x, texts.get(x, "")) for x in files)
+            keep = any(_is_about(message, x, texts.get(x, ""), others) for x in files)
         if keep:
             out.append(f)
     return out

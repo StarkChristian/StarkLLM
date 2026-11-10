@@ -163,3 +163,15 @@ def test_a_fake_letter_that_only_came_along_gives_no_warning():
         assert {f["kind"] for f in top} >= {"scam_signs"}
     finally:
         rag_service.chroma_client.delete_collection(f"user_{user_id}_workspace_{ws_id}")
+
+
+def test_a_question_that_names_a_sender_is_not_about_another_senders_reminder():
+    # scenario test: "Die Stadtwerke haben mir eine Mahnung geschickt" put the fake tax reminder's red box above the
+    # answer about the genuine Stadtwerke reminder, because both say "Mahnung"
+    from app.api.chat import _is_about
+    stadtwerke = ("Mahnung_Stadtwerke.pdf", "Stadtwerke Rheinstadt\n1. Mahnung\nBitte zahlen Sie 98,50 EUR.")
+    fake = ("Mahnung_Finanzamt.pdf", FAKE)
+    others = [stadtwerke, fake]
+    q = "Die Stadtwerke haben mir eine Mahnung geschickt. Ist das Betrug?"
+    assert _is_about(q, *stadtwerke, others) and not _is_about(q, *fake, others)
+    assert _is_about("Ist die Mahnung echt?", *fake, others)  # no sender named: the reminders are all candidates
