@@ -9,6 +9,8 @@
   min-height: 0;   /* allow flex child to shrink below its content height */
   position: relative;
   background-color: var(--bg-primary);
+  background-image: var(--bg-pattern);
+  background-size: var(--bg-pattern-size);
 }
 
 .messages {
