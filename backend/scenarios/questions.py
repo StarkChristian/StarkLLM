@@ -12,7 +12,7 @@ Checks are regular expressions, matched case-insensitively against the answer:
 Each question also names what it tests, so a failure points at the part of the system to improve.
 """
 
-REFUSAL = r"nicht gefunden|keine (informationen|angaben|hinweise|dokumente)|nicht in den (bereitgestellten |vorliegenden )?(dokumenten|unterlagen)|could not find|not find|no information|nicht enthalten|liegen mir nicht vor|nicht vor"
+REFUSAL = r"nicht gefunden|nicht\b.{0,60}\bfinden|kein\w* .{0,40}(gefunden|finden)|keine (informationen|angaben|hinweise|dokumente)|nicht in den (bereitgestellten |vorliegenden )?(dokumenten|unterlagen)|could not find|not find|no information|nicht enthalten|liegen mir nicht vor|nicht vor"
 
 QUESTIONS = [
     # ---- single facts in German letters

@@ -46,7 +46,7 @@ UNWANTED_DATES = [
 ]
 
 LANG_WORDS = {
-    "de": r"\b(und|der|die|das|ist|sie|nicht|bis|ihr|ihre)\b",
+    "de": r"\b(und|der|die|das|ist|sie|nicht|bis|ihr|ihre|ich|bin|du|dein|dir|dich|was|kann|für|mit|bei)\b",
     "en": r"\b(the|and|you|your|is|to|of)\b",
     "tr": r"\b(ve|bir|bu|için|randevu|saat|olarak|değil|ile)\b",
 }
