@@ -7,6 +7,8 @@
   gap: 24px;
   background: var(--bg-primary);
   position: relative;
+  background-image: var(--bg-pattern);
+  background-size: var(--bg-pattern-size);
 }
 
 .neuralNetCanvas {
@@ -61,11 +63,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: linear-gradient(135deg, rgba(22, 27, 39, 0.7) 0%, rgba(14, 17, 23, 0.85) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--grad-card);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-xl);
   padding: 36px 40px;
-  background-image: radial-gradient(circle at 85% 50%, rgba(99,102,241,0.18) 0%, transparent 60%);
+  background-image: radial-gradient(circle at 85% 50%, var(--accent-glow) 0%, transparent 60%);
   position: relative;
   overflow: hidden;
   box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255,255,255,0.05);
@@ -224,7 +226,7 @@
 }
 
 .card {
-  background: linear-gradient(145deg, rgba(22, 27, 39, 0.65) 0%, rgba(14, 17, 23, 0.85) 100%);
+  background: var(--grad-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   padding: 24px;
@@ -280,7 +282,7 @@
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  background: linear-gradient(145deg, rgba(20, 25, 33, 0.6) 0%, rgba(14, 17, 23, 0.8) 100%);
+  background: var(--grad-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   color: var(--text-primary);

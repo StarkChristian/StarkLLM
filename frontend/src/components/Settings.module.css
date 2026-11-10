@@ -3,6 +3,8 @@
   overflow-y: auto;
   padding: 32px;
   background: var(--bg-primary);
+  background-image: var(--bg-pattern);
+  background-size: var(--bg-pattern-size);
   animation: slideUp 0.3s cubic-bezier(0.2, 0, 0, 1);
 }
 

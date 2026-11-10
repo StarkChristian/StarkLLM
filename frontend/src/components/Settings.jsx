@@ -1189,7 +1189,14 @@ print(response.choices[0].message.content)`;
                         {/* Visual Preview Banner */}
                         <div
                           className={styles.themePreviewBanner}
-                          style={{
+                          data-theme={th.pattern ? th.id : undefined}
+                          style={th.pattern ? {
+                            // the theme's own pattern: its CSS variables apply to this element
+                            backgroundColor: th.bg,
+                            backgroundImage: 'var(--bg-pattern)',
+                            backgroundSize: 'var(--bg-pattern-size)',
+                            borderLeft: `4px solid ${th.accent}`
+                          } : {
                             background: th.card,
                             borderLeft: `4px solid ${th.accent}`
                           }}
