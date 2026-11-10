@@ -139,6 +139,7 @@ _OUT_OF_MEMORY = re.compile(
     re.I,
 )
 REQUEST_TIMEOUT_SECONDS = 150
+EMBED_TIMEOUT = (10, 600)  # connect, read: a big batch on a slow PC may take minutes, an absent Ollama must not
 
 
 def _ollama_error_text(response) -> str:
@@ -456,7 +457,7 @@ class LLMService:
             "prompt": prompt
         }
         try:
-            response = requests.post(url, json=payload)
+            response = requests.post(url, json=payload, timeout=EMBED_TIMEOUT)
             response.raise_for_status()
             return response.json().get("embedding", [])
         except requests.exceptions.RequestException as e:
@@ -470,9 +471,13 @@ class LLMService:
             "input": prompts
         }
         try:
-            response = requests.post(url, json=payload)
+            response = requests.post(url, json=payload, timeout=EMBED_TIMEOUT)
             response.raise_for_status()
             return response.json().get("embeddings", [])
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+            # Ollama is not there or hangs: one request per passage would only fail the same way, once per passage
+            # (a document stayed at "embedding" for hours), so the document fails now with a message that says why
+            raise
         except requests.exceptions.RequestException as e:
             logger.error(f"LLM Batch Embeddings API Error: {e}")
             logger.warning("Falling back to single embedding generation...")
