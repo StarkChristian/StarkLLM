@@ -3,7 +3,9 @@ name: Installer stress (temporary)
 # Builds the installer with the old and the new electron-builder and installs/uninstalls each 15 times, counting
 # crashes of the installer (seen: 0xc0000005 in NSIS System.dll on per-user installs, about 1 in 5).
 on:
-  workflow_dispatch:
+  push:
+    branches: ['fix/nsis-installer-crash']
+    paths: ['.github/workflows/installer-stress.yml', 'desktop/package.json']
 
 jobs:
   stress:
