@@ -1,0 +1,46 @@
+name: Installer stress (temporary)
+
+# Builds the installer with the old and the new electron-builder and installs/uninstalls each 15 times, counting
+# crashes of the installer (seen: 0xc0000005 in NSIS System.dll on per-user installs, about 1 in 5).
+on:
+  workflow_dispatch:
+
+jobs:
+  stress:
+    strategy:
+      fail-fast: false
+      matrix:
+        builder: ['25.1.8', '26.18.1']
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build the installer
+        working-directory: desktop
+        run: |
+          npm ci --no-audit --no-fund
+          npm install --no-save --no-audit --no-fund electron-builder@${{ matrix.builder }}
+          npx electron-builder --win nsis --x64 --publish never
+      - name: Install and uninstall 15 times
+        shell: pwsh
+        run: |
+          $setup = (Get-ChildItem desktop/dist/*-Setup.exe | Select-Object -First 1).FullName
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\StarkLLM'
+          $crashes = 0; $ok = 0
+          for ($i = 1; $i -le 15; $i++) {
+            $p = Start-Process $setup -ArgumentList '/S', '/currentuser' -Wait -PassThru
+            $deadline = (Get-Date).AddMinutes(3)
+            while (-not (Test-Path "$dir\StarkLLM.exe") -and (Get-Date) -lt $deadline -and $p.ExitCode -eq 0) { Start-Sleep 2 }
+            $installed = Test-Path "$dir\StarkLLM.exe"
+            "run $i : exit $($p.ExitCode), installed $installed"
+            if ($p.ExitCode -ne 0 -or -not $installed) { $crashes++ } else { $ok++ }
+            $un = Get-ChildItem $dir -Filter 'Uninstall*.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($un) { Start-Process $un.FullName -ArgumentList '/S', '/currentuser' -Wait; Start-Sleep 5 }
+            Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue
+            Remove-Item -Recurse -Force "$env:TEMP\ns*.tmp" -ErrorAction SilentlyContinue
+          }
+          "electron-builder ${{ matrix.builder }}: $ok installed, $crashes failed"
+          if ($crashes -gt 0) { exit 1 }
