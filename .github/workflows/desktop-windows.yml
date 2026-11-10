@@ -45,8 +45,9 @@ jobs:
           "installer exit code $($p.ExitCode) after $([math]::Round(((Get-Date) - $started).TotalSeconds)) s"
           $dir = Join-Path $env:LOCALAPPDATA 'Programs\StarkLLM'
           $files = 'StarkLLM.exe', 'resources\engine\docker-compose.yml', 'resources\engine\backend\Dockerfile', 'resources\engine\frontend\Dockerfile'
-          # The silent installer can return before it has written every file (seen on 8 Nov 2026): wait up to 6 minutes
-          # (Defender scans the unsigned 200 MB installer and its files on the runner).
+          # Wait up to 6 minutes for the files (Defender scans the unsigned 200 MB installer and its files on the runner).
+          # Installs that wrote nothing (8-10 Nov 2026, about 1 in 5) were the installer crashing in NSIS's System.dll
+          # (exit code -1073741819) while reading the per-user Programs folder: fixed in electron-builder 26.12.
           $deadline = (Get-Date).AddMinutes(6)
           do {
             $missing = @($files | Where-Object { -not (Test-Path (Join-Path $dir $_)) })
