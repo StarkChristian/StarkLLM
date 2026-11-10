@@ -3,7 +3,7 @@ import styles from './ChatArea.module.css';
 import { 
   User, Bot, Volume2, Square, Database, Copy, Check, Globe, RefreshCw, 
   Edit2, Download, FileText, AlertTriangle, Sparkles, Code, BookOpen, Upload, CalendarClock,
-  ThumbsUp, ThumbsDown, Zap, Cloud
+  ThumbsUp, ThumbsDown, Zap, Cloud, ShieldAlert
 } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
@@ -265,6 +265,23 @@ const ChatMessageRenderer = React.memo(({
             </div>
           ) : (
             <>
+              {msg.role === 'assistant' && msg.warnings && msg.warnings.length > 0 && (
+                <div className={styles.docWarning} role="alert">
+                  <ShieldAlert size={16} className={styles.docWarningIcon} />
+                  <div>
+                    {msg.warnings.map((w, wi) => (
+                      <p key={wi}>
+                        {w.kind === 'ai_instructions'
+                          ? t('{file} contains text that tries to instruct AI assistants. Genuine letters never do this: treat it as a possible scam.', { file: w.file })
+                          : t('Two letters from {sender} name different bank accounts ({accounts}). Before you pay, check with the sender using a phone number or address you already know.', {
+                            sender: w.sender,
+                            accounts: (w.accounts || []).map((a) => `${a.iban}: ${(a.files || []).join(', ')}`).join(' | '),
+                          })}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
               {contentSegments ? (
                 contentSegments.map((seg, sIdx) => {
                   if (seg.type === 'tool_call') {

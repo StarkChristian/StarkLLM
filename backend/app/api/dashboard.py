@@ -211,34 +211,30 @@ def _pages_by_where(collection, where: dict) -> dict:
     return {p: "\n\n".join(t for _, t in sorted(items, key=lambda x: x[0])) for p, items in parts.items()}
 
 
-@router.get("/home")
-def get_document_home(
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
-    """The newest documents (workspaces and knowledge-base folders) and the deadlines and payment dates in them.
-    Dates come from fixed rules over the indexed text, so each one is in the document, with its sentence and page."""
+def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool = True, past_days: int = HOME_PAST_DAYS):
+    """Newest documents and the dates found in them (deadlines, payments, appointments), oldest date first.
+    workspace_id limits the search to one workspace (and the knowledge base when include_kb). Used by the home page
+    and by the chat, which hands these dates to the model for questions like "what is due in the next two weeks?"."""
     from datetime import date, timedelta
-    from app.services.dates_service import find_dates
+    from app.services.dates_service import find_dates, letter_date, replaced_letters, sender
     from app.services.rag_service import rag_service
 
-    user_id = current_user.id
-    ws_docs = (
-        db.query(models.Document, models.Workspace)
-        .join(models.Workspace, models.Document.workspace_id == models.Workspace.id)
-        .filter(models.Workspace.user_id == user_id, models.Document.status == models.DocStatus.INDEXED)
-        .order_by(models.Document.created_at.desc())
-        .limit(HOME_SCAN)
-        .all()
-    )
-    kb_docs = (
-        db.query(models.KnowledgeBaseDocument)
-        .join(models.KnowledgeBaseFolder, models.KnowledgeBaseDocument.folder_id == models.KnowledgeBaseFolder.id)
-        .filter(models.KnowledgeBaseFolder.user_id == user_id, models.KnowledgeBaseDocument.status == "indexed")
-        .order_by(models.KnowledgeBaseDocument.indexed_at.desc())
-        .limit(HOME_SCAN)
-        .all()
-    )
+    q = (db.query(models.Document, models.Workspace)
+         .join(models.Workspace, models.Document.workspace_id == models.Workspace.id)
+         .filter(models.Workspace.user_id == user_id, models.Document.status == models.DocStatus.INDEXED))
+    if workspace_id is not None:
+        q = q.filter(models.Workspace.id == workspace_id)
+    ws_docs = q.order_by(models.Document.created_at.desc()).limit(HOME_SCAN).all()
+    kb_docs = []
+    if include_kb:
+        kb_docs = (
+            db.query(models.KnowledgeBaseDocument)
+            .join(models.KnowledgeBaseFolder, models.KnowledgeBaseDocument.folder_id == models.KnowledgeBaseFolder.id)
+            .filter(models.KnowledgeBaseFolder.user_id == user_id, models.KnowledgeBaseDocument.status == "indexed")
+            .order_by(models.KnowledgeBaseDocument.indexed_at.desc())
+            .limit(HOME_SCAN)
+            .all()
+        )
 
     items = []
     for doc, ws in ws_docs:
@@ -254,9 +250,9 @@ def get_document_home(
     items = items[:HOME_SCAN]
 
     today = date.today()
-    first = today - timedelta(days=HOME_PAST_DAYS)
+    first = today - timedelta(days=past_days)
     collections = {}
-    dates = []
+    pages_of = []
     for item in items:
         scope, ws_id, where = item.pop("_where")
         key = (scope, ws_id)
@@ -266,9 +262,23 @@ def get_document_home(
                                     else rag_service.get_or_create_collection(ws_id, user_id))
             except Exception:
                 collections[key] = None
-        if collections[key] is None:
+        pages_of.append(_pages_by_where(collections[key], where) if collections[key] is not None else {})
+
+    # a corrected letter ("ersetzt die Abrechnung vom 20.10.2026") replaces the earlier one from the same sender: the
+    # earlier letter's dates and amounts are no longer valid and are not shown
+    replaced = set()
+    letters = []
+    for pages in pages_of:
+        full = "\n".join(text for _, text in sorted(pages.items()))
+        letters.append((sender(full), letter_date(full)))
+        for when in replaced_letters(full):
+            replaced.add((sender(full), when))
+    dates = []
+    for item, pages, letter in zip(items, pages_of, letters):
+        if letter[1] and letter in replaced:
+            item["replaced"] = True
             continue
-        for page, text in sorted(_pages_by_where(collections[key], where).items()):
+        for page, text in sorted(pages.items()):
             for f in find_dates(text):
                 if f.date < first.isoformat():
                     continue
@@ -276,4 +286,15 @@ def get_document_home(
                               "scope": item["scope"], "document_id": item["id"], "workspace_id": item["workspace_id"],
                               "filename": item["filename"]})
     dates.sort(key=lambda d: (d["date"], d["filename"]))
+    return today, items, dates
+
+
+@router.get("/home")
+def get_document_home(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """The newest documents (workspaces and knowledge-base folders) and the deadlines and payment dates in them.
+    Dates come from fixed rules over the indexed text, so each one is in the document, with its sentence and page."""
+    today, items, dates = document_dates(db, current_user.id)
     return {"today": today.isoformat(), "recent": items[:HOME_RECENT], "dates": dates[:HOME_DATES]}

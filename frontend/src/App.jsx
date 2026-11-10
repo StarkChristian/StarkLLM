@@ -293,6 +293,7 @@ export default function App() {
                 kbSources: m.sources.kb || [],
                 wsSources: m.sources.ws || [],
                 evidence: m.sources.evidence || null,
+                warnings: m.sources.warnings || [],
                 webSources: m.sources.web || [],
                 cloudHost: m.sources.cloud || null,
               } : m))
@@ -572,6 +573,8 @@ export default function App() {
       const webSourcesHeader = response.headers.get('X-Web-Sources') ? decodeURIComponent(response.headers.get('X-Web-Sources')) : '';
       const webSourcesUrlsHeader = response.headers.get('X-Web-Sources-Urls') ? decodeURIComponent(response.headers.get('X-Web-Sources-Urls')) : '';
       const cloudHostHeader = response.headers.get('X-Cloud-Provider') || null;
+      let docWarnings = [];
+      try { docWarnings = JSON.parse(decodeURIComponent(response.headers.get('X-Doc-Warnings') || '%5B%5D')); } catch { docWarnings = []; }
 
       const webTitles = webSourcesHeader ? webSourcesHeader.split(',').filter(Boolean) : [];
       const webUrls = webSourcesUrlsHeader ? webSourcesUrlsHeader.split(',').filter(Boolean) : [];
@@ -601,7 +604,8 @@ export default function App() {
             kbSources: kbSourcesHeader ? kbSourcesHeader.split('|').filter(Boolean) : [],
             wsSources: wsSourcesHeader ? wsSourcesHeader.split('|').filter(Boolean) : [],
             webSources: webSourcesData,
-            cloudHost: cloudHostHeader
+            cloudHost: cloudHostHeader,
+            warnings: docWarnings
           };
           return msgs;
         });

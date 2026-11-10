@@ -734,5 +734,10 @@
   "📄 Markdown (.md)": "📄 Markdown (.md)",
   "📋 Structured Data (.json)": "📋 Strukturierte Daten (.json)",
   "📝 Plain Text (.txt)": "📝 Reiner Text (.txt)",
-  "🖨️ Printable HTML / PDF (.html)": "🖨️ Druckbares HTML / PDF (.html)"
+  "🖨️ Printable HTML / PDF (.html)": "🖨️ Druckbares HTML / PDF (.html)",
+  "Appointment": "Termin",
+  "Replaced by a newer letter": "Durch neueres Schreiben ersetzt",
+  "at {time}": "um {time} Uhr",
+  "{file} contains text that tries to instruct AI assistants. Genuine letters never do this: treat it as a possible scam.": "{file} enthält Text, der KI-Assistenten Anweisungen geben will. Echte Schreiben tun das nie: Behandeln Sie es als möglichen Betrug.",
+  "Two letters from {sender} name different bank accounts ({accounts}). Before you pay, check with the sender using a phone number or address you already know.": "Zwei Schreiben von {sender} nennen unterschiedliche Bankkonten ({accounts}). Prüfen Sie vor einer Zahlung beim Absender nach, über eine Telefonnummer oder Adresse, die Sie bereits kennen."
 }

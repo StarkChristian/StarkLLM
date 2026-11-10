@@ -584,3 +584,21 @@ button.sourceGroup:focus-visible {
   font-size: 0.9rem;
   text-align: center;
 }
+
+/* Warnings from StarkLLM's own checks on the documents (fake letters, different bank accounts) */
+.docWarning {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.10);
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+.docWarning p { margin: 0; }
+.docWarning p + p { margin-top: 6px; }
+.docWarningIcon { color: var(--danger, #ef4444); flex-shrink: 0; margin-top: 2px; }

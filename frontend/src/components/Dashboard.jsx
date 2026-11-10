@@ -11,6 +11,7 @@ import EmptyState from './EmptyState';
 import { t } from '../i18n';
 
 const IMAGE_TYPES = new Set(['png', 'jpg', 'jpeg', 'webp', 'tif', 'tiff']);
+const KIND_STYLE = { deadline: 'kindDeadline', payment: 'kindPayment', appointment: 'kindAppointment' };
 
 export default function Dashboard({ token, username, workspaces, onNewWorkspace, onViewChange, onSelectWorkspace, chats = [], onSelectChat, onUpload }) {
   const getHeaders = () => ({ Authorization: `Bearer ${token}` });
@@ -207,10 +208,10 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
                     </span>
                     <span className={styles.dateBody}>
                       <span className={styles.dateMeta}>
-                        <span className={d.kind === 'deadline' ? styles.kindDeadline : styles.kindPayment}>
-                          {d.kind === 'deadline' ? t('Deadline') : t('Payment')}
+                        <span className={KIND_STYLE[d.kind] ? styles[KIND_STYLE[d.kind]] : styles.kindPayment}>
+                          {d.kind === 'deadline' ? t('Deadline') : d.kind === 'appointment' ? t('Appointment') : t('Payment')}
                         </span>
-                        <span>{whenText(d.date)}</span>
+                        <span>{whenText(d.date)}{d.time ? ` · ${t('at {time}', { time: d.time })}` : ''}</span>
                         {d.amount && <strong>{d.amount}</strong>}
                       </span>
                       <span className={styles.dateText}>{d.text}</span>
@@ -245,6 +246,7 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
                   <button className={styles.docRow} onClick={() => openDoc({ ...doc, document_id: doc.id })}>
                     <span className={styles.docIcon}>{IMAGE_TYPES.has((doc.file_type || '').toLowerCase()) ? <Image size={16} /> : <FileText size={16} />}</span>
                     <span className={styles.docName}>{doc.filename}</span>
+                    {doc.replaced && <span className={styles.docReplaced}>{t('Replaced by a newer letter')}</span>}
                     <span className={styles.docWhere}>
                       {doc.scope === 'kb' ? t('Knowledge base') : doc.workspace}
                       {doc.added ? ` · ${new Date(doc.added).toLocaleDateString(UI_LOCALE)}` : ''}
