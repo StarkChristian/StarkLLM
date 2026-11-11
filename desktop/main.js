@@ -2,7 +2,7 @@ const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, dialog, net
 const fs = require('fs');
 const path = require('path');
 const { diagnose, buildErrorPage } = require('./diagnostics');
-const { startEngine, userPaths, secretKey } = require('./engine');
+const { startEngine, userPaths, secretKey, forgetFailedUpdate } = require('./engine');
 const crypto = require('crypto');
 const { createUpdater } = require('./updates');
 const { installOllama } = require('./ollama-install');
@@ -40,7 +40,8 @@ if (!gotTheLock) {
 }
 
 function initApp() {
-  updater = createUpdater({ app, dialog, shell, net, autoUpdater, getWindow: () => mainWindow, log: logLine, onChange: () => refreshTrayMenu() });
+  updater = createUpdater({ app, dialog, shell, net, autoUpdater, getWindow: () => mainWindow, log: logLine, onChange: () => refreshTrayMenu(),
+    onStatus: (s) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('updates:status', s); } });
   // Settings > About in the web UI (only the app's own page may ask)
   ipcMain.on('desktop:local-token', (event) => {
     event.returnValue = event.senderFrame && event.senderFrame.url.startsWith(APP_URL) ? localToken : null;
@@ -127,6 +128,8 @@ function createMainWindow() {
       installOllamaThenStart();
     } else if (url.startsWith('starkllm-retry:')) {
       event.preventDefault();
+      // Retry also tries a new engine again at once, instead of a day after it failed
+      forgetFailedUpdate();
       retryConnection();
     } else if (url.startsWith('starkllm-continue:')) {
       event.preventDefault();

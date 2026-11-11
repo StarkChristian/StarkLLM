@@ -23,7 +23,7 @@ test('drafts, pre-releases and skipped versions are not offered', () => {
   assert.strictEqual(decide({ tag_name: 'v2.0.5' }, '2.0.3', { skipVersion: '2.0.4' }).show, true);
 });
 
-function harness({ answers = [], release = { tag_name: 'v2.1.0' }, fail = false, version = '2.0.3', packaged = false, autoUpdater = null } = {}) {
+function harness({ answers = [], release = { tag_name: 'v2.1.0' }, fail = false, version = '2.0.3', packaged = false, autoUpdater = null, onStatus } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starkllm-upd-'));
   const calls = { fetch: 0, dialogs: [], opened: [] };
   const deps = {
@@ -45,7 +45,8 @@ function harness({ answers = [], release = { tag_name: 'v2.1.0' }, fail = false,
       }
     },
     getWindow: () => null,
-    autoUpdater
+    autoUpdater,
+    onStatus
   };
   return { u: createUpdater(deps), calls, dir };
 }
@@ -160,4 +161,12 @@ test('the portable exe keeps the download page (it cannot replace itself)', asyn
   } finally {
     delete process.env.PORTABLE_EXECUTABLE_DIR;
   }
+});
+
+test('the page hears the download progress and its end (Settings showed "Checking..." for the whole download)', async () => {
+  const au = fakeUpdater();
+  const seen = [];
+  const { u } = harness({ answers: [0, 0, 1], packaged: true, autoUpdater: au, onStatus: (st) => seen.push(st) });
+  await u.onStart();
+  assert.deepStrictEqual(seen, [{ phase: 'downloading', percent: 0 }, { phase: 'downloading', percent: 50 }, { phase: 'done' }]);
 });

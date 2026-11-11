@@ -24,6 +24,13 @@ try :
 except ImportError :
     Ranker ,RerankRequest =None ,None 
 
+def reranker_dir ()->str :
+    shipped =os .environ .get ("STARKLLM_RERANKER_DIR")
+    if shipped and os .path .isdir (os .path .join (shipped ,"ms-marco-TinyBERT-L-2-v2")):
+        return shipped 
+    return "./data/models"
+
+
 # A period ends a sentence, except after a day number ("3. Januar 2027", "bis zum 3.") or a common abbreviation
 # ("Dr. Ilić", "Nr. 9040", "z. B."), and not when a lower-case word follows. Splitting there tore dates and names
 # apart: "zahlbar bis 3." | "Januar 2027." in two pieces, so the deadline was lost (long test with 120 letters).
@@ -119,8 +126,9 @@ class RAGService :
         self .ranker =None 
         if Ranker :
             try :
+                # the engine image ships the model (Dockerfile); elsewhere it is fetched once into data/models
                 self .ranker =Ranker (
-                model_name ="ms-marco-TinyBERT-L-2-v2",cache_dir ="./data/models"
+                model_name ="ms-marco-TinyBERT-L-2-v2",cache_dir =reranker_dir ()
                 )
             except Exception as e :
                 # The reranker model is downloaded on first use; without network access
