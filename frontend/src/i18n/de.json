@@ -722,5 +722,7 @@
   "Today": "Heute",
   "{count} days ago": "vor {count} Tagen",
   "Downloading update: {percent} %": "Update wird geladen: {percent} %",
-  "You can keep working. When the download is done, StarkLLM asks whether to restart now.": "Sie können weiterarbeiten. Wenn der Download fertig ist, fragt StarkLLM, ob es jetzt neu starten soll."
+  "You can keep working. When the download is done, StarkLLM asks whether to restart now.": "Sie können weiterarbeiten. Wenn der Download fertig ist, fragt StarkLLM, ob es jetzt neu starten soll.",
+  "Made by AI on this PC, read by computer voices. Check important details in the original document.": "Von KI auf diesem PC erstellt und von Computerstimmen gelesen. Prüfen Sie wichtige Angaben im Originaldokument.",
+  "Made by AI on this PC. Check important details in the original document.": "Von KI auf diesem PC erstellt. Prüfen Sie wichtige Angaben im Originaldokument."
 }
