@@ -68,6 +68,41 @@ def _index_document_background(doc_id: int, workspace_id: int, user_id: int, fil
         # document answer "Original file is missing from disk".)
 
 
+_HASHES: dict = {}  # path -> (size, mtime, sha256): files are hashed once
+
+
+def _sha256(path: str) -> str:
+    import hashlib
+    stat = os.stat(path)
+    cached = _HASHES.get(path)
+    if cached and cached[:2] == (stat.st_size, stat.st_mtime):
+        return cached[2]
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            h.update(block)
+    _HASHES[path] = (stat.st_size, stat.st_mtime, h.hexdigest())
+    return _HASHES[path][2]
+
+
+def _same_document(db, workspace_id: int, path: str, size: int):
+    """A document of the workspace with exactly the same bytes (not a failed one), or None. Only files of the same size
+    are hashed, so this stays quick with many documents."""
+    candidates = (db.query(models.Document)
+                  .filter(models.Document.workspace_id == workspace_id, models.Document.status != DocStatus.FAILED).all())
+    digest = None
+    for doc in candidates:
+        try:
+            if not doc.filepath or doc.filepath == path or os.path.getsize(doc.filepath) != size:
+                continue
+            digest = digest or _sha256(path)
+            if _sha256(doc.filepath) == digest:
+                return doc
+        except OSError:
+            continue
+    return None
+
+
 @router.post("/{workspace_id}/upload")
 async def upload_document(
     workspace_id: int,
@@ -124,6 +159,25 @@ async def upload_document(
         raise HTTPException(status_code=400, detail="Uploaded file is empty (0 bytes).")
 
     logger.info(f"File saved: '{file.filename}' ({actual_size} bytes) → {file_path}")
+
+    # The same letter twice (uploaded again, or from the phone and the scanner) would be read twice and show its
+    # dates and answers twice. Same bytes in this workspace: keep the one that is there.
+    same = _same_document(db, workspace_id, file_path, actual_size)
+    if same is not None:
+        os.remove(file_path)
+        logger.info(f"'{file.filename}' is the same file as document {same.id} ('{same.filename}'); not added again")
+        return {
+            "id": same.id,
+            "filename": same.filename,
+            "filepath": same.filepath,
+            "file_type": same.file_type,
+            "status": same.status,
+            "error_message": same.error_message,
+            "created_at": same.created_at.isoformat() if same.created_at else None,
+            "file_size": actual_size,
+            "duplicate": True,
+        }
+
 
     # Create DB record immediately with UPLOADING status
     doc = models.Document(
