@@ -720,5 +720,7 @@
   "Remove the folder \"{name}\" from your Knowledge Base?": "Den Ordner „{name}“ aus der Wissensdatenbank entfernen?",
   "Its search data is removed. The files on your computer are NOT deleted.": "Seine Suchdaten werden entfernt. Die Dateien auf Ihrem Computer werden NICHT gelöscht.",
   "Today": "Heute",
-  "{count} days ago": "vor {count} Tagen"
+  "{count} days ago": "vor {count} Tagen",
+  "External image not loaded": "Externes Bild nicht geladen",
+  "Output ({time})": "Ausgabe ({time})"
 }
