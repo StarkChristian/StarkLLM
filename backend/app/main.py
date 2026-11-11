@@ -76,6 +76,45 @@ async def cors_middleware(request: Request, call_next):
     return response
 
 
+# ---------------------------------------------------------------------------
+# Local only. The engine listens on 127.0.0.1, but a web page can still reach it through the browser with "DNS
+# rebinding": a domain that first points to the attacker and then to 127.0.0.1, so the browser sends the page's
+# requests to StarkLLM with the attacker's host name. Requests must name a local host, and requests that change
+# something must not come from a foreign web page (Origin). Programs on the PC (curl, MCP clients) send no Origin.
+# Registered last, so it runs first.
+# ---------------------------------------------------------------------------
+LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "backend"}  # "backend": the web UI's proxy inside Docker
+
+
+def _host_name(value: str) -> str:
+    value = (value or "").strip().lower()
+    if "://" in value:
+        value = value.split("://", 1)[1]
+    value = value.split("/", 1)[0]
+    if value.startswith("["):
+        return value[1:value.find("]")] if "]" in value else value
+    return value.rsplit(":", 1)[0] if value.count(":") == 1 else value
+
+
+def _allowed_hosts() -> set:
+    extra = {h.strip().lower() for h in os.getenv("STARKLLM_ALLOWED_HOSTS", "").split(",") if h.strip()}
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        extra.add("testserver")  # FastAPI's test client
+    return LOCAL_HOSTS | extra
+
+
+@app.middleware("http")
+async def local_only(request: Request, call_next):
+    allowed = _allowed_hosts()
+    if _host_name(request.headers.get("host", "")) not in allowed:
+        return JSONResponse({"detail": "StarkLLM answers only on this PC (localhost)."}, status_code=403)
+    origin = request.headers.get("origin")
+    if origin and origin != "null" and request.method not in ("GET", "HEAD", "OPTIONS"):
+        if _host_name(origin) not in allowed:
+            return JSONResponse({"detail": "Requests from other web sites are not allowed."}, status_code=403)
+    return await call_next(request)
+
+
 # Custom HTTPException handler: returns JSON with CORS headers baked in.
 # This catches exceptions raised before/outside the middleware chain.
 @app.exception_handler(HTTPException)

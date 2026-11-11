@@ -1,4 +1,5 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, dialog, net } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, dialog, net, session } = require('electron');
+const { sameOrigin, isWebLink, permissionAllowed } = require('./window-security');
 const fs = require('fs');
 const path = require('path');
 const { diagnose, buildErrorPage } = require('./diagnostics');
@@ -44,11 +45,11 @@ function initApp() {
     onStatus: (s) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('updates:status', s); } });
   // Settings > About in the web UI (only the app's own page may ask)
   ipcMain.on('desktop:local-token', (event) => {
-    event.returnValue = event.senderFrame && event.senderFrame.url.startsWith(APP_URL) ? localToken : null;
+    event.returnValue = event.senderFrame && sameOrigin(event.senderFrame.url, APP_URL) ? localToken : null;
   });
   // Knowledge Base > "Open folder": only the app's own page, and only the knowledge-base folder (no path from the page)
   ipcMain.handle('kb:open-folder', async (event) => {
-    if (!event.senderFrame || !event.senderFrame.url.startsWith(APP_URL)) return { error: 'not allowed' };
+    if (!event.senderFrame || !sameOrigin(event.senderFrame.url, APP_URL)) return { error: 'not allowed' };
     const dir = userPaths().kb;
     try {
       fs.mkdirSync(dir, { recursive: true });
@@ -59,10 +60,16 @@ function initApp() {
     return err ? { error: err } : { ok: true };
   });
   ipcMain.handle('updates:check', async (event) => {
-    if (!event.senderFrame || !event.senderFrame.url.startsWith(APP_URL)) return { error: 'not allowed' };
+    if (!event.senderFrame || !sameOrigin(event.senderFrame.url, APP_URL)) return { error: 'not allowed' };
     const r = await updater.check({ manual: true });
     return { latest: r && r.latest, error: r && r.error };
   });
+  // Electron grants every permission to every page unless told otherwise: only the app's own page, only what it uses
+  session.defaultSession.setPermissionRequestHandler((wc, permission, callback, details) => {
+    callback(permissionAllowed(permission, (details && details.requestingUrl) || wc.getURL(), APP_URL, details || {}));
+  });
+  session.defaultSession.setPermissionCheckHandler((wc, permission, requestingOrigin, details) =>
+    permissionAllowed(permission, requestingOrigin || (wc && wc.getURL()) || '', APP_URL, details || {}));
   createMainWindow();
   createTray();
   // Also when the engine cannot start: an old version is often the reason.
@@ -94,6 +101,7 @@ function createMainWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true,
       preload: path.join(__dirname, 'preload.js'),
       spellcheck: true
     }
@@ -108,19 +116,20 @@ function createMainWindow() {
     startAndLoad();
   });
 
-  // Handle external links safely in system browser
+  // No new app windows: a new window would get the desktop bridge (and with it the session token). Links to web sites
+  // open in the user's browser; anything else is refused. (Before, a link whose text merely contained
+  // "localhost:5173", or any non-web link, opened inside the app.)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('http:') || url.startsWith('https:')) {
-      if (!url.includes('localhost:5173') && !url.includes('127.0.0.1:5173')) {
-        shell.openExternal(url);
-        return { action: 'deny' };
-      }
-    }
-    return { action: 'allow' };
+    if (isWebLink(url) && !sameOrigin(url, APP_URL)) shell.openExternal(url);
+    return { action: 'deny' };
   });
 
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (url.startsWith('file:') && !url.endsWith('splash.html')) {
+    if (isWebLink(url) && !sameOrigin(url, APP_URL)) {
+      // a link in an answer or a document: the browser opens it, the app stays where it is
+      event.preventDefault();
+      shell.openExternal(url);
+    } else if (url.startsWith('file:') && !url.endsWith('splash.html')) {
       // a file dropped outside the drop area must not replace the app
       event.preventDefault();
     } else if (url.startsWith('starkllm-install-ollama:')) {

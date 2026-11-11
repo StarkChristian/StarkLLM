@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { FolderOpen, FolderPlus, RefreshCw, Zap, ChevronDown, ChevronRight, File, AlertCircle, CheckCircle, Clock, Loader, X, Database, Search, Eye, Info, Trash2, Copy, Check, ExternalLink } from 'lucide-react';
+import { FolderOpen, FolderPlus, RefreshCw, Zap, ChevronDown, ChevronRight, File, AlertCircle, CheckCircle, Clock, Loader, X, Database, Search, Eye, Info, Trash2, Copy, Check, ExternalLink, AlertTriangle } from 'lucide-react';
 import styles from './KnowledgeBase.module.css';
 import EmptyState from './EmptyState';
 import { serverDate } from '../utils/time';
@@ -778,6 +778,12 @@ export default function KnowledgeBase({ token }) {
             <p className={styles.kbHelperText}>
               {t('Put documents into this folder. StarkLLM reads new and changed files on its own and keeps them searchable.')}
             </p>
+            {kbConfig.kb_cloud_sync && (
+              <p className={styles.kbCloudWarning} role="alert">
+                <AlertTriangle size={14} />
+                {t('This folder is synced with {service}: files you put here are also uploaded to {service}. For letters that should stay on this PC, use a folder outside {service}.', { service: kbConfig.kb_cloud_sync })}
+              </p>
+            )}
             <div className={styles.kbHelperPathWrap}>
               <code className={styles.kbHelperPath}>{kbConfig.host_kb_path}</code>
               {canOpenFolder && (

@@ -40,23 +40,25 @@ function download(url, target, onProgress = () => {}, redirects = 5) {
   });
 }
 
-// Windows' own check of the file's digital signature (Authenticode).
+// Windows' own check of the file's digital signature (Authenticode). The path goes in through an environment variable,
+// so the script is fixed text: no quoting can change it, and no encoded command is needed (security software treats
+// "powershell -EncodedCommand" as a sign of malware).
+const SIGNATURE_SCRIPT = "$s = Get-AuthenticodeSignature -LiteralPath $env:STARKLLM_SIGNED_FILE; [string]$s.Status + '|' + $s.SignerCertificate.Subject";
+
 function signature(file, runPs = powershell) {
-  const script = `$s = Get-AuthenticodeSignature -LiteralPath '${file.replace(/'/g, "''")}'; "$($s.Status)|$($s.SignerCertificate.Subject)"`;
-  return runPs(script).then((out) => {
+  return runPs(SIGNATURE_SCRIPT, { STARKLLM_SIGNED_FILE: file }).then((out) => {
     const [status, subject = ''] = out.trim().split('|');
     return { status, subject };
   });
 }
 
-function powershell(script) {
+function powershell(script, extraEnv = {}, run = execFile) {
+  if (script.includes('"')) return Promise.reject(new Error('PowerShell scripts here must not contain double quotes'));
   return new Promise((resolve, reject) => {
-    // -EncodedCommand (UTF-16LE, base64) so Windows' command-line quoting cannot change the script.
-    const encoded = Buffer.from(script, 'utf16le').toString('base64');
     // Without PSModulePath: one inherited from PowerShell 7 stops Windows PowerShell from loading its own modules.
-    const env = { ...process.env };
+    const env = { ...process.env, ...extraEnv };
     for (const k of Object.keys(env)) if (k.toLowerCase() === 'psmodulepath') delete env[k];
-    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded], { windowsHide: true, timeout: 120000, env }, (err, stdout, stderr) => {
+    run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true, timeout: 120000, env }, (err, stdout, stderr) => {
       if (err) reject(new Error(`${err.message} ${String(stderr).trim()}`.trim()));
       else if (!String(stdout).trim() && String(stderr).trim()) reject(new Error(String(stderr).trim().slice(0, 500)));
       else resolve(String(stdout));
@@ -106,4 +108,4 @@ async function installOllama({ onStatus = () => {}, log = () => {}, deps = {} } 
   log('Ollama installed');
 }
 
-module.exports = { installOllama, trusted, download, signature, powershell, INSTALLER_URL };
+module.exports = { installOllama, trusted, download, signature, powershell, INSTALLER_URL, SIGNATURE_SCRIPT };
