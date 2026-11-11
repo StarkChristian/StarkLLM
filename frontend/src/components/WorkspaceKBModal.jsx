@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { X, Database, Loader, CheckSquare, Square } from 'lucide-react';
 import styles from './KnowledgeBase.module.css';
 import { t } from '../i18n';
+import { useEscape } from '../utils/useEscape';
 
 export default function WorkspaceKBModal({ isOpen, onClose, activeWorkspace, token, onWorkspaceUpdated }) {
+  useEscape(onClose, isOpen);
   const [folders, setFolders] = useState([]);
   const [activeIds, setActiveIds] = useState(null); // null means all active, [] means none, [1,2] means specific
   const [loading, setLoading] = useState(false);

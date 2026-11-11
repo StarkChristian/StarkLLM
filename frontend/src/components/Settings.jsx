@@ -3,6 +3,7 @@ import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, 
 import styles from './Settings.module.css';
 import BackupRestoreSettings from './BackupRestoreSettings';
 import { AVAILABLE_THEMES, applyTheme } from '../utils/themes';
+import OtherAppsPanel from './OtherAppsPanel';
 import { t, language, setLanguage } from '../i18n';
 import { SUPPORTED_LANGUAGES } from '../utils/languages';
 import { cloudHostFor } from '../utils/cloud';
@@ -10,12 +11,12 @@ import { cloudHostFor } from '../utils/cloud';
 const SECTIONS = [
   { id: 'account',  label: t('Account'),       icon: User },
   { id: 'instructions', label: t('Custom Instructions'), icon: FileText },
-  { id: 'workspace-prompt', label: t('Workspace AI Persona'), icon: BrainCircuit },
+  { id: 'workspace-prompt', label: t('Instructions for this workspace'), icon: BrainCircuit },
   { id: 'model',    label: t('Model Settings'),icon: Cpu },
-  { id: 'rag',      label: t('RAG Engine'),    icon: Database },
+  { id: 'rag',      label: t('Document search'), icon: Database },
   { id: 'kb',       label: t('Knowledge Base'), icon: Shield },
   { id: 'mcp',      label: t('Local Tools'),   icon: Terminal },
-  { id: 'dev-api',  label: t('Local API Server (OpenAI)'), icon: Server },
+  { id: 'dev-api',  label: t('Other apps'), icon: Server },
   { id: 'ui',       label: t('Appearance'),    icon: Palette },
   { id: 'language', label: t('Language & Locale'), icon: Globe },
   { id: 'shortcuts', label: t('Keyboard Shortcuts'), icon: Keyboard },
@@ -80,8 +81,6 @@ export default function Settings({ token, username, activeWorkspace, currentMode
   const [pwLoading, setPwLoading] = useState(false);
 
   // Developer API
-  const [testingApi, setTestingApi] = useState(false);
-  const [apiLatency, setApiLatency] = useState(null);
   const [copiedSnippet, setCopiedSnippet] = useState(null);
 
   const pythonSnippet = `from openai import OpenAI
@@ -107,24 +106,6 @@ print(response.choices[0].message.content)`;
     setTimeout(() => setCopiedSnippet(null), 2000);
   };
 
-  const handleTestApi = async () => {
-    setTestingApi(true);
-    setApiLatency(null);
-    const t0 = performance.now();
-    try {
-      const res = await fetch('/v1/models');
-      const t1 = performance.now();
-      if (res.ok) {
-        setApiLatency(Math.round(t1 - t0));
-      } else {
-        setApiLatency(null);
-      }
-    } catch {
-      setApiLatency(null);
-    } finally {
-      setTestingApi(false);
-    }
-  };
 
   // Custom Instructions
   const [profileContext, setProfileContext] = useState('');
@@ -349,7 +330,10 @@ print(response.choices[0].message.content)`;
     applyTheme(newTheme);
   };
 
-  const [activeSection, setActiveSection] = useState('account');
+  // The local user of the desktop app has no account to manage (no password, nothing to sign out of)
+  const isLocal = username === 'local';
+  const sections = isLocal ? SECTIONS.filter((s) => s.id !== 'account') : SECTIONS;
+  const [activeSection, setActiveSection] = useState(sections[0].id);
 
   const getHeaders = (extra = {}) => ({
     Authorization: `Bearer ${token}`,
@@ -424,7 +408,7 @@ print(response.choices[0].message.content)`;
       <div className={styles.layout}>
         {/* ── Sidebar nav ── */}
         <nav className={styles.sideNav}>
-          {SECTIONS.map(({ id, label, icon: Icon }) => (
+          {sections.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               className={`${styles.sideNavItem} ${activeSection === id ? styles.sideNavActive : ''}`}
@@ -551,7 +535,7 @@ print(response.choices[0].message.content)`;
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <BrainCircuit size={18} />
-                <h2>{t('Workspace AI Persona')}</h2>
+                <h2>{t('Instructions for this workspace')}</h2>
               </div>
               <p className={styles.panelDesc}>
                 {t('Define a custom system prompt for the')} <strong>{activeWorkspace?.name || 'active workspace'}</strong>.
@@ -847,7 +831,7 @@ print(response.choices[0].message.content)`;
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <Cpu size={18} />
-                <h2>{t('RAG Engine Settings')}</h2>
+                <h2>{t('Document search')}</h2>
               </div>
               <p className={styles.panelDesc}>
                 {t('Configure how StarkLLM processes and retrieves documents. These settings affect retrieval quality and performance.')}
@@ -881,7 +865,7 @@ print(response.choices[0].message.content)`;
               </div>
 
               <button className="btn-primary" onClick={saveRag}>
-                {ragSaved ? <><CheckCircle size={14} /> {t('Saved!')}</> : <><Save size={14} /> {t('Save RAG Settings')}</>}
+                {ragSaved ? <><CheckCircle size={14} /> {t('Saved!')}</> : <><Save size={14} /> {t('Save')}</>}
               </button>
 
               <div className={styles.infoBox}>
@@ -1007,150 +991,7 @@ print(response.choices[0].message.content)`;
           )}
 
           {/* ───── Local API Server (OpenAI-Compatible) ───── */}
-          {activeSection === 'dev-api' && (
-            <div className={styles.panel}>
-              <div className={styles.panelHeader}>
-                <Server size={18} />
-                <h2>{t('Local OpenAI-Compatible API Server')}</h2>
-              </div>
-              <p className={styles.panelDesc}>
-                {t('Connect external developer tools (Cursor, VSCode Continue, Obsidian, Python SDK, cURL) directly to your local StarkLLM instance.')}
-              </p>
-
-              {/* Endpoint Status Card */}
-              <div style={{
-                padding: '14px 18px',
-                background: 'rgba(16, 185, 129, 0.08)',
-                border: '1px solid rgba(16, 185, 129, 0.25)',
-                borderRadius: '8px',
-                marginBottom: '20px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: '12px'
-              }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }}></span>
-                    <strong style={{ color: '#10b981', fontSize: '0.88rem' }}>{t('Server Active & Ready')}</strong>
-                  </div>
-                  <div style={{ fontFamily: 'monospace', fontSize: '0.82rem', color: '#e5e7eb' }}>
-                    {t('Base URL:')} <code style={{ color: '#6ee7b7' }}>http://localhost:8000/v1</code>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={handleTestApi}
-                  disabled={testingApi}
-                  style={{ padding: '6px 14px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px', background: '#10b981' }}
-                >
-                  {testingApi ? <Loader size={13} className="animate-spin" /> : <Play size={13} />}
-                  <span>{apiLatency !== null ? t('Online ({ms} ms)', { ms: apiLatency }) : t('Test Connection')}</span>
-                </button>
-              </div>
-
-              {/* Quick Connect Guides */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                {/* 1. Cursor / Continue Config */}
-                <div style={{
-                  padding: '14px',
-                  background: 'rgba(255, 255, 255, 0.03)',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  borderRadius: '8px'
-                }}>
-                  <h4 style={{ margin: '0 0 10px 0', fontSize: '0.85rem', fontWeight: 600, color: '#f3f4f6' }}>
-                    {t('1. Cursor / VSCode Continue Settings')}
-                  </h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
-                    <div style={{ padding: '8px 12px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px' }}>
-                      <span style={{ fontSize: '0.7rem', color: '#9ca3af', display: 'block' }}>{t('Base URL')}</span>
-                      <code style={{ fontSize: '0.8rem', color: '#818cf8' }}>http://localhost:8000/v1</code>
-                    </div>
-                    <div style={{ padding: '8px 12px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px' }}>
-                      <span style={{ fontSize: '0.7rem', color: '#9ca3af', display: 'block' }}>{t('Model ID')}</span>
-                      <code style={{ fontSize: '0.8rem', color: '#818cf8' }}>{t('starkllm-default')}</code>
-                    </div>
-                    <div style={{ padding: '8px 12px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px' }}>
-                      <span style={{ fontSize: '0.7rem', color: '#9ca3af', display: 'block' }}>{t('API Key (Any string)')}</span>
-                      <code style={{ fontSize: '0.8rem', color: '#818cf8' }}>{t('stark-local')}</code>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. Python SDK Snippet */}
-                <div style={{
-                  padding: '14px',
-                  background: 'rgba(255, 255, 255, 0.03)',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  borderRadius: '8px'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: '#f3f4f6' }}>
-                      {t('2. Python (openai SDK)')}
-                    </h4>
-                    <button
-                      type="button"
-                      className="badge badge-accent"
-                      onClick={() => handleCopySnippet(pythonSnippet, 'py')}
-                      style={{ cursor: 'pointer', padding: '3px 8px', fontSize: '0.72rem' }}
-                    >
-                      {copiedSnippet === 'py' ? t('Copied!') : t('Copy Code')}
-                    </button>
-                  </div>
-                  <pre style={{
-                    margin: 0,
-                    padding: '10px 12px',
-                    background: '#0d1117',
-                    borderRadius: '6px',
-                    fontSize: '0.78rem',
-                    color: '#c9d1d9',
-                    fontFamily: 'monospace',
-                    overflowX: 'auto',
-                    lineHeight: 1.45
-                  }}>
-                    {pythonSnippet}
-                  </pre>
-                </div>
-
-                {/* 3. cURL Command */}
-                <div style={{
-                  padding: '14px',
-                  background: 'rgba(255, 255, 255, 0.03)',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  borderRadius: '8px'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: '#f3f4f6' }}>
-                      {t('3. cURL Command')}
-                    </h4>
-                    <button
-                      type="button"
-                      className="badge badge-accent"
-                      onClick={() => handleCopySnippet(curlSnippet, 'curl')}
-                      style={{ cursor: 'pointer', padding: '3px 8px', fontSize: '0.72rem' }}
-                    >
-                      {copiedSnippet === 'curl' ? t('Copied!') : t('Copy cURL')}
-                    </button>
-                  </div>
-                  <pre style={{
-                    margin: 0,
-                    padding: '10px 12px',
-                    background: '#0d1117',
-                    borderRadius: '6px',
-                    fontSize: '0.78rem',
-                    color: '#c9d1d9',
-                    fontFamily: 'monospace',
-                    overflowX: 'auto',
-                    lineHeight: 1.45
-                  }}>
-                    {curlSnippet}
-                  </pre>
-                </div>
-              </div>
-            </div>
-          )}
+          {activeSection === 'dev-api' && <OtherAppsPanel token={token} />}
 
           {/* ───── UI ───── */}
           {activeSection === 'ui' && (
@@ -1286,7 +1127,6 @@ print(response.choices[0].message.content)`;
 
                       <div className={styles.languageFooterRow}>
                         <span>{lang.region}</span>
-                        <strong>{lang.users}</strong>
                       </div>
                     </div>
                   );
@@ -1294,9 +1134,9 @@ print(response.choices[0].message.content)`;
               </div>
 
               <div className={styles.languageRoadmapNotice}>
-                <strong>{t('German interface')}</strong>
+                <strong>{t('Answers')}</strong>
                 <span>
-                  {t('The interface is in German. Answers of the AI follow the language of your question.')}
+                  {t('The AI answers in the language of your question, whatever the interface language.')}
                 </span>
               </div>
             </div>

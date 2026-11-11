@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
 import { t, language } from '../i18n';
+import { useEscape } from '../utils/useEscape';
 import { blockRemoteImages } from '../utils/markdown';
 
 // Written out per tab so the German check sees every text (a template with the tab id was never translated).
@@ -33,6 +34,7 @@ export default function StudioModal({
   selectedModel = ""
 }) {
   const [activeTab, setActiveTab] = useState('podcast'); // 'podcast' | 'briefing' | 'study_guide' | 'comparison'
+  useEscape(onClose, isOpen);
   const [focusQuery, setFocusQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);

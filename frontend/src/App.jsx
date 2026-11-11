@@ -241,7 +241,7 @@ export default function App() {
         await loadChat(data[0].id);
       } else {
         setActiveChatId(null);
-        setMessages([{ role: 'assistant', content: t('Start a new chat to begin.') }]);
+        setMessages([]);  // the start page with suggestions
       }
     } catch (err) {
       console.error('Error fetching chats:', err);
@@ -293,6 +293,7 @@ export default function App() {
                 kbSources: m.sources.kb || [],
                 wsSources: m.sources.ws || [],
                 evidence: m.sources.evidence || null,
+                warnings: m.sources.warnings || [],
                 webSources: m.sources.web || [],
                 cloudHost: m.sources.cloud || null,
               } : m))
@@ -340,6 +341,25 @@ export default function App() {
       }
     }, 2000);
   };
+
+  // The upload line in the chat says when the document is ready (or why it could not be read)
+  useEffect(() => {
+    if (!workspaceDocs.length) return;
+    setMessages(prev => {
+      let changed = false;
+      const next = prev.map(m => {
+        if (!m.uploadId) return m;
+        const d = workspaceDocs.find(x => x.id === m.uploadId);
+        if (!d || !TERMINAL_STATUSES.includes(d.status)) return m;
+        changed = true;
+        const name = d.filename || '';
+        return d.status === 'failed'
+          ? { role: 'system', content: t('{name} could not be read: {error}', { name, error: d.error_message || t('unknown error') }) }
+          : { role: 'system', content: t('{name} is ready. Ask me about it.', { name }) };
+      });
+      return changed ? next : prev;
+    });
+  }, [workspaceDocs]);
 
   // Cleanup polling on unmount or when workspace changes
   useEffect(() => {
@@ -410,7 +430,7 @@ export default function App() {
           await loadChat(remaining[0].id);
         } else {
           setActiveChatId(null);
-          setMessages([{ role: 'assistant', content: t('Start a new chat to begin.') }]);
+          setMessages([]);
         }
       }
     } catch (err) {
@@ -553,6 +573,8 @@ export default function App() {
       const webSourcesHeader = response.headers.get('X-Web-Sources') ? decodeURIComponent(response.headers.get('X-Web-Sources')) : '';
       const webSourcesUrlsHeader = response.headers.get('X-Web-Sources-Urls') ? decodeURIComponent(response.headers.get('X-Web-Sources-Urls')) : '';
       const cloudHostHeader = response.headers.get('X-Cloud-Provider') || null;
+      let docWarnings = [];
+      try { docWarnings = JSON.parse(decodeURIComponent(response.headers.get('X-Doc-Warnings') || '%5B%5D')); } catch { docWarnings = []; }
 
       const webTitles = webSourcesHeader ? webSourcesHeader.split(',').filter(Boolean) : [];
       const webUrls = webSourcesUrlsHeader ? webSourcesUrlsHeader.split(',').filter(Boolean) : [];
@@ -582,7 +604,8 @@ export default function App() {
             kbSources: kbSourcesHeader ? kbSourcesHeader.split('|').filter(Boolean) : [],
             wsSources: wsSourcesHeader ? wsSourcesHeader.split('|').filter(Boolean) : [],
             webSources: webSourcesData,
-            cloudHost: cloudHostHeader
+            cloudHost: cloudHostHeader,
+            warnings: docWarnings
           };
           return msgs;
         });
@@ -771,7 +794,7 @@ export default function App() {
     if (!activeWorkspace) { toast.warning(t('Please create or select a workspace before uploading files.')); return; }
     const formData = new FormData();
     formData.append('file', file);
-    setMessages(prev => [...prev, { role: 'system', content: `Uploading ${file.name}…` }]);
+    setMessages(prev => [...prev, { role: 'system', content: t('Uploading {name}…', { name: file.name }) }]);
 
     let response;
     try {
@@ -782,10 +805,10 @@ export default function App() {
       });
     } catch (networkErr) {
       // Network-level failure (CORS, DNS, offline, etc.)
-      const errorMsg = `Network error — please check your connection and try again. (${networkErr.message})`;
+      const errorMsg = t('No connection to the StarkLLM engine ({error}). Try again in a moment.', { error: networkErr.message });
       setMessages(prev => {
         const msgs = [...prev];
-        msgs[msgs.length - 1] = { role: 'system', content: `❌ Failed to upload ${file.name}: ${errorMsg}` };
+        msgs[msgs.length - 1] = { role: 'system', content: t('{name} could not be uploaded: {error}', { name: file.name, error: errorMsg }) };
         return msgs;
       });
       throw new Error(errorMsg);
@@ -793,13 +816,13 @@ export default function App() {
 
     if (response.status === 401) { handleLogout(); return; }
     if (!response.ok) {
-      let errorMsg = 'Upload failed';
+      let errorMsg = t('Upload failed');
       // Determine a human-readable error based on HTTP status
       if (response.status === 413) {
         const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
-        errorMsg = `File too large (${sizeMB} MB). Maximum allowed upload size is 100 MB.`;
+        errorMsg = t('The file is too large ({size} MB). Files can be up to 100 MB.', { size: sizeMB });
       } else if (response.status === 502 || response.status === 503 || response.status === 504) {
-        errorMsg = `Server is temporarily unavailable (HTTP ${response.status}). Please try again in a moment.`;
+        errorMsg = t('The StarkLLM engine is busy or restarting (HTTP {status}). Try again in a moment.', { status: response.status });
       } else {
         // Try to parse JSON detail from the backend
         const err = await response.json().catch(() => null);
@@ -808,18 +831,28 @@ export default function App() {
         } else {
           // Fallback: try to read the raw text body for clues
           const rawText = err ? JSON.stringify(err) : await response.text().catch(() => '');
-          errorMsg = `Upload failed (HTTP ${response.status})${rawText ? ': ' + rawText.substring(0, 200) : ''}`;
+          errorMsg = t('Upload failed (HTTP {status})', { status: response.status }) + (rawText ? ': ' + rawText.substring(0, 200) : '');
         }
       }
       setMessages(prev => {
         const msgs = [...prev];
-        msgs[msgs.length - 1] = { role: 'system', content: `❌ Failed to upload ${file.name}: ${errorMsg}` };
+        msgs[msgs.length - 1] = { role: 'system', content: t('{name} could not be uploaded: {error}', { name: file.name, error: errorMsg }) };
         return msgs;
       });
       throw new Error(errorMsg);
     }
 
     const newDoc = await response.json();
+
+    // the same file is already there (B4): say so, keep the one that is there
+    if (newDoc.duplicate) {
+      setMessages(prev => {
+        const msgs = [...prev];
+        msgs[msgs.length - 1] = { role: 'system', content: t('{name} is already in your documents (as {existing}); it was not added again.', { name: file.name, existing: newDoc.filename }) };
+        return msgs;
+      });
+      return newDoc;
+    }
 
     // Add the doc immediately into local state so it appears in Document Manager instantly
     setWorkspaceDocs(prev => {
@@ -835,7 +868,8 @@ export default function App() {
       const msgs = [...prev];
       msgs[msgs.length - 1] = {
         role: 'system',
-        content: `📄 ${file.name} uploaded. Indexing in progress — you can continue chatting while it processes.`
+        uploadId: newDoc.id,
+        content: t('Reading {name}… You can keep chatting meanwhile.', { name: file.name })
       };
       return msgs;
     });
@@ -922,7 +956,7 @@ export default function App() {
       setActiveWorkspace(newWs);
       setChats([]);
       setActiveChatId(null);
-      setMessages([{ role: 'assistant', content: `Workspace "${wsName}" created. What shall we work on?` }]);
+      setMessages([]);  // the start page with suggestions
       setActiveView('chat');
     } catch (err) {
       console.error('Error creating workspace:', err);
@@ -941,6 +975,14 @@ export default function App() {
     setActiveView('chat');
     setChatSearchQuery('');
   };
+
+  // A new user starts in a workspace "My documents" instead of a page that asks to create one.
+  const autoWorkspaceRef = useRef(false);
+  useEffect(() => {
+    if (!hasFetchedWorkspaces || !token || workspaces.length > 0 || autoWorkspaceRef.current) return;
+    autoWorkspaceRef.current = true;
+    handleNewWorkspace(t('My documents'));
+  }, [hasFetchedWorkspaces, token, workspaces.length]);
 
   // ── Not logged in ──
   if (!token) {
@@ -998,6 +1040,8 @@ export default function App() {
   }
 
   // ── No workspace (new user) ──
+  // A new user gets a workspace "My documents" right away (see the effect above); this page only shows while it is
+  // created, or with the reason when that failed.
   if (hasFetchedWorkspaces && !activeWorkspace && token && workspaces.length === 0 && activeView !== 'settings') {
     return (
       <div style={{
@@ -1007,35 +1051,28 @@ export default function App() {
         background: 'var(--bg-primary)'
       }}>
         <img src="/Logo.png" alt="StarkLLM" style={{ width: 144, height: 'auto', marginBottom: 12 }} />
-        <h2 style={{ color: '#ffffff', fontWeight: 700, fontSize: '1.75rem' }}>{t('Welcome to StarkLLM!')}</h2>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', textAlign: 'center', maxWidth: 380, lineHeight: 1.6 }}>
-          {t('You don\'t have any workspaces yet. Create one to get started.')}
-        </p>
-        {wsError && (
-          <p style={{ color: 'var(--danger)', background: 'rgba(239,68,68,0.1)', padding: '0.75rem 1.25rem', borderRadius: 8, fontSize: '0.95rem', fontWeight: 500 }}>
-            ⚠️ {wsError}
-          </p>
+        <h2 style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: '1.75rem' }}>{t('Welcome to StarkLLM!')}</h2>
+        {!wsError ? (
+          <p style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>{t('Getting your documents ready…')}</p>
+        ) : (
+          <>
+            <p style={{ color: 'var(--danger)', background: 'rgba(239,68,68,0.1)', padding: '0.75rem 1.25rem', borderRadius: 8, fontSize: '0.95rem', fontWeight: 500, maxWidth: 520, textAlign: 'center' }}>
+              {t('StarkLLM could not prepare your documents space: {error}', { error: wsError })}
+            </p>
+            <button
+              onClick={() => handleNewWorkspace(t('My documents'))}
+              disabled={wsLoading}
+              className="btn-primary"
+              style={{ fontSize: '0.95rem', padding: '12px 24px', fontWeight: 600 }}
+            >
+              {wsLoading ? t('Creating…') : t('Try again')}
+            </button>
+          </>
         )}
-        <button
-          onClick={openNewWorkspaceModal}
-          disabled={wsLoading}
-          className="btn-primary"
-          style={{ fontSize: '0.95rem', padding: '12px 24px', fontWeight: 600 }}
-        >
-          {wsLoading ? t('Creating…') : t('+ Create My First Workspace')}
-        </button>
-        <button onClick={handleLogout} className="btn-danger" style={{ fontSize: '0.9rem', padding: '10px 20px', fontWeight: 600 }}>
-          {t('Logout')}
-        </button>
-
-        {showWsModal && (
-          <WorkspaceNameModal
-            value={newWsName}
-            onChange={setNewWsName}
-            onConfirm={() => handleNewWorkspace(newWsName)}
-            onCancel={() => setShowWsModal(false)}
-            inputRef={wsNameInputRef}
-          />
+        {username !== 'local' && (
+          <button onClick={handleLogout} className="btn-secondary" style={{ fontSize: '0.9rem', padding: '10px 20px', fontWeight: 600 }}>
+            {t('Logout')}
+          </button>
         )}
       </div>
     );
@@ -1090,6 +1127,7 @@ export default function App() {
             onSelectWorkspace={handleSelectWorkspace}
             chats={chats}
             onSelectChat={handleSelectChat}
+            onUpload={activeWorkspace ? handleFileUpload : null}
           />
         )}
 
@@ -1114,6 +1152,8 @@ export default function App() {
               onSelectStarter={handleSendMessage}
               workspaceId={activeWorkspace?.id}
               chatId={activeChatId}
+              onUpload={handleFileUpload}
+              newestDocument={[...workspaceDocs].filter(d => d.status === 'indexed').sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0]?.filename}
               token={token}
             />
             <InputBar 
@@ -1165,6 +1205,7 @@ export default function App() {
           workspaceId={activeWorkspace.id}
           documents={workspaceDocs}
           onDeleteDocument={handleDeleteDocument}
+          onUpload={handleFileUpload}
           token={token}
         />
       )}

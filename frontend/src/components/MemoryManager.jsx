@@ -3,8 +3,10 @@ import { X, Trash2, Plus, BrainCircuit } from 'lucide-react';
 import styles from './MemoryManager.module.css';
 import { useToast } from './Toast';
 import { t } from '../i18n';
+import { useEscape } from '../utils/useEscape';
 
 export default function MemoryManager({ workspace, token, onClose }) {
+  useEscape(onClose, true);
   const toast = useToast();
   const [memories, setMemories] = useState([]);
   const [loading, setLoading] = useState(true);

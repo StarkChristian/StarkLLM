@@ -3,8 +3,10 @@ import styles from './PromptTemplateModal.module.css';
 import { X, Search, FileCode, Plus, Trash2, Edit2, Check, ArrowLeft } from 'lucide-react';
 import { useToast } from './Toast';
 import { t } from '../i18n';
+import { useEscape } from '../utils/useEscape';
 
 export default function PromptTemplateModal({ isOpen, onClose, token, onInsertTemplate }) {
+  useEscape(onClose, isOpen);
   const toast = useToast();
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(false);

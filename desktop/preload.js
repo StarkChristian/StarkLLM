@@ -1,4 +1,5 @@
-// The only bridge from the web UI to the desktop app: an update check for Settings > About, and the local session
+// The only bridge from the web UI to the desktop app: an update check for Settings > About, opening the knowledge-base
+// folder, and the local session
 // (single user, no sign-up), which is placed before the web UI starts so it opens signed in.
 const { contextBridge, ipcRenderer } = require('electron');
 
@@ -13,6 +14,7 @@ try {
 
 contextBridge.exposeInMainWorld('starkllmDesktop', {
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+  openKnowledgeFolder: () => ipcRenderer.invoke('kb:open-folder'),
   // download progress of an update: cb({ phase: 'downloading' | 'done', percent }); returns an unsubscribe function
   onUpdateStatus: (cb) => {
     const handler = (_event, status) => cb(status);
