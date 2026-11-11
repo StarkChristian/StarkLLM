@@ -122,6 +122,28 @@ def empty_answer_error(model: str, thought: bool) -> "LLMBackendError":
     return LLMBackendError(f"Model '{model}' returned an empty answer. Try again or choose another model.", "empty_answer", 502)
 
 
+# Ollama's default context window is small (2048 or 4096 tokens, depending on version and memory). A longer prompt is
+# cut from the front without an error: the system prompt with the retrieved document passages is lost and the model
+# answers "not found" (seen in scenario tests: "truncating input prompt limit=2050 prompt=4263"). Every request asks
+# for a window that holds its prompt and the answer.
+CONTEXT_MIN, CONTEXT_MAX = 4096, 16384
+CHARS_PER_TOKEN = 3.0  # German and mixed text with numbers; English is ~4, so this errs on the safe side
+ANSWER_TOKENS = 1024
+
+
+_context_used: dict = {}
+
+
+def context_window(messages: list, num_predict=None) -> int:
+    prompt_chars = sum(len(str(m.get("content") or "")) for m in messages or [])
+    answer = num_predict if isinstance(num_predict, int) and num_predict > 0 else ANSWER_TOKENS
+    need = int(prompt_chars / CHARS_PER_TOKEN) + answer + 256
+    size = CONTEXT_MIN
+    while size < need and size < CONTEXT_MAX:
+        size *= 2
+    return size
+
+
 class LLMBackendError(requests.exceptions.RequestException):
     """Ollama could not answer. str(e) is a message the user can act on: no internal URLs, no raw HTTP text.
 
@@ -139,6 +161,7 @@ _OUT_OF_MEMORY = re.compile(
     re.I,
 )
 REQUEST_TIMEOUT_SECONDS = 150
+EMBED_TIMEOUT = (10, 600)  # connect, read: a big batch on a slow PC may take minutes, an absent Ollama must not
 
 
 def _ollama_error_text(response) -> str:
@@ -298,9 +321,14 @@ class LLMService:
             "think": settings.OLLAMA_THINK,
         }
         
-        if options:
-            payload["options"] = options
-        
+        options = dict(options or {})
+        if "num_ctx" not in options:
+            # a different window makes Ollama reload the model: per model it only grows, so it settles quickly
+            size = max(context_window(messages, options.get("num_predict")), _context_used.get(model, 0))
+            _context_used[model] = size
+            options["num_ctx"] = size
+        payload["options"] = options
+
         if stream:
             return self._stream_response(url, payload)
         else:
@@ -456,7 +484,7 @@ class LLMService:
             "prompt": prompt
         }
         try:
-            response = requests.post(url, json=payload)
+            response = requests.post(url, json=payload, timeout=EMBED_TIMEOUT)
             response.raise_for_status()
             return response.json().get("embedding", [])
         except requests.exceptions.RequestException as e:
@@ -470,9 +498,13 @@ class LLMService:
             "input": prompts
         }
         try:
-            response = requests.post(url, json=payload)
+            response = requests.post(url, json=payload, timeout=EMBED_TIMEOUT)
             response.raise_for_status()
             return response.json().get("embeddings", [])
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+            # Ollama is not there or hangs: one request per passage would only fail the same way, once per passage
+            # (a document stayed at "embedding" for hours), so the document fails now with a message that says why
+            raise
         except requests.exceptions.RequestException as e:
             logger.error(f"LLM Batch Embeddings API Error: {e}")
             logger.warning("Falling back to single embedding generation...")
