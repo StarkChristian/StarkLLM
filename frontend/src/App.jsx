@@ -972,7 +972,7 @@ export default function App() {
 
   // ── Not logged in ──
   if (!token) {
-    return <LoginSignup onLoginSuccess={(t) => setToken(t)} />;
+    return <LoginSignup onLoginSuccess={(newToken) => setToken(newToken)} />;
   }
 
   // ── Onboarding ──
@@ -1121,7 +1121,7 @@ export default function App() {
         )}
 
         {activeView === 'settings' && (
-          <Settings token={token} username={username} activeWorkspace={activeWorkspace} />
+          <Settings token={token} username={username} activeWorkspace={activeWorkspace} currentModel={currentModel} />
         )}
 
         {activeView === 'chat' && (

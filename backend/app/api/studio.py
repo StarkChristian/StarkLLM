@@ -18,9 +18,62 @@ class SynthesizeStudioRequest(BaseModel):
     type: str  # "podcast" | "briefing" | "study_guide" | "comparison"
     model: Optional[str] = None
     focus: Optional[str] = None
+    language: Optional[str] = None  # the interface language ("de", "en"): the result is written in it
 
-def _extract_workspace_context(db: Session, workspace_id: int, max_chars: int = 14000) -> str:
-    """Collect representative text chunks from active documents in the workspace."""
+# Files that are plain text. Everything else (images, Word, Excel, ...) is read only through the text
+# StarkLLM extracted when it indexed the file: reading an image as text gave the model JPEG bytes.
+TEXT_FILES = {"txt", "md", "markdown", "csv", "tsv", "json", "xml", "log", "html", "htm", "yaml", "yml",
+              "ini", "cfg", "toml"}
+LANGUAGE_NAMES = {"de": "German", "en": "English"}
+# Headings the prompts name, in German: told to "translate the headings", a 27B model still kept them English.
+GERMAN_HEADINGS = {
+    "# Executive Summary": "# Zusammenfassung",
+    "## Strategic Highlights & Core Discoveries": "## Wichtigste Punkte",
+    "## Risk Assessment & Critical Assumptions": "## Risiken und Annahmen",
+    "## Recommended Decisions & Action Items": "## Empfohlene Entscheidungen und nächste Schritte",
+    "an Executive Synthesis": "a summary headed 'Zusammenfassung'",
+    "Key Divergences / Synergies": "a section headed 'Unterschiede und Gemeinsamkeiten'",
+}
+
+
+def _localized(prompt: str, language: Optional[str]) -> str:
+    if (language or "").lower()[:2] != "de":
+        return prompt
+    for english, german in GERMAN_HEADINGS.items():
+        prompt = prompt.replace(english, german)
+    return prompt
+
+
+def _document_text(collection, doc) -> str:
+    """The text of one document: the pieces made when it was indexed (with OCR for images and scans), else
+    the PDF text or the file itself if it is plain text. Never the raw bytes of a binary file."""
+    if collection is not None:
+        try:
+            got = collection.get(where={"source": doc.filepath}, include=["documents"])
+            text = "\n".join(d for d in (got.get("documents") or []) if d)
+            if text.strip():
+                return text
+        except Exception as e:
+            logger.warning(f"Studio: indexed text of {doc.filename} not readable: {e}")
+    if not doc.filepath or not os.path.exists(doc.filepath):
+        return ""
+    ext = (doc.file_type or os.path.splitext(doc.filepath)[1]).lower().strip(".")
+    if ext == "pdf":
+        try:
+            import fitz
+            with fitz.open(doc.filepath) as pdf:
+                return "\n".join(pdf[p].get_text("text") for p in range(min(len(pdf), 15)))
+        except Exception as e:
+            logger.warning(f"Studio: PDF {doc.filename} not readable: {e}")
+            return ""
+    if ext in TEXT_FILES:
+        with open(doc.filepath, "r", encoding="utf-8", errors="replace") as f:
+            return f.read(8000)
+    return ""
+
+
+def _extract_workspace_context(db: Session, workspace_id: int, user_id: int, max_chars: int = 14000) -> str:
+    """Text of the workspace's documents, every document with a fair share of max_chars."""
     docs = db.query(models.Document).filter(
         models.Document.workspace_id == workspace_id,
         models.Document.status == models.DocStatus.INDEXED
@@ -37,38 +90,24 @@ def _extract_workspace_context(db: Session, workspace_id: int, max_chars: int = 
             detail="No documents found in this workspace. Upload documents before generating studio overviews."
         )
 
+    try:
+        from app.services.rag_service import rag_service
+        collection = rag_service.get_or_create_collection(workspace_id, user_id)
+    except Exception as e:
+        logger.warning(f"Studio: workspace collection not available: {e}")
+        collection = None
+
+    # Before, the first three or four documents filled the budget and the rest were left out.
+    share = min(4000, max(600, max_chars // len(docs)))
     context_parts = []
-    total_chars = 0
-
     for doc in docs:
-        if not doc.filepath or not os.path.exists(doc.filepath):
-            continue
         try:
-            ext = (doc.file_type or "").lower().strip(".")
-            if ext == "pdf":
-                try:
-                    import fitz
-                    fitz_doc = fitz.open(doc.filepath)
-                    text_acc = []
-                    for p in range(min(len(fitz_doc), 15)):
-                        text_acc.append(fitz_doc[p].get_text("text").strip())
-                    doc_text = "\n".join(text_acc)
-                except Exception as e:
-                    logger.warning(f"Failed to read PDF for studio context: {e}")
-                    continue
-            else:
-                with open(doc.filepath, "r", encoding="utf-8", errors="replace") as f:
-                    doc_text = f.read(8000)
-
-            clean_text = " ".join(doc_text.split())
-            if clean_text:
-                part = f"=== Document: {doc.filename} ===\n{clean_text[:4000]}\n"
-                context_parts.append(part)
-                total_chars += len(part)
-                if total_chars >= max_chars:
-                    break
+            clean_text = " ".join(_document_text(collection, doc).split())
         except Exception as e:
             logger.warning(f"Error extracting context for {doc.filename}: {e}")
+            continue
+        if clean_text:
+            context_parts.append(f"=== Document: {doc.filename} ===\n{clean_text[:share]}\n")
 
     if not context_parts:
         raise HTTPException(
@@ -77,6 +116,19 @@ def _extract_workspace_context(db: Session, workspace_id: int, max_chars: int = 
         )
 
     return "\n\n".join(context_parts)
+
+
+def _ground_rules(language: Optional[str]) -> str:
+    """Appended to every studio prompt: the answer language, today's date, no invented facts."""
+    from datetime import date
+    lang = LANGUAGE_NAMES.get((language or "").lower()[:2])
+    write_in = (f"Write all text for the reader in {lang}, also when the documents are in another language; "
+                "translate the section headings given above too (keep JSON keys as given)."
+                if lang else "Write in the language of the documents.")
+    return (f"\n\nToday is {date.today().isoformat()}. {write_in} Use only names, numbers and dates that appear in "
+            "the source documents; never invent a date, author or recipient. If a document's text is empty or "
+            "unreadable, leave it out without comment.")
+
 
 @router.post("/{workspace_id}/synthesize")
 async def synthesize_studio(
@@ -97,7 +149,7 @@ async def synthesize_studio(
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace not found")
 
-    context_corpus = _extract_workspace_context(db, workspace_id)
+    context_corpus = _extract_workspace_context(db, workspace_id, current_user.id)
     target_model = req.model or current_user.default_model or settings.DEFAULT_TEXT_MODEL
 
     focus_note = f"Specific Focus: {req.focus}\n" if req.focus else ""
@@ -184,6 +236,8 @@ async def synthesize_studio(
         )
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported studio synthesis type: {req.type}")
+
+    system_prompt = _localized(system_prompt, req.language) + _ground_rules(req.language)
 
     messages = [
         {"role": "system", "content": system_prompt},

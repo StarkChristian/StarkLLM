@@ -39,6 +39,9 @@ export default function HealthBanner({ token }) {
     if (data.ollama?.status === 'offline' || data.ollama?.status === 'degraded') {
       errors.push({ icon: Cpu, msg: data.ollama.error || t('Ollama is offline.') });
     }
+    if (data.ollama?.outdated) {
+      errors.push({ icon: Cpu, msg: t('Ollama {version} has a known security flaw. Please update Ollama to {min} or newer: ollama.com/download', { version: data.ollama.version, min: data.ollama.min_version }) });
+    }
     if (data.text_model?.status === 'missing') {
       errors.push({ icon: Brain, msg: data.text_model.error || t('Text model missing.') });
     }
