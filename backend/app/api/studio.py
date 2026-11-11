@@ -105,8 +105,9 @@ def _ground_rules(language: Optional[str]) -> str:
     """Appended to every studio prompt: the answer language, today's date, no invented facts."""
     from datetime import date
     lang = LANGUAGE_NAMES.get((language or "").lower()[:2])
-    write_in = (f"Write all text for the reader in {lang}, also when the documents are in another language "
-                "(keep JSON keys as given)." if lang else "Write in the language of the documents.")
+    write_in = (f"Write all text for the reader in {lang}, also when the documents are in another language; "
+                "translate the section headings given above too (keep JSON keys as given)."
+                if lang else "Write in the language of the documents.")
     return (f"\n\nToday is {date.today().isoformat()}. {write_in} Use only names, numbers and dates that appear in "
             "the source documents; never invent a date, author or recipient. If a document's text is empty or "
             "unreadable, leave it out without comment.")
