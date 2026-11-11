@@ -706,17 +706,17 @@ export default function Sidebar({
                 <span>{t('Color Theme')}</span>
                 <Palette size={12} />
               </div>
-              {AVAILABLE_THEMES.map(t => (
+              {AVAILABLE_THEMES.map(th => (
                 <button
-                  key={t.id}
-                  className={`${styles.themePopoverItem} ${currentTheme === t.id ? styles.themePopoverItemActive : ''}`}
-                  onClick={() => handleSelectTheme(t.id)}
+                  key={th.id}
+                  className={`${styles.themePopoverItem} ${currentTheme === th.id ? styles.themePopoverItemActive : ''}`}
+                  onClick={() => handleSelectTheme(th.id)}
                 >
                   <div className={styles.themeItemLeft}>
-                    <span className={styles.themeMiniDot} style={{ background: t.accent }} />
-                    <span>{t.name}</span>
+                    <span className={styles.themeMiniDot} style={{ background: th.accent }} />
+                    <span>{th.name}</span>
                   </div>
-                  {currentTheme === t.id && <Check size={14} />}
+                  {currentTheme === th.id && <Check size={14} />}
                 </button>
               ))}
             </div>

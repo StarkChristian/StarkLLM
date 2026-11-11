@@ -24,7 +24,7 @@
   max-height: 800px;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  box-shadow: var(--shadow-lg);
   overflow: hidden;
   animation: slideUp 0.3s cubic-bezier(0.2, 0, 0, 1);
 }
@@ -94,8 +94,8 @@
 /* ── Master List (Left) ── */
 .masterList {
   width: 320px;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(0, 0, 0, 0.2);
+  border-right: 1px solid var(--border-color);
+  background: var(--bg-hover);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -402,7 +402,7 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--bg-hover);
 }
 
 .previewCardHeader {

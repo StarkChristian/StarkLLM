@@ -9,6 +9,8 @@
   min-height: 0;   /* allow flex child to shrink below its content height */
   position: relative;
   background-color: var(--bg-primary);
+  background-image: var(--bg-pattern);
+  background-size: var(--bg-pattern-size);
 }
 
 .messages {
@@ -519,7 +521,7 @@ button.sourceGroup:focus-visible {
 }
 
 .exportBtn {
-  background: rgba(8, 10, 16, 0.4);
+  background: var(--glass-bg);
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
   width: 36px;

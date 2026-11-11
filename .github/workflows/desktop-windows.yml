@@ -1,6 +1,6 @@
 name: Desktop app (Windows)
 
-# Builds the Windows installer and the portable exe, installs the installer silently and starts the app once.
+# Builds the Windows installer, installs the installer silently and starts the app once.
 # GitHub's Windows runners have no Docker Desktop (Linux containers) and no Ollama, so the run must end on the
 # "what is missing" page instead of a blank window; the screenshot and engine.log are uploaded for review.
 
@@ -31,7 +31,7 @@ jobs:
         working-directory: desktop
         run: npm test --if-present
 
-      - name: Build installer and portable exe
+      - name: Build the installer
         working-directory: desktop
         run: npx electron-builder --win --x64 --publish never
 
@@ -40,11 +40,14 @@ jobs:
         run: |
           $setup = Get-ChildItem desktop/dist/*-Setup.exe | Select-Object -First 1
           # /currentuser: the runner is elevated, which can make the assisted installer pick "all users" (Program Files)
-          Start-Process $setup.FullName -ArgumentList '/S', '/currentuser' -Wait
+          $started = Get-Date
+          $p = Start-Process $setup.FullName -ArgumentList '/S', '/currentuser' -Wait -PassThru
+          "installer exit code $($p.ExitCode) after $([math]::Round(((Get-Date) - $started).TotalSeconds)) s"
           $dir = Join-Path $env:LOCALAPPDATA 'Programs\StarkLLM'
           $files = 'StarkLLM.exe', 'resources\engine\docker-compose.yml', 'resources\engine\backend\Dockerfile', 'resources\engine\frontend\Dockerfile'
-          # The silent installer can return before it has written every file (seen on 8 Nov 2026): wait up to 6 minutes
-          # (Defender scans the unsigned 200 MB installer and its files on the runner).
+          # Wait up to 6 minutes for the files (Defender scans the unsigned 200 MB installer and its files on the runner).
+          # Installs that wrote nothing (8-10 Nov 2026, about 1 in 5) were the installer crashing in NSIS's System.dll
+          # (exit code -1073741819) while reading the per-user Programs folder: fixed in electron-builder 26.12.
           $deadline = (Get-Date).AddMinutes(6)
           do {
             $missing = @($files | Where-Object { -not (Test-Path (Join-Path $dir $_)) })
@@ -55,6 +58,11 @@ jobs:
             "still running:"; Get-Process | Where-Object { $_.ProcessName -match 'Setup|StarkLLM|Un_A|nsis' } | Format-Table ProcessName, Id, StartTime -AutoSize | Out-String
             "Programs:"; Get-ChildItem $env:LOCALAPPDATA\Programs -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
             Get-ChildItem -Path $env:LOCALAPPDATA\Programs, $env:ProgramFiles -Filter StarkLLM.exe -Recurse -Depth 2 -ErrorAction SilentlyContinue | ForEach-Object { "found: $($_.FullName)" }
+            "Defender detections:"; Get-MpThreatDetection -ErrorAction SilentlyContinue | Format-List InitialDetectionTime, ThreatID, Resources, ActionSuccess | Out-String
+            "Defender events:"; Get-WinEvent -LogName 'Microsoft-Windows-Windows Defender/Operational' -MaxEvents 15 -ErrorAction SilentlyContinue | Where-Object { $_.TimeCreated -gt $started } | Format-List TimeCreated, Id, Message | Out-String -Width 300
+            "Application errors:"; Get-WinEvent -FilterHashtable @{ LogName = 'Application'; Level = 2; StartTime = $started } -MaxEvents 10 -ErrorAction SilentlyContinue | Format-List TimeCreated, ProviderName, Message | Out-String -Width 300
+            "Setup file still there: $(Test-Path $setup.FullName)"
+            "NSIS temp folders:"; Get-ChildItem $env:TEMP -Directory -Filter 'ns*.tmp' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
             throw "missing after install: $($missing -join ', ')"
           }
           "installed to $dir"
@@ -81,6 +89,41 @@ jobs:
           if (Test-Path $log) { Copy-Item $log engine.log; Get-Content $log } else { throw 'engine.log was not written' }
           Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
 
+      - name: Update still installs when the old uninstaller fails
+        # Windows PowerShell: Add-Type can build the stand-in uninstaller .exe only there
+        shell: powershell
+        run: |
+          # Seen on a real PC with Smart App Control (9 Nov 2026): the old version's uninstaller ended with code 2 and the
+          # update stopped with "The old application files could not be uninstalled". Here a stand-in uninstaller always
+          # ends with code 2, the app is running, and the same installer is run the way the in-app update runs it.
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\StarkLLM'
+          $exe = Join-Path $dir 'StarkLLM.exe'
+          Add-Type -OutputType ConsoleApplication -OutputAssembly "$env:RUNNER_TEMP\fails.exe" -TypeDefinition 'public static class P { public static int Main() { return 2; } }'
+          Copy-Item "$env:RUNNER_TEMP\fails.exe" (Join-Path $dir 'Uninstall StarkLLM.exe') -Force
+          # mark the installed exe as old (before the app runs and locks it), to see that the update replaced it
+          (Get-Item $exe).LastWriteTimeUtc = (Get-Date).ToUniversalTime().AddDays(-1)
+          $before = (Get-Item $exe).LastWriteTimeUtc
+          $env:STARKLLM_UPDATE_CHECK = '0'
+          $app = Start-Process $exe -PassThru
+          Start-Sleep 15
+          $setup = Get-ChildItem desktop/dist/*-Setup.exe | Select-Object -First 1
+          $p = Start-Process $setup.FullName -ArgumentList '--updated', '/S', '/currentuser' -PassThru
+          if (-not $p.WaitForExit(8 * 60 * 1000)) {
+            Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+            $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+            $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+            [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+            $bmp.Save("$PWD\update-stuck.png")
+            throw 'the installer did not finish within 8 minutes (an error message is probably open, see update-stuck.png)'
+          }
+          "installer exit code: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { throw "the installer ended with code $($p.ExitCode)" }
+          $deadline = (Get-Date).AddMinutes(6)
+          while (((Get-Item $exe).LastWriteTimeUtc -eq $before) -and ((Get-Date) -lt $deadline)) { Start-Sleep 3 }
+          if ((Get-Item $exe).LastWriteTimeUtc -eq $before) { throw 'StarkLLM.exe was not replaced by the update' }
+          if (-not $app.HasExited) { throw 'the running app was not closed by the update' }
+          "updated over the failing uninstaller"
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -90,4 +133,5 @@ jobs:
             desktop/dist/*.blockmap
             desktop/dist/latest.yml
             smoke.png
+            update-stuck.png
             engine.log
