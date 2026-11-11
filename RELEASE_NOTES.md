@@ -1,5 +1,21 @@
 # StarkLLM Release Notes
 
+## Version 2.0.13 — Safer answers, AI labels, update progress
+
+- **Answers cannot load images from other servers.** A hidden line in a document could make the AI write an image link that sends data to a stranger's server as soon as the answer is shown. Images in answers now load only from StarkLLM itself; any other image appears as a short note. The app page also has a strict Content Security Policy.
+- **AI-made content is labelled.** Every spoken answer carries a machine-readable "AI-generated" mark inside the audio file, Studio says above every result that it was made by AI on this PC, and saved Studio files say so too (EU AI Act, Art. 50).
+- **Warning for an old Ollama.** If the Ollama on your PC is older than 0.17.1, StarkLLM asks you to update it (security flaw "Bleeding Llama", CVE-2026-7482).
+- **Updates show their progress.** Settings → About shows "Update wird geladen: N %" instead of "Checking..." for the whole download.
+- **Studio headings in German** when the interface is German.
+- **Fixed:** the buttons on code blocks showed `{t('Copy')}` instead of "Copy".
+- **No more Portable version.** It unpacked itself to a temporary folder, which Windows Smart App Control and antivirus programs treat with suspicion, and it could not update itself. Please use the installer; your data stays in the same place.
+
+**From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install".
+
+Pull requests: #81, #82, #83, #84, #85.
+
+---
+
 ## Version 2.0.12 — Studio reads your documents, the right model in Settings, light themes light everywhere
 
 - **Studio works with images and Word or Excel files.** The briefing, podcast, quiz and comparison read every file as plain text, so images and Office files reached the AI as unreadable bytes, and the briefing could say the data was corrupt. Studio now uses the text StarkLLM read when the file was added (including the text of images and scans), gives every document a fair share, writes in the language of the interface and does not invent dates.

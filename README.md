@@ -1,8 +1,8 @@
-# StarkLLM Desktop (v2.0.12)
+# StarkLLM Desktop (v2.0.13)
 
-**Version:** StarkLLM Desktop v2.0.12  
+**Version:** StarkLLM Desktop v2.0.13  
 **License:** Apache 2.0 (Open Source)  
-**Package:** `StarkLLM-v2.0.12-Setup.exe` (SHA-256: `3ecaa514d9ccc567e5d48d0d61b9443b50d2415bfad3cdf453a07ad0b593d4e8`)  
+**Package:** `StarkLLM-v2.0.13-Setup.exe` (SHA-256: `84fac1c01e68e3d667b2b22dadfd6d019d611f4525b03d7523574faa3785c765`)  
 **Official Website:** [https://www.starkllm.com](https://www.starkllm.com)  
 **Documentation & Manual:** [https://www.starkllm.com/manual.html](https://www.starkllm.com/manual.html)
 
@@ -67,7 +67,7 @@ ollama pull nomic-embed-text
 You do not need to open a terminal: StarkLLM starts both programs and downloads the AI models itself.
 
 ### Option A: Windows Installer (Recommended)
-1. Download `StarkLLM-v2.0.12-Setup.exe` from [starkllm.com/download](https://www.starkllm.com/download) or the GitHub release.
+1. Download `StarkLLM-v2.0.13-Setup.exe` from [starkllm.com/download](https://www.starkllm.com/download) or the GitHub release.
 2. Run the setup wizard and start StarkLLM from the desktop shortcut.
 3. **The first start takes 10-20 minutes** (about 5 GB of AI models plus the engine are downloaded and built; the splash screen shows the progress). Later starts take seconds.
 4. If something is missing (Docker Desktop not installed, a busy port, ...), the window says what and how to fix it; the log is in `%APPDATA%\StarkLLM\engine.log`.
@@ -88,8 +88,8 @@ You do not need to open a terminal: StarkLLM starts both programs and downloads 
 To verify file integrity before running, compare the SHA-256 hash in PowerShell:
 
 ```powershell
-Get-FileHash -Algorithm SHA256 StarkLLM-v2.0.12-Setup.exe
-# Target: 3ecaa514d9ccc567e5d48d0d61b9443b50d2415bfad3cdf453a07ad0b593d4e8
+Get-FileHash -Algorithm SHA256 StarkLLM-v2.0.13-Setup.exe
+# Target: 84fac1c01e68e3d667b2b22dadfd6d019d611f4525b03d7523574faa3785c765
 ```
 
 ---
