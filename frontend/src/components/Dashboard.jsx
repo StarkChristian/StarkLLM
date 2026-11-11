@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { MessageSquare, ArrowRight, MessageCircle, FileText, History, Upload, CalendarClock, Image } from 'lucide-react';
+import { MessageSquare, ArrowRight, MessageCircle, FileText, History, Upload, CalendarClock, CalendarPlus, Image } from 'lucide-react';
 import DocumentViewerModal from './DocumentViewerModal';
 import { UPLOAD_ACCEPT } from '../utils/uploadTypes';
 import { UI_LOCALE } from '../utils/locale';
@@ -11,6 +11,7 @@ import EmptyState from './EmptyState';
 import { t } from '../i18n';
 
 const IMAGE_TYPES = new Set(['png', 'jpg', 'jpeg', 'webp', 'tif', 'tiff']);
+const KIND_STYLE = { deadline: 'kindDeadline', payment: 'kindPayment', appointment: 'kindAppointment', change: 'kindChange' };
 
 export default function Dashboard({ token, username, workspaces, onNewWorkspace, onViewChange, onSelectWorkspace, chats = [], onSelectChat, onUpload }) {
   const getHeaders = () => ({ Authorization: `Bearer ${token}` });
@@ -136,6 +137,18 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
     if (d === 1) return t('tomorrow');
     return t('in {days} days', { days: d });
   };
+  // All upcoming dates as a calendar file (Outlook, Google, Apple, phone); made on this PC
+  const downloadCalendar = async () => {
+    const res = await fetch('/api/v1/dashboard/dates.ics', { headers: getHeaders() });
+    if (!res.ok) return;
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'StarkLLM-dates.ics';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   const openDoc = (item) => {
     if (item.scope === 'ws' && item.workspace_id) {
       setViewing({ workspaceId: item.workspace_id, documentId: item.document_id ?? item.id, page: item.page || 1, highlight: item.text });
@@ -191,6 +204,11 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
           <div className={styles.cardHeader} id="home-dates">
             <CalendarClock size={16} />
             {t('Upcoming dates')}
+            {dates.length > 0 && (
+              <button className={styles.cardAction} onClick={downloadCalendar} title={t('Save the dates as a calendar file for Outlook, Google or your phone')}>
+                <CalendarPlus size={14} /> {t('Add to calendar')}
+              </button>
+            )}
           </div>
           {!home ? (
             <p className={styles.homeNote}>{t('Looking through your documents…')}</p>
@@ -207,10 +225,10 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
                     </span>
                     <span className={styles.dateBody}>
                       <span className={styles.dateMeta}>
-                        <span className={d.kind === 'deadline' ? styles.kindDeadline : styles.kindPayment}>
-                          {d.kind === 'deadline' ? t('Deadline') : t('Payment')}
+                        <span className={KIND_STYLE[d.kind] ? styles[KIND_STYLE[d.kind]] : styles.kindPayment}>
+                          {d.kind === 'deadline' ? t('Deadline') : d.kind === 'appointment' ? t('Appointment') : d.kind === 'change' ? t('Change') : t('Payment')}
                         </span>
-                        <span>{whenText(d.date)}</span>
+                        <span>{whenText(d.date)}{d.time ? ` · ${t('at {time}', { time: d.time })}` : ''}</span>
                         {d.amount && <strong>{d.amount}</strong>}
                       </span>
                       <span className={styles.dateText}>{d.text}</span>
@@ -245,6 +263,8 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
                   <button className={styles.docRow} onClick={() => openDoc({ ...doc, document_id: doc.id })}>
                     <span className={styles.docIcon}>{IMAGE_TYPES.has((doc.file_type || '').toLowerCase()) ? <Image size={16} /> : <FileText size={16} />}</span>
                     <span className={styles.docName}>{doc.filename}</span>
+                    {doc.replaced && <span className={styles.docReplaced}>{t('Replaced by a newer letter')}</span>}
+                    {doc.suspicious && <span className={styles.docSuspicious}>{t('Possible scam')}</span>}
                     <span className={styles.docWhere}>
                       {doc.scope === 'kb' ? t('Knowledge base') : doc.workspace}
                       {doc.added ? ` · ${new Date(doc.added).toLocaleDateString(UI_LOCALE)}` : ''}

@@ -14,6 +14,7 @@ import { serverDate } from '../utils/time';
 import { citedSources, readableSource } from '../utils/sources';
 import SourcesModal from './SourcesModal';
 import DocumentViewerModal from './DocumentViewerModal';
+import DocumentWarnings from './DocumentWarnings';
 import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
 import { UPLOAD_ACCEPT } from '../utils/uploadTypes';
@@ -267,6 +268,9 @@ const ChatMessageRenderer = React.memo(({
             </div>
           ) : (
             <>
+              {msg.role === 'assistant' && msg.warnings && msg.warnings.length > 0 && (
+                <DocumentWarnings warnings={msg.warnings} />
+              )}
               {contentSegments ? (
                 contentSegments.map((seg, sIdx) => {
                   if (seg.type === 'tool_call') {

@@ -29,30 +29,59 @@ DATE_PATTERNS = [
 ]
 
 DEADLINE_WORDS = re.compile(
-    r"\b(frist|fristen|bis zum|bis spätestens|spätestens|fällig|fälligkeit|zahlungsziel|kündigungsfrist|kündig|"
+    r"\b(frist|fristen|bis zum|bis spätestens|spätestens|fällig|fälligkeit|zahlungsziel|zahlbar|kündigungsfrist|kündig|"
     r"einspruch|widerspruch|widersprechen|ablauf|endet|gültig bis|"
     r"due|deadline|no later than|by|until|expires|expiry|cancel|objection)\b",
     re.IGNORECASE,
 )
 PAYMENT_WORDS = re.compile(
     r"\b(überweis\w*|zahlung\w*|zahlen|bezahlen|lastschrift|eingezogen|abgebucht|betrag|beitrag|rechnung\w*|nachzahlung|"
-    r"payment|pay|paid|debit\w*|amount|invoice)\b",
+    r"payment|pay|paid|debit\w*|amount|invoice|renews|renewal|charged|billed|abbuchung|abgebucht)\b",
     re.IGNORECASE,
 )
+BY_DATE = re.compile(r"\b(bis zum|bis spätestens|spätestens (am|bis)?|bis|fällig am|by|until|no later than|before)\s*$",
+                     re.IGNORECASE)
+SHORT_LINE = 60  # shorter lines without an end mark are headings, address lines or "label: value" rows
+# "bitte kommen Sie am 18.11.2026 um 10:30 Uhr": an appointment needs a time of day or a word that names one
+APPOINTMENT_WORDS = re.compile(
+    r"\b(termin\w*|einladung|eingeladen|kommen sie|erscheinen|vorsprache|vorstellungsgespräch|sprechstunde|"
+    r"appointment|interview|meeting|please come|attend)\b",
+    re.IGNORECASE,
+)
+TIME_OF_DAY = re.compile(r"\b(?P<h>[01]?\d|2[0-3])[:.](?P<min>[0-5]\d)\s?(uhr|h\b|am\b|pm\b)|\b(?P<h2>[01]?\d|2[0-3]) uhr\b",
+                         re.IGNORECASE)
 LETTER_DATE = re.compile(r"\b(datum|date|ausgestellt am|vom)\s*:?\s*$", re.IGNORECASE)
 AMOUNT = re.compile(
-    r"(?:(?:€|EUR)\s?(?P<a1>\d{1,3}(?:[.\s]\d{3})*(?:,\d{2})|\d+(?:[.,]\d{2})))"
-    r"|(?:(?P<a2>\d{1,3}(?:[.\s]\d{3})*(?:,\d{2})|\d+(?:[.,]\d{2}))\s?(?:€|EUR|Euro))",
+    # English first ("EUR 1,308.45", "€1,308.45"): comma thousands, point decimals
+    r"(?:(?:€|EUR|\$|USD)\s?(?P<a3>(?<![\d.,])\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\d+\.\d{2})(?![\d,]))"
+    # German ("1.234,56 EUR", "€ 412,00", "412,00 Euro"); never a piece of a longer number
+    r"|(?:(?:€|EUR)\s?(?P<a1>(?<![\d.,])\d{1,3}(?:[.\s]\d{3})*(?:,\d{2})|\d+(?:[.,]\d{2}))(?![\d]))"
+    r"|(?:(?P<a2>(?<![\d.,])\d{1,3}(?:[.\s]\d{3})*(?:,\d{2})|\d+(?:[.,]\d{2}))\s?(?:€|EUR|Euro))",
     re.IGNORECASE,
 )
+# "eine Mahngebühr von 10,00 EUR. Bitte überweisen Sie den offenen Betrag bis …": the fee is not what is due
+FEE_BEFORE = re.compile(r"(gebühr\w*|mahnkosten|kosten|porto|zinsen|fee|charge)\W{0,3}(von|in höhe von|of|:)?\s*$",
+                        re.IGNORECASE)
+# "687,12 EUR (bisher 598,40 EUR)", "6,90 EUR statt bisher 4,90 EUR": the old amount is not what is due
+OLD_BEFORE = re.compile(r"\b(bisher|vorher|statt|anstatt|alt|ehemals|previously|instead of|was)\W{0,3}(bisher\W{0,2})?$",
+                        re.IGNORECASE)
+# "ab dem 01.02.2027 beträgt Ihr Beitrag …": the day something changes, not something to do or pay
+FROM_DATE = re.compile(r"\b(ab( dem| 1\.)?|from|with effect from|gültig ab|wirksam ab)\s*$", re.IGNORECASE)
+# "bis zum 15.12." without a year, after a word that makes it a deadline; the letter's year is meant
+NO_YEAR = re.compile(r"(?<![\d.])(?P<d>\d{1,2})\.(?P<m>\d{1,2})\.(?!\s?\d)")
+
+
+def _amount_text(a) -> str:
+    return (a.group("a3") or a.group("a1") or a.group("a2")) + " EUR"
 
 
 @dataclass
 class FoundDate:
     date: str  # ISO yyyy-mm-dd
-    kind: str  # "deadline" or "payment"
+    kind: str  # "deadline", "payment", "appointment" or "change"
     text: str  # the sentence or line it stands in
     amount: Optional[str] = None
+    time: Optional[str] = None  # hh:mm, for appointments
 
 
 def _parse(m) -> Optional[date]:
@@ -71,42 +100,175 @@ def _parse(m) -> Optional[date]:
 
 
 def _sentences(text: str) -> List[str]:
-    """Lines, and sentences within long lines; a sentence may run over a line break ("… bis zum\\n15.12.2026")."""
+    """Lines, and sentences within long lines; a sentence may run over a line break ("… bis zum\\n15.12.2026").
+    Short lines without an end mark (letterhead, address, "Nachzahlung: 268,40 EUR") stand alone: in a PDF every
+    line ends with a plain line break, and joining them made the whole letterhead one "sentence"."""
     flat = re.sub(r"[ \t]+", " ", text)
-    # split after a sentence end, but not after a day number ("3. März")
-    parts = re.split(r"(?<=[^\d\s][.!?])\s+(?=[A-ZÄÖÜ])|\n{2,}", flat)
+    lines = flat.split("\n")
+    # narrow columns (a phone photo, a scan) have short prose lines: "short" is measured against this text's lines
+    prose = sorted(len(l.strip()) for l in lines if len(l.strip()) > 20)
+    short = min(SHORT_LINE, int(prose[len(prose) // 2] * 0.6)) if prose else SHORT_LINE
+    joined = ""
+    for i, line in enumerate(lines):
+        joined += line
+        if i == len(lines) - 1:
+            break
+        stripped = line.strip()
+        label_value = re.match(r"^[\wÄÖÜäöüß .()/-]{2,45}:\s+\S", stripped) and not stripped.endswith((".", ","))
+        short_line = (label_value or 0 < len(stripped) < short) and not re.search(r"[,;:\-–(]$|\b(bis|zum|zur|am|vom|den|der|die|das|und|oder|von|für|by|on|the|to|of|and)$", stripped, re.I)
+        joined += "\n\n" if short_line else "\n"
+    # also after a full date or number at a line end ("… bis zum 20.11.2026.\nDanach …"), but not inside "15. Dezember"
+    parts = re.split(r"(?<=[^\d\s][.!?])\s+(?=[A-ZÄÖÜ])|(?<=\d{4}[.!?])\s+(?=[A-ZÄÖÜ])|(?<=\d[.!?])[ \t]*\n\s*(?=[A-ZÄÖÜ])|\n{2,}",
+                     joined)
     return [p.replace("\n", " ").strip() for p in parts if p.strip()]
 
 
-def find_dates(text: str) -> List[FoundDate]:
-    """Deadlines and payment dates in a document's text, in the order they appear."""
+def _amount_candidates(sentence: str, at: int):
+    """Amounts before the date (closest first), then after it."""
+    hits = list(AMOUNT.finditer(sentence))
+    before = [a for a in hits if a.end() <= at]
+    return list(reversed(before)) + [a for a in hits if a.end() > at]
+
+
+def _is_fee(text: str, a) -> bool:
+    before = text[max(0, a.start() - 30):a.start()]
+    return bool(FEE_BEFORE.search(before) or OLD_BEFORE.search(before))
+
+
+def _window(sentence: str, start: int, end: int, size: int = 240) -> str:
+    """The sentence, or the part of a long one around the date."""
+    if len(sentence) <= size:
+        return sentence
+    left = max(0, start - size // 2)
+    cut = sentence.rfind(" ", 0, left + 1)
+    left = cut + 1 if cut > 0 else left
+    text = sentence[left:left + size]
+    text = text[: text.rfind(" ")] if len(sentence) > left + size and " " in text else text
+    return ("… " if left else "") + text + (" …" if len(sentence) > left + size else "")
+
+
+def find_dates(text: str, reference: Optional[date] = None) -> List[FoundDate]:
+    """Deadlines, payments, appointments and changes in a document's text, in the order they appear. reference is the
+    day the letter was written (its "Datum:", else today); a date without a year ("bis zum 15.12.") is the next such
+    day from then."""
     found, seen = [], set()
     sentences = _sentences(text or "")
+    if reference is None:
+        written = letter_date(text or "")
+        reference = date.fromisoformat(written) if written else date.today()
     for index, sentence in enumerate(sentences):
-        for pattern in DATE_PATTERNS:
-            for m in pattern.finditer(sentence):
-                when = _parse(m)
-                if not when or not (2000 <= when.year <= 2100):
-                    continue
-                before = sentence[: m.start()]
-                # "Datum: 03.11.2026" is the date of the letter, not something to do
-                if LETTER_DATE.search(before[-25:]):
-                    continue
-                if DEADLINE_WORDS.search(sentence):
-                    kind = "deadline"
-                elif PAYMENT_WORDS.search(sentence):
-                    kind = "payment"
-                else:
-                    continue
-                key = (when.isoformat(), sentence)
-                if key in seen:
-                    continue
-                seen.add(key)
-                # the amount is often named just before: "Die Nachzahlung beträgt 1.234,56 EUR. Bitte zahlen Sie bis …"
-                a = AMOUNT.search(sentence) or (AMOUNT.search(sentences[index - 1]) if index else None)
-                amount = (a.group("a1") or a.group("a2")) + " EUR" if a else None
-                found.append(FoundDate(date=when.isoformat(), kind=kind, text=sentence[:300], amount=amount))
+        matches = [(m, _parse(m)) for pattern in DATE_PATTERNS for m in pattern.finditer(sentence)]
+        for m in NO_YEAR.finditer(sentence):
+            lead = sentence[max(0, m.start() - 22):m.start()]
+            # "bis zum 15.12.", or "am 15.12." in a sentence about a payment ("Die Abbuchung … erfolgt am 15.12.")
+            if BY_DATE.search(lead) or (re.search(r"\b(am|on)\s*$", lead, re.IGNORECASE) and PAYMENT_WORDS.search(sentence)):
+                when = _without_year(int(m.group("d")), int(m.group("m")), reference)
+                if when:
+                    matches.append((m, when))
+        # "Ihre Kündigung zum 31.12.2026 muss uns bis zum 30.11.2026 vorliegen": with several dates, the one right after
+        # "bis zum" / "by" is the deadline, the others only describe it
+        marked = [x for x in matches if BY_DATE.search(sentence[max(0, x[0].start() - 22):x[0].start()])]
+        if marked and len(matches) > 1:
+            matches = marked
+        for m, when in sorted(matches, key=lambda x: x[0].start()):
+            if not when or not (2000 <= when.year <= 2100):
+                continue
+            before = sentence[: m.start()]
+            # "Datum: 03.11.2026" is the date of the letter, not something to do
+            if LETTER_DATE.search(before[-25:]):
+                continue
+            clock = TIME_OF_DAY.search(sentence[m.end():m.end() + 40])
+            time_of_day = None
+            if clock:
+                time_of_day = f"{int(clock.group('h') or clock.group('h2')):02d}:{clock.group('min') or '00'}"
+            # "Zeitraum 01.01.2025 bis 31.12.2025": the end of a period, not a deadline
+            if re.search(r"\d{1,2}\.\s?\d{1,2}\.\s?\d{2,4}\s*(bis|-|–)\s*$", before[-30:]):
+                continue
+            by = BY_DATE.search(before[-22:])
+            if APPOINTMENT_WORDS.search(sentence) and (clock or not DEADLINE_WORDS.search(sentence)):
+                kind = "appointment"
+            elif by or DEADLINE_WORDS.search(sentence):
+                kind = "deadline"
+            elif FROM_DATE.search(before[-20:]):
+                kind = "change"
+            elif PAYMENT_WORDS.search(sentence):
+                kind = "payment"
+            else:
+                continue
+            key = (when.isoformat(), kind)
+            if key in seen:
+                continue
+            seen.add(key)
+            # the amount is often named just before: "Die Nachzahlung beträgt 1.234,56 EUR. Bitte zahlen Sie bis …";
+            # a fee ("Mahngebühr von 10,00 EUR") only when no other amount is there
+            candidates = [(sentence, a) for a in _amount_candidates(sentence, m.start())]
+            for back in (1, 2):  # "beträgt 687,12 EUR. Grund ist … Der Betrag wird am 01.01.2027 eingezogen."
+                if index >= back:
+                    prev = sentences[index - back]
+                    candidates += [(prev, a) for a in reversed(list(AMOUNT.finditer(prev)))]
+            if not candidates and index + 1 < len(sentences) and len(sentences[index + 1]) < SHORT_LINE:
+                candidates = [(sentences[index + 1], a) for a in AMOUNT.finditer(sentences[index + 1])]
+            chosen = next((a for t, a in candidates if not _is_fee(t, a)), candidates[0][1] if candidates else None)
+            amount = _amount_text(chosen) if chosen else None
+            if kind == "appointment":
+                amount = None
+            elif kind == "change":
+                # "ab dem 01.02.2027 beträgt der Beitrag 6,90 EUR": the new amount follows the date
+                after = [a for a in AMOUNT.finditer(sentence) if a.start() > m.end()]
+                amount = _amount_text(after[0]) if after else None
+            found.append(FoundDate(date=when.isoformat(), kind=kind, text=_window(sentence, m.start(), m.end()),
+                                   amount=amount, time=time_of_day if kind == "appointment" else None))
     return found
+
+
+def _without_year(day: int, month: int, reference: date) -> Optional[date]:
+    """15.12. in a letter written on 03.11.2026 is 15.12.2026; 10.01. is 10.01.2027."""
+    for year in (reference.year, reference.year + 1):
+        try:
+            when = date(year, month, day)
+        except ValueError:
+            return None
+        if when >= reference:
+            return when
+    return None
+
+
+# "Diese korrigierte Abrechnung ersetzt die Abrechnung vom 20.10.2026", "replaces our letter of 20 October 2026"
+REPLACES = re.compile(r"\b(ersetzt|ersetzen|replaces|supersedes)\b[^.]{0,80}?\b(vom|of|dated)\s+", re.IGNORECASE)
+LETTER_DATE_LINE = re.compile(r"^\s*(datum|date)\s*:?\s*(?P<rest>.+)$", re.IGNORECASE | re.MULTILINE)
+
+
+def _first_date(text: str) -> Optional[date]:
+    hits = [(m.start(), _parse(m)) for p in DATE_PATTERNS for m in p.finditer(text)]
+    hits = [h for h in hits if h[1]]
+    return min(hits)[1] if hits else None
+
+
+def letter_date(text: str) -> Optional[str]:
+    """The date the letter was written ("Datum: 05.11.2026"), ISO, or None."""
+    for m in LETTER_DATE_LINE.finditer(text or ""):
+        d = _first_date(m.group("rest"))
+        if d:
+            return d.isoformat()
+    return None
+
+
+def replaced_letters(text: str) -> List[str]:
+    """Dates of earlier letters this one says it replaces, ISO."""
+    out = []
+    for m in REPLACES.finditer(text or ""):
+        d = _first_date(text[m.end():m.end() + 30])
+        if d and d.isoformat() not in out:
+            out.append(d.isoformat())
+    return out
+
+
+def sender(text: str) -> str:
+    """The first line of the letter, normally the sender's name; used to match a letter with its correction."""
+    for line in (text or "").splitlines():
+        if line.strip():
+            return re.sub(r"\s+", " ", line.strip().lower())
+    return ""
 
 
 def as_dicts(items: List[FoundDate]) -> List[dict]:

@@ -208,20 +208,28 @@ class TestMessageFeedbackAndEditing:
 
 
 class TestLocalOpenAIServer:
-    def test_v1_models_endpoint(self, auth_headers):
-        res = client.get("/v1/models", headers=auth_headers)
+    @pytest.fixture
+    def api_headers(self, tmp_path, monkeypatch):
+        # /v1 needs a key from Settings > Other apps (test_other_apps.py covers the key handling)
+        from app.services import connections_service
+        monkeypatch.setattr(connections_service, "CONFIG_PATH", str(tmp_path / "connections.json"))
+        connections_service.set_enabled(True)
+        return {"Authorization": "Bearer " + connections_service.create_key("tests", 1)["key"]}
+
+    def test_v1_models_endpoint(self, api_headers):
+        res = client.get("/v1/models", headers=api_headers)
         assert res.status_code == 200
         data = res.json()
         assert "data" in data
         assert isinstance(data["data"], list)
 
-    def test_v1_chat_completions_mock_or_stream(self, auth_headers):
+    def test_v1_chat_completions_mock_or_stream(self, api_headers):
         # Test validation on request payload
         payload = {
             "model": "starkllm-local",
             "messages": [{"role": "user", "content": "Ping"}]
         }
-        res = client.post("/v1/chat/completions", headers=auth_headers, json=payload)
+        res = client.post("/v1/chat/completions", headers=api_headers, json=payload)
         # Should either return 200 (if Ollama/backend available) or a handled response
         assert res.status_code in (200, 500, 502, 503)
 

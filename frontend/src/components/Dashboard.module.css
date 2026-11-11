@@ -500,13 +500,23 @@
   color: var(--text-secondary);
 }
 .dateMeta strong { color: var(--text-primary); font-variant-numeric: tabular-nums; }
-.kindDeadline, .kindPayment {
+.kindDeadline, .kindPayment, .kindAppointment, .kindChange {
   padding: 1px 8px;
   border-radius: 999px;
   font-weight: 600;
 }
 .kindDeadline { background: rgba(239, 68, 68, 0.14); color: var(--danger); }
 .kindPayment { background: rgba(56, 189, 248, 0.14); color: var(--info); }
+.kindChange { background: var(--bg-hover); color: var(--text-secondary); }
+.kindAppointment { background: rgba(167, 139, 250, 0.16); color: var(--accent-primary, #a78bfa); }
+.docReplaced {
+  font-size: 0.72rem;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--bg-tertiary, rgba(148, 163, 184, 0.16));
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
 .dateText {
   font-size: 0.86rem;
   line-height: 1.45;
@@ -553,4 +563,13 @@ button.wsRow {
   background: transparent;
   border: none;
   cursor: pointer;
+}
+.docSuspicious {
+  font-size: 0.72rem;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.14);
+  color: var(--danger, #ef4444);
+  font-weight: 600;
+  white-space: nowrap;
 }
