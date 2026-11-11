@@ -1233,3 +1233,17 @@
   opacity: 0.8;
   flex-shrink: 0;
 }
+
+/* number of new letters next to "Inbox" */
+.navBadge {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}

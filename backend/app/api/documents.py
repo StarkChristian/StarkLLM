@@ -1030,6 +1030,28 @@ def _indexed_pages(workspace_id: int, user_id: int, filepath: str) -> dict:
     return {page: "\n\n".join(t for _, t in sorted(items, key=lambda x: x[0])) for page, items in parts.items()}
 
 
+@router.get("/{workspace_id}/documents/{document_id}/facts")
+async def get_document_facts(
+    workspace_id: int,
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """What StarkLLM understood of a document (type, sender, date, reference numbers, amounts, bank accounts, dates),
+    each value with the page and line it stands on. Found by rules over the indexed text, never by the model."""
+    from app.services.facts_service import document_facts_cached
+    ws = db.query(models.Workspace).filter(
+        models.Workspace.id == workspace_id, models.Workspace.user_id == current_user.id).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    doc = db.query(models.Document).filter(
+        models.Document.id == document_id, models.Document.workspace_id == workspace_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return {"id": doc.id, "filename": doc.filename,
+            "facts": document_facts_cached(_indexed_pages(workspace_id, current_user.id, doc.filepath))}
+
+
 @router.get("/{workspace_id}/documents/{document_id}/content")
 async def get_document_content(
     workspace_id: int,

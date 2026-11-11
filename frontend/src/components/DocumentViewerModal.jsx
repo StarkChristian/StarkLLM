@@ -7,7 +7,8 @@ import { useEscape } from '../utils/useEscape';
 // The cited passage in the page text, found even when line breaks differ (the index joins sentences with spaces).
 function passageRange(text, passage) {
   const words = String(passage || '').trim().split(/\s+/).slice(0, 40).filter(Boolean);
-  if (words.length < 3 || !text) return null;
+  // a fact from the inbox is one exact line ("Steuernummer: 38/123/45678"), so two words are enough when it is not short
+  if (!text || words.length === 0 || (words.length < 3 && words.join(' ').length < 8)) return null;
   const re = new RegExp(words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+'));
   const m = re.exec(text);
   return m ? [m.index, m.index + m[0].length] : null;
