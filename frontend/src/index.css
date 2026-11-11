@@ -776,6 +776,7 @@ button { font-family: var(--font-main); }
 /* Code Output Box */
 .code-output-box {
   margin: 0;
+  white-space: normal; /* the code block keeps every space; without this the markup's line breaks show as empty lines */
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   background: #090d13;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;

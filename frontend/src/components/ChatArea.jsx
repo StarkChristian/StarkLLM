@@ -562,7 +562,7 @@ export default function ChatArea({
         const data = await res.json();
         
         const isSuccess = data.exit_code === 0;
-        const outputText = data.stdout || data.stderr || '(No output returned)';
+        const outputText = (data.stdout || data.stderr || '(No output returned)').replace(/\s+$/, '');
         const execTime = data.execution_time_ms ? `${data.execution_time_ms}ms` : '0ms';
 
         const outputEl = document.createElement('div');
