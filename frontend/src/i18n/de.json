@@ -700,5 +700,6 @@
   "📄 Markdown (.md)": "📄 Markdown (.md)",
   "📋 Structured Data (.json)": "📋 Strukturierte Daten (.json)",
   "📝 Plain Text (.txt)": "📝 Reiner Text (.txt)",
-  "🖨️ Printable HTML / PDF (.html)": "🖨️ Druckbares HTML / PDF (.html)"
+  "🖨️ Printable HTML / PDF (.html)": "🖨️ Druckbares HTML / PDF (.html)",
+  "It is built local-first: your data stays on your PC.": "Es ist von Grund auf lokal gebaut: Ihre Daten bleiben auf Ihrem PC."
 }

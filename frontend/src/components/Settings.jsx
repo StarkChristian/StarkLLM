@@ -1414,7 +1414,7 @@ print(response.choices[0].message.content)`;
                 
                 <p className={styles.aboutText}>
                   {t('StarkLLM is')} <strong>{t('free')}</strong> {t('and')} <strong>{t('open source')}</strong> {t('under the')} <strong>{t('Apache License 2.0')}</strong>. 
-                  It is designed from the ground up with a local-first privacy architecture, ensuring your data stays securely on your machine.
+                  {' '}{t('It is built local-first: your data stays on your PC.')}
                 </p>
 
                 <p className={styles.aboutText}>
