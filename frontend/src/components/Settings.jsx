@@ -42,7 +42,11 @@ function Toggle({ checked, onChange, label, hint }) {
   );
 }
 
-export default function Settings({ token, username, activeWorkspace }) {
+// Image and search models cannot chat; never pick one of them by default.
+const NOT_CHAT = /llava|bakllava|moondream|minicpm-v|vision|embed|bge-|nomic|clip/i;
+const chatModelOf = (models) => models.find(m => !NOT_CHAT.test(m)) || models[0] || '';
+
+export default function Settings({ token, username, activeWorkspace, currentModel }) {
   // The About page showed a fixed "v1.0.0-beta"; the engine reports its real version.
   const [appVersion, setAppVersion] = useState('');
   // Only in the desktop app (preload.js): starts the same update check as the tray menu.
@@ -179,9 +183,9 @@ print(response.choices[0].message.content)`;
       .then(data => {
         if (data.models) {
           setAvailableModels(data.models);
-          if (!modelName && data.models.length > 0) {
-            setModelName(data.models[0]);
-          }
+          // The model the chat uses, not simply the first one: that was llava, an image model (2.0.11),
+          // and Save would have switched the chat to it.
+          setModelName(prev => prev || (data.models.includes(currentModel) ? currentModel : chatModelOf(data.models)));
         }
       })
       .catch(err => console.error('Failed to load models', err));
@@ -220,7 +224,7 @@ print(response.choices[0].message.content)`;
     setTopP(0.9);
     setMaxTokens('');
     if (availableModels.length > 0) {
-      setModelName(availableModels[0]);
+      setModelName(availableModels.includes(currentModel) ? currentModel : chatModelOf(availableModels));
     }
   };
 
