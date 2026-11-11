@@ -720,5 +720,7 @@
   "Remove the folder \"{name}\" from your Knowledge Base?": "Den Ordner „{name}“ aus der Wissensdatenbank entfernen?",
   "Its search data is removed. The files on your computer are NOT deleted.": "Seine Suchdaten werden entfernt. Die Dateien auf Ihrem Computer werden NICHT gelöscht.",
   "Today": "Heute",
-  "{count} days ago": "vor {count} Tagen"
+  "{count} days ago": "vor {count} Tagen",
+  "Downloading update: {percent} %": "Update wird geladen: {percent} %",
+  "You can keep working. When the download is done, StarkLLM asks whether to restart now.": "Sie können weiterarbeiten. Wenn der Download fertig ist, fragt StarkLLM, ob es jetzt neu starten soll."
 }
