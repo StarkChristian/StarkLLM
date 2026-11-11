@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
 import { t, language } from '../i18n';
+import { blockRemoteImages } from '../utils/markdown';
 
 // Written out per tab so the German check sees every text (a template with the tab id was never translated).
 const focusPlaceholder = (tab) => ({
@@ -16,7 +17,7 @@ const focusPlaceholder = (tab) => ({
   comparison: t('Optional: a question or angle for this comparison...'),
 })[tab] || t('Optional: a question or angle for this briefing...');
 
-const md = new MarkdownIt({ html: false, linkify: true, typographer: true });
+const md = blockRemoteImages(new MarkdownIt({ html: false, linkify: true, typographer: true }));
 // Only real links: with fuzzy links on, a file name like 'card.md' became http://card.md (a Moldovan domain).
 md.linkify.set({ fuzzyLink: false, fuzzyEmail: false });
 
@@ -167,7 +168,9 @@ export default function StudioModal({
   };
 
   const handleDownloadMarkdown = (content, filename) => {
-    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+    // EU AI Act Art. 50(2): the saved file says in a machine-readable way that it was made by AI
+    const marked = `---\ngenerator: StarkLLM Studio\nai_generated: true\ncreated: ${new Date().toISOString()}\n---\n\n${content}`;
+    const blob = new Blob([marked], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -246,6 +249,14 @@ export default function StudioModal({
             <div style={{ padding: '0.8rem 1rem', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', color: '#fca5a5', marginBottom: '1rem', fontSize: '0.88rem' }}>
               ⚠️ {error}
             </div>
+          )}
+
+          {(results[activeTab]) && (
+            <p className={styles.aiNote}>
+              {activeTab === 'podcast'
+                ? t('Made by AI on this PC, read by computer voices. Check important details in the original document.')
+                : t('Made by AI on this PC. Check important details in the original document.')}
+            </p>
           )}
 
           {/* TAB 1: PODCAST AUDIO OVERVIEW */}

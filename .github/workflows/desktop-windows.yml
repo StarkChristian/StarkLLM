@@ -1,6 +1,6 @@
 name: Desktop app (Windows)
 
-# Builds the Windows installer and the portable exe, installs the installer silently and starts the app once.
+# Builds the Windows installer, installs the installer silently and starts the app once.
 # GitHub's Windows runners have no Docker Desktop (Linux containers) and no Ollama, so the run must end on the
 # "what is missing" page instead of a blank window; the screenshot and engine.log are uploaded for review.
 
@@ -31,7 +31,7 @@ jobs:
         working-directory: desktop
         run: npm test --if-present
 
-      - name: Build installer and portable exe
+      - name: Build the installer
         working-directory: desktop
         run: npx electron-builder --win --x64 --publish never
 

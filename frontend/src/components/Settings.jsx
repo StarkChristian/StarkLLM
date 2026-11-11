@@ -52,6 +52,12 @@ export default function Settings({ token, username, activeWorkspace, currentMode
   // Only in the desktop app (preload.js): starts the same update check as the tray menu.
   const desktop = typeof window !== 'undefined' ? window.starkllmDesktop : undefined;
   const [updateState, setUpdateState] = useState('');
+  // percent while an update downloads (the check waits for the whole download and the dialogs)
+  const [updatePercent, setUpdatePercent] = useState(null);
+  useEffect(() => {
+    if (!desktop || !desktop.onUpdateStatus) return undefined;
+    return desktop.onUpdateStatus((st) => setUpdatePercent(st && st.phase === 'downloading' ? st.percent : null));
+  }, [desktop]);
   const checkForUpdates = async () => {
     setUpdateState('Checking...');
     try {
@@ -1410,10 +1416,13 @@ print(response.choices[0].message.content)`;
                   <span className={styles.aboutVersion}>{appVersion ? t('Version {version}', { version: appVersion }) : t('Version unknown')}</span>
                   {desktop && (
                     <button type="button" className="btn-primary" style={{ marginLeft: 'auto', alignSelf: 'center' }} onClick={checkForUpdates} disabled={updateState === 'Checking...'}>
-                      {updateState === 'Checking...' ? t('Checking...') : t('Check for updates')}
+                      {updatePercent !== null
+                        ? t('Downloading update: {percent} %', { percent: updatePercent })
+                        : updateState === 'Checking...' ? t('Checking...') : t('Check for updates')}
                     </button>
                   )}
                 </div>
+                {updatePercent !== null && <p className={styles.aboutText}>{t('You can keep working. When the download is done, StarkLLM asks whether to restart now.')}</p>}
                 {updateState && updateState !== 'Checking...' && <p className={styles.aboutText}>{updateState}</p>}
                 
                 <p className={styles.aboutText}>

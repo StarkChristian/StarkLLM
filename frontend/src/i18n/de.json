@@ -721,5 +721,11 @@
   "Its search data is removed. The files on your computer are NOT deleted.": "Seine Suchdaten werden entfernt. Die Dateien auf Ihrem Computer werden NICHT gelöscht.",
   "Today": "Heute",
   "{count} days ago": "vor {count} Tagen",
+  "Downloading update: {percent} %": "Update wird geladen: {percent} %",
+  "You can keep working. When the download is done, StarkLLM asks whether to restart now.": "Sie können weiterarbeiten. Wenn der Download fertig ist, fragt StarkLLM, ob es jetzt neu starten soll.",
+  "Made by AI on this PC, read by computer voices. Check important details in the original document.": "Von KI auf diesem PC erstellt und von Computerstimmen gelesen. Prüfen Sie wichtige Angaben im Originaldokument.",
+  "Made by AI on this PC. Check important details in the original document.": "Von KI auf diesem PC erstellt. Prüfen Sie wichtige Angaben im Originaldokument.",
+  "External image not loaded": "Externes Bild nicht geladen",
+  "Output ({time})": "Ausgabe ({time})",
   "Ollama {version} has a known security flaw. Please update Ollama to {min} or newer: ollama.com/download": "Ollama {version} hat eine bekannte Sicherheitslücke. Bitte aktualisieren Sie Ollama auf {min} oder neuer: ollama.com/download"
 }
