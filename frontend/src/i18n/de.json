@@ -720,5 +720,6 @@
   "Remove the folder \"{name}\" from your Knowledge Base?": "Den Ordner „{name}“ aus der Wissensdatenbank entfernen?",
   "Its search data is removed. The files on your computer are NOT deleted.": "Seine Suchdaten werden entfernt. Die Dateien auf Ihrem Computer werden NICHT gelöscht.",
   "Today": "Heute",
-  "{count} days ago": "vor {count} Tagen"
+  "{count} days ago": "vor {count} Tagen",
+  "Ollama {version} has a known security flaw. Please update Ollama to {min} or newer: ollama.com/download": "Ollama {version} hat eine bekannte Sicherheitslücke. Bitte aktualisieren Sie Ollama auf {min} oder neuer: ollama.com/download"
 }
