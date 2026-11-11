@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
 import { t, language } from '../i18n';
+import { blockRemoteImages } from '../utils/markdown';
 
 // Written out per tab so the German check sees every text (a template with the tab id was never translated).
 const focusPlaceholder = (tab) => ({
@@ -16,7 +17,7 @@ const focusPlaceholder = (tab) => ({
   comparison: t('Optional: a question or angle for this comparison...'),
 })[tab] || t('Optional: a question or angle for this briefing...');
 
-const md = new MarkdownIt({ html: false, linkify: true, typographer: true });
+const md = blockRemoteImages(new MarkdownIt({ html: false, linkify: true, typographer: true }));
 // Only real links: with fuzzy links on, a file name like 'card.md' became http://card.md (a Moldovan domain).
 md.linkify.set({ fuzzyLink: false, fuzzyEmail: false });
 
