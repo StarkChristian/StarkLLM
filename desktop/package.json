@@ -1,7 +1,7 @@
 {
   "name": "starkllm-desktop",
   "productName": "StarkLLM",
-  "version": "2.0.10",
+  "version": "2.0.13",
   "description": "StarkLLM Standalone Native Desktop Application",
   "main": "main.js",
   "author": "Christian Stark",
@@ -25,8 +25,7 @@
     },
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        "nsis"
       ],
       "icon": "assets/icon.ico"
     },
@@ -73,9 +72,6 @@
         ]
       }
     ],
-    "portable": {
-      "artifactName": "StarkLLM-v${version}-Portable.${ext}"
-    },
     "publish": [
       {
         "provider": "github",

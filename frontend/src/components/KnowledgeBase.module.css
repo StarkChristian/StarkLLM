@@ -6,6 +6,8 @@
   min-height: 0;
   overflow-y: auto;
   background-color: var(--bg-primary);
+  background-image: var(--bg-pattern);
+  background-size: var(--bg-pattern-size);
   padding: 32px 40px;
   gap: 24px;
 }

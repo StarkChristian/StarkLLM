@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { FolderOpen, FolderPlus, RefreshCw, Zap, ChevronDown, ChevronRight, File, AlertCircle, CheckCircle, Clock, Loader, X, Database, Search, Eye, Info, Trash2, Copy, AlertTriangle } from 'lucide-react';
+import { FolderOpen, FolderPlus, RefreshCw, Zap, ChevronDown, ChevronRight, File, AlertCircle, CheckCircle, Clock, Loader, X, Database, Search, Eye, Info, Trash2, Copy, Check, AlertTriangle } from 'lucide-react';
 import styles from './KnowledgeBase.module.css';
 import EmptyState from './EmptyState';
 import { serverDate } from '../utils/time';
@@ -42,6 +42,13 @@ function StatusBadge({ status }) {
   );
 }
 
+const SUMMARY_LABEL = {
+  indexed: (count) => t('{count} indexed', { count }),
+  pending: (count) => t('{count} waiting', { count }),
+  indexing: (count) => t('{count} being indexed', { count }),
+  failed: (count) => t('{count} failed', { count }),
+};
+
 function DocStatusSummary({ docs }) {
   const counts = { indexed: 0, pending: 0, indexing: 0, failed: 0 };
   docs.forEach(d => { if (counts[d.status] !== undefined) counts[d.status]++; });
@@ -52,7 +59,7 @@ function DocStatusSummary({ docs }) {
         ? Object.entries(counts).map(([status, count]) =>
             count > 0 && (
               <span key={status} className={`${styles.summaryPill} ${styles['pill_' + status]}`}>
-                {count} {status}
+                {SUMMARY_LABEL[status](count)}
               </span>
             )
           )
@@ -388,7 +395,7 @@ function FolderRow({ folder, token, onRefresh }) {
       if (res.ok) {
         const hasChanges = data.added > 0 || data.updated > 0 || data.deleted > 0;
         if (!silent || hasChanges) {
-          showMsg('ok', `Sync complete: ${data.added} added, ${data.updated} updated, ${data.deleted} deleted.`);
+          showMsg('ok', t('Sync complete: {added} added, {updated} updated, {deleted} deleted.', { added: data.added, updated: data.updated, deleted: data.deleted }));
         }
         setLastSynced(new Date().toISOString());
         if (expanded) fetchDocs();
@@ -398,11 +405,14 @@ function FolderRow({ folder, token, onRefresh }) {
         if (!silent) showMsg('err', data.detail || t('Sync failed.'));
       }
     } catch {
-      if (!silent) showMsg('err', 'Network error during sync.');
+      if (!silent) showMsg('err', t('Network error during sync.'));
     } finally {
       if (!silent) setScanning(false);
     }
   };
+
+  // The summary next to a closed folder said "No documents yet" until it was opened once.
+  useEffect(() => { fetchDocs(); }, [fetchDocs]);
 
   useEffect(() => {
     if (expanded) {
@@ -429,7 +439,7 @@ function FolderRow({ folder, token, onRefresh }) {
         showMsg('err', data.detail || t('Indexing failed.'));
       }
     } catch {
-      showMsg('err', 'Network error during indexing.');
+      showMsg('err', t('Network error during indexing.'));
     } finally {
       setIndexing(false);
     }
@@ -446,13 +456,13 @@ function FolderRow({ folder, token, onRefresh }) {
       else showMsg('err', data.detail || t('Index failed.'));
       fetchDocs();
     } catch {
-      showMsg('err', 'Network error.');
+      showMsg('err', t('Network error.'));
     }
   };
 
   const handleDeleteFolder = async (e) => {
     e.stopPropagation();
-    if (!window.confirm(`Are you sure you want to remove the folder "${folder.folder_name}" from your Knowledge Base?\n\nThis will remove all its indexed records and vector data. It will NOT delete the actual physical files from your computer.`)) {
+    if (!window.confirm(t('Remove the folder "{name}" from your Knowledge Base?', { name: folder.folder_name }) + '\n\n' + t('Its search data is removed. The files on your computer are NOT deleted.'))) {
       return;
     }
     setScanning(true);
@@ -469,7 +479,7 @@ function FolderRow({ folder, token, onRefresh }) {
         setScanning(false);
       }
     } catch {
-      showMsg('err', 'Network error during delete.');
+      showMsg('err', t('Network error during delete.'));
       setScanning(false);
     }
   };
@@ -531,7 +541,7 @@ function FolderRow({ folder, token, onRefresh }) {
 
       {/* Meta line */}
       <div className={styles.folderMeta}>
-        <span>Last synced: {formatDate(lastSynced)}</span>
+        <span>{t('Last synced: {date}', { date: formatDate(lastSynced) })}</span>
       </div>
 
       {/* Expanded document list */}
@@ -618,6 +628,7 @@ export default function KnowledgeBase({ token }) {
   const [addError, setAddError]     = useState(null);
   
   const [kbConfig, setKbConfig] = useState(null);
+  const [pathCopied, setPathCopied] = useState(false);
 
   // Global preview modal state
   const [previewDoc, setPreviewDoc] = useState(null);
@@ -760,16 +771,12 @@ export default function KnowledgeBase({ token }) {
               <button 
                 className={styles.kbHelperCopyBtn}
                 onClick={() => {
-                  navigator.clipboard.writeText(kbConfig.host_kb_path);
-                  const btn = document.getElementById('kb-copy-btn');
-                  if (btn) {
-                    btn.innerHTML = 'Copied!';
-                    setTimeout(() => btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg> Copy Path', 2000);
-                  }
+                  navigator.clipboard.writeText(kbConfig.host_kb_path).catch(() => {});
+                  setPathCopied(true);
+                  setTimeout(() => setPathCopied(false), 2000);
                 }}
-                id="kb-copy-btn"
               >
-                <Copy size={14} /> {t('Copy Path')}
+                {pathCopied ? <Check size={14} /> : <Copy size={14} />} {pathCopied ? t('Copied') : t('Copy Path')}
               </button>
             </div>
             {!loading && kbConfig.container_kb_path && !folders.some(f => f.folder_path === kbConfig.container_kb_path) && (

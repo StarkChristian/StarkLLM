@@ -91,6 +91,66 @@ export const AVAILABLE_THEMES = [
     accent: '#4f46e5',
     bright: '#6366f1',
     gradient: 'linear-gradient(135deg, #ffffff, #e0e7ff)'
+  },
+  {
+    id: 'doodle',
+    name: 'Doodle Chat',
+    badge: 'Pattern',
+    desc: 'Warm paper with little dolls, hearts, letters and stars drawn in the background.',
+    bg: '#efe6dc',
+    card: '#fffdf9',
+    accent: '#0f766e',
+    bright: '#0d9488',
+    gradient: 'linear-gradient(135deg, #0d9488, #14b8a6)',
+    pattern: true
+  },
+  {
+    id: 'doodle-night',
+    name: 'Doodle Night',
+    badge: 'Pattern',
+    desc: 'The doodles on a calm dark chat background.',
+    bg: '#0b141a',
+    card: '#1f2c33',
+    accent: '#14b8a6',
+    bright: '#2dd4bf',
+    gradient: 'linear-gradient(135deg, #14b8a6, #06b6d4)',
+    pattern: true
+  },
+  {
+    id: 'flowers',
+    name: 'Flower Meadow',
+    badge: 'Pattern',
+    desc: 'Small pink, lilac and peach flowers on soft blush.',
+    bg: '#fdf2f6',
+    card: '#ffffff',
+    accent: '#db2777',
+    bright: '#ec4899',
+    gradient: 'linear-gradient(135deg, #ec4899, #f59e0b)',
+    pattern: true
+  },
+  {
+    id: 'matrix',
+    name: 'Matrix Code',
+    badge: 'Pattern',
+    desc: 'Green code rain on black, in a monospace font.',
+    bg: '#000a03',
+    card: '#02140a',
+    accent: '#16a34a',
+    bright: '#22c55e',
+    gradient: 'linear-gradient(135deg, #16a34a, #4ade80)',
+    pattern: true
+  },
+  {
+    id: 'stars',
+    name: 'Starry Night',
+    badge: 'Pattern',
+    desc: 'A quiet night sky full of small stars, with warm gold accents.',
+    bg: '#0a0f24',
+    card: '#161e44',
+    accent: '#f59e0b',
+    bright: '#fbbf24',
+    gradient: 'linear-gradient(135deg, #6366f1, #f59e0b)',
+    pattern: true
   }
 ];
 
