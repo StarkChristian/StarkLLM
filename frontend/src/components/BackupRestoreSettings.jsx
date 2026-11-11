@@ -105,9 +105,12 @@ export default function BackupRestoreSettings({ token }) {
   };
 
   return (
-    <div className={styles.settingsSection}>
-      <h3 className={styles.sectionTitle}>{t('Backup & Restore')}</h3>
-      <p className={styles.sectionDesc}>
+    <div className={styles.panel}>
+      <div className={styles.panelHeader}>
+        <Download size={18} />
+        <h2>{t('Backup & Restore')}</h2>
+      </div>
+      <p className={styles.hint}>
         {t('Safely export and import your local application data, including chats, uploaded documents, and vector embeddings.')}
       </p>
 
@@ -115,8 +118,8 @@ export default function BackupRestoreSettings({ token }) {
         
         {/* Backup Card */}
         <div style={{ 
-          background: 'rgba(255,255,255,0.03)', 
-          border: '1px solid rgba(255,255,255,0.08)',
+          background: 'var(--bg-tertiary)',
+          border: '1px solid var(--border-color)',
           borderRadius: '12px',
           padding: '20px',
           display: 'flex',
@@ -130,7 +133,7 @@ export default function BackupRestoreSettings({ token }) {
             {t('Creates a downloadable .zip archive of all your current StarkLLM data. Keep this safe!')}
           </p>
           <button 
-            className={styles.primaryBtn} 
+            className="btn-primary" 
             onClick={handleBackup} 
             disabled={isBackingUp}
             style={{ width: 'fit-content', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}
@@ -165,7 +168,7 @@ export default function BackupRestoreSettings({ token }) {
           />
           
           <button 
-            className={styles.dangerBtn} 
+            className="btn-danger" 
             onClick={handleFileClick} 
             disabled={isRestoring}
             style={{ width: 'fit-content', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}

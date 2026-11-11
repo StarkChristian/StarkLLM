@@ -6,7 +6,15 @@ import {
   VolumeX, HelpCircle, Eye, EyeOff 
 } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
-import { t } from '../i18n';
+import { t, language } from '../i18n';
+
+// Written out per tab so the German check sees every text (a template with the tab id was never translated).
+const focusPlaceholder = (tab) => ({
+  podcast: t('Optional: a question or angle for this podcast...'),
+  briefing: t('Optional: a question or angle for this briefing...'),
+  study_guide: t('Optional: a question or angle for this study guide...'),
+  comparison: t('Optional: a question or angle for this comparison...'),
+})[tab] || t('Optional: a question or angle for this briefing...');
 
 const md = new MarkdownIt({ html: false, linkify: true, typographer: true });
 // Only real links: with fuzzy links on, a file name like 'card.md' became http://card.md (a Moldovan domain).
@@ -70,7 +78,8 @@ export default function StudioModal({
         body: JSON.stringify({
           type: targetType,
           model: selectedModel || undefined,
-          focus: focusQuery.trim() || undefined
+          focus: focusQuery.trim() || undefined,
+          language: language()
         })
       });
 
@@ -218,7 +227,7 @@ export default function StudioModal({
             <input
               type="text"
               className={styles.focusInput}
-              placeholder={`Optional: specific question or angle for this ${activeTab}...`}
+              placeholder={focusPlaceholder(activeTab)}
               value={focusQuery}
               onChange={e => setFocusQuery(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleGenerate()}
@@ -318,7 +327,7 @@ export default function StudioModal({
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', marginBottom: '1rem' }}>
                     <button className={styles.tabBtn} onClick={() => handleCopyText(results.briefing)}>
-                      {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy'}
+                      {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} />} {copied ? t('Copied') : t('Copy')}
                     </button>
                     <button className={styles.tabBtn} onClick={() => handleDownloadMarkdown(results.briefing, 'executive_briefing.md')}>
                       <Download size={14} /> {t('Download .md')}
@@ -409,7 +418,7 @@ export default function StudioModal({
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', marginBottom: '1rem' }}>
                     <button className={styles.tabBtn} onClick={() => handleCopyText(results.comparison)}>
-                      {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy'}
+                      {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} />} {copied ? t('Copied') : t('Copy')}
                     </button>
                     <button className={styles.tabBtn} onClick={() => handleDownloadMarkdown(results.comparison, 'comparative_analysis.md')}>
                       <Download size={14} /> {t('Download .md')}

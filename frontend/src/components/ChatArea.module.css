@@ -510,7 +510,7 @@
 }
 
 .exportBtn {
-  background: rgba(8, 10, 16, 0.4);
+  background: var(--glass-bg);
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
   width: 36px;

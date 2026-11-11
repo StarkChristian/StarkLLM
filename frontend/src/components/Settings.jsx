@@ -42,7 +42,11 @@ function Toggle({ checked, onChange, label, hint }) {
   );
 }
 
-export default function Settings({ token, username, activeWorkspace }) {
+// Image and search models cannot chat; never pick one of them by default.
+const NOT_CHAT = /llava|bakllava|moondream|minicpm-v|vision|embed|bge-|nomic|clip/i;
+const chatModelOf = (models) => models.find(m => !NOT_CHAT.test(m)) || models[0] || '';
+
+export default function Settings({ token, username, activeWorkspace, currentModel }) {
   // The About page showed a fixed "v1.0.0-beta"; the engine reports its real version.
   const [appVersion, setAppVersion] = useState('');
   // Only in the desktop app (preload.js): starts the same update check as the tray menu.
@@ -179,9 +183,9 @@ print(response.choices[0].message.content)`;
       .then(data => {
         if (data.models) {
           setAvailableModels(data.models);
-          if (!modelName && data.models.length > 0) {
-            setModelName(data.models[0]);
-          }
+          // The model the chat uses, not simply the first one: that was llava, an image model (2.0.11),
+          // and Save would have switched the chat to it.
+          setModelName(prev => prev || (data.models.includes(currentModel) ? currentModel : chatModelOf(data.models)));
         }
       })
       .catch(err => console.error('Failed to load models', err));
@@ -220,7 +224,7 @@ print(response.choices[0].message.content)`;
     setTopP(0.9);
     setMaxTokens('');
     if (availableModels.length > 0) {
-      setModelName(availableModels[0]);
+      setModelName(availableModels.includes(currentModel) ? currentModel : chatModelOf(availableModels));
     }
   };
 
@@ -612,9 +616,9 @@ print(response.choices[0].message.content)`;
                     style={{
                       padding: '12px 14px',
                       borderRadius: 8,
-                      border: provider === 'ollama' ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.08)',
-                      background: provider === 'ollama' ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)',
-                      color: provider === 'ollama' ? '#ffffff' : 'var(--text-secondary)',
+                      border: provider === 'ollama' ? '1px solid var(--accent)' : '1px solid var(--border-color)',
+                      background: provider === 'ollama' ? 'var(--bg-active)' : 'transparent',
+                      color: provider === 'ollama' ? 'var(--text-primary)' : 'var(--text-secondary)',
                       cursor: 'pointer',
                       textAlign: 'left'
                     }}
@@ -629,9 +633,9 @@ print(response.choices[0].message.content)`;
                     style={{
                       padding: '12px 14px',
                       borderRadius: 8,
-                      border: provider === 'openai_compatible' ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.08)',
-                      background: provider === 'openai_compatible' ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)',
-                      color: provider === 'openai_compatible' ? '#ffffff' : 'var(--text-secondary)',
+                      border: provider === 'openai_compatible' ? '1px solid var(--accent)' : '1px solid var(--border-color)',
+                      background: provider === 'openai_compatible' ? 'var(--bg-active)' : 'transparent',
+                      color: provider === 'openai_compatible' ? 'var(--text-primary)' : 'var(--text-secondary)',
                       cursor: 'pointer',
                       textAlign: 'left'
                     }}
@@ -1414,7 +1418,7 @@ print(response.choices[0].message.content)`;
                 
                 <p className={styles.aboutText}>
                   {t('StarkLLM is')} <strong>{t('free')}</strong> {t('and')} <strong>{t('open source')}</strong> {t('under the')} <strong>{t('Apache License 2.0')}</strong>. 
-                  It is designed from the ground up with a local-first privacy architecture, ensuring your data stays securely on your machine.
+                  {' '}{t('It is built local-first: your data stays on your PC.')}
                 </p>
 
                 <p className={styles.aboutText}>
