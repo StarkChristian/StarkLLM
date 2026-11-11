@@ -3,7 +3,6 @@
 **Version:** StarkLLM Desktop v2.0.12  
 **License:** Apache 2.0 (Open Source)  
 **Package:** `StarkLLM-v2.0.12-Setup.exe` (SHA-256: `3ecaa514d9ccc567e5d48d0d61b9443b50d2415bfad3cdf453a07ad0b593d4e8`)  
-**Portable:** `StarkLLM-v2.0.12-Portable.exe` (SHA-256: `14a8fc3e4cb5ba5681fdd83c6c9da57f1be5c4878b0d99b927209c1304c695a0`)  
 **Official Website:** [https://www.starkllm.com](https://www.starkllm.com)  
 **Documentation & Manual:** [https://www.starkllm.com/manual.html](https://www.starkllm.com/manual.html)
 
@@ -73,10 +72,7 @@ You do not need to open a terminal: StarkLLM starts both programs and downloads 
 3. **The first start takes 10-20 minutes** (about 5 GB of AI models plus the engine are downloaded and built; the splash screen shows the progress). Later starts take seconds.
 4. If something is missing (Docker Desktop not installed, a busy port, ...), the window says what and how to fix it; the log is in `%APPDATA%\StarkLLM\engine.log`.
 
-### Option B: Portable Executable
-1. Download `StarkLLM-v2.0.12-Portable.exe` and double-click it. It does the same as the installed app (same data folder).
-
-### Option C: Developer / Source Launch
+### Option B: Developer / Source Launch
 1. Ensure Docker Desktop and Ollama are running.
 2. In the repository folder, execute:
    ```cmd
