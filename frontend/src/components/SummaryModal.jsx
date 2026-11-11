@@ -2,9 +2,10 @@ import React, { useRef } from 'react';
 import styles from './SummaryModal.module.css';
 import { X, Copy, Check, Loader, FileText } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
+import { blockRemoteImages } from '../utils/markdown';
 import { t } from '../i18n';
 
-const md = new MarkdownIt();
+const md = blockRemoteImages(new MarkdownIt({ html: false }));
 
 export default function SummaryModal({ chatTitle, summary, loading, error, onClose, onCopy, copied }) {
   const contentRef = useRef(null);

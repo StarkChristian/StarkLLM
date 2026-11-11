@@ -16,6 +16,7 @@ import SourcesModal from './SourcesModal';
 import DocumentViewerModal from './DocumentViewerModal';
 import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
+import { blockRemoteImages, escapeHtml } from '../utils/markdown';
 
 const STARTER_PROMPTS = [
   {
@@ -65,13 +66,14 @@ const md = new MarkdownIt({
 
     const encoded = encodeURIComponent(str);
     const isRunnable = ['python', 'py', 'python3'].includes((validLang || '').toLowerCase());
-    const runBtn = isRunnable ? `<button class="run-code-btn" data-lang="${validLang}" data-code="${encoded}" title={t('Run code in local Python sandbox')}><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>{t('Run')}</span></button>` : '';
+    const runBtn = isRunnable ? `<button class="run-code-btn" data-lang="${validLang}" data-code="${encoded}" title="${escapeHtml(t('Run code in local Python sandbox'))}"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>${escapeHtml(t('Run'))}</span></button>` : '';
 
-    return `<div class="code-block-wrapper"><div class="code-block-header"><span class="code-block-lang">${displayLang}</span><div class="code-block-actions">${runBtn}<button class="copy-code-btn" data-code="${encoded}" title={t('Copy code')}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span>{t('Copy')}</span></button></div></div><pre><code class="hljs ${validLang}">${highlightedCode}</code></pre></div>`;
+    return `<div class="code-block-wrapper"><div class="code-block-header"><span class="code-block-lang">${displayLang}</span><div class="code-block-actions">${runBtn}<button class="copy-code-btn" data-code="${encoded}" title="${escapeHtml(t('Copy code'))}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span>${escapeHtml(t('Copy'))}</span></button></div></div><pre><code class="hljs ${validLang}">${highlightedCode}</code></pre></div>`;
   }
 });
 // Only real links: with fuzzy links on, a file name like 'card.md' became http://card.md (a Moldovan domain).
 md.linkify.set({ fuzzyLink: false, fuzzyEmail: false });
+blockRemoteImages(md);
 
 
 // ---------------------------------------------------------------------------
@@ -557,11 +559,11 @@ export default function ChatArea({
           <div class="code-output-header">
             <div class="code-output-title-wrap">
               <span class="code-output-indicator"></span>
-              <span>Output (${execTime})</span>
+              <span>${escapeHtml(t('Output ({time})', { time: execTime }))}</span>
             </div>
-            <button class="code-output-close" title={t('Close output')}>✕</button>
+            <button class="code-output-close" title="${escapeHtml(t('Close output'))}">✕</button>
           </div>
-          <pre class="code-output-body">${outputText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+          <pre class="code-output-body">${escapeHtml(outputText)}</pre>
         `;
 
         wrapper.appendChild(outputEl);
@@ -573,11 +575,11 @@ export default function ChatArea({
           <div class="code-output-header">
             <div class="code-output-title-wrap">
               <span class="code-output-indicator"></span>
-              <span>{t('Execution Error')}</span>
+              <span>${escapeHtml(t('Execution Error'))}</span>
             </div>
-            <button class="code-output-close" title={t('Close output')}>✕</button>
+            <button class="code-output-close" title="${escapeHtml(t('Close output'))}">✕</button>
           </div>
-          <pre class="code-output-body">${String(err.message || err).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+          <pre class="code-output-body">${escapeHtml(err.message || err)}</pre>
         `;
         wrapper.appendChild(outputEl);
       } finally {
