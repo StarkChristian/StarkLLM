@@ -4,10 +4,10 @@
 
 .container {
   width: var(--sidebar-width);
-  background: rgba(8, 10, 16, 0.75);
+  background: var(--sidebar-bg);
   backdrop-filter: blur(32px) saturate(1.6);
   -webkit-backdrop-filter: blur(32px) saturate(1.6);
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid var(--border-color);
   box-shadow: 2px 0 24px rgba(0, 0, 0, 0.4);
   display: flex;
   flex-direction: column;
@@ -48,7 +48,7 @@
   font-size: 1.7rem;
   font-weight: 700;
   letter-spacing: -0.02em;
-  background: linear-gradient(90deg, #e0e7ff, var(--accent-bright));
+  background: linear-gradient(90deg, var(--text-primary), var(--accent-bright));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -1173,8 +1173,8 @@
 /* ── Model Section & Hub Button ── */
 .modelSection {
   padding: 10px 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(0, 0, 0, 0.15);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-hover);
 }
 
 .modelHubBtn {
@@ -1183,19 +1183,19 @@
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  background: rgba(99, 102, 241, 0.08);
-  border: 1px solid rgba(99, 102, 241, 0.22);
+  background: var(--bg-active);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  color: #ffffff;
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s ease;
   text-align: left;
 }
 
 .modelHubBtn:hover {
-  background: rgba(99, 102, 241, 0.16);
-  border-color: rgba(99, 102, 241, 0.45);
-  box-shadow: 0 0 16px rgba(99, 102, 241, 0.2);
+  background: var(--bg-active);
+  border-color: var(--accent-bright);
+  box-shadow: 0 0 16px var(--accent-glow);
   transform: translateY(-1px);
 }
 
@@ -1222,7 +1222,7 @@
 .modelValue {
   font-size: 0.82rem;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

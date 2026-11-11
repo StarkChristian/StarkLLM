@@ -4,7 +4,7 @@ import traceback
 import logging
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, BackgroundTasks
 from app.api.auth import get_current_user
-from app.services.voice_service import voice_service
+from app.services.voice_service import voice_service, mark_ai_generated, AI_MARK
 from pydantic import BaseModel
 from typing import Optional
 from fastapi.responses import FileResponse
@@ -44,8 +44,10 @@ async def synthesize(req: SynthesizeRequest, background_tasks: BackgroundTasks):
     temp_audio_path = tempfile.mktemp(suffix=".wav")
     try:
         voice_service.synthesize(req.text, temp_audio_path, req.voice)
+        mark_ai_generated(temp_audio_path)
         background_tasks.add_task(remove_file, temp_audio_path)
-        return FileResponse(temp_audio_path, media_type="audio/wav", filename="tts.wav")
+        return FileResponse(temp_audio_path, media_type="audio/wav", filename="tts.wav",
+                            headers={"X-AI-Generated": AI_MARK})
     except Exception as e:
         logger.error("Voice synthesis error:", exc_info=True)
         # Clean up temp file on error

@@ -24,6 +24,13 @@ try :
 except ImportError :
     Ranker ,RerankRequest =None ,None 
 
+def reranker_dir ()->str :
+    shipped =os .environ .get ("STARKLLM_RERANKER_DIR")
+    if shipped and os .path .isdir (os .path .join (shipped ,"ms-marco-TinyBERT-L-2-v2")):
+        return shipped 
+    return "./data/models"
+
+
 ENGLISH_STOP_WORDS ={
 "a","about","above","after","again","against","all","am","an","and","any","are","aren't","as","at",
 "be","because","been","before","being","below","between","both","but","by","can't","cannot","could",
@@ -96,8 +103,9 @@ class RAGService :
         self .ranker =None 
         if Ranker :
             try :
+                # the engine image ships the model (Dockerfile); elsewhere it is fetched once into data/models
                 self .ranker =Ranker (
-                model_name ="ms-marco-TinyBERT-L-2-v2",cache_dir ="./data/models"
+                model_name ="ms-marco-TinyBERT-L-2-v2",cache_dir =reranker_dir ()
                 )
             except Exception as e :
                 # The reranker model is downloaded on first use; without network access

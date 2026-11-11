@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Clock, Calendar } from 'lucide-react';
 import styles from './DateTimeWidget.module.css';
 import { UI_LOCALE } from '../utils/locale';
+import { t } from '../i18n';
 
 export default function DateTimeWidget() {
   const [time, setTime] = useState(new Date());
@@ -25,7 +26,7 @@ export default function DateTimeWidget() {
     <div className={styles.widget}>
       <div className={styles.header}>
         <Clock className={styles.icon} size={18} />
-        <span className={styles.title}>System Time</span>
+        <span className={styles.title}>{t('System Time')}</span>
       </div>
       <div className={styles.timeDisplay}>
         {formatTime(time)}

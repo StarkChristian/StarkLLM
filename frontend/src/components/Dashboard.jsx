@@ -5,6 +5,7 @@ import DateTimeWidget from './DateTimeWidget';
 import MarketPricesWidget from './MarketPricesWidget';
 import SystemStatusWidget from './SystemStatusWidget';
 import EmptyState from './EmptyState';
+import { t } from '../i18n';
 
 export default function Dashboard({ token, username, workspaces, onNewWorkspace, onViewChange, onSelectWorkspace, chats = [], onSelectChat }) {
   const [stats, setStats] = useState(null);
@@ -121,66 +122,66 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
 
 
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const greeting = hour < 12 ? t('Good morning') : hour < 17 ? t('Good afternoon') : t('Good evening');
 
   const statCards = [
     {
-      label: 'Workspaces',
+      label: t('Workspaces'),
       value: loadingStats ? '—' : (stats?.workspaces ?? workspaces.length),
       icon: MessageSquare,
       color: '#6366f1',
       glow: 'rgba(99,102,241,0.2)',
       action: () => onViewChange('chat'),
-      actionLabel: 'Open Chat',
+      actionLabel: t('Open Chat'),
     },
     {
-      label: 'Chats',
+      label: t('Chats'),
       value: loadingStats ? '—' : (stats?.chats ?? 0),
       icon: MessageCircle,
       color: '#a78bfa',
       glow: 'rgba(167,139,250,0.2)',
       action: () => onViewChange('chat'),
-      actionLabel: 'Go to Chat',
+      actionLabel: t('Go to Chat'),
     },
     {
-      label: 'KB Folders',
+      label: t('KB Folders'),
       value: loadingStats ? '—' : (stats?.kb_folders ?? 0),
       icon: Database,
       color: '#8b5cf6',
       glow: 'rgba(139,92,246,0.2)',
       action: () => onViewChange('knowledge-base'),
-      actionLabel: 'Open KB',
+      actionLabel: t('Open KB'),
     },
     {
       // Workspace uploads and Knowledge Base files are counted separately by the API; the card showed only the KB
       // number, so it stayed at 0 when all indexed files were workspace documents.
-      label: 'Indexed Documents',
+      label: t('Indexed Documents'),
       value: loadingStats ? '—' : (stats?.documents ?? 0) + (stats?.kb_documents ?? 0),
-      detail: loadingStats ? null : `${stats?.documents ?? 0} in workspaces · ${stats?.kb_documents ?? 0} in Knowledge Base`,
+      detail: loadingStats ? null : t('{workspaces} in workspaces · {kb} in Knowledge Base', { workspaces: stats?.documents ?? 0, kb: stats?.kb_documents ?? 0 }),
       icon: FileText,
       color: '#06b6d4',
       glow: 'rgba(6,182,212,0.2)',
       action: () => onViewChange(stats?.documents || !stats?.kb_documents ? 'chat' : 'knowledge-base'),
-      actionLabel: 'View Docs',
+      actionLabel: t('View Docs'),
     },
     {
-      label: 'RAG Status',
-      value: 'Active',
+      label: t('RAG Status'),
+      value: t('Active'),
       icon: Zap,
       color: '#22c55e',
       glow: 'rgba(34,197,94,0.2)',
       action: () => onViewChange('settings'),
-      actionLabel: 'Configure',
+      actionLabel: t('Configure'),
     },
   ];
 
 
 
   const quickActions = [
-    { label: 'New Workspace', icon: Plus, color: '#6366f1', onClick: onNewWorkspace },
-    { label: 'Open Chat', icon: MessageSquare, color: '#818cf8', onClick: () => onViewChange('chat') },
-    { label: 'Knowledge Base', icon: Database, color: '#8b5cf6', onClick: () => onViewChange('knowledge-base') },
-    { label: 'Settings', icon: Settings, color: '#06b6d4', onClick: () => onViewChange('settings') },
+    { label: t('New Workspace'), icon: Plus, color: '#6366f1', onClick: onNewWorkspace },
+    { label: t('Open Chat'), icon: MessageSquare, color: '#818cf8', onClick: () => onViewChange('chat') },
+    { label: t('Knowledge Base'), icon: Database, color: '#8b5cf6', onClick: () => onViewChange('knowledge-base') },
+    { label: t('Settings'), icon: Settings, color: '#06b6d4', onClick: () => onViewChange('settings') },
   ];
 
   const recentChats = chats.slice(0, 5);
@@ -192,9 +193,9 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
       <div className={styles.hero}>
         <div className={styles.heroContent}>
           <p className={styles.heroGreeting}>{greeting}{username && username !== 'local' ? `, ${username}` : ''} 👋</p>
-          <h1 className={styles.heroTitle}>Your StarkLLM Dashboard</h1>
+          <h1 className={styles.heroTitle}>{t('Your StarkLLM Dashboard')}</h1>
           <p className={styles.heroSubtitle}>
-            Private AI assistant with full Knowledge Base and RAG retrieval support.
+            {t('Private AI assistant with full Knowledge Base and RAG retrieval support.')}
           </p>
         </div>
         <img src="/Logo.png" alt="StarkLLM" className={styles.heroLogo} />
@@ -233,7 +234,7 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
         <div className={styles.card}>
           <div className={styles.cardHeader}>
             <TrendingUp size={16} />
-            Quick Actions
+            {t('Quick Actions')}
           </div>
           <div className={styles.actionGrid}>
             {quickActions.map(({ label, icon: Icon, color, onClick }) => (
@@ -251,19 +252,19 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
         <div className={styles.card}>
           <div className={styles.cardHeader}>
             <History size={16} />
-            Recent Chats
+            {t('Recent Chats')}
             <button
               className={styles.cardAction}
               onClick={() => onViewChange('chat')}
             >
-              View All
+              {t('View All')}
             </button>
           </div>
           {recentChats.length === 0 ? (
             <EmptyState
               icon={MessageCircle}
-              title="No chats yet."
-              action={{ label: 'Start a Chat', onClick: () => onViewChange('chat') }}
+              title={t('No chats yet.')}
+              action={{ label: t('Start a Chat'), onClick: () => onViewChange('chat') }}
             />
           ) : (
             <div className={styles.wsList}>
@@ -294,12 +295,12 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
         <div className={styles.featureBannerContent}>
           <Zap size={20} className={styles.featureBannerIcon} />
           <div>
-            <strong>Advanced RAG Active</strong>
-            <p>Semantic Chunking · Query Rewriting · Hybrid Search (TF-IDF + Vector) · Context Compression</p>
+            <strong>{t('Advanced RAG Active')}</strong>
+            <p>{t('Semantic Chunking · Query Rewriting · Hybrid Search (TF-IDF + Vector) · Context Compression')}</p>
           </div>
         </div>
         <button className="btn-secondary" onClick={(e) => { e.stopPropagation(); onViewChange('settings'); }} style={{ fontSize: '0.8rem', padding: '7px 14px' }}>
-          Configure
+          {t('Configure')}
         </button>
       </div>
     </div>
