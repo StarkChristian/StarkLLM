@@ -2,15 +2,17 @@ import React, { useRef } from 'react';
 import styles from './SummaryModal.module.css';
 import { X, Copy, Check, Loader, FileText } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
+import { blockRemoteImages } from '../utils/markdown';
+import { t } from '../i18n';
 
-const md = new MarkdownIt();
+const md = blockRemoteImages(new MarkdownIt({ html: false }));
 
 export default function SummaryModal({ chatTitle, summary, loading, error, onClose, onCopy, copied }) {
   const contentRef = useRef(null);
 
   return (
     <div className={styles.backdrop} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className={styles.modal} role="dialog" aria-modal="true" aria-label="Chat Summary">
+      <div className={styles.modal} role="dialog" aria-modal="true" aria-label={t('Chat Summary')}>
 
         {/* ── Header ── */}
         <div className={styles.header}>
@@ -19,13 +21,13 @@ export default function SummaryModal({ chatTitle, summary, loading, error, onClo
               <FileText size={16} />
             </div>
             <div>
-              <h3 className={styles.title}>Chat Summary</h3>
+              <h3 className={styles.title}>{t('Chat Summary')}</h3>
               {chatTitle && (
                 <p className={styles.subtitle}>{chatTitle}</p>
               )}
             </div>
           </div>
-          <button className={styles.closeBtn} onClick={onClose} title="Close">
+          <button className={styles.closeBtn} onClick={onClose} title={t('Close')}>
             <X size={16} />
           </button>
         </div>
@@ -35,15 +37,15 @@ export default function SummaryModal({ chatTitle, summary, loading, error, onClo
           {loading && (
             <div className={styles.loadingState}>
               <Loader size={24} className={styles.spinner} />
-              <p className={styles.loadingText}>Generating summary…</p>
-              <p className={styles.loadingHint}>Your local LLM is reading the conversation.</p>
+              <p className={styles.loadingText}>{t('Generating summary…')}</p>
+              <p className={styles.loadingHint}>{t('Your local LLM is reading the conversation.')}</p>
             </div>
           )}
 
           {error && !loading && (
             <div className={styles.errorState}>
               <span className={styles.errorIcon}>⚠️</span>
-              <p className={styles.errorTitle}>Summary failed</p>
+              <p className={styles.errorTitle}>{t('Summary failed')}</p>
               <p className={styles.errorMsg}>{error}</p>
             </div>
           )}
@@ -59,14 +61,14 @@ export default function SummaryModal({ chatTitle, summary, loading, error, onClo
         {/* ── Footer ── */}
         {summary && !loading && (
           <div className={styles.footer}>
-            <p className={styles.footerNote}>Generated locally · not stored</p>
+            <p className={styles.footerNote}>{t('Generated locally · not stored')}</p>
             <button
               className={`${styles.copyBtn} ${copied ? styles.copied : ''}`}
               onClick={onCopy}
-              title="Copy summary"
+              title={t('Copy summary')}
             >
               {copied ? <Check size={14} /> : <Copy size={14} />}
-              {copied ? 'Copied!' : 'Copy'}
+              {copied ? t('Copied!') : t('Copy')}
             </button>
           </div>
         )}

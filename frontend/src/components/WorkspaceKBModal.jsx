@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Database, Loader, CheckSquare, Square } from 'lucide-react';
 import styles from './KnowledgeBase.module.css';
+import { t } from '../i18n';
 
 export default function WorkspaceKBModal({ isOpen, onClose, activeWorkspace, token, onWorkspaceUpdated }) {
   const [folders, setFolders] = useState([]);
@@ -87,11 +88,11 @@ export default function WorkspaceKBModal({ isOpen, onClose, activeWorkspace, tok
         <button className={styles.closeBtn} onClick={onClose}><X size={20} /></button>
         <h3 className={styles.modalTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Database size={20} className={styles.iconAccent} />
-          Knowledge Base Settings
+          {t('Knowledge Base Settings')}
         </h3>
         
         <p className={styles.modalDesc} style={{ marginBottom: '20px' }}>
-          Workspace docs are already project-specific. Use this to filter your global personal Knowledge Base for the <strong>{activeWorkspace?.name}</strong> workspace.
+          {t('Workspace documents already belong to the workspace. Here you choose which folders of your personal Knowledge Base the workspace {name} uses.', { name: activeWorkspace?.name || '' })}
         </p>
 
         {error && <div className={styles.error}>{error}</div>}
@@ -100,7 +101,7 @@ export default function WorkspaceKBModal({ isOpen, onClose, activeWorkspace, tok
           {loading ? (
             <div style={{ padding: '20px', textAlign: 'center' }}><Loader size={20} className={styles.spin} /></div>
           ) : folders.length === 0 ? (
-            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>No Knowledge Base folders registered yet.</div>
+            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('No Knowledge Base folders registered yet.')}</div>
           ) : (
             folders.map(folder => {
               const isActive = activeIds === null || activeIds.includes(folder.id);
@@ -127,9 +128,9 @@ export default function WorkspaceKBModal({ isOpen, onClose, activeWorkspace, tok
         </div>
 
         <div className={styles.actions} style={{ justifyContent: 'flex-end', marginTop: '20px' }}>
-          <button className={styles.cancelBtn} onClick={onClose}>Cancel</button>
+          <button className={styles.cancelBtn} onClick={onClose}>{t('Cancel')}</button>
           <button className={styles.saveBtn} onClick={handleSave} disabled={saving || loading}>
-            {saving ? <Loader size={16} className={styles.spin} /> : 'Save Settings'}
+            {saving ? <Loader size={16} className={styles.spin} /> : t('Save Settings')}
           </button>
         </div>
       </div>

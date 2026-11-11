@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { TrendingUp, TrendingDown, RefreshCw, Layers, Settings2, X, Check } from 'lucide-react';
 import styles from './MarketPricesWidget.module.css';
-import { UI_LOCALE } from '../utils/locale';
+import { UI_LOCALE, formatUsd } from '../utils/locale';
+import { t } from '../i18n';
 
 // ─── All Available Assets ───────────────────────────────────────────────────
 const ALL_ASSETS = {
@@ -9,7 +10,7 @@ const ALL_ASSETS = {
     id: 'btc',
     name: 'Bitcoin',
     symbol: 'BTC',
-    category: 'Crypto',
+    category: t('Crypto'),
     decimals: 0,
     fetchType: 'coingecko',
     coingeckoId: 'bitcoin',
@@ -18,34 +19,34 @@ const ALL_ASSETS = {
     id: 'eth',
     name: 'Ethereum',
     symbol: 'ETH',
-    category: 'Crypto',
+    category: t('Crypto'),
     decimals: 2,
     fetchType: 'coingecko',
     coingeckoId: 'ethereum',
   },
   gold: {
     id: 'gold',
-    name: 'Gold Spot',
+    name: t('Gold Spot'),
     symbol: 'XAU',
-    category: 'Commodity',
+    category: t('Commodity'),
     decimals: 2,
     fetchType: 'yahoo',
     yahooSymbol: 'GC=F',
   },
   silver: {
     id: 'silver',
-    name: 'Silver Spot',
+    name: t('Silver Spot'),
     symbol: 'XAG',
-    category: 'Commodity',
+    category: t('Commodity'),
     decimals: 2,
     fetchType: 'yahoo',
     yahooSymbol: 'SI=F',
   },
   brent: {
     id: 'brent',
-    name: 'Brent Crude',
+    name: t('Brent Crude'),
     symbol: 'OIL',
-    category: 'Commodity',
+    category: t('Commodity'),
     decimals: 2,
     fetchType: 'yahoo',
     yahooSymbol: 'BZ=F',
@@ -54,7 +55,7 @@ const ALL_ASSETS = {
     id: 'eur',
     name: 'EUR / USD',
     symbol: 'EUR',
-    category: 'Forex',
+    category: t('Forex'),
     decimals: 4,
     fetchType: 'yahoo',
     yahooSymbol: 'EURUSD=X',
@@ -63,7 +64,7 @@ const ALL_ASSETS = {
     id: 'spx',
     name: 'S&P 500',
     symbol: 'SPX',
-    category: 'Index',
+    category: t('Index'),
     decimals: 2,
     fetchType: 'yahoo',
     yahooSymbol: '^GSPC',
@@ -231,14 +232,13 @@ export default function MarketPricesWidget({ token }) {
         <div className={styles.header}>
           <div className={styles.titleWrap}>
             <Layers className={styles.headerIcon} size={16} />
-            <h3 className={styles.title}>Live Market Indicators</h3>
+            <h3 className={styles.title}>{t('Live Market Indicators')}</h3>
           </div>
         </div>
         <p style={{ margin: '0.8rem 0', fontSize: '0.85rem', opacity: 0.8, lineHeight: 1.5 }}>
-          Off by default: StarkLLM keeps your data on this PC. Turning this on contacts CoinGecko and Yahoo Finance
-          from now on to fetch prices (they can see that your IP address uses StarkLLM).
+          {t('Off by default: StarkLLM keeps your data on this PC. Turning this on contacts CoinGecko and Yahoo Finance from now on to fetch prices (they can see that your IP address uses StarkLLM).')}
         </p>
-        <button className={styles.chip} onClick={() => setLiveConsent(true)}>Turn on live prices</button>
+        <button className={styles.chip} onClick={() => setLiveConsent(true)}>{t('Turn on live prices')}</button>
       </div>
     );
   }
@@ -249,13 +249,13 @@ export default function MarketPricesWidget({ token }) {
       <div className={styles.header}>
         <div className={styles.titleWrap}>
           <Layers className={styles.headerIcon} size={16} />
-          <h3 className={styles.title}>Live Market Indicators</h3>
+          <h3 className={styles.title}>{t('Live Market Indicators')}</h3>
         </div>
         <div className={styles.headerActions}>
           <button
             className={`${styles.iconBtn} ${showConfig ? styles.iconBtnActive : ''}`}
             onClick={() => setShowConfig((v) => !v)}
-            title="Configure assets"
+            title={t('Configure assets')}
           >
             <Settings2 size={14} />
           </button>
@@ -263,7 +263,7 @@ export default function MarketPricesWidget({ token }) {
             className={`${styles.iconBtn} ${loading ? styles.loading : ''}`}
             onClick={fetchPrices}
             disabled={loading}
-            title="Refresh"
+            title={t('Refresh')}
           >
             <RefreshCw size={14} />
           </button>
@@ -274,9 +274,9 @@ export default function MarketPricesWidget({ token }) {
       {showConfig && (
         <div className={styles.configPanel} ref={configRef}>
           <div className={styles.configHeader}>
-            <span className={styles.configTitle}>Select Assets</span>
+            <span className={styles.configTitle}>{t('Select Assets')}</span>
             <span className={styles.configHint}>{selectedIds.length}/6 selected</span>
-            <button className={styles.chip} onClick={() => setLiveConsent(false)} title="Stop contacting CoinGecko and Yahoo Finance">Turn off live prices</button>
+            <button className={styles.chip} onClick={() => setLiveConsent(false)} title={t('Stop contacting CoinGecko and Yahoo Finance')}>{t('Turn off live prices')}</button>
           </div>
           {categories.map((cat) => (
             <div key={cat} className={styles.configGroup}>
@@ -320,7 +320,7 @@ export default function MarketPricesWidget({ token }) {
                 </div>
                 <div className={styles.assetValuation}>
                   <span className={styles.price}>—</span>
-                  <span className={styles.assetSymbol}>{loading ? 'loading…' : 'not available'}</span>
+                  <span className={styles.assetSymbol}>{loading ? t('loading…') : t('not available')}</span>
                 </div>
               </div>
             );
@@ -334,9 +334,9 @@ export default function MarketPricesWidget({ token }) {
                 <span className={styles.assetSymbol}>{asset.symbol}</span>
               </div>
               <div className={styles.assetValuation}>
-                <span className={styles.price}>{asset.symbol === 'EUR' ? fmtPrice : `$${fmtPrice}`}</span>
+                <span className={styles.price}>{asset.symbol === 'EUR' ? fmtPrice : formatUsd(p.price, asset.decimals)}</span>
                 {stale ? (
-                  <span className={styles.assetSymbol} title="The last fetch failed; this is the last price that was loaded">as of {fmtTime(p.at)}</span>
+                  <span className={styles.assetSymbol} title={t('The last fetch failed; this is the last price that was loaded')}>{t('as of {time}', { time: fmtTime(p.at) })}</span>
                 ) : (
                   <span className={`${styles.change} ${isUp ? styles.up : styles.down}`}>
                     {isUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
@@ -351,10 +351,10 @@ export default function MarketPricesWidget({ token }) {
 
       {/* Footer */}
       <div className={styles.footer}>
-        <span>{lastUpdated ? `Updated: ${lastUpdated.toLocaleTimeString(UI_LOCALE, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : loading ? 'Loading prices…' : 'Not updated yet'}</span>
+        <span>{lastUpdated ? t('Updated: {time}', { time: lastUpdated.toLocaleTimeString(UI_LOCALE, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }) : loading ? t('Loading prices…') : t('Not updated yet')}</span>
         {failed.length > 0 && !loading && (
-          <span className={styles.simLabel} title="CoinGecko or Yahoo Finance did not answer; it is tried again every 40 seconds">
-            {failed.length === selectedIds.length ? 'Prices not available' : 'Some prices not available'}
+          <span className={styles.simLabel} title={t('CoinGecko or Yahoo Finance did not answer; it is tried again every 40 seconds')}>
+            {failed.length === selectedIds.length ? t('Prices not available') : t('Some prices not available')}
           </span>
         )}
       </div>

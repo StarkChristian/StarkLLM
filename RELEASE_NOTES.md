@@ -1,5 +1,61 @@
 # StarkLLM Release Notes
 
+## Version 2.0.13 — Safer answers, AI labels, update progress
+
+- **Answers cannot load images from other servers.** A hidden line in a document could make the AI write an image link that sends data to a stranger's server as soon as the answer is shown. Images in answers now load only from StarkLLM itself; any other image appears as a short note. The app page also has a strict Content Security Policy.
+- **AI-made content is labelled.** Every spoken answer carries a machine-readable "AI-generated" mark inside the audio file, Studio says above every result that it was made by AI on this PC, and saved Studio files say so too (EU AI Act, Art. 50).
+- **Warning for an old Ollama.** If the Ollama on your PC is older than 0.17.1, StarkLLM asks you to update it (security flaw "Bleeding Llama", CVE-2026-7482).
+- **Updates show their progress.** Settings → About shows "Update wird geladen: N %" instead of "Checking..." for the whole download.
+- **Studio headings in German** when the interface is German.
+- **Fixed:** the buttons on code blocks showed `{t('Copy')}` instead of "Copy".
+- **No more Portable version.** It unpacked itself to a temporary folder, which Windows Smart App Control and antivirus programs treat with suspicion, and it could not update itself. Please use the installer; your data stays in the same place.
+
+**From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install".
+
+Pull requests: #81, #82, #83, #84, #85.
+
+---
+
+## Version 2.0.12 — Studio reads your documents, the right model in Settings, light themes light everywhere
+
+- **Studio works with images and Word or Excel files.** The briefing, podcast, quiz and comparison read every file as plain text, so images and Office files reached the AI as unreadable bytes, and the briefing could say the data was corrupt. Studio now uses the text StarkLLM read when the file was added (including the text of images and scans), gives every document a fair share, writes in the language of the interface and does not invent dates.
+- **Settings → Model shows the model the chat uses.** It showed the first installed model, which could be an image model such as llava; saving the page would have switched the chat to it.
+- **Knowledge Base:** a closed folder no longer says "No documents yet" when it has documents.
+- **Light themes are light everywhere:** the message box, Settings, the documents window and its search box (typed text was white), buttons and cards follow the theme.
+- **Windows no longer show the chat through them:** the documents, memory and template windows are solid.
+- **More of the interface in German:** the About page, Studio, Knowledge Base and dates such as "Heute" and "vor 2 Tagen".
+
+**From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install".
+
+Pull request: #79.
+
+---
+
+## Version 2.0.11 — No more crashes in toasts and themes, long letters read in full, five new themes
+
+- **Fixed crashes.** In 2.0.10 some messages (toasts), the prompt templates and the theme list in Settings could stop the window with an error. Fixed, and a check now stops this kind of mistake before a release.
+- **Long letters are read in full.** Questions about long documents were cut off before they reached the AI model, without any message, so answers could miss what was at the end. StarkLLM now asks Ollama for a context window that holds the whole question.
+- **A clear message when Ollama is not running.** A document no longer stays at "embedding" for hours; it fails at once and says that Ollama cannot be reached.
+- **Search works offline.** The model that sorts search results is now part of the engine and is no longer downloaded from the internet on first use.
+- **The right "today".** The engine uses the time zone of your PC, so dates near midnight are correct.
+- **Five new themes with patterns:** Doodle Chat, Doodle Night, Flower Meadow, Matrix Code and Starry Night (Settings → Appearance). Light themes are now light everywhere, including the sidebar and cards.
+- **A list of all components (SBOM)** is attached to every release from now on.
+
+**From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install".
+
+Pull requests: #71, #73, #74, #76.
+
+---
+
+## Version 2.0.10 — The installer no longer stops at the start, German interface
+
+- **The installer no longer stops at the start.** About one first installation in five ended after two seconds without a message and without installing anything: the installer crashed (exit code -1073741819) while reading the per-user Programs folder. The fix comes with electron-builder 26.18.1; 20 first installations on fresh Windows machines ran without a fault (before: 2 crashes in 10).
+- **StarkLLM speaks German.** The whole interface is available in German: Settings → Language. Without a choice, StarkLLM follows the language of Windows. Answers of the AI follow the language of your question.
+
+Pull requests: #55, #68.
+
+---
+
 ## Version 2.0.9 — Updates that do not stop, honest prices, safer engine updates
 
 - **Updates no longer stop at "The old application files could not be uninstalled".** On Windows 11 with Smart App Control, the update from 2.0.7 to 2.0.8 stopped there and StarkLLM stayed on the old version. The installer now closes StarkLLM itself and installs over the old files when the old version's uninstaller fails. Your chats and documents are not touched.
