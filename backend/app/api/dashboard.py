@@ -107,6 +107,26 @@ async def get_market_prices(symbol: str, consent: int = 0, current_user: models.
 
 import time as _time
 
+# Ollama before 0.17.1 has the "Bleeding Llama" flaw (CVE-2026-7482: memory of the server readable over its API;
+# research notes, SecurityWeek, May 2026). StarkLLM installs a current Ollama itself, but an Ollama the user
+# installed earlier stays old; the status says so.
+MIN_OLLAMA = "0.17.1"
+
+
+def _version_tuple(v: str):
+    try:
+        parts = tuple(int(p) for p in str(v).lstrip("v").split("-")[0].split(".")[:3])
+        return parts if len(parts) == 3 and parts != (0, 0, 0) else None
+    except ValueError:
+        return None
+
+
+def ollama_outdated(version: str) -> bool:
+    """True only for a real version below MIN_OLLAMA; unknown or development versions are not flagged."""
+    have = _version_tuple(version)
+    return bool(have) and have < _version_tuple(MIN_OLLAMA)
+
+
 @router.get("/system-status")
 async def get_system_status(
     current_user: models.User = Depends(get_current_user),
@@ -145,6 +165,13 @@ async def get_system_status(
             result["ollama"]["status"] = "online"
             result["ollama"]["latency_ms"] = latency
             result["ollama"]["error"] = None
+            try:
+                version = (await client.get(f"{ollama_url}/api/version")).json().get("version", "")
+            except Exception:
+                version = ""
+            result["ollama"]["version"] = version or None
+            result["ollama"]["min_version"] = MIN_OLLAMA
+            result["ollama"]["outdated"] = ollama_outdated(version)
 
             models_raw = tags_resp.json().get("models", [])
             available = [m.get("name", "") for m in models_raw]

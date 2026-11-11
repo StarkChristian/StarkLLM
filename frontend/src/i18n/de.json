@@ -726,5 +726,6 @@
   "Made by AI on this PC, read by computer voices. Check important details in the original document.": "Von KI auf diesem PC erstellt und von Computerstimmen gelesen. Prüfen Sie wichtige Angaben im Originaldokument.",
   "Made by AI on this PC. Check important details in the original document.": "Von KI auf diesem PC erstellt. Prüfen Sie wichtige Angaben im Originaldokument.",
   "External image not loaded": "Externes Bild nicht geladen",
-  "Output ({time})": "Ausgabe ({time})"
+  "Output ({time})": "Ausgabe ({time})",
+  "Ollama {version} has a known security flaw. Please update Ollama to {min} or newer: ollama.com/download": "Ollama {version} hat eine bekannte Sicherheitslücke. Bitte aktualisieren Sie Ollama auf {min} oder neuer: ollama.com/download"
 }
