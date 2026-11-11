@@ -1,5 +1,20 @@
 # StarkLLM Release Notes
 
+## Version 2.0.12 — Studio reads your documents, the right model in Settings, light themes light everywhere
+
+- **Studio works with images and Word or Excel files.** The briefing, podcast, quiz and comparison read every file as plain text, so images and Office files reached the AI as unreadable bytes, and the briefing could say the data was corrupt. Studio now uses the text StarkLLM read when the file was added (including the text of images and scans), gives every document a fair share, writes in the language of the interface and does not invent dates.
+- **Settings → Model shows the model the chat uses.** It showed the first installed model, which could be an image model such as llava; saving the page would have switched the chat to it.
+- **Knowledge Base:** a closed folder no longer says "No documents yet" when it has documents.
+- **Light themes are light everywhere:** the message box, Settings, the documents window and its search box (typed text was white), buttons and cards follow the theme.
+- **Windows no longer show the chat through them:** the documents, memory and template windows are solid.
+- **More of the interface in German:** the About page, Studio, Knowledge Base and dates such as "Heute" and "vor 2 Tagen".
+
+**From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install".
+
+Pull request: #79.
+
+---
+
 ## Version 2.0.11 — No more crashes in toasts and themes, long letters read in full, five new themes
 
 - **Fixed crashes.** In 2.0.10 some messages (toasts), the prompt templates and the theme list in Settings could stop the window with an error. Fixed, and a check now stops this kind of mistake before a release.
