@@ -6,6 +6,7 @@
 // STARKLLM_UPDATE_CHECK=0 turns the automatic check off (for administrators and tests).
 const fs = require('fs');
 const path = require('path');
+const { spawn: nodeSpawn } = require('child_process');
 
 const RELEASES_API = 'https://api.github.com/repos/StarkChristian/StarkLLM/releases/latest';
 const DOWNLOAD_PAGE = 'https://www.starkllm.com/download';
@@ -55,17 +56,43 @@ function backupDatabase(userData, version, log = () => {}) {
   }
 }
 
+// Starts the downloaded installer: { ok: true } once Windows started it, { ok: false, error } when Windows refused.
+// Found on a Windows 11 PC with Smart App Control (2.0.14, 11 Nov 2026): a new, unsigned installer is held back for a
+// few hours after a release; starting it hung about 10 s and failed with "spawn UNKNOWN". electron-updater then tried
+// again through elevate.exe, which showed an admin prompt for an unknown program and still installed nothing (the
+// block is not about admin rights). Three hours later the same file started at once. So: no second try with admin
+// rights, the app keeps running and says what happened.
+function startInstaller(file, args, spawn = nodeSpawn) {
+  return new Promise((resolve) => {
+    let p;
+    try {
+      p = spawn(file, args, { detached: true, stdio: 'ignore' });
+    } catch (error) {
+      resolve({ ok: false, error });
+      return;
+    }
+    p.once('error', (error) => resolve({ ok: false, error }));
+    p.once('spawn', () => {
+      p.unref();
+      resolve({ ok: true });
+    });
+  });
+}
+
 // onStatus({ phase, percent }) tells the page what happens while the download runs: 'downloading' with a percent,
 // then 'done'. Without it, Settings showed "Checking..." for the whole download (2.0.12 on Windows).
-function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null, log = () => {}, onChange = () => {}, onStatus = () => {} }) {
+function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null, log = () => {}, onChange = () => {}, onStatus = () => {},
+  spawn = nodeSpawn, quit = () => app.quit() }) {
   // Only the installed app can replace itself; the portable exe and runs from source cannot.
   const selfUpdate = Boolean(autoUpdater && app.isPackaged && !process.env.PORTABLE_EXECUTABLE_DIR);
   if (selfUpdate) {
     autoUpdater.autoDownload = false;
-    autoUpdater.autoInstallOnAppQuit = true;
+    // StarkLLM starts the installer itself (installNow, installOnQuit), so a refused start never ends in elevate.exe
+    autoUpdater.autoInstallOnAppQuit = false;
     autoUpdater.logger = { info: (m) => log(`updater: ${m}`), warn: (m) => log(`updater: ${m}`), error: (m) => log(`updater error: ${m}`), debug: () => {} };
   }
   let busy = false;
+  let pending = null; // the downloaded update that is not installed yet: { latest, current }
   const file = () => path.join(app.getPath('userData'), 'settings.json');
 
   function readSettings() {
@@ -184,8 +211,48 @@ function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null,
       buttons: ['Restart now', 'When I quit'], defaultId: 0, cancelId: 1
     });
     backupDatabase(app.getPath('userData'), current, log);
-    if (restart === 0) setImmediate(() => autoUpdater.quitAndInstall(true, true));
-    return { ...d, downloaded: true };
+    pending = { latest: d.latest, current };
+    if (restart !== 0) return { ...d, downloaded: true };
+    const started = await runInstaller(true);
+    if (started.ok) {
+      pending = null;
+      quit();
+      return { ...d, downloaded: true, installing: true };
+    }
+    await showBlocked(d.latest, current);
+    return { ...d, downloaded: true, blocked: true };
+  }
+
+  // runAfter: start StarkLLM again when the installer is done ("Restart now"); not when the user quit the app.
+  async function runInstaller(runAfter) {
+    const file = autoUpdater.installerPath;
+    if (!file) return { ok: false, error: new Error('the downloaded installer is missing') };
+    const args = ['--updated', '/S', ...(runAfter ? ['--force-run'] : [])];
+    log(`starting the installer: ${file} ${args.join(' ')}`);
+    const r = await startInstaller(file, args, spawn);
+    if (!r.ok) log(`Windows did not start the installer (${r.error.code || 'no code'}: ${r.error.message}); not retried with admin rights`);
+    return r;
+  }
+
+  async function showBlocked(latest, current) {
+    const { response } = await dialog.showMessageBox(parent(), {
+      type: 'warning',
+      title: 'StarkLLM update',
+      message: `Windows has not started the StarkLLM ${latest} installer yet.`,
+      detail: `Windows checks a program it does not know yet before it lets it run (Smart App Control). StarkLLM is not signed yet, so a new version can be held back for a few hours after its release.\n\nStarkLLM keeps running with version ${current}; nothing was changed. StarkLLM tries again when you quit it, or try it later with "Check for updates" (the update is already downloaded).`,
+      buttons: ['OK', 'Open download page'],
+      defaultId: 0,
+      cancelId: 0
+    });
+    if (response === 1) shell.openExternal(DOWNLOAD_PAGE);
+  }
+
+  // "When I quit", and after a refused start: start the installer while the app closes. If Windows refuses again, the
+  // next start offers the update again (the file is already downloaded); there is no window left for a message.
+  function installOnQuit() {
+    if (!pending || !selfUpdate) return;
+    pending = null;
+    runInstaller(false).catch((e) => log(`installer on quit: ${e.message}`));
   }
 
   // On every start: ask once whether checking is OK, then check if the user agreed.
@@ -212,9 +279,10 @@ function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null,
   return {
     onStart,
     check,
+    installOnQuit,
     isEnabled: () => readSettings().updateCheck === true,
     setEnabled: (on) => writeSettings({ updateCheck: !!on })
   };
 }
 
-module.exports = { createUpdater, parseVersion, isNewer, decide, backupDatabase, RELEASES_API, DOWNLOAD_PAGE };
+module.exports = { createUpdater, startInstaller, parseVersion, isNewer, decide, backupDatabase, RELEASES_API, DOWNLOAD_PAGE };

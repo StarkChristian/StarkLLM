@@ -331,4 +331,5 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   isQuitting = true;
+  if (updater) updater.installOnQuit();
 });

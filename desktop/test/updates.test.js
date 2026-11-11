@@ -4,7 +4,8 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { createUpdater, isNewer, parseVersion, decide, DOWNLOAD_PAGE } = require('../updates');
+const { EventEmitter } = require('events');
+const { createUpdater, startInstaller, isNewer, parseVersion, decide, DOWNLOAD_PAGE } = require('../updates');
 
 test('version comparison', () => {
   assert.deepStrictEqual(parseVersion('v2.0.3'), [2, 0, 3]);
@@ -23,9 +24,9 @@ test('drafts, pre-releases and skipped versions are not offered', () => {
   assert.strictEqual(decide({ tag_name: 'v2.0.5' }, '2.0.3', { skipVersion: '2.0.4' }).show, true);
 });
 
-function harness({ answers = [], release = { tag_name: 'v2.1.0' }, fail = false, version = '2.0.3', packaged = false, autoUpdater = null, onStatus } = {}) {
+function harness({ answers = [], release = { tag_name: 'v2.1.0' }, fail = false, version = '2.0.3', packaged = false, autoUpdater = null, onStatus, spawn } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starkllm-upd-'));
-  const calls = { fetch: 0, dialogs: [], opened: [] };
+  const calls = { fetch: 0, dialogs: [], opened: [], quit: 0 };
   const deps = {
     app: { getPath: () => dir, getVersion: () => version, isPackaged: packaged },
     dialog: {
@@ -46,7 +47,9 @@ function harness({ answers = [], release = { tag_name: 'v2.1.0' }, fail = false,
     },
     getWindow: () => null,
     autoUpdater,
-    onStatus
+    onStatus,
+    spawn,
+    quit: () => { calls.quit++; }
   };
   return { u: createUpdater(deps), calls, dir };
 }
@@ -113,21 +116,45 @@ function fakeUpdater({ version = '2.1.0', failDownload = false } = {}) {
     if (f.listeners['download-progress']) f.listeners['download-progress']({ percent: 50 });
     if (failDownload) throw new Error('404 latest.yml');
   };
-  f.quitAndInstall = (silent, runAfter) => { f.calls.push(`install silent=${silent} run=${runAfter}`); };
+  f.quitAndInstall = () => { f.calls.push('quitAndInstall'); };
+  f.installerPath = 'C:\\Users\\u\\AppData\\Local\\starkllm-desktop-updater\\pending\\StarkLLM-v2.1.0-Setup.exe';
   return f;
+}
+
+// A stand-in for child_process.spawn: Windows starts the file, or refuses it like Smart App Control did
+// ("spawn UNKNOWN", error code UNKNOWN).
+function fakeSpawn({ refuse = false } = {}) {
+  const runs = [];
+  const spawn = (file, args, opts) => {
+    runs.push({ file, args, opts });
+    const p = new EventEmitter();
+    p.unref = () => { p.unrefed = true; };
+    process.nextTick(() => {
+      if (refuse) p.emit('error', Object.assign(new Error('spawn UNKNOWN'), { code: 'UNKNOWN' }));
+      else p.emit('spawn');
+    });
+    return p;
+  };
+  return { spawn, runs };
 }
 const flush = () => new Promise((r) => setImmediate(r));
 
 test('the installed app downloads and installs the update after the user agrees, with a database backup', async () => {
   const au = fakeUpdater();
-  const { u, calls, dir } = harness({ answers: [0, 0, 0], packaged: true, autoUpdater: au });
+  const sp = fakeSpawn();
+  const { u, calls, dir } = harness({ answers: [0, 0, 0], packaged: true, autoUpdater: au, spawn: sp.spawn });
   fs.mkdirSync(path.join(dir, 'data'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'data', 'starkllm.db'), 'db');
   await u.onStart();
   await flush();
   assert.match(calls.dialogs[1], /2\.1\.0 is available/);
   assert.match(calls.dialogs[2], /ready to install/);
-  assert.deepStrictEqual(au.calls, ['check', 'download', 'install silent=true run=true']);
+  assert.deepStrictEqual(au.calls, ['check', 'download'], 'StarkLLM starts the installer itself, not quitAndInstall');
+  assert.strictEqual(sp.runs.length, 1);
+  assert.strictEqual(sp.runs[0].file, au.installerPath);
+  assert.deepStrictEqual(sp.runs[0].args, ['--updated', '/S', '--force-run']);
+  assert.strictEqual(sp.runs[0].opts.detached, true, 'the installer outlives the app');
+  assert.strictEqual(calls.quit, 1, 'the app quits so the installer can replace it');
   assert.deepStrictEqual(calls.opened, [], 'no website needed');
   assert.strictEqual(au.autoDownload, false, 'nothing is downloaded without the click');
   const backups = fs.readdirSync(path.join(dir, 'backups'));
@@ -169,4 +196,45 @@ test('the page hears the download progress and its end (Settings showed "Checkin
   const { u } = harness({ answers: [0, 0, 1], packaged: true, autoUpdater: au, onStatus: (st) => seen.push(st) });
   await u.onStart();
   assert.deepStrictEqual(seen, [{ phase: 'downloading', percent: 0 }, { phase: 'downloading', percent: 50 }, { phase: 'done' }]);
+});
+
+test('Windows refuses the new installer: no admin prompt, the app keeps running and says why', async () => {
+  const au = fakeUpdater();
+  const sp = fakeSpawn({ refuse: true });
+  const { u, calls } = harness({ answers: [0, 0, 0, 0], packaged: true, autoUpdater: au, spawn: sp.spawn });
+  await u.onStart();
+  assert.strictEqual(sp.runs.length, 1, 'tried once');
+  assert.ok(!sp.runs.some((r) => /elevate\.exe$/i.test(r.file)), 'never retried through elevate.exe');
+  assert.ok(!au.calls.includes('quitAndInstall'));
+  assert.strictEqual(calls.quit, 0, 'StarkLLM stays open');
+  assert.match(calls.dialogs[3], /Windows has not started the StarkLLM 2\.1\.0 installer yet/);
+  assert.strictEqual(au.autoInstallOnAppQuit, false, 'electron-updater does not try again on quit');
+  // quitting later tries once more (Windows may trust the file by then), again without admin rights
+  u.installOnQuit();
+  assert.strictEqual(sp.runs.length, 2);
+  assert.deepStrictEqual(sp.runs[1].args, ['--updated', '/S']);
+  assert.ok(!/elevate\.exe$/i.test(sp.runs[1].file));
+});
+
+test('"When I quit" starts the installer while the app closes, without restarting it', async () => {
+  const au = fakeUpdater();
+  const sp = fakeSpawn();
+  const { u, calls } = harness({ answers: [0, 0, 1], packaged: true, autoUpdater: au, spawn: sp.spawn });
+  await u.onStart();
+  assert.strictEqual(sp.runs.length, 0, 'nothing starts before the user quits');
+  u.installOnQuit();
+  assert.strictEqual(sp.runs.length, 1, 'the start happens at once, before the app is gone');
+  assert.deepStrictEqual(sp.runs[0].args, ['--updated', '/S']);
+  u.installOnQuit();
+  assert.strictEqual(sp.runs.length, 1, 'only once');
+  assert.strictEqual(calls.quit, 0, 'the app was already quitting');
+});
+
+test('startInstaller reports a start and a refusal', async () => {
+  assert.deepStrictEqual(await startInstaller('a.exe', [], fakeSpawn().spawn), { ok: true });
+  const r = await startInstaller('a.exe', [], fakeSpawn({ refuse: true }).spawn);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.error.code, 'UNKNOWN');
+  const thrown = await startInstaller('a.exe', [], () => { throw new Error('EINVAL'); });
+  assert.strictEqual(thrown.ok, false);
 });
