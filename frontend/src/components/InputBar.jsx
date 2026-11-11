@@ -5,6 +5,7 @@ import PromptTemplateModal from './PromptTemplateModal';
 import { useToast } from './Toast';
 import { UPLOAD_ACCEPT } from '../utils/uploadTypes';
 import { UI_LOCALE } from '../utils/locale';
+import { t } from '../i18n';
 
 export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleKb, useWebSearch, onToggleWebSearch, cloudHost, onOpenSettings, isGenerating, onStopGeneration, token, activeWorkspace, onOpenKbSettings }) {
   const toast = useToast();
@@ -67,7 +68,7 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
           await onFileUpload(file);
         } catch (error) {
           console.error("File upload failed", error);
-          toast.error(`Failed to upload ${file.name}: ${error.message}`);
+          toast.error(t('Failed to upload {file}: {error}', { file: file.name, error: error.message }));
         }
       }
     } finally {
@@ -116,7 +117,7 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
           }
         } catch (error) {
           console.error(error);
-          toast.error("Transcription failed: " + error.message);
+          toast.error(t('Transcription failed: ') + error.message);
         } finally {
           setIsTranscribing(false);
         }
@@ -130,7 +131,7 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
       setIsRecording(true);
     } catch (error) {
       console.error("Microphone access denied", error);
-      toast.error("Microphone access denied");
+      toast.error(t('Microphone access denied'));
     }
   };
 
@@ -146,17 +147,17 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
           id="kb-toggle-btn"
           className={`${styles.kbToggle} ${useKb ? styles.kbToggleOn : ''}`}
           onClick={onToggleKb}
-          title={useKb ? "Knowledge Base active — click to disable" : "Enable Knowledge Base retrieval"}
+          title={useKb ? t('Knowledge Base active — click to disable') : t('Enable Knowledge Base retrieval')}
           type="button"
         >
           <Database size={16} />
-          {useKb ? 'Knowledge Base ON' : 'Knowledge Base'}
+          {useKb ? t('Knowledge Base ON') : t('Knowledge Base')}
         </button>
         {useKb && (
           <button 
             className={styles.kbSettingsBtn} 
             onClick={onOpenKbSettings}
-            title="Configure Workspace Knowledge Base filters"
+            title={t('Configure Workspace Knowledge Base filters')}
             type="button"
           >
             {activeWorkspace?.active_kb_dir_ids ? (() => {
@@ -171,28 +172,28 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
                   return 'Searching all KB Folders';
                 }
               })()
-            : 'Searching all KB Folders'}
+            : t('Searching all KB Folders')}
             <Settings size={14} style={{ marginLeft: '6px' }} />
           </button>
         )}
         <button
           className={`${styles.kbToggle} ${useWebSearch ? styles.kbToggleOn : ''}`}
           onClick={onToggleWebSearch}
-          title={useWebSearch ? "Web Search active — click to disable" : "Enable Web Search"}
+          title={useWebSearch ? t('Web Search active — click to disable') : t('Enable Web Search')}
           type="button"
         >
           <Globe size={16} />
-          {useWebSearch ? 'Web Search ON' : 'Web Search'}
+          {useWebSearch ? t('Web Search ON') : t('Web Search')}
         </button>
         {useWebSearch && (
-          <span className={styles.onlineNote} role="status">Your question is sent to DuckDuckGo.</span>
+          <span className={styles.onlineNote} role="status">{t('Your question is sent to DuckDuckGo.')}</span>
         )}
         {cloudHost && (
           <button
             type="button"
             className={styles.cloudBadge}
             onClick={onOpenSettings}
-            title="A cloud model provider is selected in Settings. Click to change it."
+            title={t('A cloud model provider is selected in Settings. Click to change it.')}
             role="status"
           >
             <Cloud size={14} />
@@ -203,10 +204,10 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
 
       <div className={styles.inputWrapper}>
         <div style={{ display: 'flex', gap: '4px' }}>
-          <button className={styles.iconBtn} onClick={() => setIsTemplatesOpen(true)} title="Prompt Templates">
+          <button className={styles.iconBtn} onClick={() => setIsTemplatesOpen(true)} title={t('Prompt Templates')}>
             <FileCode size={24} />
           </button>
-          <button className={styles.iconBtn} onClick={handleFileClick} disabled={isUploading} title="Attach files (PDF, Word, Excel, CSV, Markdown, text, JSON, XML, HTML, images) or drop them on the window">
+          <button className={styles.iconBtn} onClick={handleFileClick} disabled={isUploading} title={t('Attach files (PDF, Word, Excel, CSV, Markdown, text, JSON, XML, HTML, images) or drop them on the window')}>
             {isUploading ? <Loader size={24} className="spinner" /> : <Paperclip size={24} />}
           </button>
         </div>
@@ -234,7 +235,7 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
         ) : isTranscribing ? (
           <div className={styles.transcribingIndicator}>
             <Loader size={16} className={styles.spinnerIcon} />
-            <span>Transcribing audio with Whisper...</span>
+            <span>{t('Transcribing audio with Whisper...')}</span>
           </div>
         ) : (
           <textarea
@@ -243,7 +244,7 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Message StarkLLM or drop a file here..."
+            placeholder={t('Message StarkLLM or drop a file here...')}
             rows={1}
           />
         )}
@@ -252,16 +253,16 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
           <button
             className={`${styles.iconBtn} ${isRecording ? styles.recordingBtn : ''}`}
             onClick={toggleRecording}
-            title="Record voice message"
+            title={t('Record voice message')}
           >
             {isRecording ? <Square size={24} color="red" /> : <Mic size={24} />}
           </button>
           {isGenerating ? (
-            <button className={`${styles.iconBtn} ${styles.stopBtn}`} onClick={onStopGeneration} title="Stop generating">
+            <button className={`${styles.iconBtn} ${styles.stopBtn}`} onClick={onStopGeneration} title={t('Stop generating')}>
               <Square size={18} />
             </button>
           ) : (
-            <button className={`${styles.iconBtn} ${styles.sendBtn}`} onClick={handleSend} title="Send message">
+            <button className={`${styles.iconBtn} ${styles.sendBtn}`} onClick={handleSend} title={t('Send message')}>
               <Send size={22} />
             </button>
           )}
@@ -277,7 +278,7 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
           <span className={styles.charCounterDot}>·</span>
           <span>~{estimatedTokens.toLocaleString(UI_LOCALE)} tokens</span>
           {text.length > 8000 && (
-            <span className={styles.charCounterOverLimit}> · Long message — consider splitting</span>
+            <span className={styles.charCounterOverLimit}> {t('· Long message — consider splitting')}</span>
           )}
         </div>
       )}

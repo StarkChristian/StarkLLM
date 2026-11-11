@@ -1,6 +1,6 @@
 name: Desktop app (Windows)
 
-# Builds the Windows installer and the portable exe, installs the installer silently and starts the app once.
+# Builds the Windows installer, installs the installer silently and starts the app once.
 # GitHub's Windows runners have no Docker Desktop (Linux containers) and no Ollama, so the run must end on the
 # "what is missing" page instead of a blank window; the screenshot and engine.log are uploaded for review.
 
@@ -31,7 +31,7 @@ jobs:
         working-directory: desktop
         run: npm test --if-present
 
-      - name: Build installer and portable exe
+      - name: Build the installer
         working-directory: desktop
         run: npx electron-builder --win --x64 --publish never
 
@@ -40,11 +40,14 @@ jobs:
         run: |
           $setup = Get-ChildItem desktop/dist/*-Setup.exe | Select-Object -First 1
           # /currentuser: the runner is elevated, which can make the assisted installer pick "all users" (Program Files)
-          Start-Process $setup.FullName -ArgumentList '/S', '/currentuser' -Wait
+          $started = Get-Date
+          $p = Start-Process $setup.FullName -ArgumentList '/S', '/currentuser' -Wait -PassThru
+          "installer exit code $($p.ExitCode) after $([math]::Round(((Get-Date) - $started).TotalSeconds)) s"
           $dir = Join-Path $env:LOCALAPPDATA 'Programs\StarkLLM'
           $files = 'StarkLLM.exe', 'resources\engine\docker-compose.yml', 'resources\engine\backend\Dockerfile', 'resources\engine\frontend\Dockerfile'
-          # The silent installer can return before it has written every file (seen on 8 Nov 2026): wait up to 6 minutes
-          # (Defender scans the unsigned 200 MB installer and its files on the runner).
+          # Wait up to 6 minutes for the files (Defender scans the unsigned 200 MB installer and its files on the runner).
+          # Installs that wrote nothing (8-10 Nov 2026, about 1 in 5) were the installer crashing in NSIS's System.dll
+          # (exit code -1073741819) while reading the per-user Programs folder: fixed in electron-builder 26.12.
           $deadline = (Get-Date).AddMinutes(6)
           do {
             $missing = @($files | Where-Object { -not (Test-Path (Join-Path $dir $_)) })
@@ -55,6 +58,11 @@ jobs:
             "still running:"; Get-Process | Where-Object { $_.ProcessName -match 'Setup|StarkLLM|Un_A|nsis' } | Format-Table ProcessName, Id, StartTime -AutoSize | Out-String
             "Programs:"; Get-ChildItem $env:LOCALAPPDATA\Programs -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
             Get-ChildItem -Path $env:LOCALAPPDATA\Programs, $env:ProgramFiles -Filter StarkLLM.exe -Recurse -Depth 2 -ErrorAction SilentlyContinue | ForEach-Object { "found: $($_.FullName)" }
+            "Defender detections:"; Get-MpThreatDetection -ErrorAction SilentlyContinue | Format-List InitialDetectionTime, ThreatID, Resources, ActionSuccess | Out-String
+            "Defender events:"; Get-WinEvent -LogName 'Microsoft-Windows-Windows Defender/Operational' -MaxEvents 15 -ErrorAction SilentlyContinue | Where-Object { $_.TimeCreated -gt $started } | Format-List TimeCreated, Id, Message | Out-String -Width 300
+            "Application errors:"; Get-WinEvent -FilterHashtable @{ LogName = 'Application'; Level = 2; StartTime = $started } -MaxEvents 10 -ErrorAction SilentlyContinue | Format-List TimeCreated, ProviderName, Message | Out-String -Width 300
+            "Setup file still there: $(Test-Path $setup.FullName)"
+            "NSIS temp folders:"; Get-ChildItem $env:TEMP -Directory -Filter 'ns*.tmp' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
             throw "missing after install: $($missing -join ', ')"
           }
           "installed to $dir"
