@@ -720,5 +720,7 @@
   "Remove the folder \"{name}\" from your Knowledge Base?": "Den Ordner „{name}“ aus der Wissensdatenbank entfernen?",
   "Its search data is removed. The files on your computer are NOT deleted.": "Seine Suchdaten werden entfernt. Die Dateien auf Ihrem Computer werden NICHT gelöscht.",
   "Today": "Heute",
-  "{count} days ago": "vor {count} Tagen"
+  "{count} days ago": "vor {count} Tagen",
+  "Made by AI on this PC, read by computer voices. Check important details in the original document.": "Von KI auf diesem PC erstellt und von Computerstimmen gelesen. Prüfen Sie wichtige Angaben im Originaldokument.",
+  "Made by AI on this PC. Check important details in the original document.": "Von KI auf diesem PC erstellt. Prüfen Sie wichtige Angaben im Originaldokument."
 }
