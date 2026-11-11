@@ -616,9 +616,9 @@ print(response.choices[0].message.content)`;
                     style={{
                       padding: '12px 14px',
                       borderRadius: 8,
-                      border: provider === 'ollama' ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.08)',
-                      background: provider === 'ollama' ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)',
-                      color: provider === 'ollama' ? '#ffffff' : 'var(--text-secondary)',
+                      border: provider === 'ollama' ? '1px solid var(--accent)' : '1px solid var(--border-color)',
+                      background: provider === 'ollama' ? 'var(--bg-active)' : 'transparent',
+                      color: provider === 'ollama' ? 'var(--text-primary)' : 'var(--text-secondary)',
                       cursor: 'pointer',
                       textAlign: 'left'
                     }}
@@ -633,9 +633,9 @@ print(response.choices[0].message.content)`;
                     style={{
                       padding: '12px 14px',
                       borderRadius: 8,
-                      border: provider === 'openai_compatible' ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.08)',
-                      background: provider === 'openai_compatible' ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)',
-                      color: provider === 'openai_compatible' ? '#ffffff' : 'var(--text-secondary)',
+                      border: provider === 'openai_compatible' ? '1px solid var(--accent)' : '1px solid var(--border-color)',
+                      background: provider === 'openai_compatible' ? 'var(--bg-active)' : 'transparent',
+                      color: provider === 'openai_compatible' ? 'var(--text-primary)' : 'var(--text-secondary)',
                       cursor: 'pointer',
                       textAlign: 'left'
                     }}

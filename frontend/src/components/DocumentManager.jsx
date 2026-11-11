@@ -20,18 +20,18 @@ function formatBytes(bytes) {
 }
 
 function formatRelativeDate(isoString) {
-  if (!isoString) return 'Unknown';
+  if (!isoString) return t('Unknown');
   const date = serverDate(isoString);
   const now = new Date();
   const diffHours = (now - date) / (1000 * 60 * 60);
   
-  if (diffHours < 24) return 'Today';
-  if (diffHours < 48) return 'Yesterday';
-  return Math.floor(diffHours / 24) + ' days ago';
+  if (diffHours < 24) return t('Today');
+  if (diffHours < 48) return t('Yesterday');
+  return t('{count} days ago', { count: Math.floor(diffHours / 24) });
 }
 
 function formatDateFull(isoString) {
-  if (!isoString) return 'Unknown';
+  if (!isoString) return t('Unknown');
   return serverDate(isoString).toLocaleString(UI_LOCALE, { 
     dateStyle: 'medium', timeStyle: 'short' 
   });
@@ -628,14 +628,14 @@ export default function DocumentManager({
             {/* ── Search & Filter Controls ── */}
             <div style={{
               padding: '10px 14px',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+              borderBottom: '1px solid var(--border-color)',
               display: 'flex',
               flexDirection: 'column',
               gap: '8px',
-              background: 'rgba(0, 0, 0, 0.2)'
+              background: 'var(--bg-hover)'
             }}>
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                <Search size={13} color="#8b949e" style={{ position: 'absolute', left: '10px' }} />
+                <Search size={13} color="var(--text-muted)" style={{ position: 'absolute', left: '10px' }} />
                 <input
                   type="text"
                   placeholder={t('Search documents by name...')}
@@ -644,10 +644,10 @@ export default function DocumentManager({
                   style={{
                     width: '100%',
                     padding: '6px 10px 6px 30px',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    background: 'var(--bg-primary)',
+                    border: '1px solid var(--border-color)',
                     borderRadius: '6px',
-                    color: '#fff',
+                    color: 'var(--text-primary)',
                     fontSize: '0.78rem'
                   }}
                 />
@@ -689,9 +689,9 @@ export default function DocumentManager({
                       cursor: 'pointer',
                       whiteSpace: 'nowrap',
                       border: '1px solid',
-                      borderColor: filterType === f.id ? 'var(--accent-bright)' : 'rgba(255, 255, 255, 0.08)',
-                      background: filterType === f.id ? 'rgba(99, 102, 241, 0.25)' : 'rgba(255, 255, 255, 0.03)',
-                      color: filterType === f.id ? '#fff' : '#9ca3af'
+                      borderColor: filterType === f.id ? 'var(--accent-bright)' : 'var(--border-color)',
+                      background: filterType === f.id ? 'var(--bg-active)' : 'transparent',
+                      color: filterType === f.id ? 'var(--accent-bright)' : 'var(--text-secondary)'
                     }}
                   >
                     {f.label}

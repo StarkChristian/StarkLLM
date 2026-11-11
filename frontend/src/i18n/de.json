@@ -718,5 +718,7 @@
   "Network error during delete.": "Netzwerkfehler beim Entfernen.",
   "Last synced: {date}": "Zuletzt abgeglichen: {date}",
   "Remove the folder \"{name}\" from your Knowledge Base?": "Den Ordner „{name}“ aus der Wissensdatenbank entfernen?",
-  "Its search data is removed. The files on your computer are NOT deleted.": "Seine Suchdaten werden entfernt. Die Dateien auf Ihrem Computer werden NICHT gelöscht."
+  "Its search data is removed. The files on your computer are NOT deleted.": "Seine Suchdaten werden entfernt. Die Dateien auf Ihrem Computer werden NICHT gelöscht.",
+  "Today": "Heute",
+  "{count} days ago": "vor {count} Tagen"
 }
