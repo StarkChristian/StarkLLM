@@ -109,7 +109,7 @@ export default function PromptTemplateModal({ isOpen, onClose, token, onInsertTe
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
-        setTemplates(prev => prev.filter(t => t.id !== id));
+        setTemplates(prev => prev.filter(tpl => tpl.id !== id));
       }
     } catch (e) {
       console.error("Failed to delete template", e);
@@ -149,9 +149,9 @@ export default function PromptTemplateModal({ isOpen, onClose, token, onInsertTe
 
   if (!isOpen) return null;
 
-  const filteredTemplates = templates.filter(t => 
-    t.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    (t.tags && t.tags.toLowerCase().includes(searchQuery.toLowerCase()))
+  const filteredTemplates = templates.filter(tpl => 
+    tpl.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    (tpl.tags && tpl.tags.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
@@ -209,31 +209,31 @@ export default function PromptTemplateModal({ isOpen, onClose, token, onInsertTe
                 <div className={styles.emptyState}>{t('No templates match your search.')}</div>
               ) : (
                 <div className={styles.grid}>
-                  {filteredTemplates.map(t => (
-                    <div key={t.id} className={styles.card} onClick={() => handleInsertClick(t)}>
+                  {filteredTemplates.map(tpl => (
+                    <div key={tpl.id} className={styles.card} onClick={() => handleInsertClick(tpl)}>
                       <div className={styles.cardHeader}>
-                        <h4 title={t.title}>{t.title}</h4>
+                        <h4 title={tpl.title}>{tpl.title}</h4>
                         <div className={styles.cardActions}>
                           <button 
                             className={styles.cardBtn} 
-                            onClick={(e) => { e.stopPropagation(); handleEdit(t); }}
+                            onClick={(e) => { e.stopPropagation(); handleEdit(tpl); }}
                             title={t('Edit')}
                           >
                             <Edit2 size={14} />
                           </button>
                           <button 
                             className={styles.cardBtnDanger} 
-                            onClick={(e) => handleDelete(e, t.id)}
+                            onClick={(e) => handleDelete(e, tpl.id)}
                             title={t('Delete')}
                           >
                             <Trash2 size={14} />
                           </button>
                         </div>
                       </div>
-                      <p className={styles.cardPreview}>{t.content}</p>
-                      {t.tags && (
+                      <p className={styles.cardPreview}>{tpl.content}</p>
+                      {tpl.tags && (
                         <div className={styles.tags}>
-                          {t.tags.split(',').map(tag => (
+                          {tpl.tags.split(',').map(tag => (
                             <span key={tag.trim()} className={styles.tag}>{tag.trim()}</span>
                           ))}
                         </div>
