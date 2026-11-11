@@ -15,5 +15,11 @@ try {
 contextBridge.exposeInMainWorld('starkllmDesktop', {
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),
   openKnowledgeFolder: () => ipcRenderer.invoke('kb:open-folder'),
+  // download progress of an update: cb({ phase: 'downloading' | 'done', percent }); returns an unsubscribe function
+  onUpdateStatus: (cb) => {
+    const handler = (_event, status) => cb(status);
+    ipcRenderer.on('updates:status', handler);
+    return () => ipcRenderer.removeListener('updates:status', handler);
+  },
   localToken,
 });

@@ -1,9 +1,8 @@
-# StarkLLM Desktop (v2.0.8)
+# StarkLLM Desktop (v2.0.13)
 
-**Version:** StarkLLM Desktop v2.0.8  
+**Version:** StarkLLM Desktop v2.0.13  
 **License:** Apache 2.0 (Open Source)  
-**Package:** `StarkLLM-v2.0.8-Setup.exe` (SHA-256: `ff82565be40509686e3e61e1572c9da0191c3017dcba6d7d3d4d109e50152fba`)  
-**Portable:** `StarkLLM-v2.0.8-Portable.exe` (SHA-256: `4063b51a3a0c406f375b160abe93cc649b786b7b0cd0f439496721659c961f4a`)  
+**Package:** `StarkLLM-v2.0.13-Setup.exe` (SHA-256: `84fac1c01e68e3d667b2b22dadfd6d019d611f4525b03d7523574faa3785c765`)  
 **Official Website:** [https://www.starkllm.com](https://www.starkllm.com)  
 **Documentation & Manual:** [https://www.starkllm.com/manual.html](https://www.starkllm.com/manual.html)
 
@@ -68,15 +67,12 @@ ollama pull nomic-embed-text
 You do not need to open a terminal: StarkLLM starts both programs and downloads the AI models itself.
 
 ### Option A: Windows Installer (Recommended)
-1. Download `StarkLLM-v2.0.8-Setup.exe` from [starkllm.com/download](https://www.starkllm.com/download) or the GitHub release.
+1. Download `StarkLLM-v2.0.13-Setup.exe` from [starkllm.com/download](https://www.starkllm.com/download) or the GitHub release.
 2. Run the setup wizard and start StarkLLM from the desktop shortcut.
 3. **The first start takes 10-20 minutes** (about 5 GB of AI models plus the engine are downloaded and built; the splash screen shows the progress). Later starts take seconds.
 4. If something is missing (Docker Desktop not installed, a busy port, ...), the window says what and how to fix it; the log is in `%APPDATA%\StarkLLM\engine.log`.
 
-### Option B: Portable Executable
-1. Download `StarkLLM-v2.0.8-Portable.exe` and double-click it. It does the same as the installed app (same data folder).
-
-### Option C: Developer / Source Launch
+### Option B: Developer / Source Launch
 1. Ensure Docker Desktop and Ollama are running.
 2. In the repository folder, execute:
    ```cmd
@@ -92,8 +88,8 @@ You do not need to open a terminal: StarkLLM starts both programs and downloads 
 To verify file integrity before running, compare the SHA-256 hash in PowerShell:
 
 ```powershell
-Get-FileHash -Algorithm SHA256 StarkLLM-v2.0.8-Setup.exe
-# Target: ff82565be40509686e3e61e1572c9da0191c3017dcba6d7d3d4d109e50152fba
+Get-FileHash -Algorithm SHA256 StarkLLM-v2.0.13-Setup.exe
+# Target: 84fac1c01e68e3d667b2b22dadfd6d019d611f4525b03d7523574faa3785c765
 ```
 
 ---

@@ -1,0 +1,74 @@
+name: winget manifest
+
+# Checks the winget manifest in packaging/winget on a clean Windows machine: winget validates it, installs StarkLLM
+# from it (download, hash check, silent per-user install) and the installed app is where winget expects it.
+
+on:
+  pull_request:
+    paths: ['packaging/winget/**', '.github/workflows/winget.yml']
+  workflow_dispatch:
+
+jobs:
+  validate-and-install:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: winget validates the manifest
+        shell: pwsh
+        run: |
+          winget --version
+          winget settings --enable LocalManifestFiles
+          $dir = Get-ChildItem packaging/winget/manifests -Recurse -Filter '*.installer.yaml' | Sort-Object FullName | Select-Object -Last 1 | ForEach-Object DirectoryName
+          "manifest: $dir"
+          winget validate --manifest $dir
+          if ($LASTEXITCODE -ne 0) { throw "winget validate failed ($LASTEXITCODE)" }
+          "MANIFEST_DIR=$dir" | Out-File -Append $env:GITHUB_ENV
+
+      - name: winget installs StarkLLM from the manifest
+        shell: pwsh
+        run: |
+          # Found on the first run (9 Nov 2026): SmartScreen stops the unsigned installer that winget downloaded
+          # ("Windows protected your PC") and waits for a click, so the silent install never ends. On a user's PC the
+          # same window appears and "More info > Run anyway" continues; code signing removes it. This job checks the
+          # manifest, so SmartScreen is switched off on this throwaway runner only.
+          New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' -Force | Out-Null
+          Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' -Name EnableSmartScreen -Value 0 -Type DWord
+          Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer' -Name SmartScreenEnabled -Value 'Off' -ErrorAction SilentlyContinue
+          # Second run: then Windows asks "The publisher could not be verified ... Unknown Publisher" (Open File -
+          # Security Warning) for the unsigned installer downloaded from the internet. Here .exe is marked low-risk.
+          New-Item -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Associations' -Force | Out-Null
+          Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Associations' -Name LowRiskFileTypes -Value '.exe'
+          $out = "$env:RUNNER_TEMP\winget-install.txt"
+          $p = Start-Process winget -ArgumentList 'install', '--manifest', $env:MANIFEST_DIR, '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity', '--verbose-logs' -PassThru -NoNewWindow -RedirectStandardOutput $out
+          if (-not $p.WaitForExit(12 * 60 * 1000)) {
+            Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+            $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+            $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+            [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+            $bmp.Save("$PWD\winget-stuck.png")
+            Get-Content $out -Tail 30
+            Get-Process | Where-Object { $_.ProcessName -match 'StarkLLM|Setup|winget|AppInstaller' } | Format-Table ProcessName, Id, StartTime -AutoSize | Out-String
+            Get-ChildItem "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\DiagOutputDir" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime | Select-Object -Last 1 | Get-Content -Tail 60
+            throw 'winget install did not finish within 12 minutes (see winget-stuck.png)'
+          }
+          Get-Content $out | Where-Object { $_ -notmatch '^\s*[-\\|/]\s*$' -and $_ -notmatch '[\u2580-\u259F]' }
+          if ($p.ExitCode -ne 0) { throw "winget install failed ($($p.ExitCode))" }
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\StarkLLM\StarkLLM.exe'
+          $deadline = (Get-Date).AddMinutes(6)
+          while (-not (Test-Path $exe) -and (Get-Date) -lt $deadline) { Start-Sleep 3 }
+          if (-not (Test-Path $exe)) { throw "StarkLLM.exe not found at $exe" }
+          "installed: $exe $((Get-Item $exe).VersionInfo.ProductVersion)"
+          # the entry Windows (and winget) use to find the installed app
+          Get-ChildItem HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall | ForEach-Object { Get-ItemProperty $_.PSPath } |
+            Where-Object { $_.DisplayName -like 'StarkLLM*' } |
+            Format-List PSChildName, DisplayName, DisplayVersion, Publisher, InstallLocation | Out-String
+          winget list --name StarkLLM --accept-source-agreements --disable-interactivity
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: winget-check
+          path: winget-stuck.png
+          if-no-files-found: ignore

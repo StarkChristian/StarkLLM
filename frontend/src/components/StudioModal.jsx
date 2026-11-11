@@ -6,10 +6,19 @@ import {
   VolumeX, HelpCircle, Eye, EyeOff 
 } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
-import { t } from '../i18n';
+import { t, language } from '../i18n';
 import { useEscape } from '../utils/useEscape';
+import { blockRemoteImages } from '../utils/markdown';
 
-const md = new MarkdownIt({ html: false, linkify: true, typographer: true });
+// Written out per tab so the German check sees every text (a template with the tab id was never translated).
+const focusPlaceholder = (tab) => ({
+  podcast: t('Optional: a question or angle for this podcast...'),
+  briefing: t('Optional: a question or angle for this briefing...'),
+  study_guide: t('Optional: a question or angle for this study guide...'),
+  comparison: t('Optional: a question or angle for this comparison...'),
+})[tab] || t('Optional: a question or angle for this briefing...');
+
+const md = blockRemoteImages(new MarkdownIt({ html: false, linkify: true, typographer: true }));
 // Only real links: with fuzzy links on, a file name like 'card.md' became http://card.md (a Moldovan domain).
 md.linkify.set({ fuzzyLink: false, fuzzyEmail: false });
 
@@ -72,7 +81,8 @@ export default function StudioModal({
         body: JSON.stringify({
           type: targetType,
           model: selectedModel || undefined,
-          focus: focusQuery.trim() || undefined
+          focus: focusQuery.trim() || undefined,
+          language: language()
         })
       });
 
@@ -160,7 +170,9 @@ export default function StudioModal({
   };
 
   const handleDownloadMarkdown = (content, filename) => {
-    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+    // EU AI Act Art. 50(2): the saved file says in a machine-readable way that it was made by AI
+    const marked = `---\ngenerator: StarkLLM Studio\nai_generated: true\ncreated: ${new Date().toISOString()}\n---\n\n${content}`;
+    const blob = new Blob([marked], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -220,7 +232,7 @@ export default function StudioModal({
             <input
               type="text"
               className={styles.focusInput}
-              placeholder={t('Optional: a question or angle to focus on')}
+              placeholder={focusPlaceholder(activeTab)}
               value={focusQuery}
               onChange={e => setFocusQuery(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleGenerate()}
@@ -239,6 +251,14 @@ export default function StudioModal({
             <div style={{ padding: '0.8rem 1rem', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', color: '#fca5a5', marginBottom: '1rem', fontSize: '0.88rem' }}>
               ⚠️ {error}
             </div>
+          )}
+
+          {(results[activeTab]) && (
+            <p className={styles.aiNote}>
+              {activeTab === 'podcast'
+                ? t('Made by AI on this PC, read by computer voices. Check important details in the original document.')
+                : t('Made by AI on this PC. Check important details in the original document.')}
+            </p>
           )}
 
           {/* TAB 1: PODCAST AUDIO OVERVIEW */}
@@ -320,7 +340,7 @@ export default function StudioModal({
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', marginBottom: '1rem' }}>
                     <button className={styles.tabBtn} onClick={() => handleCopyText(results.briefing)}>
-                      {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy'}
+                      {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} />} {copied ? t('Copied') : t('Copy')}
                     </button>
                     <button className={styles.tabBtn} onClick={() => handleDownloadMarkdown(results.briefing, 'executive_briefing.md')}>
                       <Download size={14} /> {t('Download .md')}
@@ -411,7 +431,7 @@ export default function StudioModal({
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', marginBottom: '1rem' }}>
                     <button className={styles.tabBtn} onClick={() => handleCopyText(results.comparison)}>
-                      {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy'}
+                      {copied ? <Check size={14} color="#10b981" /> : <Copy size={14} />} {copied ? t('Copied') : t('Copy')}
                     </button>
                     <button className={styles.tabBtn} onClick={() => handleDownloadMarkdown(results.comparison, 'comparative_analysis.md')}>
                       <Download size={14} /> {t('Download .md')}

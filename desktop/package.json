@@ -1,7 +1,7 @@
 {
   "name": "starkllm-desktop",
   "productName": "StarkLLM",
-  "version": "2.0.8",
+  "version": "2.0.13",
   "description": "StarkLLM Standalone Native Desktop Application",
   "main": "main.js",
   "author": "Christian Stark",
@@ -14,19 +14,18 @@
   },
   "devDependencies": {
     "electron": "^33.2.0",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "26.18.1"
   },
   "build": {
     "appId": "com.starkllm.desktop",
     "productName": "StarkLLM",
-    "copyright": "Copyright \u00a9 2026 Christian Stark",
+    "copyright": "Copyright © 2026 Christian Stark",
     "directories": {
       "output": "dist"
     },
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        "nsis"
       ],
       "icon": "assets/icon.ico"
     },
@@ -73,9 +72,6 @@
         ]
       }
     ],
-    "portable": {
-      "artifactName": "StarkLLM-v${version}-Portable.${ext}"
-    },
     "publish": [
       {
         "provider": "github",

@@ -20,7 +20,7 @@ export function ToastProvider({ children }) {
   const dismiss = useCallback((id) => {
     clearTimeout(timers.current[id]);
     delete timers.current[id];
-    setToasts(prev => prev.filter(t => t.id !== id));
+    setToasts(prev => prev.filter(item => item.id !== id));
   }, []);
 
   const addToast = useCallback((type, message, duration = 5000, action = null) => {
@@ -43,25 +43,25 @@ export function ToastProvider({ children }) {
     <ToastContext.Provider value={toast}>
       {children}
       <div className={styles.container} aria-live="polite">
-        {toasts.map(t => {
-          const Icon = ICONS[t.type] || Info;
+        {toasts.map(item => {
+          const Icon = ICONS[item.type] || Info;
           return (
-            <div key={t.id} className={`${styles.toast} ${styles[t.type]}`}>
+            <div key={item.id} className={`${styles.toast} ${styles[item.type]}`}>
               <Icon size={16} className={styles.toastIcon} />
               <div className={styles.toastContent}>
-                <span className={styles.toastMsg}>{t.message}</span>
-                {t.action && (
+                <span className={styles.toastMsg}>{item.message}</span>
+                {item.action && (
                   <button 
                     className={styles.toastAction} 
-                    onClick={() => { t.action.onClick(); dismiss(t.id); }}
+                    onClick={() => { item.action.onClick(); dismiss(item.id); }}
                   >
-                    {t.action.label}
+                    {item.action.label}
                   </button>
                 )}
               </div>
               <button
                 className={styles.dismissBtn}
-                onClick={() => dismiss(t.id)}
+                onClick={() => dismiss(item.id)}
                 aria-label={t('Dismiss')}
               >
                 <X size={13} />
