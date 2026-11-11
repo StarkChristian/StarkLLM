@@ -143,4 +143,11 @@ QUESTIONS = [
      "must": [r"betrug|unseriös|verdächtig|nachweis|prüfen|widersprech|verbraucherzentrale|nicht (sofort |einfach )?(zahlen|bezahlen)"],
      "lang": "de", "warn": ["scam_signs:Inkasso"],
      "must_not": [r"(ja|sie müssen) (den betrag |das )?(sofort |innerhalb )?(be)?zahlen"]},
+    # ---- general requests: documents are there, but the question is not about them (no refusal, no letters)
+    {"id": "general-report-en", "tests": "a general writing task with the word 'report' must be answered",
+     "q": "Write a short report about the history of the Rhine river.", "lang": "en",
+     "must": [r"rhine"], "must_not": [REFUSAL, r"412|268,40|KV-2023"]},
+    {"id": "general-report-de", "tests": "the same in German",
+     "q": "Schreib mir einen kurzen Bericht über die Geschichte des Rheins.", "lang": "de",
+     "must": [r"rhein"], "must_not": [REFUSAL, r"412|268,40|KV-2023"]},
 ]
