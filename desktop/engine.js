@@ -497,6 +497,14 @@ async function keepRollbackImages(docker, runningBuild, { runCmd = run } = {}) {
   return { ...images, build: runningBuild || '' };
 }
 
+function localTimeZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+}
+
 async function rollbackEngine({ docker, compose, env, previous, answers, runCmd = run, wait = waitFor, cwd = engineDir() }) {
   const back = { ...env, STARKLLM_BACKEND_IMAGE: previous.backend, STARKLLM_FRONTEND_IMAGE: previous.frontend, STARKLLM_ENGINE_BUILD: previous.build };
   const up = await runCmd(docker, ['compose', '-p', PROJECT, '-f', compose, 'up', '-d', '--no-build'], { env: back, cwd, timeoutMs: 10 * 60 * 1000 });
@@ -570,7 +578,9 @@ async function startEngine(appUrl, onStatus) {
     STARKLLM_KB_DIR: paths.kb,
     HOST_KB_PATH: paths.kb,
     SECRET_KEY: process.env.SECRET_KEY || secretKey(paths.secret),
-    STARKLLM_ENGINE_BUILD: fingerprint
+    STARKLLM_ENGINE_BUILD: fingerprint,
+    // without it the container runs on UTC, and around midnight "today" in answers and on the home page is a day off
+    STARKLLM_TZ: process.env.STARKLLM_TZ || localTimeZone()
   };
   let up = null;
   if (usePrebuilt()) {

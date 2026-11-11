@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import styles from './LoginSignup.module.css';
+import { t } from '../i18n';
 
 export default function LoginSignup({ onLoginSuccess }) {
   const [isLogin, setIsLogin] = useState(true);
@@ -45,7 +46,7 @@ export default function LoginSignup({ onLoginSuccess }) {
       };
 
       if (!response.ok) {
-        let errorMsg = 'Authentication failed';
+        let errorMsg = t('Authentication failed');
         try {
           const errorData = await parseResponse(response);
           errorMsg = errorData.detail || errorMsg;
@@ -72,12 +73,12 @@ export default function LoginSignup({ onLoginSuccess }) {
           const loginData = await parseResponse(loginResponse);
           onLoginSuccess(loginData.access_token);
         } else {
-          setError('Account created successfully! Please log in above.');
+          setError(t('Account created successfully! Please log in above.'));
           setIsLogin(true);
         }
       }
     } catch (err) {
-      setError(err.message || 'An unexpected error occurred');
+      setError(err.message || t('An unexpected error occurred'));
     } finally {
       setLoading(false);
     }
@@ -96,13 +97,13 @@ export default function LoginSignup({ onLoginSuccess }) {
         <div className={styles.brand}>
           <img src="/Logo.png" alt="StarkLLM" className={styles.logo} />
           <h1 className={styles.brandName}>StarkLLM</h1>
-          <p className={styles.brandTagline}>Your private AI assistant</p>
+          <p className={styles.brandTagline}>{t('Your private AI assistant')}</p>
         </div>
 
         {/* Desktop app, single user on this PC: no account needed (see desktop/preload.js) */}
         {localToken && (
           <button type="button" className="btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 16 }} onClick={() => onLoginSuccess(localToken)}>
-            Continue on this PC
+            {t('Continue on this PC')}
           </button>
         )}
 
@@ -111,11 +112,11 @@ export default function LoginSignup({ onLoginSuccess }) {
           <button
             className={`${styles.tab} ${isLogin ? styles.tabActive : ''}`}
             onClick={() => { setIsLogin(true); setError(null); }}
-          >Login</button>
+          >{t('Login')}</button>
           <button
             className={`${styles.tab} ${!isLogin ? styles.tabActive : ''}`}
             onClick={() => { setIsLogin(false); setError(null); }}
-          >Sign Up</button>
+          >{t('Sign Up')}</button>
         </div>
 
         {/* Form */}
@@ -126,11 +127,11 @@ export default function LoginSignup({ onLoginSuccess }) {
             </div>
           )}
           <div className={styles.field}>
-            <label className={styles.label}>Username</label>
+            <label className={styles.label}>{t('Username')}</label>
             <input
               type="text"
               className="input-field"
-              placeholder="Enter your username"
+              placeholder={t('Enter your username')}
               value={username}
               onChange={e => setUsername(e.target.value)}
               required
@@ -138,11 +139,11 @@ export default function LoginSignup({ onLoginSuccess }) {
             />
           </div>
           <div className={styles.field}>
-            <label className={styles.label}>Password</label>
+            <label className={styles.label}>{t('Password')}</label>
             <input
               type="password"
               className="input-field"
-              placeholder="Enter your password"
+              placeholder={t('Enter your password')}
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
@@ -154,17 +155,17 @@ export default function LoginSignup({ onLoginSuccess }) {
             disabled={loading}
             style={{ width: '100%', justifyContent: 'center', marginTop: 4 }}
           >
-            {loading ? 'Processing…' : isLogin ? 'Sign In' : 'Create Account'}
+            {loading ? t('Processing…') : isLogin ? t('Sign In') : t('Create Account')}
           </button>
         </form>
 
         <p className={styles.switchHint}>
-          {isLogin ? "Don't have an account? " : "Already have an account? "}
+          {isLogin ? t("Don't have an account?") + ' ' : t('Already have an account?') + ' '}
           <button
             className={styles.switchBtn}
             onClick={() => { setIsLogin(!isLogin); setError(null); }}
           >
-            {isLogin ? 'Sign Up' : 'Login'}
+            {isLogin ? t('Sign Up') : t('Login')}
           </button>
         </p>
       </div>

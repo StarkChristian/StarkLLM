@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { FolderOpen, FolderPlus, RefreshCw, Zap, ChevronDown, ChevronRight, File, AlertCircle, CheckCircle, Clock, Loader, X, Database, Search, Eye, Info, Trash2, Copy } from 'lucide-react';
+import { FolderOpen, FolderPlus, RefreshCw, Zap, ChevronDown, ChevronRight, File, AlertCircle, CheckCircle, Clock, Loader, X, Database, Search, Eye, Info, Trash2, Copy, Check } from 'lucide-react';
 import styles from './KnowledgeBase.module.css';
 import EmptyState from './EmptyState';
 import { serverDate } from '../utils/time';
 import { UI_LOCALE } from '../utils/locale';
+import { t } from '../i18n';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -22,10 +23,10 @@ function formatBytes(bytes) {
 }
 
 const STATUS_META = {
-  indexed:  { icon: CheckCircle,  cls: 'indexed',  label: 'Indexed'  },
-  pending:  { icon: Clock,        cls: 'pending',  label: 'Pending'  },
-  indexing: { icon: Loader,       cls: 'indexing', label: 'Indexing' },
-  failed:   { icon: AlertCircle,  cls: 'failed',   label: 'Failed'   },
+  indexed:  { icon: CheckCircle,  cls: 'indexed',  label: t('Indexed')  },
+  pending:  { icon: Clock,        cls: 'pending',  label: t('Pending')  },
+  indexing: { icon: Loader,       cls: 'indexing', label: t('Indexing') },
+  failed:   { icon: AlertCircle,  cls: 'failed',   label: t('Failed')   },
 };
 
 // ─── sub-components ─────────────────────────────────────────────────────────
@@ -41,6 +42,13 @@ function StatusBadge({ status }) {
   );
 }
 
+const SUMMARY_LABEL = {
+  indexed: (count) => t('{count} indexed', { count }),
+  pending: (count) => t('{count} waiting', { count }),
+  indexing: (count) => t('{count} being indexed', { count }),
+  failed: (count) => t('{count} failed', { count }),
+};
+
 function DocStatusSummary({ docs }) {
   const counts = { indexed: 0, pending: 0, indexing: 0, failed: 0 };
   docs.forEach(d => { if (counts[d.status] !== undefined) counts[d.status]++; });
@@ -51,11 +59,11 @@ function DocStatusSummary({ docs }) {
         ? Object.entries(counts).map(([status, count]) =>
             count > 0 && (
               <span key={status} className={`${styles.summaryPill} ${styles['pill_' + status]}`}>
-                {count} {status}
+                {SUMMARY_LABEL[status](count)}
               </span>
             )
           )
-        : <span className={styles.emptyPill}>No documents yet</span>
+        : <span className={styles.emptyPill}>{t('No documents yet')}</span>
       }
     </div>
   );
@@ -81,13 +89,13 @@ function FolderBrowser({ token, onSelect }) {
       const res = await fetch(url, { headers: authHeaders });
       const data = await res.json();
       if (!res.ok) {
-        setBrowseError(data.detail || 'Failed to browse directory.');
+        setBrowseError(data.detail || t('Failed to browse directory.'));
       } else {
         setBrowseData(data);
         setSelectedPath(data.path);
       }
     } catch {
-      setBrowseError('Network error loading directory.');
+      setBrowseError(t('Network error loading directory.'));
     } finally {
       setBrowseLoading(false);
     }
@@ -113,7 +121,7 @@ function FolderBrowser({ token, onSelect }) {
   }, [browseData]);
 
   if (!browseData && browseLoading) {
-    return <div className={styles.browserLoading}><Loader size={16} className={styles.spin} /> Loading…</div>;
+    return <div className={styles.browserLoading}><Loader size={16} className={styles.spin} /> {t('Loading…')}</div>;
   }
 
   return (
@@ -139,7 +147,7 @@ function FolderBrowser({ token, onSelect }) {
           className={styles.browserUpBtn}
           onClick={() => browseData?.parent && browse(browseData.parent)}
           disabled={!browseData?.parent}
-          title="Go up"
+          title={t('Go up')}
         >
           <ChevronRight size={13} style={{ transform: 'rotate(180deg)' }} />
         </button>
@@ -159,13 +167,13 @@ function FolderBrowser({ token, onSelect }) {
       {/* Directory entries */}
       <div className={styles.browserEntries}>
         {browseLoading && (
-          <div className={styles.browserLoading}><Loader size={14} className={styles.spin} /> Loading…</div>
+          <div className={styles.browserLoading}><Loader size={14} className={styles.spin} /> {t('Loading…')}</div>
         )}
         {!browseLoading && browseError && (
           <div className={styles.browserEmpty}><AlertCircle size={18} />{browseError}</div>
         )}
         {!browseLoading && !browseError && browseData && browseData.entries.length === 0 && (
-          <div className={styles.browserEmpty}><FolderOpen size={20} />This folder is empty</div>
+          <div className={styles.browserEmpty}><FolderOpen size={20} />{t('This folder is empty')}</div>
         )}
         {!browseLoading && !browseError && browseData && browseData.entries.map(entry => {
           const isSelected = selectedPath === `${browseData.path}/${entry.name}`.replace(/\/+/g, '/');
@@ -203,7 +211,7 @@ function FolderBrowser({ token, onSelect }) {
                     const newPath = `${browseData.path}/${entry.name}`.replace(/\/+/g, '/');
                     browse(newPath);
                   }}
-                  title="Open folder"
+                  title={t('Open folder')}
                 >
                   <ChevronRight size={14} />
                 </button>
@@ -244,7 +252,7 @@ function AddFolderModal({ onClose, onAdd, loading, error, token }) {
     <div className={styles.modalOverlay} onClick={onClose}>
       <div className={styles.modal} onClick={e => e.stopPropagation()} style={{ maxWidth: '580px', width: '95%' }}>
         <div className={styles.modalHeader}>
-          <span className={styles.modalTitle}><FolderPlus size={18} /> Add Knowledge Base Folder</span>
+          <span className={styles.modalTitle}><FolderPlus size={18} /> {t('Add Knowledge Base Folder')}</span>
           <button className={styles.modalClose} onClick={onClose}><X size={18} /></button>
         </div>
 
@@ -255,18 +263,16 @@ function AddFolderModal({ onClose, onAdd, loading, error, token }) {
             <div className={styles.winPathWarning}>
               <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
               <div>
-                <strong>Windows path detected.</strong> Paths like <code>{path.trim().slice(0, 30)}{path.length > 30 ? '…' : ''}</code> are
-                not visible inside the Docker container and cannot be registered here.
+                <strong>{t('Windows path detected.')}</strong> {t('Paths like {path} are not visible inside the Docker container and cannot be registered here.', { path: path.trim().slice(0, 30) + (path.length > 30 ? '…' : '') })}
                 <br /><br />
-                <strong>Use the StarkLLM launcher instead:</strong>
+                <strong>{t('Use the StarkLLM launcher instead:')}</strong>
                 <ol style={{ margin: '8px 0 0 18px', padding: 0 }}>
-                  <li>Close this dialog and stop StarkLLM.</li>
-                  <li>Run <code>start.exe</code> again and press <strong>Y</strong> when prompted to add a folder.</li>
-                  <li>Pick your Windows folder — the launcher will mirror and register it automatically.</li>
+                  <li>{t('Close this dialog and stop StarkLLM.')}</li>
+                  <li>{t('Run start.exe again and press Y when prompted to add a folder.')}</li>
+                  <li>{t('Pick your Windows folder — the launcher will mirror and register it automatically.')}</li>
                 </ol>
                 <br />
-                <em>Alternative:</em> Copy your files into <code>knowledge_base_data\my-folder\</code> inside
-                the StarkLLM project directory, then register the path <code>/kb_data/my-folder</code> here.
+                <em>{t('Alternative:')}</em> {t('Copy your files into knowledge_base_data/my-folder inside the StarkLLM project directory, then register the path /kb_data/my-folder here.')}
               </div>
             </div>
           )}
@@ -274,10 +280,10 @@ function AddFolderModal({ onClose, onAdd, loading, error, token }) {
           {/* Mode toggle */}
           <div className={styles.modeToggle}>
             <span className={styles.modeToggleLabel}>
-              {manualMode ? 'Entering container path manually.' : 'Browse /kb_data to select a sub-folder:'}
+              {manualMode ? t('Entering container path manually.') : t('Browse /kb_data to select a sub-folder:')}
             </span>
             <button type="button" className={styles.modeToggleBtn} onClick={() => setManualMode(m => !m)}>
-              {manualMode ? '← Back to browser' : 'Enter path manually'}
+              {manualMode ? t('← Back to browser') : t('Enter path manually')}
             </button>
           </div>
 
@@ -287,7 +293,7 @@ function AddFolderModal({ onClose, onAdd, loading, error, token }) {
           ) : (
             <>
               <label className={styles.label}>
-                Container Folder Path <span className={styles.required}>*</span>
+                {t('Container Folder Path')} <span className={styles.required}>*</span>
               </label>
               <input
                 className={`${styles.input} ${isWindowsPath ? styles.inputError : ''}`}
@@ -299,8 +305,7 @@ function AddFolderModal({ onClose, onAdd, loading, error, token }) {
                 required
               />
               <p className={styles.hint}>
-                Enter the path as seen inside the container. Must start with <code>/kb_data/</code>.
-                To index a Windows folder, use <code>start.exe</code> — it handles the mirror automatically.
+                {t('Enter the path as seen inside the container; it must start with /kb_data/. To index a Windows folder, use start.exe, which mirrors it automatically.')}
               </p>
             </>
           )}
@@ -309,16 +314,16 @@ function AddFolderModal({ onClose, onAdd, loading, error, token }) {
           {path && !isWindowsPath && (
             <div style={{ marginTop: 16, padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8, border: '1px solid var(--border-color)' }}>
               <p className={styles.hint} style={{ margin: '0 0 12px 0' }}>
-                Selected Path: <code style={{ color: 'var(--accent-bright)' }}>{path}</code>
+                {t('Selected Path:')} <code style={{ color: 'var(--accent-bright)' }}>{path}</code>
               </p>
 
               <label className={styles.label}>
-                Folder Name <span className={styles.optional}>(optional)</span>
+                {t('Folder Name')} <span className={styles.optional}>{t('(optional)')}</span>
               </label>
               <input
                 className={styles.input}
                 type="text"
-                placeholder="My Reports"
+                placeholder={t('My Reports')}
                 value={name}
                 onChange={e => setName(e.target.value)}
               />
@@ -333,10 +338,10 @@ function AddFolderModal({ onClose, onAdd, loading, error, token }) {
 
           <div className={styles.modalActions}>
             <button type="button" className={styles.btnSecondary} onClick={onClose} disabled={loading}>
-              Cancel
+              {t('Cancel')}
             </button>
             <button type="submit" className={styles.btnPrimary} disabled={loading || !path.trim() || isWindowsPath}>
-              {loading ? <><Loader size={14} className={styles.spin} /> Adding…</> : 'Add Folder'}
+              {loading ? <><Loader size={14} className={styles.spin} /> {t('Adding…')}</> : t('Add Folder')}
             </button>
           </div>
         </form>
@@ -390,21 +395,24 @@ function FolderRow({ folder, token, onRefresh }) {
       if (res.ok) {
         const hasChanges = data.added > 0 || data.updated > 0 || data.deleted > 0;
         if (!silent || hasChanges) {
-          showMsg('ok', `Sync complete: ${data.added} added, ${data.updated} updated, ${data.deleted} deleted.`);
+          showMsg('ok', t('Sync complete: {added} added, {updated} updated, {deleted} deleted.', { added: data.added, updated: data.updated, deleted: data.deleted }));
         }
         setLastSynced(new Date().toISOString());
         if (expanded) fetchDocs();
         // Only trigger parent refresh (which causes full spinner) on manual sync
         if (!silent) onRefresh();
       } else {
-        if (!silent) showMsg('err', data.detail || 'Sync failed.');
+        if (!silent) showMsg('err', data.detail || t('Sync failed.'));
       }
     } catch {
-      if (!silent) showMsg('err', 'Network error during sync.');
+      if (!silent) showMsg('err', t('Network error during sync.'));
     } finally {
       if (!silent) setScanning(false);
     }
   };
+
+  // The summary next to a closed folder said "No documents yet" until it was opened once.
+  useEffect(() => { fetchDocs(); }, [fetchDocs]);
 
   useEffect(() => {
     if (expanded) {
@@ -424,14 +432,14 @@ function FolderRow({ folder, token, onRefresh }) {
       });
       const data = await res.json();
       if (res.ok) {
-        showMsg('ok', data.message || 'Indexing complete.');
+        showMsg('ok', data.message || t('Indexing complete.'));
         onRefresh();
         if (expanded) fetchDocs();
       } else {
-        showMsg('err', data.detail || 'Indexing failed.');
+        showMsg('err', data.detail || t('Indexing failed.'));
       }
     } catch {
-      showMsg('err', 'Network error during indexing.');
+      showMsg('err', t('Network error during indexing.'));
     } finally {
       setIndexing(false);
     }
@@ -445,16 +453,16 @@ function FolderRow({ folder, token, onRefresh }) {
       });
       const data = await res.json();
       if (res.ok) showMsg('ok', data.message);
-      else showMsg('err', data.detail || 'Index failed.');
+      else showMsg('err', data.detail || t('Index failed.'));
       fetchDocs();
     } catch {
-      showMsg('err', 'Network error.');
+      showMsg('err', t('Network error.'));
     }
   };
 
   const handleDeleteFolder = async (e) => {
     e.stopPropagation();
-    if (!window.confirm(`Are you sure you want to remove the folder "${folder.folder_name}" from your Knowledge Base?\n\nThis will remove all its indexed records and vector data. It will NOT delete the actual physical files from your computer.`)) {
+    if (!window.confirm(t('Remove the folder "{name}" from your Knowledge Base?', { name: folder.folder_name }) + '\n\n' + t('Its search data is removed. The files on your computer are NOT deleted.'))) {
       return;
     }
     setScanning(true);
@@ -467,11 +475,11 @@ function FolderRow({ folder, token, onRefresh }) {
         onRefresh();
       } else {
         const data = await res.json();
-        showMsg('err', data.detail || 'Delete failed.');
+        showMsg('err', data.detail || t('Delete failed.'));
         setScanning(false);
       }
     } catch {
-      showMsg('err', 'Network error during delete.');
+      showMsg('err', t('Network error during delete.'));
       setScanning(false);
     }
   };
@@ -497,28 +505,28 @@ function FolderRow({ folder, token, onRefresh }) {
             className={styles.actionBtn}
             onClick={handleSync}
             disabled={scanning || indexing}
-            title="Sync folder with disk"
+            title={t('Sync folder with disk')}
           >
             {scanning ? <Loader size={14} className={styles.spin} /> : <RefreshCw size={14} />}
-            {scanning ? 'Syncing…' : 'Sync Now'}
+            {scanning ? t('Syncing…') : t('Sync Now')}
           </button>
           <button
             className={`${styles.actionBtn} ${styles.actionBtnAccent}`}
             onClick={handleIndexAll}
             disabled={indexing || scanning}
-            title="Index all pending documents"
+            title={t('Index all pending documents')}
           >
             {indexing ? <Loader size={14} className={styles.spin} /> : <Zap size={14} />}
-            {indexing ? 'Indexing…' : 'Index All'}
+            {indexing ? t('Indexing…') : t('Index All')}
           </button>
           <button
             className={`${styles.actionBtn} ${styles.actionBtnDanger}`}
             onClick={handleDeleteFolder}
             disabled={indexing || scanning}
-            title="Remove folder from Knowledge Base"
+            title={t('Remove folder from Knowledge Base')}
             style={{ marginLeft: 8 }}
           >
-            <Trash2 size={14} /> Delete Folder
+            <Trash2 size={14} /> {t('Delete Folder')}
           </button>
         </div>
       </div>
@@ -533,7 +541,7 @@ function FolderRow({ folder, token, onRefresh }) {
 
       {/* Meta line */}
       <div className={styles.folderMeta}>
-        <span>Last synced: {formatDate(lastSynced)}</span>
+        <span>{t('Last synced: {date}', { date: formatDate(lastSynced) })}</span>
       </div>
 
       {/* Expanded document list */}
@@ -545,7 +553,7 @@ function FolderRow({ folder, token, onRefresh }) {
               <input
                 className={styles.docSearchInput}
                 type="text"
-                placeholder="Filter documents…"
+                placeholder={t('Filter documents…')}
                 value={docSearch}
                 onChange={e => setDocSearch(e.target.value)}
               />
@@ -558,12 +566,12 @@ function FolderRow({ folder, token, onRefresh }) {
           )}
           {docsLoading && (
             <div className={styles.docsLoading}>
-              <Loader size={14} className={styles.spin} /> Loading documents…
+              <Loader size={14} className={styles.spin} /> {t('Loading documents…')}
             </div>
           )}
           {!docsLoading && docs.length === 0 && (
             <div className={styles.emptyDocs}>
-              No documents found. Click <strong>Sync Now</strong> to discover files.
+              {t('No documents found. Click Sync Now to discover files.')}
             </div>
           )}
           {!docsLoading && docs
@@ -583,18 +591,18 @@ function FolderRow({ folder, token, onRefresh }) {
                 <button
                   className={styles.reindexBtn}
                   onClick={() => window.openPreviewModal && window.openPreviewModal(doc)}
-                  title="Preview document"
+                  title={t('Preview document')}
                 >
-                  <Eye size={12} /> Preview
+                  <Eye size={12} /> {t('Preview')}
                 </button>
               )}
               {(doc.status === 'pending' || doc.status === 'failed') && (
                 <button
                   className={styles.reindexBtn}
                   onClick={() => handleIndexDoc(doc.id)}
-                  title="Index this document"
+                  title={t('Index this document')}
                 >
-                  <Zap size={12} /> Index
+                  <Zap size={12} /> {t('Index')}
                 </button>
               )}
             </div>
@@ -620,6 +628,7 @@ export default function KnowledgeBase({ token }) {
   const [addError, setAddError]     = useState(null);
   
   const [kbConfig, setKbConfig] = useState(null);
+  const [pathCopied, setPathCopied] = useState(false);
 
   // Global preview modal state
   const [previewDoc, setPreviewDoc] = useState(null);
@@ -677,7 +686,7 @@ export default function KnowledgeBase({ token }) {
         body: JSON.stringify({ folder_path: folderPath, folder_name: folderName }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Failed to add folder.');
+      if (!res.ok) throw new Error(data.detail || t('Failed to add folder.'));
       setFolders(prev => [...prev, data]);
       setShowModal(false);
     } catch (e) {
@@ -698,9 +707,9 @@ export default function KnowledgeBase({ token }) {
         });
         if (!res.ok) throw new Error('Failed to load preview');
         const data = await res.json();
-        setPreviewText(data.preview || "No text preview available.");
+        setPreviewText(data.preview || t('No text preview available.'));
       } catch (err) {
-        setPreviewText("Error loading preview.");
+        setPreviewText(t('Error loading preview.'));
       } finally {
         setPreviewLoading(false);
       }
@@ -715,8 +724,8 @@ export default function KnowledgeBase({ token }) {
         <div className={styles.pageTitle}>
           <Database size={22} className={styles.pageTitleIcon} />
           <div>
-            <h1 className={styles.h1}>Knowledge Base</h1>
-            <p className={styles.subtitle}>Manage indexed document folders for RAG retrieval</p>
+            <h1 className={styles.h1}>{t('Knowledge Base')}</h1>
+            <p className={styles.subtitle}>{t('Manage indexed document folders for RAG retrieval')}</p>
           </div>
         </div>
         <div className={styles.headerRight}>
@@ -725,7 +734,7 @@ export default function KnowledgeBase({ token }) {
             <input
               className={styles.searchInput}
               type="text"
-              placeholder="Search folders…"
+              placeholder={t('Search folders…')}
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -736,7 +745,7 @@ export default function KnowledgeBase({ token }) {
             )}
           </div>
           <button className={styles.btnPrimary} onClick={() => setShowModal(true)}>
-            <FolderPlus size={16} /> Add Folder
+            <FolderPlus size={16} /> {t('Add Folder')}
           </button>
         </div>
       </div>
@@ -747,26 +756,21 @@ export default function KnowledgeBase({ token }) {
             <FolderOpen size={20} />
           </div>
           <div className={styles.kbHelperContent}>
-            <h3 className={styles.kbHelperTitle}>Where do I put my files?</h3>
+            <h3 className={styles.kbHelperTitle}>{t('Where do I put my files?')}</h3>
             <p className={styles.kbHelperText}>
-              Place your documents (PDFs, TXT, etc.) into the Knowledge Base folder on your computer. 
-              Once added, click <strong>Add Folder</strong> to scan and index them into StarkLLM.
+              {t('Place your documents (PDFs, TXT, etc.) into the Knowledge Base folder on your computer. Then click Add Folder to scan and index them into StarkLLM.')}
             </p>
             <div className={styles.kbHelperPathWrap}>
               <code className={styles.kbHelperPath}>{kbConfig.host_kb_path}</code>
               <button 
                 className={styles.kbHelperCopyBtn}
                 onClick={() => {
-                  navigator.clipboard.writeText(kbConfig.host_kb_path);
-                  const btn = document.getElementById('kb-copy-btn');
-                  if (btn) {
-                    btn.innerHTML = 'Copied!';
-                    setTimeout(() => btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg> Copy Path', 2000);
-                  }
+                  navigator.clipboard.writeText(kbConfig.host_kb_path).catch(() => {});
+                  setPathCopied(true);
+                  setTimeout(() => setPathCopied(false), 2000);
                 }}
-                id="kb-copy-btn"
               >
-                <Copy size={14} /> Copy Path
+                {pathCopied ? <Check size={14} /> : <Copy size={14} />} {pathCopied ? t('Copied') : t('Copy Path')}
               </button>
             </div>
             {!loading && kbConfig.container_kb_path && !folders.some(f => f.folder_path === kbConfig.container_kb_path) && (
@@ -777,10 +781,10 @@ export default function KnowledgeBase({ token }) {
                   onClick={() => handleAddFolder(kbConfig.container_kb_path, 'Root Knowledge Base')}
                   disabled={addLoading}
                 >
-                  <FolderPlus size={14} /> Register Root Folder Now
+                  <FolderPlus size={14} /> {t('Register Root Folder Now')}
                 </button>
                 <span className={styles.hint} style={{ marginLeft: '10px', fontSize: '0.8rem' }}>
-                  Quickly add the main folder above to your list.
+                  {t('Quickly add the main folder above to your list.')}
                 </span>
               </div>
             )}
@@ -791,23 +795,23 @@ export default function KnowledgeBase({ token }) {
       {error && (
         <div className={styles.errorBox}>
           <AlertCircle size={14} /> {error}
-          <button className={styles.retryBtn} onClick={fetchFolders}>Retry</button>
+          <button className={styles.retryBtn} onClick={fetchFolders}>{t('Retry')}</button>
         </div>
       )}
 
       {loading && (
         <div className={styles.loadingState}>
           <Loader size={20} className={styles.spin} />
-          <span>Loading folders…</span>
+          <span>{t('Loading folders…')}</span>
         </div>
       )}
 
       {!loading && !error && folders.length === 0 && (
         <EmptyState 
           icon={FolderOpen} 
-          title="No folders added yet" 
-          hint="Add a folder to start indexing documents for AI-assisted retrieval." 
-          action={{ label: 'Add Your First Folder', onClick: () => setShowModal(true) }} 
+          title={t('No folders added yet')} 
+          hint={t('Add a folder to start indexing documents for AI-assisted retrieval.')} 
+          action={{ label: t('Add Your First Folder'), onClick: () => setShowModal(true) }} 
         />
       )}
 
@@ -855,7 +859,7 @@ export default function KnowledgeBase({ token }) {
             <div className={styles.modalBody} style={{ maxHeight: '60vh', overflowY: 'auto' }}>
               {previewLoading ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
-                  <Loader size={20} className={styles.spin} style={{ marginRight: '8px' }} /> Loading preview...
+                  <Loader size={20} className={styles.spin} style={{ marginRight: '8px' }} /> {t('Loading preview...')}
                 </div>
               ) : (
                 <pre style={{ 

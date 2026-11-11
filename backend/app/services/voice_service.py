@@ -67,5 +67,28 @@ class VoiceService:
         subprocess.run(cmd, input=text.encode("utf-8"), check=True)
 
 
+# EU AI Act, Art. 50(2): synthetic audio is marked as AI-generated in a machine-readable way. A WAV file carries
+# the mark in a RIFF LIST/INFO chunk, which players ignore and tools (exiftool, ffprobe) show.
+AI_MARK = "AI-generated speech: StarkLLM text-to-speech (Piper), made on this PC"
+
+
+def mark_ai_generated(path: str) -> None:
+    def sub(tag: bytes, text: str) -> bytes:
+        data = text.encode("utf-8") + b"\0"
+        if len(data) % 2:
+            data += b"\0"
+        return tag + len(data).to_bytes(4, "little") + data
+
+    with open(path, "rb") as f:
+        wav = f.read()
+    if len(wav) < 12 or wav[:4] != b"RIFF" or wav[8:12] != b"WAVE":
+        raise ValueError("not a WAV file")
+    info = b"INFO" + sub(b"ISFT", "StarkLLM") + sub(b"ICMT", AI_MARK)
+    chunk = b"LIST" + len(info).to_bytes(4, "little") + info
+    body = wav[12:] + chunk
+    with open(path, "wb") as f:
+        f.write(b"RIFF" + (len(body) + 4).to_bytes(4, "little") + b"WAVE" + body)
+
+
 voice_service = VoiceService()
 

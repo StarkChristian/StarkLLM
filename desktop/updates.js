@@ -2,7 +2,7 @@
 // without a new download from the website (electron-updater: only the changed parts of the installer are fetched).
 // Nothing is checked before the user agreed once (first start), or when they pick "Check for updates" in the
 // tray menu or in Settings > About; nothing is downloaded or installed without their click.
-// The portable exe cannot replace itself: it gets the download page, as before.
+// The portable exe (shipped until 2.0.12) cannot replace itself: it gets the download page, as before.
 // STARKLLM_UPDATE_CHECK=0 turns the automatic check off (for administrators and tests).
 const fs = require('fs');
 const path = require('path');
@@ -55,7 +55,9 @@ function backupDatabase(userData, version, log = () => {}) {
   }
 }
 
-function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null, log = () => {}, onChange = () => {} }) {
+// onStatus({ phase, percent }) tells the page what happens while the download runs: 'downloading' with a percent,
+// then 'done'. Without it, Settings showed "Checking..." for the whole download (2.0.12 on Windows).
+function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null, log = () => {}, onChange = () => {}, onStatus = () => {} }) {
   // Only the installed app can replace itself; the portable exe and runs from source cannot.
   const selfUpdate = Boolean(autoUpdater && app.isPackaged && !process.env.PORTABLE_EXECUTABLE_DIR);
   if (selfUpdate) {
@@ -151,7 +153,9 @@ function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null,
     const onProgress = (p) => {
       const w = parent();
       if (w) w.setProgressBar(Math.max(0, Math.min(1, (p.percent || 0) / 100)));
+      onStatus({ phase: 'downloading', percent: Math.round(p.percent || 0) });
     };
+    onStatus({ phase: 'downloading', percent: 0 });
     autoUpdater.on('download-progress', onProgress);
     try {
       const info = await autoUpdater.checkForUpdates();
@@ -170,6 +174,7 @@ function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null,
       autoUpdater.removeListener('download-progress', onProgress);
       const w = parent();
       if (w) w.setProgressBar(-1);
+      onStatus({ phase: 'done' });
       busy = false;
     }
     log(`update ${d.latest} downloaded`);

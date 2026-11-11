@@ -14,6 +14,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { useToast } from './Toast';
+import { t } from '../i18n';
 
 export default function ModelHubModal({ isOpen, onClose, token, currentModel, onModelSelect }) {
   const toast = useToast();
@@ -122,7 +123,7 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
             const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
 
             setPullProgress({
-              status: data.status || 'Downloading...',
+              status: data.status || t('Downloading...'),
               completed,
               total,
               percent
@@ -141,14 +142,14 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
       await loadData();
     } catch (err) {
       console.error('Pull failed:', err);
-      toast.error(`Download failed: ${err.message}`);
+      toast.error(t('Download failed: {error}', { error: err.message }));
     } finally {
       setPullingModel(null);
     }
   };
 
   const handleDeleteModel = async (modelName) => {
-    if (!window.confirm(`Are you sure you want to delete ${modelName}? This will free disk space.`)) {
+    if (!window.confirm(t('Delete {model}? This frees disk space.', { model: modelName }))) {
       return;
     }
 
@@ -163,11 +164,11 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
         await loadData();
       } else {
         const err = await res.json();
-        toast.error(`Delete failed: ${err.detail || 'Unknown error'}`);
+        toast.error(t('Delete failed: {error}', { error: err.detail || t('Unknown error') }));
       }
     } catch (err) {
       console.error('Delete failed:', err);
-      toast.error('Network error while deleting model');
+      toast.error(t('Network error while deleting model'));
     }
   };
 
@@ -197,15 +198,15 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
               <Cpu size={22} />
             </div>
             <div>
-              <h2 className={styles.title}>StarkLLM Model Hub</h2>
-              <p className={styles.subtitle}>Discover, download and manage offline local AI models</p>
+              <h2 className={styles.title}>{t('StarkLLM Model Hub')}</h2>
+              <p className={styles.subtitle}>{t('Discover, download and manage offline local AI models')}</p>
             </div>
           </div>
           <button 
             className={styles.closeBtn} 
             onClick={onClose} 
             disabled={!!pullingModel}
-            title="Close"
+            title={t('Close')}
           >
             <X size={18} />
           </button>
@@ -218,7 +219,7 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
             onClick={() => setActiveTab('explore')}
           >
             <Sparkles size={16} />
-            <span>Recommended Models</span>
+            <span>{t('Recommended Models')}</span>
             <span className={styles.countBadge}>{catalog.length}</span>
           </button>
           <button 
@@ -226,7 +227,7 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
             onClick={() => setActiveTab('installed')}
           >
             <HardDrive size={16} />
-            <span>Installed Local Models</span>
+            <span>{t('Installed Local Models')}</span>
             <span className={styles.countBadge}>{installedModels.length}</span>
           </button>
         </div>
@@ -266,7 +267,7 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
               <div className={styles.customPullBox}>
                 <input 
                   type="text"
-                  placeholder="Enter any Ollama model tag (e.g. llama3.1:8b, mistral-nemo, codellama)..."
+                  placeholder={t('Enter any Ollama model tag (e.g. llama3.1:8b, mistral-nemo, codellama)...')}
                   className={styles.customInput}
                   value={customModelName}
                   onChange={(e) => setCustomModelName(e.target.value)}
@@ -279,7 +280,7 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
                   disabled={!customModelName.trim() || !!pullingModel}
                 >
                   <Download size={15} />
-                  <span>Pull Model</span>
+                  <span>{t('Pull Model')}</span>
                 </button>
               </div>
 
@@ -305,7 +306,7 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
                         <h3 className={styles.cardName}>{model.title}</h3>
                         {model.is_installed && (
                           <span className={styles.installedBadge}>
-                            <Check size={12} /> Installed
+                            <Check size={12} /> {t('Installed')}
                           </span>
                         )}
                       </div>
@@ -334,11 +335,11 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
                           className={styles.installBtn}
                           onClick={() => {
                             if (onModelSelect) onModelSelect(model.name);
-                            toast.success(`Switched active model to ${model.name}`);
+                            toast.success(t('Now using {model}', { model: model.name }));
                             onClose();
                           }}
                         >
-                          <CheckCircle2 size={14} /> Select as Active
+                          <CheckCircle2 size={14} /> {t('Select as Active')}
                         </button>
                       ) : (
                         <button 
@@ -346,7 +347,7 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
                           onClick={() => handlePullModel(model.name)}
                           disabled={!!pullingModel}
                         >
-                          <Download size={14} /> Install Model
+                          <Download size={14} /> {t('Install Model')}
                         </button>
                       )}
                     </div>
@@ -361,13 +362,13 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
               {installedModels.length === 0 ? (
                 <div className={styles.emptyState}>
                   <AlertCircle size={36} color="var(--text-muted)" />
-                  <p>No models detected in your local Ollama instance.</p>
+                  <p>{t('No models detected in your local Ollama instance.')}</p>
                   <button 
                     className={styles.pullBtn} 
                     style={{ margin: '14px auto 0' }}
                     onClick={() => setActiveTab('explore')}
                   >
-                    Browse Recommended Models
+                    {t('Browse Recommended Models')}
                   </button>
                 </div>
               ) : (
@@ -381,7 +382,7 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
                             <h3 className={styles.cardName}>{m.name}</h3>
                             {isCurrent && (
                               <span className={styles.installedBadge}>
-                                Active
+                                {t('Active')}
                               </span>
                             )}
                           </div>
@@ -412,19 +413,19 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
                             className={styles.installBtn}
                             onClick={() => {
                               if (onModelSelect) onModelSelect(m.name);
-                              toast.success(`Active model set to ${m.name}`);
+                              toast.success(t('Now using {model}', { model: m.name }));
                               onClose();
                             }}
                           >
-                            <Check size={14} /> Use This Model
+                            <Check size={14} /> {t('Use This Model')}
                           </button>
                           <button 
                             className={styles.deleteBtn}
                             onClick={() => handleDeleteModel(m.name)}
                             disabled={!!pullingModel}
-                            title="Delete model from disk"
+                            title={t('Delete model from disk')}
                           >
-                            <Trash2 size={14} /> Delete
+                            <Trash2 size={14} /> {t('Delete')}
                           </button>
                         </div>
                       </div>
