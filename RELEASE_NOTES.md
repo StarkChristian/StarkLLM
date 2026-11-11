@@ -1,5 +1,18 @@
 # StarkLLM Release Notes
 
+## Version 2.0.15 — Inbox: what is in every letter, cases per sender
+
+- **New: Inbox.** For every letter StarkLLM now reads its kind (bill, reminder, tax notice, contract, fine, debt collection, text message …), the sender, the date of the letter, reference numbers (customer, contract, tax number …), amounts, bank accounts and deadlines. Everything is found word for word on a page of the letter: click a value and the letter opens at that page with the line marked. Mark a letter done when you have dealt with it, or give it your own title. The number of new letters is shown next to "Inbox".
+- **Cases.** Letters of the same sender are put together, the case with the nearest deadline first. The same letter as a photo and as a PDF is marked, and so are a replaced letter and a possible scam.
+- **Updates without an admin prompt.** When Windows holds back a new version for a few hours (it checks new, unsigned programs first), StarkLLM no longer asks for administrator rights for an unknown program. It keeps running, says what happened and tries again when you quit it.
+- Nothing is renamed or moved on your disk; StarkLLM only suggests.
+
+**From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install".
+
+Pull requests: #89, #90.
+
+---
+
 ## Version 2.0.14 — Your letters at a glance: deadlines, photos of letters, sources you can check
 
 - **Document home.** The start page shows your newest documents and the deadlines, appointments and payments found in them, with amount and the page they come from. "Add to calendar" saves them as a calendar file.
