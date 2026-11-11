@@ -293,6 +293,7 @@ export default function App() {
                 kbSources: m.sources.kb || [],
                 wsSources: m.sources.ws || [],
                 evidence: m.sources.evidence || null,
+                warnings: m.sources.warnings || [],
                 webSources: m.sources.web || [],
                 cloudHost: m.sources.cloud || null,
               } : m))
@@ -572,6 +573,8 @@ export default function App() {
       const webSourcesHeader = response.headers.get('X-Web-Sources') ? decodeURIComponent(response.headers.get('X-Web-Sources')) : '';
       const webSourcesUrlsHeader = response.headers.get('X-Web-Sources-Urls') ? decodeURIComponent(response.headers.get('X-Web-Sources-Urls')) : '';
       const cloudHostHeader = response.headers.get('X-Cloud-Provider') || null;
+      let docWarnings = [];
+      try { docWarnings = JSON.parse(decodeURIComponent(response.headers.get('X-Doc-Warnings') || '%5B%5D')); } catch { docWarnings = []; }
 
       const webTitles = webSourcesHeader ? webSourcesHeader.split(',').filter(Boolean) : [];
       const webUrls = webSourcesUrlsHeader ? webSourcesUrlsHeader.split(',').filter(Boolean) : [];
@@ -601,7 +604,8 @@ export default function App() {
             kbSources: kbSourcesHeader ? kbSourcesHeader.split('|').filter(Boolean) : [],
             wsSources: wsSourcesHeader ? wsSourcesHeader.split('|').filter(Boolean) : [],
             webSources: webSourcesData,
-            cloudHost: cloudHostHeader
+            cloudHost: cloudHostHeader,
+            warnings: docWarnings
           };
           return msgs;
         });
@@ -840,6 +844,16 @@ export default function App() {
 
     const newDoc = await response.json();
 
+    // the same file is already there (B4): say so, keep the one that is there
+    if (newDoc.duplicate) {
+      setMessages(prev => {
+        const msgs = [...prev];
+        msgs[msgs.length - 1] = { role: 'system', content: t('{name} is already in your documents (as {existing}); it was not added again.', { name: file.name, existing: newDoc.filename }) };
+        return msgs;
+      });
+      return newDoc;
+    }
+
     // Add the doc immediately into local state so it appears in Document Manager instantly
     setWorkspaceDocs(prev => {
       // avoid duplicates
@@ -942,7 +956,7 @@ export default function App() {
       setActiveWorkspace(newWs);
       setChats([]);
       setActiveChatId(null);
-      setMessages([{ role: 'assistant', content: `Workspace "${wsName}" created. What shall we work on?` }]);
+      setMessages([]);  // the start page with suggestions
       setActiveView('chat');
     } catch (err) {
       console.error('Error creating workspace:', err);
@@ -961,6 +975,14 @@ export default function App() {
     setActiveView('chat');
     setChatSearchQuery('');
   };
+
+  // A new user starts in a workspace "My documents" instead of a page that asks to create one.
+  const autoWorkspaceRef = useRef(false);
+  useEffect(() => {
+    if (!hasFetchedWorkspaces || !token || workspaces.length > 0 || autoWorkspaceRef.current) return;
+    autoWorkspaceRef.current = true;
+    handleNewWorkspace(t('My documents'));
+  }, [hasFetchedWorkspaces, token, workspaces.length]);
 
   // ── Not logged in ──
   if (!token) {
@@ -1018,6 +1040,8 @@ export default function App() {
   }
 
   // ── No workspace (new user) ──
+  // A new user gets a workspace "My documents" right away (see the effect above); this page only shows while it is
+  // created, or with the reason when that failed.
   if (hasFetchedWorkspaces && !activeWorkspace && token && workspaces.length === 0 && activeView !== 'settings') {
     return (
       <div style={{
@@ -1027,35 +1051,28 @@ export default function App() {
         background: 'var(--bg-primary)'
       }}>
         <img src="/Logo.png" alt="StarkLLM" style={{ width: 144, height: 'auto', marginBottom: 12 }} />
-        <h2 style={{ color: '#ffffff', fontWeight: 700, fontSize: '1.75rem' }}>{t('Welcome to StarkLLM!')}</h2>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', textAlign: 'center', maxWidth: 380, lineHeight: 1.6 }}>
-          {t('You don\'t have any workspaces yet. Create one to get started.')}
-        </p>
-        {wsError && (
-          <p style={{ color: 'var(--danger)', background: 'rgba(239,68,68,0.1)', padding: '0.75rem 1.25rem', borderRadius: 8, fontSize: '0.95rem', fontWeight: 500 }}>
-            ⚠️ {wsError}
-          </p>
+        <h2 style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: '1.75rem' }}>{t('Welcome to StarkLLM!')}</h2>
+        {!wsError ? (
+          <p style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>{t('Getting your documents ready…')}</p>
+        ) : (
+          <>
+            <p style={{ color: 'var(--danger)', background: 'rgba(239,68,68,0.1)', padding: '0.75rem 1.25rem', borderRadius: 8, fontSize: '0.95rem', fontWeight: 500, maxWidth: 520, textAlign: 'center' }}>
+              {t('StarkLLM could not prepare your documents space: {error}', { error: wsError })}
+            </p>
+            <button
+              onClick={() => handleNewWorkspace(t('My documents'))}
+              disabled={wsLoading}
+              className="btn-primary"
+              style={{ fontSize: '0.95rem', padding: '12px 24px', fontWeight: 600 }}
+            >
+              {wsLoading ? t('Creating…') : t('Try again')}
+            </button>
+          </>
         )}
-        <button
-          onClick={openNewWorkspaceModal}
-          disabled={wsLoading}
-          className="btn-primary"
-          style={{ fontSize: '0.95rem', padding: '12px 24px', fontWeight: 600 }}
-        >
-          {wsLoading ? t('Creating…') : t('+ Create My First Workspace')}
-        </button>
-        <button onClick={handleLogout} className="btn-danger" style={{ fontSize: '0.9rem', padding: '10px 20px', fontWeight: 600 }}>
-          {t('Logout')}
-        </button>
-
-        {showWsModal && (
-          <WorkspaceNameModal
-            value={newWsName}
-            onChange={setNewWsName}
-            onConfirm={() => handleNewWorkspace(newWsName)}
-            onCancel={() => setShowWsModal(false)}
-            inputRef={wsNameInputRef}
-          />
+        {username !== 'local' && (
+          <button onClick={handleLogout} className="btn-secondary" style={{ fontSize: '0.9rem', padding: '10px 20px', fontWeight: 600 }}>
+            {t('Logout')}
+          </button>
         )}
       </div>
     );
@@ -1110,6 +1127,7 @@ export default function App() {
             onSelectWorkspace={handleSelectWorkspace}
             chats={chats}
             onSelectChat={handleSelectChat}
+            onUpload={activeWorkspace ? handleFileUpload : null}
           />
         )}
 
@@ -1134,6 +1152,8 @@ export default function App() {
               onSelectStarter={handleSendMessage}
               workspaceId={activeWorkspace?.id}
               chatId={activeChatId}
+              onUpload={handleFileUpload}
+              newestDocument={[...workspaceDocs].filter(d => d.status === 'indexed').sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0]?.filename}
               token={token}
             />
             <InputBar 

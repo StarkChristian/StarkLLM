@@ -229,7 +229,13 @@ export default function DocumentViewerModal({
           ) : (
             <div>
               {imageUrl && currentPage === 1 && (
-                <img className={styles.image} src={imageUrl} alt={docData?.filename || ''} />
+                <img
+                  className={styles.image}
+                  src={imageUrl}
+                  alt={docData?.filename || ''}
+                  // the photo pushes the text down once loaded: bring the cited passage back into view
+                  onLoad={() => markRef.current && markRef.current.scrollIntoView({ block: 'center' })}
+                />
               )}
               {renderHighlightedContent(currentText, searchQuery)}
             </div>

@@ -187,8 +187,8 @@ export default function SystemStatusWidget({ token }) {
           <StatusRow
             icon={Server}
             iconColor="#6366f1"
-            label={t('Backend API')}
-            sublabel="FastAPI server"
+            label={t('StarkLLM engine')}
+            sublabel={t('On this PC')}
             status={data?.backend?.status ?? 'online'}
             error={data?.backend?.error}
           />

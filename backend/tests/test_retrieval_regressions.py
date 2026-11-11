@@ -127,3 +127,13 @@ def test_file_without_content_is_not_reported_as_indexed(tmp_path):
     p.write_text("\n \n", encoding="utf-8")
     with pytest.raises(ValueError):
         rag_service._process_file_to_chunks(str(p))
+
+
+def test_sentences_are_not_split_inside_dates_or_after_abbreviations():
+    # long test: "zahlbar bis 3. Januar 2027" was cut into "… bis 3." and "Januar 2027.", so the deadline was lost
+    from app.services.rag_service import split_sentences
+    assert split_sentences("Der Betrag ist zahlbar bis 3. Januar 2027. Mit freundlichen Grüßen") == [
+        "Der Betrag ist zahlbar bis 3. Januar 2027.", "Mit freundlichen Grüßen"]
+    assert split_sentences("Zahnarztpraxis Dr. Ilić, Rechnung Nr. 9040. Zahlen Sie z. B. per Überweisung.") == [
+        "Zahnarztpraxis Dr. Ilić, Rechnung Nr. 9040.", "Zahlen Sie z. B. per Überweisung."]
+    assert split_sentences("Er kam am 15. Mai. Dann ging er.") == ["Er kam am 15. Mai.", "Dann ging er."]

@@ -795,7 +795,7 @@ export default function DocumentManager({
                       className={styles.actionBtnSecondary}
                       onClick={() => handleReindex(selectedDoc.id)}
                       disabled={reindexingIds.has(selectedDoc.id) || isInProgress(selectedDoc) || selectedDoc.status === 'missing'}
-                      title={t('Re-parse and embed into vector database')}
+                      title={t('Read the file again and update the search')}
                     >
                       {reindexingIds.has(selectedDoc.id) ? <Loader size={14} className={styles.spinner} /> : 
                        reindexSuccessIds.has(selectedDoc.id) ? <CheckCircle2 size={14} style={{ color: 'var(--success)' }} /> : 
