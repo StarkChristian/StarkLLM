@@ -24,6 +24,29 @@ try :
 except ImportError :
     Ranker ,RerankRequest =None ,None 
 
+# A period ends a sentence, except after a day number ("3. Januar 2027", "bis zum 3.") or a common abbreviation
+# ("Dr. Ilić", "Nr. 9040", "z. B."), and not when a lower-case word follows. Splitting there tore dates and names
+# apart: "zahlbar bis 3." | "Januar 2027." in two pieces, so the deadline was lost (long test with 120 letters).
+_NO_SENTENCE_END = re .compile (
+r"(\b\d{1,2}\.|\b(nr|dr|prof|bzw|ca|vgl|str|abs|art|tel|hr|fr|frau|herrn|inkl|zzgl|ggf|evtl|usw|etc|mio|mrd|st|s|z|u|d|o|i|e|kap|ziff|lit)\.)$",
+re .IGNORECASE ,
+)
+_SENTENCE_GAP = re .compile (r"(?<=[.?!])\s+")
+
+
+def split_sentences (text :str )->List [str ]:
+    out ,start =[],0 
+    for m in _SENTENCE_GAP .finditer (text ):
+        before =text [max (0 ,m .start ()-12 ):m .start ()]
+        after =text [m .end ():m .end ()+1 ]
+        if _NO_SENTENCE_END .search (before )or (after and after .islower ()):
+            continue 
+        out .append (text [start :m .start ()])
+        start =m .end ()
+    out .append (text [start :])
+    return [x for x in out if x .strip ()]
+
+
 ENGLISH_STOP_WORDS ={
 "a","about","above","after","again","against","all","am","an","and","any","are","aren't","as","at",
 "be","because","been","before","being","below","between","both","but","by","can't","cannot","could",
@@ -819,7 +842,7 @@ class RAGService :
             return self ._chunk_text_recursive (text )if text and text .strip ()else []
 
             # 1. Split into sentences (keeping end marks)
-        raw_sentences =re .split (r'(?<=[.?!])\s+',text .strip ())
+        raw_sentences =split_sentences (text .strip ())
         sentences =[]
         for raw in raw_sentences :
             raw =raw .strip ()
