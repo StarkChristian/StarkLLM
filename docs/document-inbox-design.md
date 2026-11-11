@@ -59,6 +59,11 @@ comes first.
 
 Each PR has its own tests. B4 and later UI work builds on the German UI (#55).
 
+Done so far: B1 (#60), duplicate upload and calendar export (#72), B3 and B4 by rules (`facts_service.py`, Inbox page):
+type, sender, letter date, reference numbers, amounts, IBANs and dates with page and line; inbox with done/new, own
+title, cases per sender, same letter as photo and PDF. Not yet: the local model for type and summary when the rules
+find nothing, moving a document to another case from the UI (the API takes `case`), reminders (B5).
+
 ## 5. Out of scope here
 
 Phone capture and transfer (remote access design, #59), handwriting recognition, legal advice. StarkLLM explains

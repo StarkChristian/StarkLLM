@@ -5,7 +5,7 @@ import {
   Plus, LogOut, Monitor, ChevronRight, Trash2, Check, X,
   MessageCircle, ChevronDown, FileText, FolderOpen, BrainCircuit,
   Pencil, Search, Pin, PinOff, AlignLeft, SearchCheck,
-  FolderPlus, Folder, MoveRight, Cpu, Sparkles, Palette
+  FolderPlus, Folder, MoveRight, Cpu, Sparkles, Palette, Inbox
 } from 'lucide-react';
 import { SidebarStatusDot } from './SystemStatusWidget';
 import EmptyState from './EmptyState';
@@ -16,6 +16,7 @@ import { t } from '../i18n';
 
 const NAV_ITEMS = [
   { id: 'dashboard',      label: t('Dashboard'),      icon: LayoutDashboard },
+  { id: 'inbox',          label: t('Inbox'),           icon: Inbox },
   { id: 'chat',           label: t('Chat'),            icon: MessageSquare },
   { id: 'knowledge-base', label: t('Knowledge Base'),  icon: Database },
   { id: 'settings',       label: t('Settings'),        icon: Settings },
@@ -28,6 +29,7 @@ export default function Sidebar({
   onNewWorkspace,
   activeView,
   onViewChange,
+  inboxCount = 0,
   onLogout,
   username,
   token,
@@ -397,6 +399,9 @@ export default function Sidebar({
           >
             <Icon size={18} className={styles.navIcon} />
             <span>{label}</span>
+            {id === 'inbox' && inboxCount > 0 && (
+              <span className={styles.navBadge} title={t('{count} new letters', { count: inboxCount })}>{inboxCount}</span>
+            )}
             {activeView === id && <ChevronRight size={14} className={styles.navChevron} />}
           </button>
         ))}

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Float, Boolean
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Float, Boolean, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.db.session import Base
@@ -206,3 +206,20 @@ class KnowledgeBaseDocument(Base):
             f"<KnowledgeBaseDocument id={self.id} folder_id={self.folder_id} "
             f"name={self.file_name!r} status={self.status!r}>"
         )
+
+
+class DocumentReview(Base):
+    """What the user decided about a document in the inbox (docs/document-inbox-design.md, B4): done or still new,
+    their own title, the case it belongs to. StarkLLM only suggests; nothing is renamed or moved on disk.
+    scope "ws" is a workspace document (documents.id), "kb" a knowledge-base file (knowledge_base_documents.id)."""
+    __tablename__ = "document_reviews"
+    __table_args__ = (UniqueConstraint("user_id", "scope", "document_id", name="uq_document_review"),)
+
+    id          = Column(Integer, primary_key=True, index=True)
+    user_id     = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    scope       = Column(String, nullable=False)                 # "ws" or "kb"
+    document_id = Column(Integer, nullable=False)
+    status      = Column(String, default="new", nullable=False)  # "new" or "done"
+    title       = Column(String, nullable=True)                  # the user's own title, else the suggested one
+    case_key    = Column(String, nullable=True)                  # the user's case, else the suggested one
+    updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -5,6 +5,7 @@ import InputBar from './components/InputBar';
 import LoginSignup from './components/LoginSignup';
 import KnowledgeBase from './components/KnowledgeBase';
 import Dashboard from './components/Dashboard';
+import Inbox from './components/Inbox';
 import Settings from './components/Settings';
 import ErrorBoundary from './components/ErrorBoundary';
 import DocumentManager from './components/DocumentManager';
@@ -53,6 +54,20 @@ export default function App() {
   const [wsLoading, setWsLoading] = useState(false);
   const [wsError, setWsError] = useState(null);
   const [activeView, setActiveView] = useState('dashboard');
+  // number of new letters in the inbox, shown next to "Inbox" in the sidebar
+  const [inboxCount, setInboxCount] = useState(0);
+  useEffect(() => {
+    if (!token) return undefined;
+    const loadCount = async () => {
+      try {
+        const res = await fetch('/api/v1/dashboard/inbox/count', { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) setInboxCount((await res.json()).new_count || 0);
+      } catch (_) { /* the number stays as it was */ }
+    };
+    loadCount();
+    const timer = setInterval(loadCount, 30000);
+    return () => clearInterval(timer);
+  }, [token]);
   const [useKb, setUseKb] = useState(false);
   const [useWebSearch, setUseWebSearch] = useState(false);
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(false);
@@ -1088,6 +1103,7 @@ export default function App() {
         onNewWorkspace={openNewWorkspaceModal}
         activeView={activeView}
         onViewChange={setActiveView}
+        inboxCount={inboxCount}
         onLogout={handleLogout}
         username={username}
         token={token}
@@ -1129,6 +1145,10 @@ export default function App() {
             onSelectChat={handleSelectChat}
             onUpload={activeWorkspace ? handleFileUpload : null}
           />
+        )}
+
+        {activeView === 'inbox' && (
+          <Inbox token={token} onViewChange={setActiveView} onCountChange={setInboxCount} />
         )}
 
         {activeView === 'knowledge-base' && (
