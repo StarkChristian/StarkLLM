@@ -2,7 +2,7 @@
 (2.0.11 sent JPEG bytes and the briefing said the data was corrupt)."""
 from types import SimpleNamespace
 
-from app.api.studio import _document_text, _ground_rules
+from app.api.studio import _document_text, _ground_rules, _localized
 
 
 class FakeCollection:
@@ -42,3 +42,10 @@ def test_rules_name_language_and_date():
     assert "in English" in _ground_rules("en-US")
     assert "language of the documents" in _ground_rules(None)
     assert "Today is 20" in _ground_rules("de")
+
+
+def test_german_headings_are_given_not_left_to_the_model():
+    prompt = "Use sections:\n# Executive Summary\n## Risk Assessment & Critical Assumptions\n"
+    assert "# Zusammenfassung" in _localized(prompt, "de")
+    assert "## Risiken und Annahmen" in _localized(prompt, "de")
+    assert _localized(prompt, "en") == prompt

@@ -25,6 +25,23 @@ class SynthesizeStudioRequest(BaseModel):
 TEXT_FILES = {"txt", "md", "markdown", "csv", "tsv", "json", "xml", "log", "html", "htm", "yaml", "yml",
               "ini", "cfg", "toml"}
 LANGUAGE_NAMES = {"de": "German", "en": "English"}
+# Headings the prompts name, in German: told to "translate the headings", a 27B model still kept them English.
+GERMAN_HEADINGS = {
+    "# Executive Summary": "# Zusammenfassung",
+    "## Strategic Highlights & Core Discoveries": "## Wichtigste Punkte",
+    "## Risk Assessment & Critical Assumptions": "## Risiken und Annahmen",
+    "## Recommended Decisions & Action Items": "## Empfohlene Entscheidungen und nächste Schritte",
+    "an Executive Synthesis": "a summary headed 'Zusammenfassung'",
+    "Key Divergences / Synergies": "a section headed 'Unterschiede und Gemeinsamkeiten'",
+}
+
+
+def _localized(prompt: str, language: Optional[str]) -> str:
+    if (language or "").lower()[:2] != "de":
+        return prompt
+    for english, german in GERMAN_HEADINGS.items():
+        prompt = prompt.replace(english, german)
+    return prompt
 
 
 def _document_text(collection, doc) -> str:
@@ -220,7 +237,7 @@ async def synthesize_studio(
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported studio synthesis type: {req.type}")
 
-    system_prompt += _ground_rules(req.language)
+    system_prompt = _localized(system_prompt, req.language) + _ground_rules(req.language)
 
     messages = [
         {"role": "system", "content": system_prompt},
