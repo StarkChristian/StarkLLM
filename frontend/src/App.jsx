@@ -844,6 +844,16 @@ export default function App() {
 
     const newDoc = await response.json();
 
+    // the same file is already there (B4): say so, keep the one that is there
+    if (newDoc.duplicate) {
+      setMessages(prev => {
+        const msgs = [...prev];
+        msgs[msgs.length - 1] = { role: 'system', content: t('{name} is already in your documents (as {existing}); it was not added again.', { name: file.name, existing: newDoc.filename }) };
+        return msgs;
+      });
+      return newDoc;
+    }
+
     // Add the doc immediately into local state so it appears in Document Manager instantly
     setWorkspaceDocs(prev => {
       // avoid duplicates

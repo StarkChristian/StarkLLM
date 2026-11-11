@@ -761,5 +761,9 @@
   "VS Code: .vscode/mcp.json": "VS Code: .vscode/mcp.json",
   "Cursor: ~/.cursor/mcp.json": "Cursor: ~/.cursor/mcp.json",
   "Claude Desktop: claude_desktop_config.json (needs Node.js)": "Claude Desktop: claude_desktop_config.json (braucht Node.js)",
-  "Python (openai package)": "Python (Paket openai)"
+  "Python (openai package)": "Python (Paket openai)",
+  "{name} is already in your documents (as {existing}); it was not added again.": "{name} ist schon in Ihren Dokumenten (als {existing}); es wurde nicht noch einmal hinzugefügt.",
+  "Save the dates as a calendar file for Outlook, Google or your phone": "Termine als Kalenderdatei speichern, für Outlook, Google oder das Handy",
+  "Add to calendar": "Zum Kalender",
+  "Change": "Änderung"
 }

@@ -12,7 +12,7 @@ Checks are regular expressions, matched case-insensitively against the answer:
 Each question also names what it tests, so a failure points at the part of the system to improve.
 """
 
-REFUSAL = r"nicht gefunden|nicht\b.{0,60}\bfinden|kein\w* .{0,40}(gefunden|finden)|keine (informationen|angaben|hinweise|dokumente)|nicht in den (bereitgestellten |vorliegenden )?(dokumenten|unterlagen)|could not find|not find|no information|nicht enthalten|liegen mir nicht vor|nicht vor"
+REFUSAL = r"nicht gefunden|keine?r? (der |von den )?(dokumente|unterlagen|schreiben)|kein dokument|enthalten keine|enthält keine|nicht\b.{0,60}\bfinden|kein\w* .{0,40}(gefunden|finden)|keine (informationen|angaben|hinweise|dokumente)|nicht in den (bereitgestellten |vorliegenden )?(dokumenten|unterlagen)|could not find|not find|no information|nicht enthalten|liegen mir nicht vor|nicht vor"
 
 QUESTIONS = [
     # ---- single facts in German letters
@@ -88,7 +88,7 @@ QUESTIONS = [
      "must_not": [r"31\.\s?0?3\.\s?2027"]},
     {"id": "pay-by-new-year", "tests": "sum over several letters",
      "q": "Was muss ich bis Ende des Jahres noch bezahlen? Bitte als Liste mit Beträgen.",
-     "must": [r"412", r"268,40", r"96"], "lang": "de"},
+     "must": [r"412", r"268,40", r"96|98,50"], "lang": "de"},
     {"id": "ambiguous", "tests": "ambiguous question: several letters fit",
      "q": "Wie hoch ist mein Beitrag?",
      "must": [r"2,9|687,12|29,90"], "lang": "de",

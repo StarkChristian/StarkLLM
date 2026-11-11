@@ -27,6 +27,14 @@ def _font(size):
     return ImageFont.load_default(size=size)
 
 
+def pdf_font() -> dict:
+    """A TrueType font with the euro sign when there is one; PyMuPDF's built-in Helvetica writes "?" for "€"."""
+    for f in FONTS:
+        if Path(f).exists():
+            return {"fontname": "dejavu", "fontfile": f}
+    return {"fontname": "helv"}
+
+
 def write_pdf(text: str, path: Path):
     doc = fitz.open()
     lines = text.splitlines()
@@ -36,7 +44,7 @@ def write_pdf(text: str, path: Path):
         # as many lines as fit; insert_textbox writes nothing and returns < 0 when the text does not fit
         for end in range(len(lines), start, -1):
             if page.insert_textbox(fitz.Rect(56, 56, 540, 800), "\n".join(lines[start:end]),
-                                   fontsize=9.5, fontname="helv") >= 0:
+                                   fontsize=9.5, **pdf_font()) >= 0:
                 break
         start = end
     doc.save(path)

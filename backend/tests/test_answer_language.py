@@ -52,5 +52,7 @@ def test_words_in_no_document_are_named_but_compounds_of_known_words_are_not(tmp
         assert _terms_missing("Wie lange ist meine Kündigungsfrist?", ws_id, user_id, False) == []
         assert _terms_missing("Wie hoch ist meine Hausratversicherung?", ws_id, user_id, False) == ["Hausratversicherung"]
         assert _terms_missing("Wann ist mein Zahnarzttermin?", ws_id, user_id, False) == ["Zahnarzttermin"]
+        # everyday word for what the letter calls otherwise: the car insurer writes "Kfz-Versicherung"
+        assert _terms_missing("Was kostet meine Autoversicherung?", ws_id, user_id, False) == []
     finally:
         rag_service.chroma_client.delete_collection(f"user_{user_id}_workspace_{ws_id}")

@@ -60,7 +60,7 @@ class Api:
 
     def call(self, method, path, body=None, headers=None, raw=None, content_type=None, timeout=900):
         h = dict(headers or {})
-        if getattr(self, "token", None):
+        if getattr(self, "token", None) and "Authorization" not in h:
             h["Authorization"] = f"Bearer {self.token}"
         data = raw
         if body is not None:
