@@ -1,5 +1,21 @@
 # StarkLLM Release Notes
 
+## Version 2.0.11 — No more crashes in toasts and themes, long letters read in full, five new themes
+
+- **Fixed crashes.** In 2.0.10 some messages (toasts), the prompt templates and the theme list in Settings could stop the window with an error. Fixed, and a check now stops this kind of mistake before a release.
+- **Long letters are read in full.** Questions about long documents were cut off before they reached the AI model, without any message, so answers could miss what was at the end. StarkLLM now asks Ollama for a context window that holds the whole question.
+- **A clear message when Ollama is not running.** A document no longer stays at "embedding" for hours; it fails at once and says that Ollama cannot be reached.
+- **Search works offline.** The model that sorts search results is now part of the engine and is no longer downloaded from the internet on first use.
+- **The right "today".** The engine uses the time zone of your PC, so dates near midnight are correct.
+- **Five new themes with patterns:** Doodle Chat, Doodle Night, Flower Meadow, Matrix Code and Starry Night (Settings → Appearance). Light themes are now light everywhere, including the sidebar and cards.
+- **A list of all components (SBOM)** is attached to every release from now on.
+
+**From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install".
+
+Pull requests: #71, #73, #74, #76.
+
+---
+
 ## Version 2.0.10 — The installer no longer stops at the start, German interface
 
 - **The installer no longer stops at the start.** About one first installation in five ended after two seconds without a message and without installing anything: the installer crashed (exit code -1073741819) while reading the per-user Programs folder. The fix comes with electron-builder 26.18.1; 20 first installations on fresh Windows machines ran without a fault (before: 2 crashes in 10).
