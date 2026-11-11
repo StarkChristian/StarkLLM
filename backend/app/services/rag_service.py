@@ -12,6 +12,7 @@ from html .parser import HTMLParser
 from app .core .config import settings 
 from app .services .llm_service import llm_service 
 from app .services .vision_service import vision_service 
+from app .services .ocr_service import ocr_service ,PICTURE_EXTENSIONS 
 try :
     import pymupdf as fitz 
 except ImportError :
@@ -82,6 +83,24 @@ GERMAN_STOP_WORDS ={
 "sich","auch","noch","nur","schon","dann","dass","daß","als","wenn","bitte","kann","können","koennen","muss",
 "müssen","muessen","soll","sollen","gibt","mir","mich","uns","dir","ihre","ihren","ihrem","seine","seinen"
 }
+
+# Asked of the vision model for a scanned page OCR could not read (forms, certificates, handwriting).
+SCANNED_FORM_PROMPT = (
+    "This is a scanned page from a PDF document. "
+    "It may be a filled form, certificate, or template. "
+    "Please extract the content carefully, paying special attention "
+    "to the difference between the original template text (e.g., "
+    "placeholders, labels) and the actual filled-in values. "
+    "Identify and structure key information: "
+    "1. Clearly separate the template structure from the filled content. "
+    "2. Prioritize extracting the filled-in values (e.g., names, dates, "
+    "addresses, company names, signatures). "
+    "3. If fields use different font sizes, handwriting, or colors, "
+    "pay special attention to those areas as they are usually the filled values. "
+    "4. Provide a structured summary focusing on what was actually entered "
+    "into the document, followed by a detailed transcription."
+)
+
 
 def _fold(text :str )->str :
     """Lowercase and fold German umlauts / accents so 'Zähler' matches 'Zaehler' and 'Straße' matches 'Strasse'."""
@@ -183,7 +202,7 @@ class RAGService :
 
         Supported types:
             .pdf  — text extraction → OCR fallback → Vision fallback
-            .png / .jpg / .jpeg — Vision description
+            .png / .jpg / .jpeg / .webp / .tif(f) — OCR, or Vision description when there is no text
             .txt / .md          — plain text
             .docx               — python-docx paragraph extraction
         """
@@ -221,106 +240,40 @@ class RAGService :
                                 ids.append(f"{prefix}_{basename}_p{page_num}_c{idx}")
                                 pdf_chunks_created += 1
                     else:
-                        logger.info(
-                            f"RAG: Page {page_num} has no native text — trying OCR…"
-                        )
-                        temp_path = None
+                        # a scan: OCR, or the vision model when OCR finds no readable text
                         try:
-                            pix = page.get_pixmap()
-                            with tempfile.NamedTemporaryFile(
-                                suffix=".png", delete=False
-                            ) as tmp:
-                                temp_path = tmp.name
-                            pix.save(temp_path)
-
-                            import pytesseract
-                            from PIL import Image
-
-                            ocr_text = pytesseract.image_to_string(
-                                Image.open(temp_path)
+                            scanned = ocr_service.text_of_scanned_pdf_page(
+                                page, page_num, vision_prompt=SCANNED_FORM_PROMPT
                             )
-
-                            if ocr_text and len(ocr_text.strip()) > 50:
-                                logger.info(
-                                    f"RAG: Tesseract extracted "
-                                    f"{len(ocr_text.strip())} chars from page {page_num}"
-                                )
-                                page_chunks = self._semantic_chunk_text(ocr_text)
-                                for idx, chunk in enumerate(page_chunks):
-                                    if chunk.strip():
-                                        chunks.append(chunk.strip())
-                                        metadatas.append({
-                                            "source": file_path,
-                                            "page": page_num,
-                                            "type": "ocr_fallback",
-                                            "locator": f"Page {page_num + 1} (OCR)",
-                                            "chunk": idx + 1
-                                        })
-                                        ids.append(f"{prefix}_{basename}_p{page_num}_ocr_{idx}")
-                                        pdf_chunks_created += 1
-                            else:
-                                logger.warning(
-                                    f"RAG: Tesseract insufficient — falling back to Vision model…"
-                                )
-                                pdf_vision_prompt = (
-                                    "This is a scanned page from a PDF document. "
-                                    "It may be a filled form, certificate, or template. "
-                                    "Please extract the content carefully, paying special attention "
-                                    "to the difference between the original template text (e.g., "
-                                    "placeholders, labels) and the actual filled-in values. "
-                                    "Identify and structure key information: "
-                                    "1. Clearly separate the template structure from the filled content. "
-                                    "2. Prioritize extracting the filled-in values (e.g., names, dates, "
-                                    "addresses, company names, signatures). "
-                                    "3. If fields use different font sizes, handwriting, or colors, "
-                                    "pay special attention to those areas as they are usually the filled values. "
-                                    "4. Provide a structured summary focusing on what was actually entered "
-                                    "into the document, followed by a detailed transcription."
-                                )
-                                description = vision_service.generate_image_description(
-                                    temp_path, prompt=pdf_vision_prompt
-                                )
-                                if description and description.strip():
-                                    chunks.append(description.strip())
-                                    metadatas.append({
-                                        "source": file_path,
-                                        "page": page_num,
-                                        "type": "vision_fallback",
-                                        "locator": f"Page {page_num + 1} (Vision)",
-                                        "chunk": 1
-                                    })
-                                    ids.append(f"{prefix}_{basename}_p{page_num}_vision")
-                                    pdf_chunks_created += 1
-                                    logger.info(
-                                        f"RAG: Vision description generated for page {page_num} ({len(description)} chars)"
-                                    )
-                                else:
-                                    logger.info(
-                                        f"RAG: Vision model returned empty for page {page_num}"
-                                    )
                         except Exception as ocr_err:
                             logger.error(
                                 f"RAG: OCR/Vision fallback failed for page {page_num}: {ocr_err}"
                             )
-                        finally:
-                            if temp_path and os.path.exists(temp_path):
-                                os.remove(temp_path)
+                            scanned = None
+                        if scanned:
+                            pdf_chunks_created += self._add_picture_text(
+                                chunks, metadatas, ids, scanned, file_path,
+                                f"{prefix}_{basename}_p{page_num}", f"Page {page_num + 1}",
+                                page=page_num, vision_type="vision_fallback",
+                                vision_locator=f"Page {page_num + 1} (Vision)",
+                            )
 
                 logger.info(
                     f"RAG: PDF processing complete — {pdf_chunks_created} chunk(s) created"
                 )
 
             # ---------------------------------------------------------------- Images
-            elif file_ext in [".png", ".jpg", ".jpeg"]:
-                description = vision_service.generate_image_description(file_path)
-                if description:
-                    chunks.append(description)
-                    metadatas.append({
-                        "source": file_path,
-                        "type": "image_description",
-                        "locator": "Image"
-                    })
-                    ids.append(f"{prefix}_{basename}_desc")
+            elif file_ext in PICTURE_EXTENSIONS:
+                pages = ocr_service.text_of_picture(file_path)
+                several = len(pages) > 1 or any(p.page > 0 for p in pages)
+                for picture in pages:
+                    place = f"Page {picture.page + 1}" if several else "Image"
+                    self._add_picture_text(
+                        chunks, metadatas, ids, picture, file_path,
+                        f"{prefix}_{basename}" + (f"_p{picture.page}" if several else ""), place,
+                        page=picture.page if several else None, vision_type="image_description",
+                        vision_locator=place,
+                    )
 
             # ---------------------------------------------------------------- Plain text / Markdown
             elif file_ext in [".txt", ".md"]:
@@ -471,6 +424,29 @@ class RAGService :
             # never report "indexed" for a file that produced nothing searchable
             raise ValueError (f"No text content could be extracted from '{basename }'")
         return chunks ,metadatas ,ids 
+
+    def _add_picture_text (
+    self ,chunks ,metadatas ,ids ,picture ,file_path :str ,id_base :str ,place :str ,
+    page :Optional [int ]=None ,vision_type :str ="image_description",vision_locator :str =None ,
+    )->int :
+        """Add the text read from a photo or scanned page; returns how many chunks were added."""
+        base ={"source":file_path }
+        if page is not None :
+            base ["page"]=page
+        if picture .method =="vision":
+            chunks .append (picture .text )
+            metadatas .append ({**base ,"type":vision_type ,"locator":vision_locator or place ,"chunk":1 })
+            ids .append (f"{id_base }_vision")
+            return 1
+        added =0
+        for idx ,chunk in enumerate (self ._semantic_chunk_text (picture .text )):
+            if chunk .strip ():
+                chunks .append (chunk .strip ())
+                metadatas .append ({**base ,"type":"ocr","ocr_confidence":picture .confidence ,
+                "locator":f"{place } (OCR)","chunk":idx +1 })
+                ids .append (f"{id_base }_ocr_{idx }")
+                added +=1
+        return added
 
     def _embed_and_store (self ,collection ,chunks ,metadatas ,ids ,label :str ):
         """Embed a list of chunks and upsert them into a ChromaDB collection."""

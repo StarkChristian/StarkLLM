@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     poppler-utils \
     ffmpeg \
     tesseract-ocr \
+    tesseract-ocr-deu \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
