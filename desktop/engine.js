@@ -2,6 +2,7 @@
 // and the engine containers (backend + web UI) from the docker-compose.yml shipped inside the app.
 // Every step reports progress through onStatus(text) and is written to <userData>/engine.log.
 const { app } = require('electron');
+const { cloudSync } = require('./cloud-folder');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -580,7 +581,9 @@ async function startEngine(appUrl, onStatus) {
     SECRET_KEY: process.env.SECRET_KEY || secretKey(paths.secret),
     STARKLLM_ENGINE_BUILD: fingerprint,
     // without it the container runs on UTC, and around midnight "today" in answers and on the home page is a day off
-    STARKLLM_TZ: process.env.STARKLLM_TZ || localTimeZone()
+    STARKLLM_TZ: process.env.STARKLLM_TZ || localTimeZone(),
+    // the knowledge base folder is in OneDrive (or another synced folder): the knowledge base page says so
+    STARKLLM_KB_SYNC: cloudSync(paths.kb) || ''
   };
   let up = null;
   if (usePrebuilt()) {
