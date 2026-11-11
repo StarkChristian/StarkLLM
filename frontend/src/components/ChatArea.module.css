@@ -234,12 +234,19 @@
   max-width: 100%;
   box-shadow: 0 2px 8px rgba(0,0,0,0.2);
   transition: all 0.2s ease;
+  font-family: inherit;
+  text-align: start;
 }
 
-.sourceGroup:hover {
+button.sourceGroup {
+  cursor: pointer;
+}
+
+.sourceGroup:hover,
+button.sourceGroup:focus-visible {
   background-color: var(--bg-active);
   border-color: var(--accent-bright);
-  color: #fff;
+  color: var(--text-primary);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
 }
@@ -402,9 +409,13 @@
   flex-direction: column;
   gap: 6px;
   backdrop-filter: blur(8px);
+  font: inherit;
+  color: inherit;
+  text-align: start;
 }
 
-.suggestionCard:hover {
+.suggestionCard:hover,
+.suggestionCard:focus-visible {
   background: rgba(99, 102, 241, 0.08);
   border-color: rgba(99, 102, 241, 0.35);
   transform: translateY(-2px);
@@ -565,3 +576,47 @@
   background: var(--bg-hover);
   color: var(--text-primary);
 }
+
+.welcomeNotice {
+  margin: 0 0 12px;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  background: var(--bg-active);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+/* Warnings from StarkLLM's own checks on the documents (fake letters, different bank accounts) */
+.docWarning {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.10);
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+.docWarning p { margin: 0; }
+.docWarning p + p { margin-top: 6px; }
+.docWarningIcon { color: var(--danger, #ef4444); flex-shrink: 0; margin-top: 2px; }
+.docNotice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(234, 179, 8, 0.45);
+  background: rgba(234, 179, 8, 0.10);
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+.docNotice p { margin: 0; }
+.docNotice p + p { margin-top: 6px; }
+.docNoticeIcon { color: var(--warning, #eab308); flex-shrink: 0; margin-top: 2px; }

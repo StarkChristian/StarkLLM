@@ -1,5 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { MessageSquare, Settings, Database, Code, Shield, BrainCircuit, Activity, Clock, Plus, ArrowRight, TrendingUp, MessageCircle, Zap, FileText, History } from 'lucide-react';
+import { MessageSquare, ArrowRight, MessageCircle, FileText, History, Upload, CalendarClock, CalendarPlus, Image } from 'lucide-react';
+import DocumentViewerModal from './DocumentViewerModal';
+import { UPLOAD_ACCEPT } from '../utils/uploadTypes';
+import { UI_LOCALE } from '../utils/locale';
 import styles from './Dashboard.module.css';
 import DateTimeWidget from './DateTimeWidget';
 import MarketPricesWidget from './MarketPricesWidget';
@@ -7,27 +10,11 @@ import SystemStatusWidget from './SystemStatusWidget';
 import EmptyState from './EmptyState';
 import { t } from '../i18n';
 
-export default function Dashboard({ token, username, workspaces, onNewWorkspace, onViewChange, onSelectWorkspace, chats = [], onSelectChat }) {
-  const [stats, setStats] = useState(null);
-  const [loadingStats, setLoadingStats] = useState(true);
+const IMAGE_TYPES = new Set(['png', 'jpg', 'jpeg', 'webp', 'tif', 'tiff']);
+const KIND_STYLE = { deadline: 'kindDeadline', payment: 'kindPayment', appointment: 'kindAppointment', change: 'kindChange' };
 
+export default function Dashboard({ token, username, workspaces, onNewWorkspace, onViewChange, onSelectWorkspace, chats = [], onSelectChat, onUpload }) {
   const getHeaders = () => ({ Authorization: `Bearer ${token}` });
-
-  useEffect(() => {
-    if (!token) return;
-    const fetchStats = async () => {
-      setLoadingStats(true);
-      try {
-        const res = await fetch('/api/v1/dashboard/stats', { headers: getHeaders() });
-        if (res.ok) {
-          const data = await res.json();
-          setStats(data);
-        }
-      } catch (_) {}
-      setLoadingStats(false);
-    };
-    fetchStats();
-  }, [token]);
 
   const canvasRef = useRef(null);
 
@@ -124,185 +111,223 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
   const hour = new Date().getHours();
   const greeting = hour < 12 ? t('Good morning') : hour < 17 ? t('Good afternoon') : t('Good evening');
 
-  const statCards = [
-    {
-      label: t('Workspaces'),
-      value: loadingStats ? '—' : (stats?.workspaces ?? workspaces.length),
-      icon: MessageSquare,
-      color: '#6366f1',
-      glow: 'rgba(99,102,241,0.2)',
-      action: () => onViewChange('chat'),
-      actionLabel: t('Open Chat'),
-    },
-    {
-      label: t('Chats'),
-      value: loadingStats ? '—' : (stats?.chats ?? 0),
-      icon: MessageCircle,
-      color: '#a78bfa',
-      glow: 'rgba(167,139,250,0.2)',
-      action: () => onViewChange('chat'),
-      actionLabel: t('Go to Chat'),
-    },
-    {
-      label: t('KB Folders'),
-      value: loadingStats ? '—' : (stats?.kb_folders ?? 0),
-      icon: Database,
-      color: '#8b5cf6',
-      glow: 'rgba(139,92,246,0.2)',
-      action: () => onViewChange('knowledge-base'),
-      actionLabel: t('Open KB'),
-    },
-    {
-      // Workspace uploads and Knowledge Base files are counted separately by the API; the card showed only the KB
-      // number, so it stayed at 0 when all indexed files were workspace documents.
-      label: t('Indexed Documents'),
-      value: loadingStats ? '—' : (stats?.documents ?? 0) + (stats?.kb_documents ?? 0),
-      detail: loadingStats ? null : t('{workspaces} in workspaces · {kb} in Knowledge Base', { workspaces: stats?.documents ?? 0, kb: stats?.kb_documents ?? 0 }),
-      icon: FileText,
-      color: '#06b6d4',
-      glow: 'rgba(6,182,212,0.2)',
-      action: () => onViewChange(stats?.documents || !stats?.kb_documents ? 'chat' : 'knowledge-base'),
-      actionLabel: t('View Docs'),
-    },
-    {
-      label: t('RAG Status'),
-      value: t('Active'),
-      icon: Zap,
-      color: '#22c55e',
-      glow: 'rgba(34,197,94,0.2)',
-      action: () => onViewChange('settings'),
-      actionLabel: t('Configure'),
-    },
-  ];
+  const fileRef = useRef(null);
+  const [home, setHome] = useState(null);
+  const [viewing, setViewing] = useState(null);
 
+  const loadHome = async () => {
+    try {
+      const res = await fetch('/api/v1/dashboard/home', { headers: getHeaders() });
+      if (res.ok) setHome(await res.json());
+    } catch (_) { /* the cards show their empty state */ }
+  };
+  useEffect(() => {
+    if (!token) return undefined;
+    loadHome();
+    const timer = setInterval(loadHome, 15000);  // new uploads and folder files show up without a reload
+    return () => clearInterval(timer);
+  }, [token]);
 
+  const fmtDate = (iso, opts) => new Date(iso + 'T12:00:00').toLocaleDateString(UI_LOCALE, opts);
+  const daysFrom = (iso) => Math.round((new Date(iso + 'T12:00:00') - new Date(`${home.today}T12:00:00`)) / 86400000);
+  const whenText = (iso) => {
+    const d = daysFrom(iso);
+    if (d < 0) return t('passed');
+    if (d === 0) return t('today');
+    if (d === 1) return t('tomorrow');
+    return t('in {days} days', { days: d });
+  };
+  // All upcoming dates as a calendar file (Outlook, Google, Apple, phone); made on this PC
+  const downloadCalendar = async () => {
+    const res = await fetch('/api/v1/dashboard/dates.ics', { headers: getHeaders() });
+    if (!res.ok) return;
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'StarkLLM-dates.ics';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
 
-  const quickActions = [
-    { label: t('New Workspace'), icon: Plus, color: '#6366f1', onClick: onNewWorkspace },
-    { label: t('Open Chat'), icon: MessageSquare, color: '#818cf8', onClick: () => onViewChange('chat') },
-    { label: t('Knowledge Base'), icon: Database, color: '#8b5cf6', onClick: () => onViewChange('knowledge-base') },
-    { label: t('Settings'), icon: Settings, color: '#06b6d4', onClick: () => onViewChange('settings') },
-  ];
+  const openDoc = (item) => {
+    if (item.scope === 'ws' && item.workspace_id) {
+      setViewing({ workspaceId: item.workspace_id, documentId: item.document_id ?? item.id, page: item.page || 1, highlight: item.text });
+    } else {
+      onViewChange('knowledge-base');
+    }
+  };
 
+  const dates = home?.dates || [];
+  const recent = home?.recent || [];
   const recentChats = chats.slice(0, 5);
 
   return (
     <div className={styles.page}>
       <canvas ref={canvasRef} className={styles.neuralNetCanvas} />
-      {/* ── Hero header ── */}
+
+      {/* ── Hero: what this is for, and the two things people come here to do ── */}
       <div className={styles.hero}>
         <div className={styles.heroContent}>
-          <p className={styles.heroGreeting}>{greeting}{username && username !== 'local' ? `, ${username}` : ''} 👋</p>
-          <h1 className={styles.heroTitle}>{t('Your StarkLLM Dashboard')}</h1>
-          <p className={styles.heroSubtitle}>
-            {t('Private AI assistant with full Knowledge Base and RAG retrieval support.')}
-          </p>
+          <p className={styles.heroGreeting}>{greeting}{username && username !== 'local' ? `, ${username}` : ''}</p>
+          <h1 className={styles.heroTitle}>{t('Your documents')}</h1>
+          <p className={styles.heroSubtitle}>{t('Your private assistant for letters and documents, on this PC.')}</p>
+          <div className={styles.heroActions}>
+            <button className="btn-primary" onClick={() => fileRef.current && fileRef.current.click()} disabled={!onUpload}>
+              <Upload size={16} /> {t('Add a letter or document')}
+            </button>
+            <button className="btn-secondary" onClick={() => onViewChange('chat')}>
+              <MessageSquare size={16} /> {t('Ask a question')}
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              multiple
+              accept={UPLOAD_ACCEPT}
+              hidden
+              onChange={async (e) => {
+                const files = [...(e.target.files || [])];
+                e.target.value = '';
+                for (const f of files) {
+                  try { await onUpload(f); } catch (_) { /* the chat shows the error */ }
+                }
+                onViewChange('chat');
+              }}
+            />
+          </div>
         </div>
-        <img src="/Logo.png" alt="StarkLLM" className={styles.heroLogo} />
+        <img src="/Logo.png" alt="" className={styles.heroLogo} />
       </div>
 
-      {/* ── Stat cards ── */}
-      <div className={styles.statsGrid}>
-        {statCards.map(({ label, value, detail, icon: Icon, color, glow, action, actionLabel }) => (
-          <button key={label} className={styles.statCard} style={{ '--card-glow': glow }} onClick={action}>
-            <div className={styles.statIconWrap} style={{ background: `${color}1a`, boxShadow: `0 0 16px ${glow}` }}>
-              <Icon size={20} color={color} />
-            </div>
-            <div className={styles.statBody}>
-              <span className={styles.statValue}>{value}</span>
-              <span className={styles.statLabel}>{label}</span>
-              {detail && <span className={styles.statLabel} style={{ fontSize: '0.72rem', opacity: 0.75 }}>{detail}</span>}
-            </div>
-            <span className={styles.statAction} style={{ color }}>
-              {actionLabel} <ArrowRight size={13} />
-            </span>
-          </button>
-        ))}
+      <div className={styles.twoCol}>
+        {/* ── Dates found in the documents ── */}
+        <section className={styles.card} aria-labelledby="home-dates">
+          <div className={styles.cardHeader} id="home-dates">
+            <CalendarClock size={16} />
+            {t('Upcoming dates')}
+            {dates.length > 0 && (
+              <button className={styles.cardAction} onClick={downloadCalendar} title={t('Save the dates as a calendar file for Outlook, Google or your phone')}>
+                <CalendarPlus size={14} /> {t('Add to calendar')}
+              </button>
+            )}
+          </div>
+          {!home ? (
+            <p className={styles.homeNote}>{t('Looking through your documents…')}</p>
+          ) : dates.length === 0 ? (
+            <p className={styles.homeNote}>{t('No deadlines or payment dates found in your documents. When a letter names one, it shows up here.')}</p>
+          ) : (
+            <ul className={styles.homeList}>
+              {dates.map((d, i) => (
+                <li key={i}>
+                  <button className={`${styles.dateRow} ${d.passed ? styles.datePassed : ''}`} onClick={() => openDoc(d)}>
+                    <span className={styles.dateBox}>
+                      <span className={styles.dateDay}>{fmtDate(d.date, { day: 'numeric' })}</span>
+                      <span className={styles.dateMonth}>{fmtDate(d.date, { month: 'short', year: 'numeric' })}</span>
+                    </span>
+                    <span className={styles.dateBody}>
+                      <span className={styles.dateMeta}>
+                        <span className={KIND_STYLE[d.kind] ? styles[KIND_STYLE[d.kind]] : styles.kindPayment}>
+                          {d.kind === 'deadline' ? t('Deadline') : d.kind === 'appointment' ? t('Appointment') : d.kind === 'change' ? t('Change') : t('Payment')}
+                        </span>
+                        <span>{whenText(d.date)}{d.time ? ` · ${t('at {time}', { time: d.time })}` : ''}</span>
+                        {d.amount && <strong>{d.amount}</strong>}
+                      </span>
+                      <span className={styles.dateText}>{d.text}</span>
+                      <span className={styles.dateSource}>{d.filename} · {t('Page {page}', { page: d.page })}</span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {dates.length > 0 && <p className={styles.homeHint}>{t('Found word for word in your documents. Check the letter before you act on it.')}</p>}
+        </section>
+
+        {/* ── Newest documents ── */}
+        <section className={styles.card} aria-labelledby="home-recent">
+          <div className={styles.cardHeader} id="home-recent">
+            <FileText size={16} />
+            {t('Newest documents')}
+          </div>
+          {!home ? (
+            <p className={styles.homeNote}>{t('Looking through your documents…')}</p>
+          ) : recent.length === 0 ? (
+            <EmptyState
+              icon={FileText}
+              title={t('No documents yet')}
+              hint={t('Add a letter, a scan or a photo, or put files into your knowledge base folder.')}
+            />
+          ) : (
+            <ul className={styles.homeList}>
+              {recent.map((doc) => (
+                <li key={`${doc.scope}-${doc.id}`}>
+                  <button className={styles.docRow} onClick={() => openDoc({ ...doc, document_id: doc.id })}>
+                    <span className={styles.docIcon}>{IMAGE_TYPES.has((doc.file_type || '').toLowerCase()) ? <Image size={16} /> : <FileText size={16} />}</span>
+                    <span className={styles.docName}>{doc.filename}</span>
+                    {doc.replaced && <span className={styles.docReplaced}>{t('Replaced by a newer letter')}</span>}
+                    {doc.suspicious && <span className={styles.docSuspicious}>{t('Possible scam')}</span>}
+                    <span className={styles.docWhere}>
+                      {doc.scope === 'kb' ? t('Knowledge base') : doc.workspace}
+                      {doc.added ? ` · ${new Date(doc.added).toLocaleDateString(UI_LOCALE)}` : ''}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
 
-      {/* ── Widgets row ── */}
+      {/* ── This PC ── */}
       <div className={styles.widgetsRow}>
         <DateTimeWidget />
-        <MarketPricesWidget token={token} />
         <SystemStatusWidget token={token} />
+        <MarketPricesWidget token={token} />
       </div>
 
-      {/* ── Two-column layout ── */}
-      <div className={styles.twoCol}>
-
-        {/* Quick Actions */}
-        <div className={styles.card}>
-          <div className={styles.cardHeader}>
-            <TrendingUp size={16} />
-            {t('Quick Actions')}
-          </div>
-          <div className={styles.actionGrid}>
-            {quickActions.map(({ label, icon: Icon, color, onClick }) => (
-              <button key={label} className={styles.actionBtn} onClick={onClick}>
-                <div className={styles.actionIcon} style={{ background: `${color}1a`, color }}>
-                  <Icon size={18} />
+      {/* ── Recent chats ── */}
+      <section className={styles.card}>
+        <div className={styles.cardHeader}>
+          <History size={16} />
+          {t('Recent Chats')}
+          <button className={styles.cardAction} onClick={() => onViewChange('chat')}>
+            {t('View All')}
+          </button>
+        </div>
+        {recentChats.length === 0 ? (
+          <p className={styles.homeNote}>{t('No chats yet.')}</p>
+        ) : (
+          <div className={styles.wsList}>
+            {recentChats.map(chat => (
+              <button
+                key={chat.id}
+                className={styles.wsRow}
+                onClick={() => {
+                  if (onSelectChat) onSelectChat(chat);
+                  onViewChange('chat');
+                }}
+              >
+                <div className={styles.wsRowIcon} style={{ background: 'var(--bg-active)', color: 'var(--accent-bright)' }}>
+                  <MessageCircle size={14} />
                 </div>
-                <span>{label}</span>
+                <span className={styles.wsRowName}>{chat.title || t('Untitled chat')}</span>
+                <ArrowRight size={13} className={styles.wsRowArrow} />
               </button>
             ))}
           </div>
-        </div>
+        )}
+      </section>
 
-        {/* Recent Chats */}
-        <div className={styles.card}>
-          <div className={styles.cardHeader}>
-            <History size={16} />
-            {t('Recent Chats')}
-            <button
-              className={styles.cardAction}
-              onClick={() => onViewChange('chat')}
-            >
-              {t('View All')}
-            </button>
-          </div>
-          {recentChats.length === 0 ? (
-            <EmptyState
-              icon={MessageCircle}
-              title={t('No chats yet.')}
-              action={{ label: t('Start a Chat'), onClick: () => onViewChange('chat') }}
-            />
-          ) : (
-            <div className={styles.wsList}>
-              {recentChats.map(chat => (
-                <div
-                  key={chat.id}
-                  className={styles.wsRow}
-                  onClick={() => {
-                    if (onSelectChat) onSelectChat(chat);
-                    onViewChange('chat');
-                  }}
-                >
-                  <div className={styles.wsRowIcon} style={{ background: 'rgba(167,139,250,0.12)', color: '#a78bfa' }}>
-                    <MessageCircle size={14} />
-                  </div>
-                  <span className={styles.wsRowName}>{chat.title || 'Untitled Chat'}</span>
-                  {chat.is_pinned && <span style={{ fontSize: '0.65rem', color: '#818cf8', marginRight: 2 }}>📌</span>}
-                  <ArrowRight size={13} className={styles.wsRowArrow} />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── RAG features banner ── */}
-      <div className={styles.featureBanner} onClick={() => onViewChange('settings')} style={{ cursor: 'pointer' }}>
-        <div className={styles.featureBannerContent}>
-          <Zap size={20} className={styles.featureBannerIcon} />
-          <div>
-            <strong>{t('Advanced RAG Active')}</strong>
-            <p>{t('Semantic Chunking · Query Rewriting · Hybrid Search (TF-IDF + Vector) · Context Compression')}</p>
-          </div>
-        </div>
-        <button className="btn-secondary" onClick={(e) => { e.stopPropagation(); onViewChange('settings'); }} style={{ fontSize: '0.8rem', padding: '7px 14px' }}>
-          {t('Configure')}
-        </button>
-      </div>
+      {viewing && (
+        <DocumentViewerModal
+          isOpen
+          onClose={() => setViewing(null)}
+          workspaceId={viewing.workspaceId}
+          documentId={viewing.documentId}
+          initialPage={viewing.page}
+          highlight={viewing.highlight}
+          token={token}
+        />
+      )}
     </div>
   );
 }

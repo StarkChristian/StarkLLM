@@ -68,6 +68,41 @@ def _index_document_background(doc_id: int, workspace_id: int, user_id: int, fil
         # document answer "Original file is missing from disk".)
 
 
+_HASHES: dict = {}  # path -> (size, mtime, sha256): files are hashed once
+
+
+def _sha256(path: str) -> str:
+    import hashlib
+    stat = os.stat(path)
+    cached = _HASHES.get(path)
+    if cached and cached[:2] == (stat.st_size, stat.st_mtime):
+        return cached[2]
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            h.update(block)
+    _HASHES[path] = (stat.st_size, stat.st_mtime, h.hexdigest())
+    return _HASHES[path][2]
+
+
+def _same_document(db, workspace_id: int, path: str, size: int):
+    """A document of the workspace with exactly the same bytes (not a failed one), or None. Only files of the same size
+    are hashed, so this stays quick with many documents."""
+    candidates = (db.query(models.Document)
+                  .filter(models.Document.workspace_id == workspace_id, models.Document.status != DocStatus.FAILED).all())
+    digest = None
+    for doc in candidates:
+        try:
+            if not doc.filepath or doc.filepath == path or os.path.getsize(doc.filepath) != size:
+                continue
+            digest = digest or _sha256(path)
+            if _sha256(doc.filepath) == digest:
+                return doc
+        except OSError:
+            continue
+    return None
+
+
 @router.post("/{workspace_id}/upload")
 async def upload_document(
     workspace_id: int,
@@ -124,6 +159,25 @@ async def upload_document(
         raise HTTPException(status_code=400, detail="Uploaded file is empty (0 bytes).")
 
     logger.info(f"File saved: '{file.filename}' ({actual_size} bytes) → {file_path}")
+
+    # The same letter twice (uploaded again, or from the phone and the scanner) would be read twice and show its
+    # dates and answers twice. Same bytes in this workspace: keep the one that is there.
+    same = _same_document(db, workspace_id, file_path, actual_size)
+    if same is not None:
+        os.remove(file_path)
+        logger.info(f"'{file.filename}' is the same file as document {same.id} ('{same.filename}'); not added again")
+        return {
+            "id": same.id,
+            "filename": same.filename,
+            "filepath": same.filepath,
+            "file_type": same.file_type,
+            "status": same.status,
+            "error_message": same.error_message,
+            "created_at": same.created_at.isoformat() if same.created_at else None,
+            "file_size": actual_size,
+            "duplicate": True,
+        }
+
 
     # Create DB record immediately with UPLOADING status
     doc = models.Document(
@@ -945,11 +999,35 @@ async def get_document_file(
         "png": "image/png",
         "jpg": "image/jpeg",
         "jpeg": "image/jpeg",
-        "html": "text/html; charset=utf-8",
+        "webp": "image/webp",
+        "html": "text/plain; charset=utf-8",  # never rendered as a page from this origin
         "csv": "text/csv; charset=utf-8",
     }
     media_type = media_map.get(ext, "application/octet-stream")
     return FileResponse(doc.filepath, media_type=media_type, filename=doc.filename)
+
+
+TEXT_FILE_TYPES = {"txt", "md", "markdown", "csv", "json", "xml", "log", "html"}
+PICTURE_FILE_TYPES = {"png", "jpg", "jpeg", "webp"}  # shown by the viewer; TIFF is not shown by browsers
+
+
+def _indexed_pages(workspace_id: int, user_id: int, filepath: str) -> dict:
+    """The indexed text of one document, joined per page (1-based); files without pages are page 1."""
+    try:
+        got = rag_service.get_or_create_collection(workspace_id, user_id).get(
+            where={"source": filepath}, include=["documents", "metadatas"])
+    except Exception as e:
+        logger.warning(f"Could not read the indexed text of {filepath}: {e}")
+        return {}
+    parts = {}
+    for text, meta in zip(got.get("documents") or [], got.get("metadatas") or []):
+        meta = meta or {}
+        try:
+            page = int(meta["page"]) + 1 if meta.get("page") is not None else 1
+        except (TypeError, ValueError):
+            page = 1
+        parts.setdefault(page, []).append((meta.get("chunk") or meta.get("chunk_index") or 0, text or ""))
+    return {page: "\n\n".join(t for _, t in sorted(items, key=lambda x: x[0])) for page, items in parts.items()}
 
 
 @router.get("/{workspace_id}/documents/{document_id}/content")
@@ -978,8 +1056,9 @@ async def get_document_content(
         raise HTTPException(status_code=404, detail="File missing from disk")
 
     ext = (doc.file_type or "").lower().strip(".")
+    # Photos, scans, Word and Excel files: the text StarkLLM indexed (OCR included), page by page
+    indexed = _indexed_pages(workspace_id, current_user.id, doc.filepath)
     pages = []
-    full_text = ""
 
     if ext == "pdf":
         try:
@@ -989,22 +1068,22 @@ async def get_document_content(
                 import fitz
             doc_fitz = fitz.open(doc.filepath)
             for p_no in range(len(doc_fitz)):
-                page = doc_fitz[p_no]
-                txt = page.get_text("text").strip()
-                pages.append({"page": p_no + 1, "text": txt})
-                if txt:
-                    full_text += f"\n--- Page {p_no + 1} ---\n" + txt
+                txt = doc_fitz[p_no].get_text("text").strip()
+                # a scanned page has no text layer; show what OCR read from it
+                pages.append({"page": p_no + 1, "text": txt or indexed.get(p_no + 1, "")})
         except Exception as e:
             logger.error(f"Error reading PDF content: {e}")
-            full_text = f"Error reading PDF: {e}"
-    else:
+            pages = [{"page": n, "text": t} for n, t in sorted(indexed.items())]
+    elif ext in TEXT_FILE_TYPES:
         try:
-            with open(doc.filepath, "r", encoding="utf-8", errors="replace") as f:
-                full_text = f.read()
-            pages.append({"page": 1, "text": full_text})
+            with open(doc.filepath, "r", encoding="utf-8-sig", errors="replace") as f:
+                pages.append({"page": 1, "text": f.read()})
         except Exception as e:
             logger.error(f"Error reading document text: {e}")
-            full_text = f"Error reading document: {e}"
+    else:
+        pages = [{"page": n, "text": t} for n, t in sorted(indexed.items())]
+
+    full_text = "\n\n".join(p["text"] for p in pages if p["text"])
 
     return {
         "id": doc.id,
@@ -1012,7 +1091,8 @@ async def get_document_content(
         "file_type": doc.file_type,
         "page_count": len(pages),
         "pages": pages,
-        "full_text": full_text
+        "full_text": full_text,
+        "is_image": ext in PICTURE_FILE_TYPES,
     }
 
 

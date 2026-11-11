@@ -1,7 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styles from './DocumentViewerModal.module.css';
 import { FileText, Download, Search, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 import { t } from '../i18n';
+import { useEscape } from '../utils/useEscape';
+
+// The cited passage in the page text, found even when line breaks differ (the index joins sentences with spaces).
+function passageRange(text, passage) {
+  const words = String(passage || '').trim().split(/\s+/).slice(0, 40).filter(Boolean);
+  if (words.length < 3 || !text) return null;
+  const re = new RegExp(words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+'));
+  const m = re.exec(text);
+  return m ? [m.index, m.index + m[0].length] : null;
+}
 
 export default function DocumentViewerModal({
   isOpen,
@@ -10,6 +20,7 @@ export default function DocumentViewerModal({
   documentId,
   initialFilename,
   initialPage = 1,
+  highlight,
   token
 }) {
   const [docData, setDocData] = useState(null);
@@ -17,6 +28,21 @@ export default function DocumentViewerModal({
   const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(initialPage || 1);
   const [searchQuery, setSearchQuery] = useState('');
+  const [imageUrl, setImageUrl] = useState(null);
+  const markRef = useRef(null);
+  useEscape(onClose, isOpen);
+
+  // The original photo, loaded with the login token (a plain <img src> would not send it)
+  useEffect(() => {
+    if (!docData?.is_image || !docData?.id) return undefined;
+    let url = null;
+    let alive = true;
+    fetch(`/api/v1/documents/${workspaceId}/documents/${docData.id}/file`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((r) => (r.ok ? r.blob() : null))
+      .then((b) => { if (b && alive) { url = URL.createObjectURL(b); setImageUrl(url); } })
+      .catch(() => {});
+    return () => { alive = false; if (url) URL.revokeObjectURL(url); };
+  }, [docData, workspaceId, token]);
 
   useEffect(() => {
     if (!isOpen || !workspaceId) return;
@@ -38,14 +64,14 @@ export default function DocumentViewerModal({
             }
           );
           if (!lookupRes.ok) {
-            throw new Error(`Document '${initialFilename}' not found in active workspace`);
+            throw new Error(t('The document {name} was not found in this workspace.', { name: initialFilename }));
           }
           const lookupData = await lookupRes.json();
           activeDocId = lookupData.id;
         }
 
         if (!activeDocId) {
-          throw new Error('No valid document specified.');
+          throw new Error(t('No document was chosen.'));
         }
 
         const res = await fetch(`/api/v1/documents/${workspaceId}/documents/${activeDocId}/content`, {
@@ -53,7 +79,7 @@ export default function DocumentViewerModal({
         });
 
         if (!res.ok) {
-          throw new Error('Failed to load document content');
+          throw new Error(t('The document could not be loaded.'));
         }
 
         const data = await res.json();
@@ -88,7 +114,22 @@ export default function DocumentViewerModal({
   const totalPages = docData?.pages?.length || 1;
   const currentText = docData?.pages?.find(p => p.page === currentPage)?.text || docData?.full_text || '';
 
+  const cited = !searchQuery ? passageRange(currentText, highlight) : null;
+
+  useEffect(() => {
+    if (cited && markRef.current) markRef.current.scrollIntoView({ block: 'center' });
+  }, [cited && cited[0], currentPage, loading]);
+
   const renderHighlightedContent = (text, query) => {
+    if (cited) {
+      return (
+        <>
+          {text.slice(0, cited[0])}
+          <mark ref={markRef} className={styles.highlight}>{text.slice(cited[0], cited[1])}</mark>
+          {text.slice(cited[1])}
+        </>
+      );
+    }
     if (!query || !query.trim()) return text;
     const parts = text.split(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
     return parts.map((part, i) =>
@@ -98,15 +139,20 @@ export default function DocumentViewerModal({
     );
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!docData?.id) return;
-    const downloadUrl = `/api/v1/documents/${workspaceId}/documents/${docData.id}/file`;
+    const res = await fetch(`/api/v1/documents/${workspaceId}/documents/${docData.id}/file`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
+    if (!res.ok) return;
+    const url = URL.createObjectURL(await res.blob());
     const link = document.createElement('a');
-    link.href = downloadUrl;
+    link.href = url;
     link.download = docData.filename || 'document';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
   };
 
   return (
@@ -158,7 +204,7 @@ export default function DocumentViewerModal({
               >
                 <ChevronLeft size={14} />
               </button>
-              <span>Page {currentPage} of {totalPages}</span>
+              <span>{t('Page {page} of {total}', { page: currentPage, total: totalPages })}</span>
               <button
                 className={styles.pageBtn}
                 disabled={currentPage >= totalPages}
@@ -178,10 +224,19 @@ export default function DocumentViewerModal({
             </div>
           ) : error ? (
             <div style={{ color: '#ef4444', textAlign: 'center', padding: '2rem' }}>
-              ⚠️ {error}
+              {error}
             </div>
           ) : (
             <div>
+              {imageUrl && currentPage === 1 && (
+                <img
+                  className={styles.image}
+                  src={imageUrl}
+                  alt={docData?.filename || ''}
+                  // the photo pushes the text down once loaded: bring the cited passage back into view
+                  onLoad={() => markRef.current && markRef.current.scrollIntoView({ block: 'center' })}
+                />
+              )}
               {renderHighlightedContent(currentText, searchQuery)}
             </div>
           )}

@@ -4,10 +4,12 @@ import { X, Copy, Check, Loader, FileText } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
 import { blockRemoteImages } from '../utils/markdown';
 import { t } from '../i18n';
+import { useEscape } from '../utils/useEscape';
 
 const md = blockRemoteImages(new MarkdownIt({ html: false }));
 
 export default function SummaryModal({ chatTitle, summary, loading, error, onClose, onCopy, copied }) {
+  useEscape(onClose, true);
   const contentRef = useRef(null);
 
   return (

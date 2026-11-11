@@ -47,6 +47,18 @@ function initApp() {
   ipcMain.on('desktop:local-token', (event) => {
     event.returnValue = event.senderFrame && sameOrigin(event.senderFrame.url, APP_URL) ? localToken : null;
   });
+  // Knowledge Base > "Open folder": only the app's own page, and only the knowledge-base folder (no path from the page)
+  ipcMain.handle('kb:open-folder', async (event) => {
+    if (!event.senderFrame || !sameOrigin(event.senderFrame.url, APP_URL)) return { error: 'not allowed' };
+    const dir = userPaths().kb;
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+    } catch (e) {
+      return { error: e.message };
+    }
+    const err = await shell.openPath(dir);
+    return err ? { error: err } : { ok: true };
+  });
   ipcMain.handle('updates:check', async (event) => {
     if (!event.senderFrame || !sameOrigin(event.senderFrame.url, APP_URL)) return { error: 'not allowed' };
     const r = await updater.check({ manual: true });

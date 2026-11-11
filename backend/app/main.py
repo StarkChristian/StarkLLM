@@ -163,6 +163,10 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 from app.api.openai_compat import router as openai_compat_router
 app.include_router(openai_compat_router, prefix="/v1", tags=["OpenAI Compatible"])
 
+# StarkLLM as an MCP server for other programs on this PC (Settings > Other apps)
+from app.api.mcp_server import router as mcp_server_router
+app.include_router(mcp_server_router, tags=["MCP server"])
+
 from app.services.kb_service import kb_service
 
 @app.on_event("startup")

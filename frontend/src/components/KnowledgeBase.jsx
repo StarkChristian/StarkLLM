@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { FolderOpen, FolderPlus, RefreshCw, Zap, ChevronDown, ChevronRight, File, AlertCircle, CheckCircle, Clock, Loader, X, Database, Search, Eye, Info, Trash2, Copy, Check, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { FolderOpen, FolderPlus, RefreshCw, Zap, ChevronDown, ChevronRight, File, AlertCircle, CheckCircle, Clock, Loader, X, Database, Search, Eye, Info, Trash2, Copy, Check, ExternalLink, AlertTriangle } from 'lucide-react';
 import styles from './KnowledgeBase.module.css';
 import EmptyState from './EmptyState';
 import { serverDate } from '../utils/time';
@@ -676,6 +676,8 @@ export default function KnowledgeBase({ token }) {
       : folders,
   [folders, search]);
 
+  const canOpenFolder = typeof window !== 'undefined' && !!window.starkllmDesktop?.openKnowledgeFolder;
+
   const handleAddFolder = async (folderPath, folderName) => {
     setAddLoading(true);
     setAddError(null);
@@ -689,12 +691,28 @@ export default function KnowledgeBase({ token }) {
       if (!res.ok) throw new Error(data.detail || t('Failed to add folder.'));
       setFolders(prev => [...prev, data]);
       setShowModal(false);
+      return true;
     } catch (e) {
       setAddError(e.message);
     } finally {
       setAddLoading(false);
     }
   };
+
+  // The main knowledge-base folder is added once by itself, so files put there are found without a further step.
+  // If the user removes it later, it stays removed (the button above can add it again).
+  const autoAdded = useRef(false);
+  useEffect(() => {
+    const root = kbConfig && kbConfig.container_kb_path;
+    if (autoAdded.current || loading || error || !root || folders.some(f => f.folder_path === root)) return;
+    let done = false;
+    try { done = localStorage.getItem('starkllm_kb_root_added') === '1'; } catch (_) { /* private mode */ }
+    if (done) return;
+    autoAdded.current = true;
+    handleAddFolder(root, t('My knowledge base folder')).then((ok) => {
+      if (ok) { try { localStorage.setItem('starkllm_kb_root_added', '1'); } catch (_) { /* private mode */ } }
+    });
+  }, [kbConfig, loading, error, folders]);
 
   useEffect(() => {
     window.openPreviewModal = async (doc) => {
@@ -725,7 +743,7 @@ export default function KnowledgeBase({ token }) {
           <Database size={22} className={styles.pageTitleIcon} />
           <div>
             <h1 className={styles.h1}>{t('Knowledge Base')}</h1>
-            <p className={styles.subtitle}>{t('Manage indexed document folders for RAG retrieval')}</p>
+            <p className={styles.subtitle}>{t('Folders on this PC that StarkLLM reads and keeps searchable')}</p>
           </div>
         </div>
         <div className={styles.headerRight}>
@@ -756,9 +774,9 @@ export default function KnowledgeBase({ token }) {
             <FolderOpen size={20} />
           </div>
           <div className={styles.kbHelperContent}>
-            <h3 className={styles.kbHelperTitle}>{t('Where do I put my files?')}</h3>
+            <h3 className={styles.kbHelperTitle}>{t('Your knowledge base folder')}</h3>
             <p className={styles.kbHelperText}>
-              {t('Place your documents (PDFs, TXT, etc.) into the Knowledge Base folder on your computer. Then click Add Folder to scan and index them into StarkLLM.')}
+              {t('Put documents into this folder. StarkLLM reads new and changed files on its own and keeps them searchable.')}
             </p>
             {kbConfig.kb_cloud_sync && (
               <p className={styles.kbCloudWarning} role="alert">
@@ -768,7 +786,12 @@ export default function KnowledgeBase({ token }) {
             )}
             <div className={styles.kbHelperPathWrap}>
               <code className={styles.kbHelperPath}>{kbConfig.host_kb_path}</code>
-              <button 
+              {canOpenFolder && (
+                <button className={styles.kbHelperCopyBtn} onClick={() => window.starkllmDesktop.openKnowledgeFolder()}>
+                  <ExternalLink size={14} /> {t('Open folder')}
+                </button>
+              )}
+              <button
                 className={styles.kbHelperCopyBtn}
                 onClick={() => {
                   navigator.clipboard.writeText(kbConfig.host_kb_path).catch(() => {});
@@ -781,17 +804,14 @@ export default function KnowledgeBase({ token }) {
             </div>
             {!loading && kbConfig.container_kb_path && !folders.some(f => f.folder_path === kbConfig.container_kb_path) && (
               <div style={{ marginTop: '12px' }}>
-                <button 
-                  className={styles.btnPrimary} 
+                <button
+                  className={styles.btnPrimary}
                   style={{ padding: '6px 12px', fontSize: '0.85rem' }}
-                  onClick={() => handleAddFolder(kbConfig.container_kb_path, 'Root Knowledge Base')}
+                  onClick={() => handleAddFolder(kbConfig.container_kb_path, t('My knowledge base folder'))}
                   disabled={addLoading}
                 >
-                  <FolderPlus size={14} /> {t('Register Root Folder Now')}
+                  <FolderPlus size={14} /> {t('Add this folder')}
                 </button>
-                <span className={styles.hint} style={{ marginLeft: '10px', fontSize: '0.8rem' }}>
-                  {t('Quickly add the main folder above to your list.')}
-                </span>
               </div>
             )}
           </div>
@@ -815,9 +835,9 @@ export default function KnowledgeBase({ token }) {
       {!loading && !error && folders.length === 0 && (
         <EmptyState 
           icon={FolderOpen} 
-          title={t('No folders added yet')} 
-          hint={t('Add a folder to start indexing documents for AI-assisted retrieval.')} 
-          action={{ label: t('Add Your First Folder'), onClick: () => setShowModal(true) }} 
+          title={t('No folders yet')}
+          hint={t('Add a folder, and StarkLLM reads the documents in it.')}
+          action={{ label: t('Add Folder'), onClick: () => setShowModal(true) }}
         />
       )}
 
