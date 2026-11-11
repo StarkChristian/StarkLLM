@@ -1,5 +1,24 @@
 # StarkLLM Release Notes
 
+## Version 2.0.14 — Your letters at a glance: deadlines, photos of letters, sources you can check
+
+- **Document home.** The start page shows your newest documents and the deadlines, appointments and payments found in them, with amount and the page they come from. "Add to calendar" saves them as a calendar file.
+- **Photos and scans of letters are read on this PC.** A photo or a scanned page is read as German or English text (OCR), turned upright if needed, and can be searched and cited like any other document. No extra model download.
+- **Sources you can check.** Click a source under an answer to see the passages it was based on, word for word, and open the document at that page.
+- **Warnings for fake letters.** If a letter asks for payment to a foreign account, by voucher or through a link, contains text addressed to AI assistants, or a sender suddenly names a different account, a red box above the answer says so. Answers also know today's date, use the corrected letter instead of the old one, and answer in your language.
+- **A plain first start.** StarkLLM creates "My documents" and opens the chat with suggestions for letters. No account screen, no technical terms.
+- **Documents window:** upload several files at once, see when a file is ready, open it. Escape closes the top window. The dashboard clock has one colour.
+- **Use StarkLLM from other programs (off by default).** Settings → Other apps turns on an MCP server and the OpenAI-compatible API, both only on this PC and only with a key. **If you used the `/v1` API before:** it now needs a key from that page.
+- **Safer app window.** Links open in your browser, never inside StarkLLM; the window grants only the microphone; the engine answers only requests addressed to this PC. The knowledge base says when your Documents folder is synced to OneDrive, Dropbox, Google Drive or iCloud.
+- **Installing Ollama for you** checks its signature without a command that security programs flag.
+- **The engine download is larger** (text recognition for German and English is included).
+
+**From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install".
+
+Pull requests: #57, #60, #62, #63, #64, #65, #66, #67, #72, #75, #77, #87.
+
+---
+
 ## Version 2.0.13 — Safer answers, AI labels, update progress
 
 - **Answers cannot load images from other servers.** A hidden line in a document could make the AI write an image link that sends data to a stranger's server as soon as the answer is shown. Images in answers now load only from StarkLLM itself; any other image appears as a short note. The app page also has a strict Content Security Policy.

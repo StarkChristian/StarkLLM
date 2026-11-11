@@ -24,6 +24,18 @@ def test_ibans_are_found_with_or_without_spaces():
     assert ibans("Kundennummer 4400-118-27, Steuernummer 38/123/45678") == []
 
 
+def test_an_iban_wrapped_onto_the_next_line_is_read_whole():
+    # text as it comes out of the fake reminder PDF in the scenario test: the account number is cut by a line break,
+    # and the scam warning was missing because only "LT7332500123" (too short) was found
+    wrapped = ("Finanzamt Rheinstadt - Vollstreckungsstelle\nZahlen Sie den Betrag innerhalb von 48 Stunden auf\n"
+               "das folgende\nKonto, sonst wird Ihr Gehalt gepfändet: Empfänger Steuer Service Zentrale, IBAN LT73 3250 0123\n"
+               "4567 8901.\nZahlungen an andere Konten werden nicht berücksichtigt.")
+    assert ibans(wrapped) == ["LT733250012345678901"]
+    assert "scam_signs" in [f["kind"] for f in findings([{"file": "Mahnung.pdf", "text": wrapped}])]
+    # a German account at the end of a line is not joined with the next line's words
+    assert ibans("IBAN DE41 6005 0000 0001 2345 67\nDatum: 03.11.2026") == ["DE41600500000001234567"]
+
+
 def test_a_fake_reminder_is_found_twice_instructions_and_another_account():
     found = findings([{"file": "Steuerbescheid.pdf", "text": REAL}, {"file": "Mahnung.pdf", "text": FAKE},
                       {"file": "Nebenkosten.pdf", "text": RENT}])
