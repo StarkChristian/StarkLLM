@@ -2,7 +2,7 @@
 // without a new download from the website (electron-updater: only the changed parts of the installer are fetched).
 // Nothing is checked before the user agreed once (first start), or when they pick "Check for updates" in the
 // tray menu or in Settings > About; nothing is downloaded or installed without their click.
-// The portable exe cannot replace itself: it gets the download page, as before.
+// The portable exe (shipped until 2.0.12) cannot replace itself: it gets the download page, as before.
 // STARKLLM_UPDATE_CHECK=0 turns the automatic check off (for administrators and tests).
 const fs = require('fs');
 const path = require('path');
