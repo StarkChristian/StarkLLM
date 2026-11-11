@@ -166,3 +166,47 @@ def test_home_marks_a_scam_and_leaves_out_its_deadline(tmp_path):
         rag_service.chroma_client.delete_collection(f"user_{user_id}_workspace_{ws_id}")
     assert [d["filename"] for d in body["dates"]] == ["Rechnung.pdf"]
     assert [d["filename"] for d in body["recent"] if d.get("suspicious")] == ["Gewinn.pdf"]
+
+
+def test_dates_as_a_calendar_file():
+    from app.api.dashboard import dates_calendar
+    dates = [
+        {"date": "2026-12-15", "kind": "deadline", "amount": "412,00 EUR", "filename": "Steuerbescheid.pdf",
+         "text": "Die Nachzahlung von 412,00 EUR ist fällig am 15.12.2026.", "passed": False},
+        {"date": "2026-11-18", "kind": "appointment", "time": "10:30", "filename": "Einladung.pdf",
+         "text": "bitte kommen Sie am 18.11.2026 um 10:30 Uhr", "passed": False},
+        {"date": "2026-11-01", "kind": "deadline", "filename": "Alt.pdf", "text": "", "passed": True},
+    ]
+    ics = dates_calendar(date(2026, 11, 10), dates, "20261110T120000Z")
+    assert ics.startswith("BEGIN:VCALENDAR\r\n") and ics.endswith("END:VCALENDAR\r\n")
+    assert ics.count("BEGIN:VEVENT") == 2  # the passed date is left out
+    assert "DTSTART;VALUE=DATE:20261215" in ics and "TRIGGER:-P3D" in ics
+    assert "DTSTART:20261118T103000" in ics and "TRIGGER:-P1D" in ics
+    assert "SUMMARY:Deadline: Steuerbescheid.pdf (412\\,00 EUR)" in ics
+    assert all(len(line.encode()) <= 75 for line in ics.split("\r\n"))
+
+
+def test_the_calendar_endpoint(tmp_path):
+    soon = (date.today() + timedelta(days=10)).strftime("%d.%m.%Y")
+    (user_id, ws_id), name = _user_with_documents(tmp_path, [("Rechnung.pdf", f"Bitte zahlen Sie 49,90 EUR bis zum {soon}.")])
+    try:
+        r = client.get("/api/v1/dashboard/dates.ics", headers={"Authorization": f"Bearer {create_access_token({'sub': name})}"})
+    finally:
+        rag_service.chroma_client.delete_collection(f"user_{user_id}_workspace_{ws_id}")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/calendar")
+    assert "Rechnung.pdf (49\\,90 EUR)" in r.text
+
+
+def test_dates_of_all_documents_not_only_the_newest_sixty(tmp_path):
+    # long test: with 120 letters, the home page and the date list showed the dates of the newest 60 only
+    from app.api.dashboard import document_dates
+    soon = (date.today() + timedelta(days=12)).strftime("%d.%m.%Y")
+    letters = [(f"Rechnung_{i:03d}.pdf", f"Bitte zahlen Sie {i},00 EUR bis zum {soon}.") for i in range(1, 81)]
+    (user_id, ws_id), name = _user_with_documents(tmp_path, letters)
+    db = SessionLocal()
+    try:
+        _, items, dates = document_dates(db, user_id)
+    finally:
+        db.close()
+        rag_service.chroma_client.delete_collection(f"user_{user_id}_workspace_{ws_id}")
+    assert len(items) == 80 and len({d["filename"] for d in dates}) == 80

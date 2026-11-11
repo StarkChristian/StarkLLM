@@ -208,7 +208,7 @@ DATE_QUESTION = re.compile(
 DATES_IN_PROMPT = 25
 
 
-def _dates_section(db, user_id: int, workspace_id: int, include_kb: bool) -> str:
+def _dates_section(db, user_id: int, workspace_id: int, include_kb: bool, message: str = "") -> str:
     """The deadlines, payments and appointments in the user's letters, as lines for the prompt."""
     from app.api.dashboard import document_dates
     try:
@@ -218,6 +218,12 @@ def _dates_section(db, user_id: int, workspace_id: int, include_kb: bool) -> str
         return ""
     if not dates:
         return ""
+    # "Wie viel muss ich ans Finanzamt nachzahlen und bis wann?": only the dates of the letters the question names; a
+    # small model otherwise took another letter's date from the list
+    if message:
+        named = [d for d in dates if _about_words(message, d["filename"], d.get("text", ""), generic=False)]
+        if named:
+            dates = named
     lines = []
     for d in dates[:DATES_IN_PROMPT]:
         when = date.fromisoformat(d["date"])
@@ -276,6 +282,20 @@ _GENERIC_NOUNS = {
 }
 
 
+# Everyday words and the words letters use for the same thing: "Autoversicherung" is in no letter, but the car
+# insurer writes "Kfz-Versicherung". Without these, the note "not in any document" made the model refuse.
+_SYNONYMS = {
+    "auto": ("kfz", "fahrzeug", "pkw", "wagen"), "kfz": ("auto", "fahrzeug", "pkw"),
+    "handy": ("mobilfunk", "mobil", "smartphone"), "strom": ("energie", "stadtwerke", "abschlag"),
+    "gas": ("energie", "stadtwerke", "abschlag"), "miete": ("miet", "mietvertrag", "kaltmiete", "warmmiete"),
+    "nebenkosten": ("betriebskosten",), "betriebskosten": ("nebenkosten",), "kaution": ("mietsicherheit",),
+    "gehalt": ("entgelt", "lohn", "netto", "brutto"), "lohn": ("entgelt", "gehalt"), "steuer": ("finanzamt", "steuerbescheid"),
+    "arzt": ("praxis", "dr. med", "orthopäd"), "arbeitsamt": ("agentur für arbeit", "jobcenter"),
+    "jobcenter": ("agentur für arbeit",), "versicherung": ("versicherungs",), "gebühren": ("entgelt", "kosten"),
+    "gebühr": ("entgelt", "kosten"), "rundfunk": ("beitragsservice",), "gym": ("fitness",), "fitnessstudio": ("fitness",),
+}
+
+
 def _terms_missing(message: str, workspace_id: int, user_id: int, use_kb: bool) -> list:
     # capitalised words that do not start a sentence (German nouns and names)
     words = re.findall(r"(?<![.!?:]\s)(?<=[\s,(\"'])([A-ZÄÖÜ][\wäöüß-]{5,})", message or "")
@@ -305,6 +325,9 @@ def _terms_missing(message: str, workspace_id: int, user_id: int, use_kb: bool) 
                         return True
             return False
 
+        def synonyms_found(part):
+            return any(in_documents(x) or in_documents(x.capitalize()) for x in _SYNONYMS.get(part, ()))
+
         def compound_found(word):
             # German compounds: "Mietkaution" is found when "Miet…" and "…kaution" both are ("Miete", "Kaution"),
             # "Kündigungsfrist" via "Kündigung" + "Frist"; "Hausratversicherung" stays missing without "Hausrat"
@@ -312,13 +335,15 @@ def _terms_missing(message: str, workspace_id: int, user_id: int, use_kb: bool) 
             for i in range(4, len(w) - 3):
                 head, tail = w[:i], w[i:]
                 tails = {tail, tail.rstrip("s")} | ({tail[:-2]} if tail.endswith("en") and len(tail) > 5 else set())
-                if any(len(x) >= 4 and in_documents(x) for x in tails) and (in_documents(head) or in_documents(head.rstrip("s"))):
+                head_found = in_documents(head) or in_documents(head.rstrip("s")) or synonyms_found(head)
+                if head_found and any(len(x) >= 4 and (in_documents(x) or synonyms_found(x)) for x in tails):
                     return True
             return False
 
         for term in terms:
             parts = [p for p in term.split("-") if len(p) >= 4] or [term]
-            if not (in_documents(term) or all(in_documents(p) or compound_found(p) for p in parts)):
+            if not (in_documents(term) or synonyms_found(term.lower())
+                    or all(in_documents(p) or compound_found(p) for p in parts)):
                 missing.append(term)
         return missing
     except Exception as e:
@@ -610,7 +635,7 @@ async def chat(
                              "(for example \"Kfz-Versicherung\" for \"Autoversicherung\"). Otherwise say plainly that you did "
                              "not find it in the documents, and never take a number from a document about something else.\n"
                            if missing_terms else "")
-        dates_section = (_dates_section(db, current_user.id, req.workspace_id, bool(req.use_knowledge_base))
+        dates_section = (_dates_section(db, current_user.id, req.workspace_id, bool(req.use_knowledge_base), req.message)
                          if docs_available and DATE_QUESTION.search(req.message) else "")
 
         # ---- Concurrent Data Fetching (RAG, Web, Memory)
@@ -976,6 +1001,10 @@ WEB SEARCH RESULTS (LIVE DATA)
         language_rule = (f"\nLANGUAGE: The user's message is in {_lang}. Write your whole answer in {_lang}, even when "
                          f"these instructions or the documents are in another language.\n" if _lang else
                          "\nLANGUAGE: Answer in the language of the user's message.\n")
+        # small models weigh the end of the prompt most: with a likely scam, the answer starts with the warning
+        scam_first = ("\nSTART YOUR ANSWER with a plain warning that this letter or message is very likely a scam and "
+                      "that the user should not pay, click links or send codes. Then explain why.\n"
+                      if any(w.get("kind") in ("scam_signs", "ai_instructions") for w in warnings) else "")
         _today = date.today()
         safety_section = ""
         if warnings:
@@ -1005,7 +1034,7 @@ LANGUAGE & WRITING QUALITY
 - For German, use correct Hochdeutsch.
 - Technical terms (e.g. React, API, Python, Docker) may appear in their Latin script naturally within non-English sentences — this is acceptable and expected.
 
-{web_block}{mode_instructions}{dates_section}{missing_section}{safety_section}{language_rule}
+{web_block}{mode_instructions}{dates_section}{missing_section}{safety_section}{language_rule}{scam_first}
 """
         logger.info(
             f"DEBUG: System prompt built. WS context: {len(ws_context)} chars, "

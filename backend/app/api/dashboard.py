@@ -189,9 +189,31 @@ async def get_system_status(
 # ---------------------------------------------------------------- the document home (overview page)
 
 HOME_RECENT = 8
-HOME_SCAN = 60          # newest documents searched for dates
+HOME_SCAN = 5000        # documents searched for dates (all of a household; the text is read once per collection)
 HOME_PAST_DAYS = 14     # dates that passed lately stay visible, marked as passed
 HOME_DATES = 20
+
+
+def _pages_by_document(collection):
+    """All indexed text of a collection, joined per document and page: ({source: {page: text}}, {document_id: {...}})."""
+    got = collection.get(include=["documents", "metadatas"])
+    parts_source, parts_id = {}, {}
+    for text, meta in zip(got.get("documents") or [], got.get("metadatas") or []):
+        meta = meta or {}
+        try:
+            page = int(meta["page"]) + 1 if meta.get("page") is not None else 1
+        except (TypeError, ValueError):
+            page = 1
+        entry = (meta.get("chunk") or meta.get("chunk_index") or 0, text or "")
+        if meta.get("source"):
+            parts_source.setdefault(meta["source"], {}).setdefault(page, []).append(entry)
+        if meta.get("document_id") is not None:
+            parts_id.setdefault(meta["document_id"], {}).setdefault(page, []).append(entry)
+
+    def join(parts):
+        return {doc: {p: "\n\n".join(t for _, t in sorted(items, key=lambda x: x[0])) for p, items in pages.items()}
+                for doc, pages in parts.items()}
+    return join(parts_source), join(parts_id)
 
 
 def _pages_by_where(collection, where: dict) -> dict:
@@ -209,6 +231,23 @@ def _pages_by_where(collection, where: dict) -> dict:
             page = 1
         parts.setdefault(page, []).append((meta.get("chunk") or meta.get("chunk_index") or 0, text or ""))
     return {p: "\n\n".join(t for _, t in sorted(items, key=lambda x: x[0])) for p, items in parts.items()}
+
+
+_DATES_CACHE: dict = {}
+
+
+def _dates_cached(text: str):
+    """find_dates for a page text, computed once per text (the home page is opened often, letters rarely change)."""
+    from app.services.dates_service import find_dates
+    import hashlib
+    from datetime import date
+    # a date without a year ("bis zum 15.12.") is read relative to today when the letter has no date of its own
+    key = date.today().isoformat() + hashlib.sha1(text.encode("utf-8", "ignore")).hexdigest()
+    if key not in _DATES_CACHE:
+        if len(_DATES_CACHE) > 20000:
+            _DATES_CACHE.clear()
+        _DATES_CACHE[key] = find_dates(text)
+    return _DATES_CACHE[key]
 
 
 def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool = True, past_days: int = HOME_PAST_DAYS):
@@ -252,18 +291,23 @@ def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool 
 
     today = date.today()
     first = today - timedelta(days=past_days)
-    collections = {}
+    # one read per collection, not one per document: the home page stayed limited to the newest 60 documents, and a
+    # household with more letters lost their deadlines (long test with 120 letters: 65 of 127 dates missing)
+    pages_by_collection = {}
     pages_of = []
     for item in items:
         scope, ws_id, where = item.pop("_where")
         key = (scope, ws_id)
-        if key not in collections:
+        if key not in pages_by_collection:
             try:
-                collections[key] = (rag_service.get_or_create_kb_collection(user_id) if scope == "kb"
-                                    else rag_service.get_or_create_collection(ws_id, user_id))
+                col = (rag_service.get_or_create_kb_collection(user_id) if scope == "kb"
+                       else rag_service.get_or_create_collection(ws_id, user_id))
+                pages_by_collection[key] = _pages_by_document(col)
             except Exception:
-                collections[key] = None
-        pages_of.append(_pages_by_where(collections[key], where) if collections[key] is not None else {})
+                pages_by_collection[key] = ({}, {})
+        by_source, by_doc_id = pages_by_collection[key]
+        field, value = next(iter(where.items()))
+        pages_of.append((by_doc_id if field == "document_id" else by_source).get(value, {}))
 
     # a corrected letter ("ersetzt die Abrechnung vom 20.10.2026") replaces the earlier one from the same sender: the
     # earlier letter's dates and amounts are no longer valid and are not shown
@@ -284,7 +328,7 @@ def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool 
             item["suspicious"] = True  # a scam's "deadline" is not something to do
             continue
         for page, text in sorted(pages.items()):
-            for f in find_dates(text):
+            for f in _dates_cached(text):
                 if f.date < first.isoformat():
                     continue
                 dates.append({**f.__dict__, "page": page, "passed": f.date < today.isoformat(),
@@ -303,3 +347,62 @@ def get_document_home(
     Dates come from fixed rules over the indexed text, so each one is in the document, with its sentence and page."""
     today, items, dates = document_dates(db, current_user.id)
     return {"today": today.isoformat(), "recent": items[:HOME_RECENT], "dates": dates[:HOME_DATES]}
+
+
+def _ics_text(value: str) -> str:
+    return (value or "").replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
+
+
+def _ics_fold(line: str) -> str:
+    """iCalendar lines are at most 75 octets; longer ones continue on lines that start with a space."""
+    out, current = [], ""
+    for ch in line:
+        if len((current + ch).encode()) > 73:
+            out.append(current)
+            current = " "
+        current += ch
+    out.append(current)
+    return "\r\n".join(out)
+
+
+def dates_calendar(today, dates, stamp: str) -> str:
+    """The upcoming dates as an iCalendar file: all-day events for deadlines, payments and changes, timed events for
+    appointments, each with a reminder (3 days before a deadline or payment, 1 day before an appointment)."""
+    import hashlib
+    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//StarkLLM//Document dates//EN", "CALSCALE:GREGORIAN",
+             "X-WR-CALNAME:StarkLLM"]
+    names = {"deadline": "Deadline", "payment": "Payment", "appointment": "Appointment", "change": "Change"}
+    for d in dates:
+        if d.get("passed"):
+            continue
+        day = d["date"].replace("-", "")
+        title = f"{names.get(d['kind'], 'Date')}: {d['filename']}" + (f" ({d['amount']})" if d.get("amount") else "")
+        uid = hashlib.sha256(f"{d['filename']}|{d['date']}|{d['kind']}".encode()).hexdigest()[:24] + "@starkllm.local"
+        lines += ["BEGIN:VEVENT", f"UID:{uid}", f"DTSTAMP:{stamp}"]
+        if d["kind"] == "appointment" and d.get("time"):
+            hh, mm = d["time"].split(":")
+            lines += [f"DTSTART:{day}T{hh}{mm}00", "DURATION:PT1H"]
+            alarm = "-P1D"
+        else:
+            lines += [f"DTSTART;VALUE=DATE:{day}", "DURATION:P1D", "TRANSP:TRANSPARENT"]
+            alarm = "-P3D"
+        lines += [_ics_fold(f"SUMMARY:{_ics_text(title)}"), _ics_fold(f"DESCRIPTION:{_ics_text(d.get('text', ''))}"),
+                  "BEGIN:VALARM", "ACTION:DISPLAY", f"TRIGGER:{alarm}", _ics_fold(f"DESCRIPTION:{_ics_text(title)}"),
+                  "END:VALARM", "END:VEVENT"]
+    lines.append("END:VCALENDAR")
+    return "\r\n".join(lines) + "\r\n"
+
+
+@router.get("/dates.ics")
+def get_dates_calendar(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """The deadlines, payments and appointments of the home page as a calendar file (Outlook, Google, Apple, phone).
+    Made on this PC; nothing is sent anywhere."""
+    from datetime import datetime, timezone
+    from fastapi.responses import Response
+    today, _, dates = document_dates(db, current_user.id, past_days=0)
+    body = dates_calendar(today, dates, datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
+    return Response(body, media_type="text/calendar; charset=utf-8",
+                    headers={"Content-Disposition": 'attachment; filename="StarkLLM-dates.ics"'})

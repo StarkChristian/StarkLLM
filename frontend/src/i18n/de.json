@@ -750,5 +750,9 @@
   "extreme time pressure": "extremer Zeitdruck",
   "a request to keep it secret": "die Bitte, es geheim zu halten",
   "{file} shows several typical signs of a scam: {signs}. Do not pay, click links or send codes. Check with the organisation using contact details you already know.": "{file} zeigt mehrere typische Merkmale von Betrug: {signs}. Zahlen Sie nicht, klicken Sie keine Links an und geben Sie keine Codes weiter. Fragen Sie bei der Stelle über Kontaktdaten nach, die Sie bereits kennen.",
-  "{sender} announces a new bank account ({accounts}). That is normal, but before you change a standing order, you can confirm it using the phone number you already know.": "{sender} teilt eine neue Bankverbindung mit ({accounts}). Das ist üblich, aber bevor Sie einen Dauerauftrag ändern, können Sie es über die Telefonnummer bestätigen lassen, die Sie bereits kennen."
+  "{sender} announces a new bank account ({accounts}). That is normal, but before you change a standing order, you can confirm it using the phone number you already know.": "{sender} teilt eine neue Bankverbindung mit ({accounts}). Das ist üblich, aber bevor Sie einen Dauerauftrag ändern, können Sie es über die Telefonnummer bestätigen lassen, die Sie bereits kennen.",
+  "{name} is already in your documents (as {existing}); it was not added again.": "{name} ist schon in Ihren Dokumenten (als {existing}); es wurde nicht noch einmal hinzugefügt.",
+  "Save the dates as a calendar file for Outlook, Google or your phone": "Termine als Kalenderdatei speichern, für Outlook, Google oder das Handy",
+  "Add to calendar": "Zum Kalender",
+  "Change": "Änderung"
 }
