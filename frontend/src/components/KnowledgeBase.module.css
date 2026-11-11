@@ -844,3 +844,17 @@
   color: white;
   border-color: var(--accent-bright);
 }
+
+.kbCloudWarning {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(234, 179, 8, 0.45);
+  background: rgba(234, 179, 8, 0.10);
+  color: var(--text-primary);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}

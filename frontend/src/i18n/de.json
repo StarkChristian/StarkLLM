@@ -700,5 +700,6 @@
   "📄 Markdown (.md)": "📄 Markdown (.md)",
   "📋 Structured Data (.json)": "📋 Strukturierte Daten (.json)",
   "📝 Plain Text (.txt)": "📝 Reiner Text (.txt)",
-  "🖨️ Printable HTML / PDF (.html)": "🖨️ Druckbares HTML / PDF (.html)"
+  "🖨️ Printable HTML / PDF (.html)": "🖨️ Druckbares HTML / PDF (.html)",
+  "This folder is synced with {service}: files you put here are also uploaded to {service}. For letters that should stay on this PC, use a folder outside {service}.": "Dieser Ordner wird mit {service} synchronisiert: Dateien, die Sie hier ablegen, werden auch zu {service} hochgeladen. Für Schreiben, die auf diesem PC bleiben sollen, nutzen Sie einen Ordner außerhalb von {service}."
 }

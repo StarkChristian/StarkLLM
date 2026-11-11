@@ -143,7 +143,9 @@ def get_kb_config(current_user: models.User = Depends(get_current_user)):
     """Return backend configuration for the Knowledge Base UI."""
     return {
         "host_kb_path": os.environ.get("HOST_KB_PATH", "knowledge_base_data (inside the StarkLLM project folder)"),
-        "container_kb_path": settings.KB_DATA_DIR
+        "container_kb_path": settings.KB_DATA_DIR,
+        # set by the desktop app when the folder is in OneDrive, Dropbox, Google Drive or iCloud
+        "kb_cloud_sync": os.environ.get("STARKLLM_KB_SYNC") or None,
     }
 
 
