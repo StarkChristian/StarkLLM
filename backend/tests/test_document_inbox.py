@@ -144,3 +144,35 @@ def test_facts_of_one_document(tmp_path):
     f = body["facts"]
     assert f["type"]["value"] == "reminder" and f["sender"]["value"] == "Stadtwerke Rheinstadt"
     assert f["dates"][0]["amount"] == "96,00 EUR" and f["dates"][0]["page"] == 1
+
+
+# First lines of the non-letters in the "Windows Test" workspace on a real PC (12 Nov 2026), which the inbox showed
+# as senders and counted as new letters.
+NOT_LETTERS = [
+    ("Project card.md", "# Project card\nOwner: Lena Hoffmann\nStatus: on track\nNext review in the team meeting."),
+    ("Office guide.html", "Office guide The office Wi-Fi network is called Orion-Guest and the reception opens at 8."),
+    ("Inventory.xlsx", "Sheet: Inventory\nItem | Count | Price\nSolar inverter SI-9 | 4 | 1290,00 EUR"),
+    ("Catalog.xml", '<catalog><product id="P-118"><name>Solar inverter SI-9</name><price currency="EUR">1290</price></product></catalog>'),
+    ("Backup job.log", "2026-11-07 02:00:01 INFO backup started\n2026-11-07 02:04:13 INFO backup finished"),
+    ("Room plan.jpeg", "The image shows a photograph of a meeting room sign. The sign is placed on a door."),
+    ("Shift handover.txt", "Shift handover note. The night shift supervisor is Karim Nouri. Forklift FL-07 is in the workshop."),
+]
+
+
+def test_notes_files_and_photos_are_not_letters(tmp_path):
+    ids, headers, doc_ids = _user(tmp_path, [("Stadtwerke.pdf", BILL)] + NOT_LETTERS)
+    try:
+        body = client.get("/api/v1/dashboard/inbox", headers=headers).json()
+        count = client.get("/api/v1/dashboard/inbox/count", headers=headers).json()
+    finally:
+        _drop(ids)
+    docs = {d["filename"]: d for d in body["documents"]}
+    assert len(docs) == 8, "every document is still listed"
+    assert docs["Stadtwerke.pdf"]["facts"]["letter"] and docs["Stadtwerke.pdf"]["status"] == "new"
+    for name, _ in NOT_LETTERS:
+        d = docs[name]
+        assert not d["facts"]["letter"], name
+        assert d["facts"]["sender"] is None and d["case"] is None, f"{name}: {d['facts']['sender']}"
+        assert d["status"] == "done", f"{name} is not a new letter"
+    assert body["new_count"] == 1 and count == {"new_count": 1}
+    assert [c["key"] for c in body["cases"]] == ["stadtwerke rheinstadt"]

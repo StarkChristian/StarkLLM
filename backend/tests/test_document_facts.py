@@ -89,3 +89,15 @@ def test_the_same_letter_as_photo_and_as_pdf_has_one_fingerprint():
 def test_empty_document():
     f = document_facts({})
     assert f["type"] is None and f["sender"] is None and f["references"] == [] and f["case"] is None
+
+
+def test_first_lines_that_are_not_a_sender():
+    from app.services.facts_service import _not_a_name
+    for line in ["# Project card", "<catalog><product id=\"P-118\">", "Sheet: Inventory", "2026-11-07 02:00:01 INFO backup started",
+                 "The image shows a photograph of a meeting room sign.", "Das Bild zeigt einen Brief.",
+                 "Office guide The office Wi-Fi network is called Orion-Guest and the reception opens at 8.",
+                 "Shift handover note. The night shift supervisor is Karim Nouri."]:
+        assert _not_a_name(line), line
+    for line in ["Stadtwerke Rheinstadt", "Finanzamt Rheinstadt - Vollstreckungsstelle", "Kurpfalz Direkt Versicherung AG",
+                 "Dr. med. Anna Berger, Fachärztin für Innere Medizin", "Hausverwaltung Müller & Söhne GmbH"]:
+        assert not _not_a_name(line), line

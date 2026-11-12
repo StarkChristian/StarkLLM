@@ -145,8 +145,24 @@ def sender(pages: Dict[int, str]) -> Optional[Dict]:
             if m:
                 return _fact(m.group("name").strip()[:80], first_page, line[:200])
         return None
+    if _not_a_name(lines[0]):
+        return None
     name = re.split(r"\s+[-–|·]\s+", lines[0])[0].strip()  # "Finanzamt Rheinstadt - Vollstreckungsstelle"
     return _fact(name[:80], first_page, lines[0][:200])
+
+
+# First lines of files that are not letters (seen on a real PC, 12 Nov 2026): "# Project card" (Markdown),
+# "<catalog><product id=…" (XML), "Sheet: Inventory" (a spreadsheet as text), "2026-11-07 02:00:01 INFO backup
+# started" (a log), "The image shows a photograph of …" (the description of a photo), or a sentence.
+_NOT_A_NAME = re.compile(r"^\s*([#<{\[|>*=]|sheet\s*:|tabelle\s*:|\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}|"
+                         r"(the|this|a|an) (image|photo|picture|screenshot)\b|(das|dieses|ein) (bild|foto)\b|auf dem (bild|foto)\b)",
+                         re.IGNORECASE)
+
+
+def _not_a_name(line: str) -> bool:
+    """A first line that cannot be a sender: markup, a log line, a photo description or a whole sentence."""
+    words = line.split()
+    return bool(_NOT_A_NAME.match(line)) or len(words) > 8 or (len(words) >= 5 and line.rstrip().endswith("."))
 
 
 def written_on(pages: Dict[int, str]) -> Optional[Dict]:
@@ -269,6 +285,12 @@ def document_facts(pages: Dict[int, str]) -> Dict:
         # the same letter as a photo and as a PDF has the same text after OCR noise is removed
         "fingerprint": hashlib.sha1(_norm(full)[:4000].encode()).hexdigest() if full else None,
     }
+    # Only letters get a sender, a case and a place among the new letters of the inbox. A note, a manual, a
+    # spreadsheet or a photo has none of these, and its first line is not a sender.
+    facts["letter"] = bool(facts["type"] or facts["references"] or facts["date"] or facts["dates"] or facts["accounts"]
+                           or facts["warnings"])
+    if not facts["letter"]:
+        facts["sender"] = None
     facts["case"] = case_key(facts)
     return facts
 
