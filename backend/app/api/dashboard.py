@@ -395,6 +395,9 @@ def get_document_home(
 INBOX_NEW_DAYS = 30  # documents without a decision count as new when added in the last 30 days (older ones were
                      # there before the inbox existed; they are in their cases, not in the list of new letters)
 CASE_KINDS = ("deadline", "payment", "appointment")
+# (user id, scope, document id) -> whether the document is a letter (facts_service: "letter"). Filled by
+# document_inbox, read by the sidebar count, which runs every 30 s and should not read every document's text.
+_IS_LETTER: dict = {}
 
 
 def _next_date(facts: dict, today: str):
@@ -417,7 +420,9 @@ def document_inbox(db, user_id: int) -> dict:
     for item, pages, is_replaced in zip(items, pages_of, replaced_documents(pages_of)):
         facts = document_facts_cached(pages)
         review = reviews.get((item["scope"], item["id"]))
-        status = review.status if review else ("new" if (item["added"] or "") >= recent else "done")
+        _IS_LETTER[(user_id, item["scope"], item["id"])] = bool(facts.get("letter"))
+        # a note, manual, spreadsheet or photo is listed under all documents, but not among the new letters
+        status = review.status if review else ("new" if facts.get("letter") and (item["added"] or "") >= recent else "done")
         docs.append({**item, "facts": facts, "status": status, "title": review.title if review else None,
                      "case": (review.case_key if review and review.case_key else facts.get("case")),
                      "replaced": is_replaced, "suspicious": bool(facts.get("warnings")),
@@ -472,7 +477,8 @@ def get_inbox_count(
     current_user: models.User = Depends(get_current_user),
 ):
     """How many documents are new in the inbox, for the number next to "Inbox" in the sidebar. Reads only the
-    database (the same rule as document_inbox: no decision and added in the last INBOX_NEW_DAYS days, or marked new)."""
+    database (the same rule as document_inbox: a letter with no decision added in the last INBOX_NEW_DAYS days, or
+    marked new). Whether a document is a letter comes from the last inbox build; an unknown one builds it once."""
     from datetime import datetime, timedelta
     recent = datetime.utcnow() - timedelta(days=INBOX_NEW_DAYS)
     reviews = {(r.scope, r.document_id): r.status for r in
@@ -484,8 +490,11 @@ def get_inbox_count(
           .join(models.KnowledgeBaseFolder, models.KnowledgeBaseDocument.folder_id == models.KnowledgeBaseFolder.id)
           .filter(models.KnowledgeBaseFolder.user_id == current_user.id, models.KnowledgeBaseDocument.status == "indexed").all())
     rows = [("ws", i, added) for i, added in ws] + [("kb", i, indexed or created) for i, indexed, created in kb]
-    new = sum(1 for scope, i, added in rows
-              if reviews.get((scope, i), "new" if added and added >= recent else "done") == "new")
+    undecided = [(scope, i) for scope, i, added in rows if (scope, i) not in reviews and added and added >= recent]
+    if any((current_user.id, scope, i) not in _IS_LETTER for scope, i in undecided):
+        return {"new_count": document_inbox(db, current_user.id)["new_count"]}
+    new = sum(1 for scope, i, _ in rows if reviews.get((scope, i)) == "new")
+    new += sum(1 for scope, i in undecided if _IS_LETTER[(current_user.id, scope, i)])
     return {"new_count": new}
 
 
