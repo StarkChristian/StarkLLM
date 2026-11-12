@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { EventEmitter } = require('events');
-const { createUpdater, startInstaller, isNewer, parseVersion, decide, DOWNLOAD_PAGE } = require('../updates');
+const { createUpdater, startInstaller, isNewer, parseVersion, decide, DOWNLOAD_PAGE, AUTO_MIN_RELEASE_AGE_MS } = require('../updates');
 
 test('version comparison', () => {
   assert.deepStrictEqual(parseVersion('v2.0.3'), [2, 0, 3]);
@@ -22,6 +22,19 @@ test('drafts, pre-releases and skipped versions are not offered', () => {
   assert.strictEqual(decide({ tag_name: 'v9.0.0', draft: true }, '2.0.3', {}).show, false);
   assert.strictEqual(decide({ tag_name: 'v2.0.4' }, '2.0.3', { skipVersion: '2.0.4' }).show, false);
   assert.strictEqual(decide({ tag_name: 'v2.0.5' }, '2.0.3', { skipVersion: '2.0.4' }).show, true);
+});
+
+test('a release younger than the minimum age is held back, then offered', () => {
+  const published = '2026-11-11T17:00:00Z';
+  const release = { tag_name: 'v2.0.15', published_at: published };
+  const hour = 60 * 60 * 1000;
+  const early = decide(release, '2.0.14', {}, { now: Date.parse(published) + 3 * hour, minAgeMs: AUTO_MIN_RELEASE_AGE_MS });
+  assert.strictEqual(early.show, false);
+  assert.ok(early.tooNew);
+  assert.strictEqual(early.offerAfter, '2026-11-12T17:00:00.000Z');
+  assert.strictEqual(decide(release, '2.0.14', {}, { now: Date.parse(published) + 25 * hour, minAgeMs: AUTO_MIN_RELEASE_AGE_MS }).show, true);
+  assert.strictEqual(decide(release, '2.0.14', {}, { now: Date.parse(published) + 3 * hour }).show, true, 'no minimum age: offered at once');
+  assert.strictEqual(decide({ tag_name: 'v2.0.15' }, '2.0.14', {}, { now: 0, minAgeMs: AUTO_MIN_RELEASE_AGE_MS }).show, true, 'no publish date: offered');
 });
 
 function harness({ answers = [], release = { tag_name: 'v2.1.0' }, fail = false, version = '2.0.3', packaged = false, autoUpdater = null, onStatus, spawn } = {}) {
@@ -83,6 +96,16 @@ test('no dialog when up to date, and a failed check stays silent on start', asyn
   const b = harness({ answers: [0], fail: true });
   await b.u.onStart();
   assert.strictEqual(b.calls.dialogs.length, 1);
+});
+
+test('a release published an hour ago: no offer on start, but "Check for updates" offers it', async () => {
+  const release = { tag_name: 'v2.1.0', published_at: new Date(Date.now() - 60 * 60 * 1000).toISOString() };
+  const { u, calls } = harness({ answers: [0, 1], release });
+  await u.onStart();
+  assert.strictEqual(calls.fetch, 1);
+  assert.strictEqual(calls.dialogs.length, 1, 'only the first-start question, no update offer');
+  await u.check({ manual: true });
+  assert.match(calls.dialogs[1], /2\.1\.0 is available/);
 });
 
 test('skip this version is remembered; the manual check still reports it', async () => {
