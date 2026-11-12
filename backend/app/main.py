@@ -256,7 +256,8 @@ def launcher_register_kb_folder(
 
     # 3. Path sanitization
     folder_path = body.folder_path.strip()
-    if _re.match(r'^[A-Za-z]:[/\\]', folder_path) or folder_path.startswith('\\\\'):
+    # only in the (Linux) container; without Docker the backend runs on Windows and these paths are real
+    if os.name != "nt" and (_re.match(r'^[A-Za-z]:[/\\]', folder_path) or folder_path.startswith('\\\\')):
         raise HTTPException(
             status_code=422,
             detail="Windows host paths cannot be registered directly. Use container path."
@@ -321,3 +322,29 @@ def launcher_register_kb_folder(
             _logger.warning(f"KB initial sync on folder {folder.id} warning: {e}")
 
         return {"id": folder.id, "folder_path": folder.folder_path}
+
+
+# ---------------------------------------------------------------------------
+# Web UI without nginx (roadmap phase 2: StarkLLM without Docker).
+# In Docker the frontend container (nginx) serves the built UI and passes /api/ on to this backend. Without Docker
+# the backend serves the built UI itself when STARKLLM_STATIC_DIR points at it (frontend/dist), on the same port as
+# the API. Registered last, so every API route above keeps priority; unknown /api/ and /v1/ paths stay 404.
+# ---------------------------------------------------------------------------
+_STATIC_DIR = os.getenv("STARKLLM_STATIC_DIR", "")
+
+if _STATIC_DIR and os.path.isfile(os.path.join(_STATIC_DIR, "index.html")):
+    from fastapi.responses import FileResponse as _FileResponse
+
+    _STATIC_ROOT = os.path.realpath(_STATIC_DIR)
+    _NOT_UI = ("api/", "v1/", "launcher/", "health")
+
+    @app.get("/{path:path}", include_in_schema=False)
+    def web_ui(path: str):
+        if path.startswith(_NOT_UI):
+            raise HTTPException(status_code=404, detail="Not Found")
+        file = os.path.realpath(os.path.join(_STATIC_ROOT, path))
+        # a file of the built UI (never outside its folder), else the app itself for its own routes (/settings, ...)
+        if path and file.startswith(_STATIC_ROOT + os.sep) and os.path.isfile(file):
+            cache = "public, max-age=31536000, immutable" if path.startswith("assets/") else "no-cache"
+            return _FileResponse(file, headers={"Cache-Control": cache})
+        return _FileResponse(os.path.join(_STATIC_ROOT, "index.html"), headers={"Cache-Control": "no-store"})
