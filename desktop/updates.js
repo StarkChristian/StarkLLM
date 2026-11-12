@@ -27,12 +27,22 @@ function isNewer(latest, current) {
   return false;
 }
 
-// What to do with a GitHub "latest release" answer.
-function decide(release, current, settings) {
+// Windows Smart App Control holds back a new unsigned installer, and the program it installs, for a few hours
+// (seen with 2.0.14 and 2.0.15 on 11 Nov 2026: the update needed an admin prompt, then the new StarkLLM.exe was
+// blocked for hours). The automatic check therefore offers a release only once it is a day old; "Check for
+// updates" in the menu still offers it at once.
+const AUTO_MIN_RELEASE_AGE_MS = 24 * 60 * 60 * 1000;
+
+// What to do with a GitHub "latest release" answer. minAgeMs: offer a release only that long after it was published.
+function decide(release, current, settings, { now = Date.now(), minAgeMs = 0 } = {}) {
   if (!release || release.draft || release.prerelease) return { show: false };
   const latest = String(release.tag_name || '').replace(/^v/, '');
   if (!isNewer(latest, current)) return { show: false, latest };
   if (settings.skipVersion && settings.skipVersion === latest) return { show: false, latest, skipped: true };
+  const published = Date.parse(release.published_at || '');
+  if (minAgeMs > 0 && Number.isFinite(published) && now - published < minAgeMs) {
+    return { show: false, latest, tooNew: true, offerAfter: new Date(published + minAgeMs).toISOString() };
+  }
   return { show: true, latest, url: release.html_url || DOWNLOAD_PAGE };
 }
 
@@ -141,8 +151,8 @@ function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null,
       return { error: e.message };
     }
     const current = app.getVersion();
-    const d = decide(release, current, manual ? {} : readSettings());
-    log(`update check: current ${current}, latest ${d.latest || '?'}${d.show ? ' (newer)' : ''}`);
+    const d = decide(release, current, manual ? {} : readSettings(), { minAgeMs: manual ? 0 : AUTO_MIN_RELEASE_AGE_MS });
+    log(`update check: current ${current}, latest ${d.latest || '?'}${d.show ? ' (newer)' : ''}${d.tooNew ? ` (published less than a day ago, offered after ${d.offerAfter})` : ''}`);
     if (!d.show) {
       if (manual) await dialog.showMessageBox(parent(), { type: 'info', title: 'StarkLLM', message: `StarkLLM ${current} is the newest version.` });
       return d;
@@ -285,4 +295,4 @@ function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null,
   };
 }
 
-module.exports = { createUpdater, startInstaller, parseVersion, isNewer, decide, backupDatabase, RELEASES_API, DOWNLOAD_PAGE };
+module.exports = { createUpdater, startInstaller, parseVersion, isNewer, decide, backupDatabase, RELEASES_API, DOWNLOAD_PAGE, AUTO_MIN_RELEASE_AGE_MS };
