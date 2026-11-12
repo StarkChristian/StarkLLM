@@ -94,6 +94,20 @@ Get-FileHash -Algorithm SHA256 StarkLLM-v2.0.15-Setup.exe
 
 ---
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+- **What is signed:** `StarkLLM.exe` and the Windows installer, built by GitHub Actions ([desktop-release.yml](.github/workflows/desktop-release.yml)) from the `main` branch of this repository. Files built on a developer's PC are never signed. Files of other open source projects that the app ships unchanged (Electron and Chromium libraries, NSIS installer plugins) keep their authors' signature, or none.
+- **Committers and reviewers:** [Christian Stark (StarkChristian)](https://github.com/StarkChristian). Changes from other contributors are reviewed by a committer before they are merged.
+- **Approvers:** [Christian Stark (StarkChristian)](https://github.com/StarkChristian). Every release is approved by hand before it is signed.
+- Everyone in these roles uses multi-factor authentication for GitHub and SignPath.
+- **Privacy:** This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. The optional online features and the one-time downloads on the first start are listed on the [privacy page](https://www.starkllm.com/tech-privacy). The program has no telemetry.
+
+Details: [www.starkllm.com/code-signing](https://www.starkllm.com/code-signing) and [docs/code-signing.md](docs/code-signing.md).
+
+---
+
 ## License
 
 StarkLLM is licensed under the [Apache License, Version 2.0](LICENSE).  
