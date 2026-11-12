@@ -96,7 +96,10 @@ def test_first_lines_that_are_not_a_sender():
     for line in ["# Project card", "<catalog><product id=\"P-118\">", "Sheet: Inventory", "2026-11-07 02:00:01 INFO backup started",
                  "The image shows a photograph of a meeting room sign.", "Das Bild zeigt einen Brief.",
                  "Office guide The office Wi-Fi network is called Orion-Guest and the reception opens at 8.",
-                 "Shift handover note. The night shift supervisor is Karim Nouri."]:
+                 "Shift handover note. The night shift supervisor is Karim Nouri.",
+                 "Columns: supplier,city,contract_number,annual_volume_eur", '"service": "billing-api",',
+                 "The image appears to be a screenshot of a computer screen displaying a web page",
+                 "The daily meal allowance for business trips is 42 EUR. Approvals go to Sabine Roth."]:
         assert _not_a_name(line), line
     for line in ["Stadtwerke Rheinstadt", "Finanzamt Rheinstadt - Vollstreckungsstelle", "Kurpfalz Direkt Versicherung AG",
                  "Dr. med. Anna Berger, Fachärztin für Innere Medizin", "Hausverwaltung Müller & Söhne GmbH"]:

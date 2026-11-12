@@ -156,6 +156,9 @@ NOT_LETTERS = [
     ("Backup job.log", "2026-11-07 02:00:01 INFO backup started\n2026-11-07 02:04:13 INFO backup finished"),
     ("Room plan.jpeg", "The image shows a photograph of a meeting room sign. The sign is placed on a door."),
     ("Shift handover.txt", "Shift handover note. The night shift supervisor is Karim Nouri. Forklift FL-07 is in the workshop."),
+    ("Suppliers.csv", "Columns: supplier,city,contract_number,annual_volume_eur\nNordlicht GmbH,Hamburg,C-2201,120000"),
+    ("Config.json", '"service": "billing-api",\n"port": 8080,\n"owner": "platform team"'),
+    ("Travel policy.docx", "The daily meal allowance for business trips is 42 EUR. Approvals go to Sabine Roth."),
 ]
 
 
@@ -167,7 +170,7 @@ def test_notes_files_and_photos_are_not_letters(tmp_path):
     finally:
         _drop(ids)
     docs = {d["filename"]: d for d in body["documents"]}
-    assert len(docs) == 8, "every document is still listed"
+    assert len(docs) == 1 + len(NOT_LETTERS), "every document is still listed"
     assert docs["Stadtwerke.pdf"]["facts"]["letter"] and docs["Stadtwerke.pdf"]["status"] == "new"
     for name, _ in NOT_LETTERS:
         d = docs[name]

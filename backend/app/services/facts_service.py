@@ -153,8 +153,9 @@ def sender(pages: Dict[int, str]) -> Optional[Dict]:
 
 # First lines of files that are not letters (seen on a real PC, 12 Nov 2026): "# Project card" (Markdown),
 # "<catalog><product id=…" (XML), "Sheet: Inventory" (a spreadsheet as text), "2026-11-07 02:00:01 INFO backup
-# started" (a log), "The image shows a photograph of …" (the description of a photo), or a sentence.
-_NOT_A_NAME = re.compile(r"^\s*([#<{\[|>*=]|sheet\s*:|tabelle\s*:|\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}|"
+# started" (a log), "Columns: supplier,city,…" (a CSV file), '"service": "billing-api",' (JSON), "The image shows a
+# photograph of …" (the description of a photo), or a sentence.
+_NOT_A_NAME = re.compile(r"^\s*([#<{\[|>*=\"']|sheet\s*:|tabelle\s*:|columns\s*:|spalten\s*:|\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}|"
                          r"(the|this|a|an) (image|photo|picture|screenshot)\b|(das|dieses|ein) (bild|foto)\b|auf dem (bild|foto)\b)",
                          re.IGNORECASE)
 
