@@ -30,8 +30,8 @@ dry run.
 ## Not signed
 
 - Files of other open source projects that ship unchanged: Electron and Chromium libraries (`ffmpeg.dll`,
-  `libEGL.dll`, `libGLESv2.dll`, `vk_swiftshader.dll`, `vulkan-1.dll`, ...), Microsoft's `d3dcompiler_47.dll`
-  (signed by Microsoft) and the NSIS plugins. SignPath only signs files built from our own source code.
+  `libEGL.dll`, `libGLESv2.dll`, `vk_swiftshader.dll`, `vulkan-1.dll`), electron-builder's `resources\elevate.exe`,
+  Microsoft's `d3dcompiler_47.dll` (signed by Microsoft) and the NSIS plugins. SignPath only signs files built from our own source code.
 - The uninstaller (`Uninstall StarkLLM.exe`). NSIS writes it in the middle of the installer build, and a SignPath
   request cannot run there. It runs when StarkLLM is removed and during an update. If Windows blocks it during an
   update, the update still installs (tested in `desktop-windows.yml`, "Update still installs when the old
