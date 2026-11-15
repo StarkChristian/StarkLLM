@@ -18,6 +18,7 @@ import os
 import shutil
 import sqlite3
 import tempfile
+import time
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -256,21 +257,32 @@ def _migrate_vectors(targets: Targets, to_protected: bool, counts: dict):
                 _progress(targets.state, step="vectors", done=counts["vectors"])
 
 
+def _checkpoint(con, attempts: int = 20, pause: float = 0.25) -> bool:
+    """Move the write-ahead log into the database file and empty it. The pragma does not raise when another connection
+    is still reading (it only reports busy), and then the old plain text would stay in the -wal file: try again."""
+    for _ in range(attempts):
+        busy, _log, _done = con.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+        if not busy:
+            return True
+        time.sleep(pause)
+    return False
+
+
 def _vacuum(path: str) -> bool:
     """Rewrite a SQLite file so that the plain text of changed rows no longer sits in its free pages (SQLite does
-    not erase them on its own). Needs a moment without other writers; if that is not possible, it reports False."""
+    not erase them on its own), and empty its write-ahead log. Needs a moment without other readers and writers: it
+    retries for a few seconds, and reports False if the file could not be cleaned."""
     if not path or not os.path.exists(path):
         return True
     try:
         con = sqlite3.connect(path, timeout=5, isolation_level=None)
         try:
             con.execute("PRAGMA secure_delete = ON")
-            con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            ok = _checkpoint(con)
             con.execute("VACUUM")
-            con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            return _checkpoint(con) and ok
         finally:
             con.close()
-        return True
     except sqlite3.Error as e:
         logger.warning("Could not clean %s after the migration: %s", path, e)
         return False
