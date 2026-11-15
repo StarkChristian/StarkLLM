@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal, BrainCircuit, Server, Play, Loader, Key, Globe, Keyboard } from 'lucide-react';
+import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal, BrainCircuit, Server, Play, Loader, Key, Globe, Keyboard, Lock } from 'lucide-react';
 import styles from './Settings.module.css';
 import BackupRestoreSettings from './BackupRestoreSettings';
+import ProtectionSettings from './ProtectionSettings';
+import EncryptedBackupSettings from './EncryptedBackupSettings';
 import { AVAILABLE_THEMES, applyTheme } from '../utils/themes';
 import OtherAppsPanel from './OtherAppsPanel';
 import { t, language, setLanguage } from '../i18n';
@@ -20,6 +22,7 @@ const SECTIONS = [
   { id: 'ui',       label: t('Appearance'),    icon: Palette },
   { id: 'language', label: t('Language & Locale'), icon: Globe },
   { id: 'shortcuts', label: t('Keyboard Shortcuts'), icon: Keyboard },
+  { id: 'protection', label: t('Protection'), icon: Lock },
   { id: 'system',   label: t('Backup & Restore'), icon: Archive },
   { id: 'about',    label: t('About StarkLLM'),icon: Info },
 ];
@@ -1238,8 +1241,13 @@ print(response.choices[0].message.content)`;
           )}
 
           {/* ───── System ───── */}
+          {activeSection === 'protection' && <ProtectionSettings token={token} />}
+
           {activeSection === 'system' && (
-            <BackupRestoreSettings token={token} />
+            <>
+              <EncryptedBackupSettings token={token} />
+              <BackupRestoreSettings token={token} />
+            </>
           )}
 
           {/* ───── About ───── */}

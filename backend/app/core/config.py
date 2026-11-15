@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     
     # Paths for uploads
     UPLOAD_DIR: str = "data/uploads"
+
+    # Protection at rest (B6) and encrypted backups (B7): state of the protection, scratch space for decrypted copies
+    PROTECTION_DIR: str = "data/protection"
+    TEMP_DIR: str = "data/tmp"
     
     # RAG Chunking configuration
     RAG_CHUNKING_STRATEGY: str = "semantic"  # "semantic", "recursive", "fixed"

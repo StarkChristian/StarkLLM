@@ -1,10 +1,11 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, dialog, net, session } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, dialog, net, session, safeStorage } = require('electron');
 const { sameOrigin, isWebLink, permissionAllowed } = require('./window-security');
 const fs = require('fs');
 const path = require('path');
 const { diagnose, buildErrorPage } = require('./diagnostics');
 const { startEngine, userPaths, secretKey, forgetFailedUpdate } = require('./engine');
 const crypto = require('crypto');
+const { DataKeyManager, DataKeyError, createSafeStorageKeyStore, deliverKey } = require('./data-key');
 const { createUpdater } = require('./updates');
 const { installOllama } = require('./ollama-install');
 const { autoUpdater } = require('electron-updater');
@@ -59,6 +60,7 @@ function initApp() {
     const err = await shell.openPath(dir);
     return err ? { error: err } : { ok: true };
   });
+  registerProtectionHandlers();
   ipcMain.handle('updates:check', async (event) => {
     if (!event.senderFrame || !sameOrigin(event.senderFrame.url, APP_URL)) return { error: 'not allowed' };
     const r = await updater.check({ manual: true });
@@ -223,7 +225,89 @@ async function fetchLocalSession() {
   }
 }
 
+// Protection at rest (docs/encryption-design.md): the data key lives wrapped in the Windows key store, in the user's
+// profile next to the data folder. The engine gets it in memory after it started; it never writes it down.
+let dataKeys = null;
+function keyManager() {
+  if (!dataKeys) {
+    dataKeys = new DataKeyManager({ dir: path.join(app.getPath('userData'), 'protection'), keyStore: createSafeStorageKeyStore(safeStorage) });
+  }
+  return dataKeys;
+}
+
+function engineSecret() {
+  return process.env.SECRET_KEY || secretKey(userPaths().secret);
+}
+
+// Hands the key to the engine (if protection was set up on this PC). Returns { ok } or { error, message }.
+async function unlockEngine(passphrase) {
+  const keys = keyManager();
+  if (!keys.status().hasKey) return { ok: true, skipped: true };
+  try {
+    const key = keys.load(passphrase);
+    const r = await deliverKey({ apiUrl: API_URL, secret: engineSecret(), key });
+    key.fill(0);
+    if (!r.ok) {
+      logLine(`protection: the engine refused the key (${r.status})`);
+      return { error: 'engine-refused', message: r.detail || `The engine refused the key (${r.status}).` };
+    }
+    logLine('protection: engine unlocked');
+    return { ok: true };
+  } catch (e) {
+    logLine(`protection: key not available (${e.code || e.message})`);
+    return { error: e.code || 'failed', message: e.message };
+  }
+}
+
+function fromAppPage(event) {
+  return event.senderFrame && sameOrigin(event.senderFrame.url, APP_URL);
+}
+
+// Settings > Protection. Only the app's own page may ask, and the key itself never goes to the page (the recovery
+// key does, once, to be shown to the user).
+function registerProtectionHandlers() {
+  const guard = (fn) => async (event, ...args) => {
+    if (!fromAppPage(event)) return { error: 'not-allowed' };
+    try {
+      return await fn(...args);
+    } catch (e) {
+      return { error: e instanceof DataKeyError ? e.code : 'failed', message: e.message };
+    }
+  };
+  ipcMain.handle('protection:status', guard(() => keyManager().status()));
+  ipcMain.handle('protection:create-key', guard(async () => {
+    const { recoveryKey } = keyManager().create();
+    const unlocked = await unlockEngine();
+    return unlocked.error ? unlocked : { recoveryKey };
+  }));
+  ipcMain.handle('protection:unlock', guard((passphrase) => unlockEngine(passphrase)));
+  ipcMain.handle('protection:recover', guard(async (recoveryKey) => {
+    keyManager().recover(recoveryKey);
+    return unlockEngine();
+  }));
+  // After a restore of a protected backup: the backup's key becomes this PC's key (the engine already has it).
+  ipcMain.handle('protection:store-key', guard((keyBase64) => {
+    const key = Buffer.from(String(keyBase64 || ''), 'base64');
+    return keyManager().install(key);
+  }));
+  ipcMain.handle('protection:set-passphrase', guard(async (passphrase) => {
+    const keys = keyManager();
+    keys.enablePassphrase(passphrase, keys.load());
+    return { ok: true };
+  }));
+  ipcMain.handle('protection:remove-passphrase', guard((passphrase) => {
+    keyManager().disablePassphrase(passphrase);
+    return { ok: true };
+  }));
+  // Protection switched off for good: remove the key (documents are plain again, nothing needs it).
+  ipcMain.handle('protection:forget-key', guard(() => {
+    keyManager().forget();
+    return { ok: true };
+  }));
+}
+
 async function showApp() {
+  await unlockEngine();
   await fetchLocalSession();
   const rest = SPLASH_MIN_MS - (Date.now() - splashShownAt);
   if (rest > 0) await wait(rest);
