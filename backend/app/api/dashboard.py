@@ -357,6 +357,7 @@ def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool 
     and by the chat, which hands these dates to the model for questions like "what is due in the next two weeks?"."""
     from datetime import date, timedelta
     from app.services.document_checks import findings
+    from app.services.facts_service import is_machine_document
 
     items, pages_of = documents_with_pages(db, user_id, workspace_id, include_kb)
     today = date.today()
@@ -369,6 +370,8 @@ def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool 
         if is_replaced:
             item["replaced"] = True
             continue
+        if is_machine_document(pages, item["filename"]):
+            continue  # a log, table, JSON or note: its timestamps and dates are not deadlines
         full = "\n".join(text for _, text in sorted(pages.items()))
         if any(f["kind"] in ("scam_signs", "ai_instructions") for f in findings([{"file": item["filename"], "text": full}])):
             item["suspicious"] = True  # a scam's "deadline" is not something to do
@@ -421,7 +424,7 @@ def document_inbox(db, user_id: int) -> dict:
     recent = (datetime.utcnow() - timedelta(days=INBOX_NEW_DAYS)).isoformat()
     docs = []
     for item, pages, is_replaced in zip(items, pages_of, replaced_documents(pages_of)):
-        facts = document_facts_cached(pages)
+        facts = document_facts_cached(pages, item["filename"])
         review = reviews.get((item["scope"], item["id"]))
         _IS_LETTER[(user_id, item["scope"], item["id"])] = bool(facts.get("letter"))
         # a note, manual, spreadsheet or photo is listed under all documents, but not among the new letters
