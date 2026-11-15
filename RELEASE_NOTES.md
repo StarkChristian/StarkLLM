@@ -1,5 +1,16 @@
 # StarkLLM Release Notes
 
+## Version 2.0.16 — Updates arrive a day later, the inbox ignores files that are not letters
+
+- **Updates wait one day.** The automatic update check now offers a new version only when it is at least 24 hours old. Windows holds back every new, unsigned program for some hours; waiting a day means the new installer is usually accepted when it arrives. "Check for updates" in Settings → About still offers a new version at once.
+- **Inbox: fewer false letters.** Notes, spreadsheets, XML, JSON and CSV files, logs and descriptions of photos are no longer treated as letters: they get no sender and no case, and they are not counted as new in the inbox.
+
+**From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install".
+
+Pull requests: #93, #94.
+
+---
+
 ## Version 2.0.15 — Inbox: what is in every letter, cases per sender
 
 - **New: Inbox.** For every letter StarkLLM now reads its kind (bill, reminder, tax notice, contract, fine, debt collection, text message …), the sender, the date of the letter, reference numbers (customer, contract, tax number …), amounts, bank accounts and deadlines. Everything is found word for word on a page of the letter: click a value and the letter opens at that page with the line marked. Mark a letter done when you have dealt with it, or give it your own title. The number of new letters is shown next to "Inbox".

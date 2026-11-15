@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, Server, Cpu, Brain, Zap, X } from 'lucide-react';
+import { AlertTriangle, Server, Cpu, Brain, Zap, X, Lock } from 'lucide-react';
 import styles from './HealthBanner.module.css';
 import { t } from '../i18n';
 
@@ -33,6 +33,10 @@ export default function HealthBanner({ token }) {
 
   const errors = [];
   
+  if (data.protection?.locked) {
+    errors.push({ icon: Lock, msg: t('StarkLLM is locked. Open Settings > Protection and unlock it to see your documents and chats.') });
+  }
+
   if (data.backend?.status === 'offline') {
     errors.push({ icon: Server, msg: data.backend.error || t('Backend is unreachable.') });
   } else {

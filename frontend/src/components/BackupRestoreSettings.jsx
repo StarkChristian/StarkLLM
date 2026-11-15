@@ -108,7 +108,7 @@ export default function BackupRestoreSettings({ token }) {
     <div className={styles.panel}>
       <div className={styles.panelHeader}>
         <Download size={18} />
-        <h2>{t('Backup & Restore')}</h2>
+        <h2>{t('Older backup (.zip)')}</h2>
       </div>
       <p className={styles.hint}>
         {t('Safely export and import your local application data, including chats, uploaded documents, and vector embeddings.')}

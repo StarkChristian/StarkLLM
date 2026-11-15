@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.api.auth import get_current_user
 from app.services.llm_service import llm_service
 from app.services.locale_rules import language_name
+from app.services import vault
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -70,14 +71,13 @@ def _document_text(collection, doc) -> str:
     if ext == "pdf":
         try:
             import fitz
-            with fitz.open(doc.filepath) as pdf:
+            with vault.plain_path(doc.filepath) as readable, fitz.open(readable) as pdf:
                 return "\n".join(pdf[p].get_text("text") for p in range(min(len(pdf), 15)))
         except Exception as e:
             logger.warning(f"Studio: PDF {doc.filename} not readable: {e}")
             return ""
     if ext in TEXT_FILES:
-        with open(doc.filepath, "r", encoding="utf-8", errors="replace") as f:
-            return f.read(8000)
+        return vault.read_text(doc.filepath, encoding="utf-8")[:8000]
     return ""
 
 

@@ -22,4 +22,16 @@ contextBridge.exposeInMainWorld('starkllmDesktop', {
     return () => ipcRenderer.removeListener('updates:status', handler);
   },
   localToken,
+  // Settings > Protection: the key is created, wrapped and handed to the engine by the desktop app; the page only
+  // gets the recovery key (once, to show it) and answers.
+  protection: {
+    status: () => ipcRenderer.invoke('protection:status'),
+    createKey: () => ipcRenderer.invoke('protection:create-key'),
+    unlock: (passphrase) => ipcRenderer.invoke('protection:unlock', passphrase),
+    recover: (recoveryKey) => ipcRenderer.invoke('protection:recover', recoveryKey),
+    storeKey: (keyBase64) => ipcRenderer.invoke('protection:store-key', keyBase64),
+    setPassphrase: (passphrase) => ipcRenderer.invoke('protection:set-passphrase', passphrase),
+    removePassphrase: (passphrase) => ipcRenderer.invoke('protection:remove-passphrase', passphrase),
+    forgetKey: () => ipcRenderer.invoke('protection:forget-key'),
+  },
 });

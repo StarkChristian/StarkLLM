@@ -10,7 +10,10 @@ import chromadb
 from typing import List ,Dict ,Any ,Tuple ,Optional 
 from html .parser import HTMLParser 
 from app .core .config import settings 
+from app .core .protection import ProtectionLocked 
 from app .services .llm_service import llm_service 
+from app .services import vault 
+from app .services .protected_collection import wrap as protect_collection 
 from app .services .vision_service import vision_service 
 from app .services .ocr_service import ocr_service ,PICTURE_EXTENSIONS 
 try :
@@ -182,14 +185,14 @@ class RAGService :
 
     def get_or_create_collection (self ,workspace_id :int ,user_id :int ):
         name =f"user_{user_id }_workspace_{workspace_id }"
-        return self .chroma_client .get_or_create_collection (name =name )
+        return protect_collection (self .chroma_client .get_or_create_collection (name =name ))
 
     def get_kb_collection_name (self ,user_id :int )->str :
         return f"user_{user_id }_knowledge_base"
 
     def get_or_create_kb_collection (self ,user_id :int ):
         name =self .get_kb_collection_name (user_id )
-        return self .chroma_client .get_or_create_collection (name =name )
+        return protect_collection (self .chroma_client .get_or_create_collection (name =name ))
 
     def get_document_preview(self, collection, filepath: str) -> str:
         """Fetches the first few chunks of a document to serve as a preview."""
@@ -219,6 +222,14 @@ class RAGService :
     def _process_file_to_chunks (
     self ,file_path :str 
     )->Tuple [List [str ],List [Dict ],List [str ]]:
+        """Chunks of a file. A protected (encrypted) upload is read from a temporary decrypted copy that is removed
+        afterwards; chunk sources and ids still use the real path."""
+        with vault .plain_path (file_path )as readable :
+            return self ._process_file_to_chunks_impl (file_path ,readable )
+
+    def _process_file_to_chunks_impl (
+    self ,file_path :str ,read_path :str 
+    )->Tuple [List [str ],List [Dict ],List [str ]]:
         """
         Parse *file_path* and return (chunks, metadatas, ids).
 
@@ -240,7 +251,7 @@ class RAGService :
         # ---------------------------------------------------------------- PDF
             if file_ext ==".pdf":
                 logger.info (f"RAG: Starting PDF processing for {file_path }")
-                doc =fitz .open (file_path )
+                doc =fitz .open (read_path )
                 logger.info (f"RAG: PDF opened — {len (doc )} page(s)")
                 pdf_chunks_created =0 
 
@@ -286,7 +297,7 @@ class RAGService :
 
             # ---------------------------------------------------------------- Images
             elif file_ext in PICTURE_EXTENSIONS:
-                pages = ocr_service.text_of_picture(file_path)
+                pages = ocr_service.text_of_picture(read_path)
                 several = len(pages) > 1 or any(p.page > 0 for p in pages)
                 for picture in pages:
                     place = f"Page {picture.page + 1}" if several else "Image"
@@ -299,7 +310,7 @@ class RAGService :
 
             # ---------------------------------------------------------------- Plain text / Markdown
             elif file_ext in [".txt", ".md"]:
-                with open(file_path, "r", encoding="utf-8-sig", errors="ignore") as f:
+                with open(read_path, "r", encoding="utf-8-sig", errors="ignore") as f:
                     text = f.read()
                 file_chunks = self._semantic_chunk_text(text)
                 for idx, chunk in enumerate(file_chunks):
@@ -315,7 +326,7 @@ class RAGService :
 
             # ---------------------------------------------------------------- HTML
             elif file_ext == ".html":
-                with open(file_path, "r", encoding="utf-8-sig", errors="ignore") as f:
+                with open(read_path, "r", encoding="utf-8-sig", errors="ignore") as f:
                     html_content = f.read()
                 extractor = HTMLTextExtractor()
                 extractor.feed(html_content)
@@ -337,7 +348,7 @@ class RAGService :
                 try:
                     import docx
 
-                    doc = docx.Document(file_path)
+                    doc = docx.Document(read_path)
                     sections = []
                     current_heading = "General"
                     current_texts = []
@@ -396,7 +407,7 @@ class RAGService :
 
             # ---------------------------------------------------------------- CSV / JSON / XML / LOG (plain-text data)
             elif file_ext in [".csv", ".json", ".xml", ".log", ".markdown"]:
-                with open(file_path, "r", encoding="utf-8-sig", errors="replace") as f:
+                with open(read_path, "r", encoding="utf-8-sig", errors="replace") as f:
                     text = f.read()
                 for idx, chunk in enumerate(self._chunk_structured_text(text, file_ext)):
                     if chunk.strip():
@@ -413,7 +424,7 @@ class RAGService :
             elif file_ext == ".xlsx":
                 import openpyxl
 
-                wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+                wb = openpyxl.load_workbook(read_path, read_only=True, data_only=True)
                 try:
                     idx = 0
                     for sheet in wb.worksheets:
@@ -491,10 +502,10 @@ class RAGService :
                 )
                 col_name = collection.name
                 self.chroma_client.delete_collection(col_name)
-                collection = self.chroma_client.get_or_create_collection(
+                collection = protect_collection(self.chroma_client.get_or_create_collection(
                     name=col_name,
                     metadata={"hnsw:space": "cosine"}
-                )
+                ))
                 collection.add(
                     documents=chunks,
                     embeddings=embeddings,
@@ -555,6 +566,8 @@ class RAGService :
             query_kwargs ["where"]=where_filter 
         try :
             results =collection .query (**query_kwargs )
+        except ProtectionLocked :
+            raise 
         except Exception as query_err :
             logger.warning (f"RAG: Vector query on '{collection .name }' failed ({query_err }). Falling back to keyword search.")
             return []
