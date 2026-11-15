@@ -220,7 +220,7 @@ DPAPI and the in-app flow cannot be tested on Linux CI. Before a release that co
 11. Windows account password change / reset: the app still starts (DPAPI follows password changes; after an *admin reset* use the recovery key).
 12. Turn off protection: documents open in Notepad again (plain), chats still work.
 13. Kill StarkLLM from the Task Manager in the middle of "Turn on", start it again: everything opens; run "Turn on" again: it finishes.
-16. Automatic backup: choose a USB stick, turn on with a passphrase; "Back up now" shows "tested". Pull the stick out, run again: the "drive connected?" message appears and no notification pops up; put it back: the next run succeeds.
-17. Put other files (and an old `starkllm-...` file with a different name) into the folder, set "keep 2", run three backups: only the oldest StarkLLM backup is removed, your other files are untouched.
-18. Choose a OneDrive folder: the page says the folder is synced and that this is fine; the `.starkbackup` file appears online and cannot be read there.
-19. Sign in as another Windows user (or copy the `protection` folder): the saved passphrase cannot be read and the page asks for it again.
+14. Automatic backup: choose a USB stick, turn on with a passphrase; "Back up now" shows "tested". Pull the stick out, run again: the "drive connected?" message appears and no notification pops up; put it back: the next run succeeds.
+15. Put other files (and an old `starkllm-...` file with a different name) into the folder, set "keep 2", run three backups: only the oldest StarkLLM backup is removed, your other files are untouched.
+16. Choose a OneDrive folder: the page says the folder is synced and that this is fine; the `.starkbackup` file appears online and cannot be read there.
+17. Sign in as another Windows user (or copy the `protection` folder): the saved passphrase cannot be read and the page asks for it again.
