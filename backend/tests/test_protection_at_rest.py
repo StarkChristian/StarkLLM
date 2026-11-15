@@ -402,3 +402,28 @@ def test_failed_enable_rolls_back_the_labels_too(env, monkeypatch):
     monkeypatch.undo()
     assert [r[0] for r in _raw(env.engine, "select name from workspaces")] == [LABELS[0]]
     assert [r[0] for r in _raw(env.engine, "select filename from documents")] == [LABELS[3]]
+
+
+def test_cleaning_a_database_waits_for_readers_instead_of_leaving_plain_text_in_the_log(tmp_path, monkeypatch):
+    """Found by CI: a connection that was still reading made the checkpoint report 'busy' without raising, so the old plain
+    text stayed in the write-ahead log. The cleaning now retries and says False if it could not finish."""
+    import sqlite3
+    import threading
+    import time
+    path = str(tmp_path / "x.db")
+    con = sqlite3.connect(path, isolation_level=None)
+    con.execute("PRAGMA journal_mode=WAL")
+    con.execute("create table t (v text)")
+    con.execute("insert into t values ('Steuerbescheid Mueller')")
+    reader = sqlite3.connect(path, isolation_level=None, check_same_thread=False)
+    reader.execute("BEGIN")
+    reader.execute("select * from t").fetchall()                      # a reader that holds the old pages
+    con.execute("update t set v = 'locked'")
+    assert mig._checkpoint(con, attempts=2, pause=0.01) is False      # busy: reported, not ignored
+    assert b"Steuerbescheid" in open(path + "-wal", "rb").read()
+    threading.Timer(0.3, lambda: reader.execute("COMMIT")).start()    # the reader finishes a moment later
+    t0 = time.time()
+    assert mig._vacuum(path) is True and time.time() - t0 >= 0.2
+    for name in os.listdir(tmp_path):
+        assert b"Steuerbescheid" not in open(tmp_path / name, "rb").read(), name
+    con.close(); reader.close()

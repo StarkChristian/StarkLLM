@@ -187,6 +187,28 @@ user presses "Delete the safety copy". Documents are not duplicated (that would 
   staged; the engine finishes it the next time it starts, before it opens any file.
 * The old plain `.zip` backup is refused while protection is on (it would not contain the key).
 
+### 6.1 Automatic weekly backup
+
+`Settings > Backup & Restore > Automatic backup` (`desktop/backup-schedule.js`).
+
+* **The desktop app drives it**, not the engine: the engine may run in a container that cannot see a USB drive, a NAS share
+  or a OneDrive folder. Each run asks the engine for a backup (`/system/backup/create`, which already tests it), saves it into the
+  chosen folder as `.part` and renames it when complete, sends the saved copy back to the engine for a **second restore test**
+  (a faulty drive or a half-synced cloud folder is caught), and only then removes the oldest copies.
+* **Safe deletion.** Only files named exactly `starkllm-YYYY-MM-DD_HH-MM[-n].starkbackup` are ever removed, never anything
+  else in the folder (tested with foreign files, look-alike names and folders). The newest N (2–52, default 4) are kept; a copy that
+  fails the second test is deleted and the older copies stay.
+* **Passphrase.** Unattended backups need it, so it is kept wrapped by the Windows key store (the same `KeyStore` as the data key),
+  never in plain text, forgotten when the automatic backup is switched off, and unreadable from another Windows account (the page then
+  asks for it again). The user is told to write it down as well. Cloud-synced folders are recognised and the page says that this is fine
+  because the file is encrypted.
+* **Schedule and messages.** Checked at start (after two minutes) and every 30 minutes; due when the last success is 7 days old. After a
+  failure the next try is in 6 hours (1 hour for a missing drive). Clear messages with a code (missing folder, not writable, disk full,
+  documents still processing, locked, copy failed the test); a desktop notification only for real failures, not for a missing drive or
+  a busy engine. The page shows the last success, the last error and the next due time.
+* **Limits.** It uses the local session of the single-user desktop mode; with several accounts (login screen) it reports "not ready".
+  The engine must be running; a backup is skipped while documents are processed.
+
 ## 7. When the key is lost
 
 | What is lost | Result |
@@ -346,3 +368,9 @@ Encrypted search index (section 10), additionally:
 18. Make an encrypted backup while the index is locked, restore it on another PC: the restore test passes and the search works after the restore.
 19. Windows file locking: lock the index on a PC with an antivirus that scans new files; the index file must not be reported as locked or quarantined (SQLite file in WAL mode with `-wal` and `-shm` next to it).
 20. Settings shows the BitLocker / device-encryption recommendation; the link target text matches the Windows version (Windows 11 Home: "Device encryption"; Pro: "BitLocker").
+Automatic backup (section 6.1), additionally:
+
+21. Automatic backup: choose a USB stick, turn on with a passphrase; "Back up now" shows "tested". Pull the stick out, run again: the "drive connected?" message appears and no notification pops up; put it back: the next run succeeds.
+22. Put other files (and an old `starkllm-...` file with a different name) into the folder, set "keep 2", run three backups: only the oldest StarkLLM backup is removed, your other files are untouched.
+23. Choose a OneDrive folder: the page says the folder is synced and that this is fine; the `.starkbackup` file appears online and cannot be read there.
+24. Sign in as another Windows user (or copy the `protection` folder): the saved passphrase cannot be read and the page asks for it again.
