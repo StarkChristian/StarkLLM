@@ -1,0 +1,79 @@
+/* Deadlines list and dashboard reminders. Colours come from the theme tokens only. */
+.wrap { display: flex; flex-direction: column; gap: 14px; }
+.note, .hint { margin: 0; color: var(--text-secondary); }
+.hint { font-size: 0.8rem; color: var(--text-muted); }
+.error { margin: 0; color: var(--danger); }
+
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.summary { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 0.85rem; color: var(--text-secondary); }
+.toolbarActions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.item {
+  display: flex; align-items: flex-start; gap: 12px;
+  background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg);
+  padding: 14px 16px;
+}
+.itemOverdue { border-color: var(--danger); }
+.pick { padding-top: 4px; cursor: pointer; }
+.dateBox {
+  flex: 0 0 64px; display: flex; flex-direction: column; align-items: center; padding: 6px 4px;
+  border-radius: var(--radius-md); background: var(--bg-active); color: var(--text-primary);
+}
+.day { font-size: 1.35rem; font-weight: 700; line-height: 1.1; }
+.month { font-size: 0.72rem; color: var(--text-secondary); text-transform: uppercase; }
+.body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.85rem; }
+.who { font-weight: 600; color: var(--text-primary); overflow-wrap: anywhere; }
+.text, .source {
+  background: none; border: none; padding: 0; text-align: left; cursor: pointer; overflow-wrap: anywhere;
+}
+.text { color: var(--text-secondary); font-size: 0.88rem; line-height: 1.45; }
+.source { color: var(--text-muted); font-size: 0.8rem; border-bottom: 1px dotted var(--text-muted); align-self: flex-start; }
+.text:hover, .source:hover { color: var(--accent-bright); }
+
+.kind_deadline, .kind_payment, .kind_appointment { padding: 1px 8px; border-radius: 999px; font-weight: 600; font-size: 0.78rem; }
+.kind_deadline { background: rgba(239, 68, 68, 0.14); color: var(--danger); }
+.kind_payment { background: rgba(56, 189, 248, 0.14); color: var(--info); }
+.kind_appointment { background: var(--bg-active); color: var(--accent-bright); }
+
+.stateOverdue { color: var(--danger); font-weight: 700; }
+.stateToday { color: var(--warning); font-weight: 700; }
+.stateSoon { color: var(--warning); font-weight: 600; }
+.stateUpcoming { color: var(--text-secondary); }
+.bell { display: inline-flex; align-items: center; gap: 4px; color: var(--accent-bright); font-weight: 600; font-size: 0.78rem; }
+
+.reminders { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; color: var(--text-muted); }
+.remindLabel { font-size: 0.8rem; margin-right: 2px; }
+.chip, .chipOn {
+  padding: 2px 10px; border-radius: 999px; cursor: pointer; font-size: 0.78rem;
+  border: 1px solid var(--border-color); background: transparent; color: var(--text-secondary);
+}
+.chip:hover { background: var(--bg-hover); color: var(--text-primary); }
+.chipOn { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+.calBtn {
+  display: inline-grid; place-items: center; width: 32px; height: 32px; flex: 0 0 32px; cursor: pointer;
+  background: transparent; border: 1px solid var(--border-color); border-radius: var(--radius-sm); color: var(--text-secondary);
+}
+.calBtn:hover { color: var(--text-primary); background: var(--bg-hover); }
+
+/* dashboard: reminders that have begun */
+.reminderCard {
+  background: var(--bg-card); border: 1px solid var(--accent); border-radius: var(--radius-lg);
+  padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; position: relative; z-index: 1;
+}
+.reminderHead { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text-primary); }
+.allLink { margin-left: auto; background: none; border: none; cursor: pointer; color: var(--accent-bright); font-size: 0.85rem; }
+.reminderList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.reminderRow { display: flex; align-items: center; gap: 8px; }
+.reminderMain {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; text-align: left; cursor: pointer;
+  background: none; border: none; padding: 4px 0; color: var(--text-primary); font-size: 0.9rem;
+}
+.reminderMain:hover { color: var(--accent-bright); }
+.gotIt {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; cursor: pointer; font-size: 0.8rem;
+  background: transparent; border: 1px solid var(--border-color); border-radius: var(--radius-sm); color: var(--text-secondary);
+}
+.gotIt:hover { background: var(--bg-hover); color: var(--text-primary); }

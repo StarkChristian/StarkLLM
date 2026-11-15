@@ -4,13 +4,14 @@ Returns all summary statistics in a single request to avoid N+1 frontend queries
 """
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.db.session import get_db
 from app.db import models
 from app.api.auth import get_current_user
+from app.services.deadlines_service import ics_text as _ics_text, ics_fold as _ics_fold
 
 router = APIRouter()
 
@@ -563,22 +564,6 @@ def set_all_done(
     return {"done": changed}
 
 
-def _ics_text(value: str) -> str:
-    return (value or "").replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
-
-
-def _ics_fold(line: str) -> str:
-    """iCalendar lines are at most 75 octets; longer ones continue on lines that start with a space."""
-    out, current = [], ""
-    for ch in line:
-        if len((current + ch).encode()) > 73:
-            out.append(current)
-            current = " "
-        current += ch
-    out.append(current)
-    return "\r\n".join(out)
-
-
 def dates_calendar(today, dates, stamp: str) -> str:
     """The upcoming dates as an iCalendar file: all-day events for deadlines, payments and changes, timed events for
     appointments, each with a reminder (3 days before a deadline or payment, 1 day before an appointment)."""
@@ -620,3 +605,122 @@ def get_dates_calendar(
     body = dates_calendar(today, dates, datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
     return Response(body, media_type="text/calendar; charset=utf-8",
                     headers={"Content-Disposition": 'attachment; filename="StarkLLM-dates.ics"'})
+
+
+# ---------------------------------------------------------------- deadlines, reminders, calendar (inbox step B5)
+
+def _deadlines(db, user_id: int):
+    """(today, deadlines with their reminders) for the user's inbox letters."""
+    from app.services.deadlines_service import add_reminders, build_deadlines
+    inbox = document_inbox(db, user_id)
+    rows = db.query(models.DeadlineReminder).filter(models.DeadlineReminder.user_id == user_id).all()
+    return inbox["today"], add_reminders(build_deadlines(inbox, inbox["today"]), rows, inbox["today"])
+
+
+@router.get("/deadlines")
+def get_deadlines(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Every deadline, payment and appointment of the inbox letters, oldest first, each with the sentence it was read
+    from, its page and line, what is due, and the reminders the user set. State: overdue, today, soon (within a
+    week) or upcoming. Found by fixed rules in the document text; no model is asked."""
+    today, deadlines = _deadlines(db, current_user.id)
+    counts = {s: sum(1 for d in deadlines if d["state"] == s) for s in ("overdue", "today", "soon", "upcoming")}
+    return {"today": today, "deadlines": deadlines, "counts": counts,
+            "reminders_due": sum(1 for d in deadlines if d["reminder_active"])}
+
+
+class RemindersIn(BaseModel):
+    key: str = Field(..., max_length=120)
+    days_before: list[int] = Field(default_factory=list, max_length=20)
+
+
+class AckIn(BaseModel):
+    key: str = Field(..., max_length=120)
+
+
+def _checked_key(db, user_id: int, key: str) -> dict:
+    from app.services.deadlines_service import parse_key
+    parts = parse_key(key)
+    if not parts:
+        raise HTTPException(status_code=422, detail="Not a deadline key")
+    if not _owns(db, user_id, parts["scope"], parts["document_id"]):
+        raise HTTPException(status_code=404, detail="Document not found")
+    return parts
+
+
+@router.put("/deadlines/reminders")
+def set_deadline_reminders(
+    body: RemindersIn,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Set the reminders of one deadline: remind me N days before (0 = on the day). The list replaces the earlier
+    one; an empty list removes the reminders. Stored on this PC; the dashboard shows a reminder from its day."""
+    from app.services.deadlines_service import MAX_REMINDER_DAYS, MAX_REMINDERS, clean_offsets
+    parts = _checked_key(db, current_user.id, body.key)
+    offsets = clean_offsets(body.days_before)
+    if offsets is None:
+        raise HTTPException(status_code=422, detail=f"Reminders: up to {MAX_REMINDERS}, each 0 to {MAX_REMINDER_DAYS} days before")
+    mine = db.query(models.DeadlineReminder).filter_by(
+        user_id=current_user.id, scope=parts["scope"], document_id=parts["document_id"],
+        due_date=parts["due"], kind=parts["kind"])
+    kept = {r.days_before: r for r in mine.all()}
+    for days, row in kept.items():
+        if days not in offsets:
+            db.delete(row)
+    for days in offsets:
+        if days not in kept:
+            db.add(models.DeadlineReminder(user_id=current_user.id, scope=parts["scope"], document_id=parts["document_id"],
+                                           due_date=parts["due"], kind=parts["kind"], days_before=days))
+    db.commit()
+    return {"key": body.key, "reminders": offsets}
+
+
+@router.post("/deadlines/reminders/ack")
+def acknowledge_deadline_reminders(
+    body: AckIn,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """The user saw the reminder: it leaves the dashboard. Reminders for later days of the same deadline stay."""
+    from datetime import date, timedelta
+    parts = _checked_key(db, current_user.id, body.key)
+    today, due = date.today(), date.fromisoformat(parts["due"])
+    changed = 0
+    for r in db.query(models.DeadlineReminder).filter_by(
+            user_id=current_user.id, scope=parts["scope"], document_id=parts["document_id"],
+            due_date=parts["due"], kind=parts["kind"]).all():
+        if due - timedelta(days=r.days_before) <= today and not r.acknowledged:
+            r.acknowledged = 1
+            changed += 1
+    db.commit()
+    return {"key": body.key, "acknowledged": changed}
+
+
+@router.get("/deadlines.ics")
+def get_deadlines_calendar(
+    key: list[str] = Query(default=[]),
+    lang: str = Query("en", pattern="^(en|de)$"),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """The deadlines as a calendar file (RFC 5545) for Outlook, Google, Apple or a phone: the ones named with `key`
+    (one or several), else every deadline from today on. All-day events, each with an alarm (the reminders the user
+    set, else 3 days before). Made on this PC; nothing is sent anywhere."""
+    from datetime import datetime, timezone
+    from fastapi.responses import Response
+    from app.services.deadlines_service import deadlines_calendar
+    today, deadlines = _deadlines(db, current_user.id)
+    if key:
+        chosen = [d for d in deadlines if d["key"] in set(key)]
+        if not chosen:
+            raise HTTPException(status_code=404, detail="Deadline not found")
+        name = "StarkLLM-deadline.ics" if len(chosen) == 1 else "StarkLLM-deadlines.ics"
+    else:
+        chosen = [d for d in deadlines if d["state"] != "overdue"]
+        name = "StarkLLM-deadlines.ics"
+    body = deadlines_calendar(chosen, datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"), lang)
+    return Response(body, media_type="text/calendar; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})

@@ -82,6 +82,7 @@ class FoundDate:
     text: str  # the sentence or line it stands in
     amount: Optional[str] = None
     time: Optional[str] = None  # hh:mm, for appointments
+    line: Optional[int] = None  # number of the line on the page (empty lines not counted) the date is written on
 
 
 def _parse(m) -> Optional[date]:
@@ -145,6 +146,18 @@ def _window(sentence: str, start: int, end: int, size: int = 240) -> str:
     text = sentence[left:left + size]
     text = text[: text.rfind(" ")] if len(sentence) > left + size and " " in text else text
     return ("… " if left else "") + text + (" …" if len(sentence) > left + size else "")
+
+
+def _line_number(text: str, literal: str, sentence: str) -> Optional[int]:
+    """Which line of the page (1-based, empty lines not counted) a date is written on. When the same date text is on
+    several lines, the line that is part of the date's sentence wins."""
+    squash = lambda value: re.sub(r"\s+", " ", value).strip()
+    wanted, flat = squash(literal), squash(sentence)
+    hits = [(number, squash(line)) for number, line in enumerate((l for l in text.split("\n") if l.strip()), 1)
+            if wanted in squash(line)]
+    if not hits:
+        return None
+    return next((number for number, line in hits if line in flat), hits[0][0])
 
 
 def find_dates(text: str, reference: Optional[date] = None) -> List[FoundDate]:
@@ -217,7 +230,8 @@ def find_dates(text: str, reference: Optional[date] = None) -> List[FoundDate]:
                 after = [a for a in AMOUNT.finditer(sentence) if a.start() > m.end()]
                 amount = _amount_text(after[0]) if after else None
             found.append(FoundDate(date=when.isoformat(), kind=kind, text=_window(sentence, m.start(), m.end()),
-                                   amount=amount, time=time_of_day if kind == "appointment" else None))
+                                   amount=amount, time=time_of_day if kind == "appointment" else None,
+                                   line=_line_number(text or "", m.group(0), sentence)))
     return found
 
 

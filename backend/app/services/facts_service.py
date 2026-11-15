@@ -72,8 +72,8 @@ def _first_lines(text: str, n: int = 12) -> str:
     return "\n".join([l for l in (text or "").splitlines() if l.strip()][:n])
 
 
-def _fact(value, page: int, line: str, **extra) -> Dict:
-    return {"value": value, "page": page, "text": line, **extra}
+def _fact(value, page: int, text: str, **extra) -> Dict:
+    return {"value": value, "page": page, "text": text, **extra}
 
 
 def _lines(pages: Dict[int, str], n: int = 14) -> List[str]:
@@ -248,7 +248,7 @@ def dates(pages: Dict[int, str]) -> List[Dict]:
     reference = date.fromisoformat(written) if written else None
     for page in sorted(pages):
         for f in find_dates(pages[page] or "", reference):
-            out.append(_fact(f.date, page, f.text, kind=f.kind, amount=f.amount, time=f.time))
+            out.append(_fact(f.date, page, f.text, kind=f.kind, amount=f.amount, time=f.time, line=f.line))
     return out
 
 

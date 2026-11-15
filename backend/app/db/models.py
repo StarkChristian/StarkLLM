@@ -223,3 +223,23 @@ class DocumentReview(Base):
     title       = Column(String, nullable=True)                  # the user's own title, else the suggested one
     case_key    = Column(String, nullable=True)                  # the user's case, else the suggested one
     updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class DeadlineReminder(Base):
+    """A reminder the user set for a deadline found in a letter (docs/document-inbox-design.md, B5): "remind me
+    N days before". The deadline itself is not stored; it is found again in the document text by rules, and is
+    identified by document, date and kind. A reminder becomes active on (due date - days_before) and stays on the
+    dashboard until the user confirms it. Nothing leaves the PC."""
+    __tablename__ = "deadline_reminders"
+    __table_args__ = (UniqueConstraint("user_id", "scope", "document_id", "due_date", "kind", "days_before",
+                                       name="uq_deadline_reminder"),)
+
+    id           = Column(Integer, primary_key=True, index=True)
+    user_id      = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    scope        = Column(String, nullable=False)                 # "ws" or "kb", as in DocumentReview
+    document_id  = Column(Integer, nullable=False)
+    due_date     = Column(String, nullable=False)                 # ISO yyyy-mm-dd
+    kind         = Column(String, nullable=False)                 # "deadline", "payment" or "appointment"
+    days_before  = Column(Integer, nullable=False)                # 0 = on the day
+    acknowledged = Column(Integer, default=0, nullable=False)     # 1 once the user confirmed the reminder
+    created_at   = Column(DateTime, default=datetime.utcnow)
