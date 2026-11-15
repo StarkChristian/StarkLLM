@@ -32,6 +32,8 @@ that StarkLLM sends nowhere by design but that the user exports (downloads, copy
 | Chat messages and their source chips | database `messages.content`, `messages.sources` | column value, AES-256-GCM, `ProtectedText` column type |
 | Profile text, custom instructions, workspace instructions, prompt templates | `users`, `workspaces`, `prompt_templates` | same |
 | Inbox decisions (own title, case) — they contain sender names | `document_reviews` | same |
+| **Names and titles:** workspace names, chat folder names, chat titles, document file names, prompt template titles and tags, indexing error messages (they quote file names) | `workspaces.name`, `chat_folders.name`, `chats.title`, `documents.filename`, `documents.error_message`, `prompt_templates.title`, `prompt_templates.tags`, `knowledge_base_documents.error_message` | same column type. Searching them is done after reading (section 2.1) |
+| Name of a **new** upload on disk | `data/uploads/` | while protection is on, a new upload is stored as `<random>.<extension>` (the name the user sees is in the protected `documents.filename`); with protection off it is `<hash>_<name>` as before |
 | Text of every indexed chunk and every memory (this is the document content again) | ChromaDB (`documents` field) | value encrypted by `ProtectedCollection` before it reaches ChromaDB |
 | Extracted facts (sender, amounts, IBANs, deadlines) | computed on demand from the chunk text above and kept in memory only; the user's corrections are in `document_reviews` | protected through the two lines above; nothing else is stored |
 | Logs | the engine does not log document text or message text (checked: it logs file names and counts). The desktop `engine.log` has no document text. | nothing to encrypt; a test (`test_protection_at_rest.py`) searches the data folder for leaked plain text |
@@ -39,13 +41,45 @@ that StarkLLM sends nowhere by design but that the user exports (downloads, copy
 
 **Not encrypted, on purpose, and said so in the Settings page:**
 
-* file names, chat titles, workspace names, Knowledge Base file names: lists and search use SQL `LIKE` on them;
+* **Knowledge Base file names, folder names and paths** (`knowledge_base_documents.file_name/file_path`,
+  `knowledge_base_folders.folder_name/folder_path`): these are the user's own files in a visible folder; the same names
+  stand in clear in Windows Explorer and in `file_path`, which must stay readable because the folder watcher compares it with
+  the disk. Encrypting the copy in the database would protect nothing;
+* **names of uploads made before protection was turned on** (`data/uploads/<hash>_<name>`, `documents.filepath`) and the
+  `source` / `file_name` fields in the search index: renaming the files needs the index to change as well, which belongs to the
+  encrypted-index work; only new uploads get opaque names;
+* user names (the login) and numbers, dates, statuses, ids, file types and sizes (needed to sort and join; they carry no text);
 * **in the default search index (ChromaDB)**: the embeddings (the numbers used for similarity search) and the metadata next to each
   chunk (file name, page, chunk number, source path). They reveal topics and, with effort, can be partly inverted into
   words. This exposure is removed by switching on the **encrypted search index** (section 10), which is optional because it
   costs memory and start-up time; the page in Settings says so;
 * the SQLite structure (table and column names, row counts, dates);
 * the user's Knowledge Base folder (their own files).
+
+### 2.1 Searching names and titles that are encrypted
+
+SQL `LIKE` cannot search an encrypted column. Two ways were built and measured (`backend/tools/bench_label_search.py`; chat
+titles of 3-7 words, one search term that matches about 12 % of the rows, Linux container, median of 5 runs):
+
+| rows | plain SQL (protection off) | **decrypt in memory, first search** | **decrypt in memory, repeated** | blind index (prototype) query | blind index build | blind index size |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1,000 | 0.5 ms | 7 ms | 2 ms | 2 ms | 0.2 s | 1.5 MB |
+| 10,000 | 2 ms | 66 ms | 19 ms | 36 ms | 1.9 s | 16 MB |
+| 50,000 | 7 ms | 162 ms | 72 ms | 238 ms | 8.4 s | 81 MB |
+
+*(Reading whole rows as objects instead of id and title only was 2-5 times slower, 508 ms at 50,000 rows; the engine reads
+only id and title.)*
+
+**Chosen: decrypt in memory.** The rows of the signed-in user are read, the short texts are decrypted (and kept in memory
+until the engine is locked, never on disk), and compared with a case-insensitive "contains" (also for Ä/ä, which SQL
+`ILIKE` does not do). It needs no extra table and no extra key, stays under 100 ms for 10,000 names or titles, and a user
+has far fewer than that. The blind index was **not** built into the product: it is not faster than the repeated in-memory
+search, it needs 16-80 MB and seconds to build, and it would leak to anyone with the database file which rows share a
+three-letter piece (the frequency pattern of the language: "ein", "ung", ...), which is exactly what encrypting titles is
+meant to hide.
+
+What stays visible in the database for these rows: that the row exists, its id, its dates and its relations (which chat is
+in which workspace), and the *length* of each name or title (AES-GCM does not hide length).
 
 ### Why column and file encryption instead of an encrypted database
 
@@ -177,8 +211,8 @@ The restore code moves directories inside the data folder, which works in both c
 * In the default (ChromaDB) mode the embeddings and chunk metadata are not encrypted; the encrypted search index (section 10) removes this.
 * Backup of the ChromaDB files copies them while the engine runs (the encrypted index is copied with SQLite's online backup, consistent); documents still being processed block a backup, but a
   chat memory written at that very moment may or may not be in the copy. The restore test would catch a store that cannot be opened.
-* File names, chat titles and workspace names stay readable. Encrypting them needs search to move from SQL to in-memory filtering
-  (done for message text already, see `api/search.py`).
+* Old uploads keep their readable names on disk, and the search index still carries file names and source paths in its metadata
+  (see the list in section 2).
 
 ## 10. Encrypted search index
 

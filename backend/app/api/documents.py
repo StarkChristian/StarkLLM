@@ -16,7 +16,8 @@ from app.services.rag_service import rag_service, HTMLTextExtractor
 from app.services.llm_service import describe_indexing_error
 from app.core.config import settings
 from app.services import vault
-from app.core.protection import ProtectionLocked
+from app.core.protection import ProtectionLocked, protection
+from app.services import label_search
 from app.api.auth import get_current_user
 
 router = APIRouter()
@@ -68,6 +69,16 @@ def _index_document_background(doc_id: int, workspace_id: int, user_id: int, fil
         # The file stays on disk: the document entry still points to it, "Re-index" needs it after the cause is
         # fixed, and deleting the entry removes the file. (Deleting it here made every re-index of a failed
         # document answer "Original file is missing from disk".)
+
+
+def _disk_name(prefix: str, display: str) -> str:
+    """Name of the stored copy. While protection is on it carries nothing of the user's file name (the name is
+    stored protected in the database); otherwise it is the hash prefix and the name, as before."""
+    if protection.enabled:
+        import secrets
+        ext = os.path.splitext(display)[1].lower()
+        return f"{prefix}{secrets.token_hex(4)}{ext if re.fullmatch(r'[.][a-z0-9]{1,8}', ext) else ''}"
+    return f"{prefix}_{display}"
 
 
 _HASHES: dict = {}  # path -> (size, mtime, sha256): files are hashed once
@@ -132,7 +143,7 @@ async def upload_document(
     safe_name = os.path.basename(file.filename)
     # Add a short hash to avoid overwriting files with the same name
     unique_prefix = hashlib.md5(f"{workspace_id}_{time.time()}".encode()).hexdigest()[:8]
-    safe_name = f"{unique_prefix}_{safe_name}"
+    safe_name = _disk_name(unique_prefix, safe_name)
     file_path = os.path.join(settings.UPLOAD_DIR, safe_name)
 
     try:
@@ -275,7 +286,7 @@ async def ingest_url(
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
     unique_prefix = hashlib.md5(f"{workspace_id}_{time.time()}".encode()).hexdigest()[:8]
     safe_filename = f"{page_title or 'webpage'}.md"
-    file_disk_name = f"{unique_prefix}_{safe_filename}"
+    file_disk_name = _disk_name(unique_prefix, safe_filename)
     file_path = os.path.join(settings.UPLOAD_DIR, file_disk_name)
 
     markdown_content = f"# {page_title}\n\n**Source URL:** {target_url}\n\n---\n\n{clean_text}"
@@ -411,7 +422,7 @@ async def ingest_youtube(
     safe_title = re.sub(r'[\\/*?:"<>|]', "", video_title)[:60].strip() or f"youtube_{video_id}"
     safe_filename = f"{safe_title}.md"
     unique_prefix = hashlib.md5(f"yt_{video_id}_{time.time()}".encode()).hexdigest()[:8]
-    file_disk_name = f"{unique_prefix}_{safe_filename}"
+    file_disk_name = _disk_name(unique_prefix, safe_filename)
     file_path = os.path.join(settings.UPLOAD_DIR, file_disk_name)
 
     lang_name = transcript.language if hasattr(transcript, 'language') else 'Unknown'
@@ -647,7 +658,7 @@ async def ingest_github(
     safe_title = f"{owner}_{repo_name}_repo"
     safe_filename = f"{safe_title}.md"
     unique_prefix = hashlib.md5(f"gh_{owner}_{repo_name}_{time.time()}".encode()).hexdigest()[:8]
-    file_disk_name = f"{unique_prefix}_{safe_filename}"
+    file_disk_name = _disk_name(unique_prefix, safe_filename)
     file_path = os.path.join(settings.UPLOAD_DIR, file_disk_name)
 
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
@@ -722,7 +733,7 @@ async def ingest_note(
     safe_title = re.sub(r'[\\/*?:"<>|]', "", title)[:60].strip() or "note"
     safe_filename = f"{safe_title}.md"
     unique_prefix = hashlib.md5(f"note_{workspace_id}_{time.time()}".encode()).hexdigest()[:8]
-    file_disk_name = f"{unique_prefix}_{safe_filename}"
+    file_disk_name = _disk_name(unique_prefix, safe_filename)
     file_path = os.path.join(settings.UPLOAD_DIR, file_disk_name)
 
     markdown_content = f"# {title}\n\n---\n\n{content}"
@@ -1129,17 +1140,26 @@ async def lookup_document_by_name(
     # Remove citation page patterns like '(Page 4)' or '[Page 4]'
     clean_name = re.sub(r'[\(\[]Page\s*\d+[\)\]]', '', clean_name).strip()
 
-    doc = db.query(models.Document).filter(
-        models.Document.workspace_id == workspace_id,
-        models.Document.filename == clean_name
-    ).first()
-
-    if not doc:
-        # Try case-insensitive or partial match
+    if protection.enabled:
+        # file names are stored protected: compare here (services/label_search.py)
+        pairs = db.query(models.Document.id, models.Document.filename).filter(
+            models.Document.workspace_id == workspace_id).order_by(models.Document.id).all()
+        hit = next((i for i, name in pairs if name == clean_name), None)
+        if hit is None:
+            hit = next(iter(label_search.matching_ids(pairs, clean_name, 1)), None)
+        doc = db.get(models.Document, hit) if hit is not None else None
+    else:
         doc = db.query(models.Document).filter(
             models.Document.workspace_id == workspace_id,
-            models.Document.filename.ilike(f"%{clean_name}%")
+            models.Document.filename == clean_name
         ).first()
+
+        if not doc:
+            # Try case-insensitive or partial match
+            doc = db.query(models.Document).filter(
+                models.Document.workspace_id == workspace_id,
+                models.Document.filename.ilike(f"%{clean_name}%")
+            ).first()
 
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document '{filename}' not found")

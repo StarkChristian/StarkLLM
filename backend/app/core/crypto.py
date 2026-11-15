@@ -14,6 +14,7 @@ Streams (files, backups):   header | chunk | chunk | ... | final chunk
     authenticated data. So chunks cannot be reordered, dropped, repeated or cut off at the end without detection.
 """
 import base64
+import functools
 import hashlib
 import hmac
 import os
@@ -50,17 +51,32 @@ def new_key() -> bytes:
     return os.urandom(KEY_LEN)
 
 
+@functools.lru_cache(maxsize=64)
 def derive_key(master: bytes, purpose: str, salt: bytes = b"") -> bytes:
-    """One independent 32-byte key per purpose ('files', 'fields', 'vectors', ...) from the data key."""
+    """One independent 32-byte key per purpose ('files', 'fields', 'vectors', ...) from the data key.
+    Cached (a few entries, in memory only): deriving takes ~30 microseconds and every stored value needs it."""
     if len(master) != KEY_LEN:
         raise ValueError("The data key must be 32 bytes.")
     return HKDF(algorithm=hashes.SHA256(), length=KEY_LEN, salt=salt or None,
                 info=b"starkllm/v1/" + purpose.encode()).derive(master)
 
 
+@functools.lru_cache(maxsize=64)
 def key_id(master: bytes) -> str:
     """Short public fingerprint of a data key: lets a wrong key be told apart from damaged data. Not reversible."""
     return derive_key(master, "key-id")[:4].hex()
+
+
+@functools.lru_cache(maxsize=64)
+def _aead(key: bytes) -> AESGCM:
+    return AESGCM(key)
+
+
+def forget_cached_keys():
+    """Drop every cached derived key (the engine was locked)."""
+    derive_key.cache_clear()
+    key_id.cache_clear()
+    _aead.cache_clear()
 
 
 # --- Stored values -------------------------------------------------------------------------------------------------
@@ -69,7 +85,7 @@ def encrypt_text(key: bytes, text: str, context: str = "") -> str:
     """Encrypt a text value. `context` (for example 'messages.content') is authenticated, so a value copied into a
     different column does not decrypt."""
     nonce = os.urandom(12)
-    ct = AESGCM(key).encrypt(nonce, text.encode("utf-8"), context.encode())
+    ct = _aead(key).encrypt(nonce, text.encode("utf-8"), context.encode())
     return TOKEN_PREFIX + key_id(key) + "$" + base64.urlsafe_b64encode(nonce + ct).decode("ascii")
 
 
@@ -92,7 +108,7 @@ def decrypt_text(key: bytes, token: str, context: str = "") -> str:
     if len(raw) < 12 + TAG_LEN:
         raise CorruptData("A stored value is cut off.")
     try:
-        return AESGCM(key).decrypt(raw[:12], raw[12:], context.encode()).decode("utf-8")
+        return _aead(key).decrypt(raw[:12], raw[12:], context.encode()).decode("utf-8")
     except InvalidTag:
         raise CorruptData("A stored value was changed or damaged.")
 

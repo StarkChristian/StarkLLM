@@ -129,9 +129,10 @@ def vectors_migrate(req: VectorRequest, current_user: models.User = Depends(requ
 PROTECTED = ["Documents you add (the original files)", "Chat messages and the sources shown with them",
              "The text of every indexed document and every memory (the search index)",
              "Your profile text, custom instructions, prompt templates, workspace instructions",
-             "Titles, senders and cases you set in the inbox"]
+             "Titles, senders and cases you set in the inbox",
+             "Names and titles: workspaces, folders, chats, document file names, prompt templates"]
 PROTECTED_SECURE = ["The search index itself: its numbers, and the file names, pages and paths stored with every piece of text"]
-NOT_PROTECTED = ["File names, chat titles and workspace names (they stay readable so lists and search work)",
+NOT_PROTECTED = ["Names of files in your Knowledge Base folder and of documents added before protection was turned on (the files carry the same names on disk)",
                  "Files in your Knowledge Base folder (they are your own files and stay where they are)",
                  "Anything on your PC while StarkLLM is open and you are signed in to Windows",
                  "Other programs running under your Windows account"]
@@ -145,9 +146,9 @@ def summary(db: Session = Depends(get_db), current_user: models.User = Depends(g
     """What protection covers for this user, with counts (so the Settings page can say 'your 12 documents')."""
     import os
     from app.services import vault
-    docs = (db.query(models.Document).join(models.Workspace, models.Document.workspace_id == models.Workspace.id)
-            .filter(models.Workspace.user_id == current_user.id).all())
-    files = [d.filepath for d in docs if d.filepath and os.path.exists(d.filepath)]
+    paths = (db.query(models.Document.filepath).join(models.Workspace, models.Document.workspace_id == models.Workspace.id)
+             .filter(models.Workspace.user_id == current_user.id).all())   # only the path: names are protected too
+    files = [p for (p,) in paths if p and os.path.exists(p)]
     messages = db.execute(text(
         "SELECT m.content FROM messages m JOIN chats c ON c.id = m.chat_id JOIN workspaces w ON w.id = c.workspace_id "
         "WHERE w.user_id = :u"), {"u": current_user.id}).fetchall()
