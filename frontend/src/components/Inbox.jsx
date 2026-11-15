@@ -220,9 +220,9 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
                   <AmbiguousDate date={d} onChoose={(reading) => chooseDate(doc, d, reading)} onOpen={() => open(doc, d)} />
                 ) : factLink(doc, d, (
                   <>
-                    <span className={styles[`kind_${d.kind}`] || styles.kind_payment}>{DATE_LABEL[d.kind] || d.kind}</span>
+                    <span className={styles[`kind_${d.kind}`] || styles.kind_payment}>{d.notice ? t('Last day to give notice') : (DATE_LABEL[d.kind] || d.kind)}</span>
                     <strong>{fmtDate(d.value)}</strong>
-                    <span className={styles.dateWhen}>{whenText(d.value)}{d.time ? ` · ${t('at {time}', { time: d.time })}` : ''}</span>
+                    <span className={styles.dateWhen}>{whenText(d.value)}{d.time ? ` · ${t('at {time}', { time: d.time })}` : ''}{d.notice ? ` · ${t('counted back from the end of the contract on {date}', { date: fmtDate(d.notice.base) })}` : ''}</span>
                     {d.amount && <span>{d.amount}</span>}
                   </>
                 ))}

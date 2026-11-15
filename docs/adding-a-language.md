@@ -86,6 +86,11 @@ and its text as written (`literal`), and the inbox asks the user to choose (stor
 ambiguous date is used for no reminder, no calendar entry and no "next date" until the user has chosen; the chat gets
 both readings and is told not to pick one.
 
+Contract notice periods ("at least 30 days before 31 March 2027") are counted back: the fact is a deadline on the last
+day to give notice (1 March 2027) with `notice: {base, count, unit}`, labelled "Last day to give notice", and its sentence
+with page and line. The words are `NOTICE_WORDS`, `PERIOD_BEFORE`, `PERIOD_UNITS` and `NUMBER_WORDS` in `locale_rules.py`. The
+start of a contract (`CONTRACT_START`) is not a deadline.
+
 Known limits: the currency symbol `$` means US dollars; a
 two-digit year is read as 20xx; the Turkish "replaces the letter of ..." has no rule yet.
 

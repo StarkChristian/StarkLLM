@@ -291,6 +291,8 @@
   "Knowledge Base active — click to disable": "Wissensdatenbank aktiv — klicken zum Ausschalten",
   "LM Studio (Local)": "LM Studio (lokal)",
   "Language & Locale": "Sprache",
+  "Last day to give notice": "Letzter Tag für die Kündigung",
+  "counted back from the end of the contract on {date}": "zurückgerechnet vom Vertragsende am {date}",
   "Unclear date: {literal}": "Unklares Datum: {literal}",
   "The letter does not say which comes first. Choose how to read it; until then this date is used for no reminder and no calendar entry.": "Aus dem Brief geht nicht hervor, was zuerst kommt. Wählen Sie, wie das Datum zu lesen ist; bis dahin wird es für keine Erinnerung und keinen Kalendereintrag verwendet.",
   "Day first: {date}": "Tag zuerst: {date}",

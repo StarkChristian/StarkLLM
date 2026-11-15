@@ -291,6 +291,8 @@
   "Knowledge Base active — click to disable": "Bilgi Tabanı etkin — devre dışı bırakmak için tıklayın",
   "LM Studio (Local)": "LM Studio (Yerel)",
   "Language & Locale": "Dil ve Bölge",
+  "Last day to give notice": "Fesih bildiriminin son günü",
+  "counted back from the end of the contract on {date}": "sözleşmenin bittiği {date} tarihinden geriye doğru hesaplandı",
   "Unclear date: {literal}": "Belirsiz tarih: {literal}",
   "The letter does not say which comes first. Choose how to read it; until then this date is used for no reminder and no calendar entry.": "Mektup, önce neyin geldiğini belirtmiyor. Nasıl okunacağını seçin; o zamana kadar bu tarih hiçbir hatırlatma ve takvim kaydı için kullanılmaz.",
   "Day first: {date}": "Önce gün: {date}",

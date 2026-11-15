@@ -291,6 +291,8 @@
   "Knowledge Base active — click to disable": "Base de connaissances active — cliquez pour la désactiver",
   "LM Studio (Local)": "LM Studio (local)",
   "Language & Locale": "Langue et région",
+  "Last day to give notice": "Dernier jour pour donner le préavis",
+  "counted back from the end of the contract on {date}": "compté à rebours depuis la fin du contrat le {date}",
   "Unclear date: {literal}": "Date ambiguë : {literal}",
   "The letter does not say which comes first. Choose how to read it; until then this date is used for no reminder and no calendar entry.": "Le courrier n'indique pas ce qui vient en premier. Choisissez comment le lire ; d'ici là, cette date n'est utilisée pour aucun rappel ni aucune entrée de calendrier.",
   "Day first: {date}": "Jour d'abord : {date}",
