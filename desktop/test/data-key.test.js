@@ -85,14 +85,14 @@ test('passphrase mode: the key store copy is removed and the passphrase is neede
   const { dir, m } = manager();
   m.create();
   const key = m.load();
-  m.enablePassphrase('a long passphrase', key);
+  m.enablePassphrase('a long passphrase 12', key);
   assert.ok(!fs.existsSync(path.join(dir, 'data-key.wrapped')));
   assert.ok(!allFilesContain(dir, key));
   assert.throws(() => m.load(), (e) => e.code === 'passphrase-needed');
   assert.throws(() => m.load('wrong passphrase'), (e) => e.code === 'wrong-passphrase');
-  assert.ok(m.load('a long passphrase').equals(key));
-  assert.throws(() => m.enablePassphrase('short', key), (e) => e.code === 'weak-passphrase');
-  m.disablePassphrase('a long passphrase');
+  assert.ok(m.load('a long passphrase 12').equals(key));
+  assert.throws(() => m.enablePassphrase('too short', key), (e) => e.code === 'weak-passphrase');
+  m.disablePassphrase('a long passphrase 12');
   assert.ok(m.load().equals(key));
   assert.strictEqual(m.status().passphrase, false);
 });

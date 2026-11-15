@@ -5,7 +5,9 @@ const path = require('path');
 const { diagnose, buildErrorPage } = require('./diagnostics');
 const { startEngine, userPaths, secretKey, forgetFailedUpdate } = require('./engine');
 const crypto = require('crypto');
-const { DataKeyManager, DataKeyError, createSafeStorageKeyStore, deliverKey } = require('./data-key');
+const { DataKeyManager, DataKeyError, createSafeStorageKeyStore, deliverKey, lockEngine } = require('./data-key');
+const { createUnlockFlow } = require('./unlock-flow');
+const { pathToFileURL } = require('url');
 const { BackupScheduler } = require('./backup-schedule');
 const { createUpdater } = require('./updates');
 const { installOllama } = require('./ollama-install');
@@ -62,6 +64,8 @@ function initApp() {
     return err ? { error: err } : { ok: true };
   });
   registerProtectionHandlers();
+  registerUnlockHandlers();
+  lockEngineOnQuit();
   registerBackupHandlers();
   ipcMain.handle('updates:check', async (event) => {
     if (!event.senderFrame || !sameOrigin(event.senderFrame.url, APP_URL)) return { error: 'not allowed' };
@@ -230,6 +234,7 @@ async function fetchLocalSession() {
 // Protection at rest (docs/encryption-design.md): the data key lives wrapped in the Windows key store, in the user's
 // profile next to the data folder. The engine gets it in memory after it started; it never writes it down.
 let dataKeys = null;
+let engineUnlocked = false;      // the key has been handed to the engine in this run of the app
 function keyManager() {
   if (!dataKeys) {
     dataKeys = new DataKeyManager({ dir: path.join(app.getPath('userData'), 'protection'), keyStore: createSafeStorageKeyStore(safeStorage) });
@@ -254,6 +259,7 @@ async function unlockEngine(passphrase) {
       return { error: 'engine-refused', message: r.detail || `The engine refused the key (${r.status}).` };
     }
     logLine('protection: engine unlocked');
+    engineUnlocked = true;
     return { ok: true };
   } catch (e) {
     logLine(`protection: key not available (${e.code || e.message})`);
@@ -308,6 +314,31 @@ function registerProtectionHandlers() {
   }));
 }
 
+// The start-up passphrase (optional): the engine is locked again first, so that a container that kept running does not
+// stay open, and the passphrase page is shown instead of the app until the key has been handed over.
+const UNLOCK_PAGE = path.join(__dirname, 'unlock.html');
+let unlockFlow = null;
+
+function fromUnlockPage(event) {
+  return event.senderFrame && event.senderFrame.url === pathToFileURL(UNLOCK_PAGE).href;
+}
+
+function registerUnlockHandlers() {
+  unlockFlow = createUnlockFlow({ keys: keyManager(), unlockEngine, onUnlocked: () => showApp() });
+  ipcMain.handle('unlock:submit', async (event, passphrase) => (fromUnlockPage(event) ? unlockFlow.submit(passphrase) : { error: 'not-allowed' }));
+  ipcMain.handle('unlock:recover', async (event, recoveryKey) => (fromUnlockPage(event) ? unlockFlow.recover(recoveryKey) : { error: 'not-allowed' }));
+}
+
+let quitLocked = false;
+function lockEngineOnQuit() {
+  app.on('before-quit', (event) => {
+    if (quitLocked || !keyManager().status().passphrase) return;
+    event.preventDefault();                       // wait (briefly) until the engine has forgotten the key
+    quitLocked = true;
+    lockEngine({ apiUrl: API_URL, secret: engineSecret() }).finally(() => app.quit());
+  });
+}
+
 // Automatic encrypted backup (backup-schedule.js): the desktop app drives it because the engine may not see the user's folders.
 let scheduler = null;
 function backupScheduler() {
@@ -357,7 +388,14 @@ function startBackupSchedule() {
 }
 
 async function showApp() {
-  await unlockEngine();
+  if (!engineUnlocked) {
+    if (keyManager().status().passphrase) {
+      await lockEngine({ apiUrl: API_URL, secret: engineSecret() });
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.loadFile(UNLOCK_PAGE);
+      return;                                     // the passphrase page calls showApp() again once the key is handed over
+    }
+    await unlockEngine();
+  }
   await fetchLocalSession();
   const rest = SPLASH_MIN_MS - (Date.now() - splashShownAt);
   if (rest > 0) await wait(rest);

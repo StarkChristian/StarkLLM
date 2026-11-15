@@ -48,6 +48,9 @@ export default function ProtectionSettings({ token }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [recoveryInput, setRecoveryInput] = useState('');
+  const [pass, setPass] = useState('');
+  const [pass2, setPass2] = useState('');
+  const [passCurrent, setPassCurrent] = useState('');
   const timer = useRef(null);
 
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
@@ -148,6 +151,27 @@ export default function ProtectionSettings({ token }) {
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
 
+  const setPassphrase = async () => {
+    setBusy(true); setError('');
+    try {
+      if (pass !== pass2) throw new Error(t('The two passphrases are not the same.'));
+      const r = await bridge().setPassphrase(pass);
+      if (r.error) throw new Error(r.error === 'weak-passphrase' ? t('Use a passphrase of at least 12 characters.') : r.message);
+      setPass(''); setPass2('');
+      await refresh();
+    } catch (e) { setError(e.message); } finally { setBusy(false); }
+  };
+
+  const removePassphrase = async () => {
+    setBusy(true); setError('');
+    try {
+      const r = await bridge().removePassphrase(passCurrent);
+      if (r.error) throw new Error(r.error === 'wrong-passphrase' ? t('The passphrase is not right. Try again.') : r.message);
+      setPassCurrent('');
+      await refresh();
+    } catch (e) { setError(e.message); } finally { setBusy(false); }
+  };
+
   const finalize = async () => { await call('/finalize', { method: 'POST' }); await refresh(); };
 
   // Move the search index into the encrypted index (mode "secure") or back to the normal one ("chroma").
@@ -200,7 +224,17 @@ export default function ProtectionSettings({ token }) {
       {locked && (
         <div style={card}>
           <h4 style={{ margin: 0 }}>{t('Unlock')}</h4>
-          <button className="btn-primary" disabled={busy} onClick={unlock} style={{ width: 'fit-content' }}>{t('Unlock with the Windows key store')}</button>
+          {keyInfo && keyInfo.passphrase ? (
+            <>
+              <input type="password" autoComplete="off" value={passCurrent} onChange={(e) => setPassCurrent(e.target.value)} placeholder={t('Passphrase')} />
+              <button className="btn-primary" disabled={busy || !passCurrent} style={{ width: 'fit-content' }}
+                      onClick={async () => { setBusy(true); setError(''); const r = await bridge().unlock(passCurrent); setPassCurrent(''); if (r.error) setError(r.error === 'wrong-passphrase' ? t('The passphrase is not right. Try again.') : r.message); await refresh(); setBusy(false); }}>
+                {t('Unlock with passphrase')}
+              </button>
+            </>
+          ) : (
+            <button className="btn-primary" disabled={busy} onClick={unlock} style={{ width: 'fit-content' }}>{t('Unlock with the Windows key store')}</button>
+          )}
           <div className={styles.hint}>{t('On a new PC or a new Windows account, enter your recovery key instead:')}</div>
           <input className={styles.input || ''} style={{ fontFamily: 'monospace' }} value={recoveryInput} placeholder="XXXXX-XXXXX-XXXXX-…"
                  onChange={(e) => setRecoveryInput(e.target.value)} />
@@ -298,6 +332,26 @@ export default function ProtectionSettings({ token }) {
             {t('Before locking, StarkLLM kept a locked copy of its database so that everything could be undone. When you have checked that your chats and documents open, delete it.')}
           </div>
           <button className="btn-secondary" style={{ width: 'fit-content' }} onClick={finalize}>{t('Delete the safety copy')}</button>
+        </div>
+      )}
+
+      {on && !working && !locked && bridge() && keyInfo && keyInfo.hasKey && (
+        <div style={card}>
+          <h4 style={{ margin: 0 }}>{t('Start-up passphrase')}</h4>
+          {keyInfo.passphrase ? (
+            <>
+              <div className={styles.hint}>{t('StarkLLM asks for your passphrase every time it starts. The passphrase is never saved; if you forget it, your recovery key opens StarkLLM.')}</div>
+              <input type="password" autoComplete="off" value={passCurrent} onChange={(e) => setPassCurrent(e.target.value)} placeholder={t('Current passphrase')} />
+              <button className="btn-secondary" disabled={busy || !passCurrent} onClick={removePassphrase} style={{ width: 'fit-content' }}>{t('Stop asking for a passphrase')}</button>
+            </>
+          ) : (
+            <>
+              <div className={styles.hint}>{t('Optional: ask for a passphrase every time StarkLLM starts. Without it, anyone who can use your open Windows account can open your documents. With it, they also need the passphrase. It is never saved; the recovery key is the way back in if you forget it.')}</div>
+              <input type="password" autoComplete="new-password" value={pass} onChange={(e) => setPass(e.target.value)} placeholder={t('Passphrase (at least 12 characters)')} />
+              <input type="password" autoComplete="new-password" value={pass2} onChange={(e) => setPass2(e.target.value)} placeholder={t('Passphrase again')} />
+              <button className="btn-secondary" disabled={busy || pass.length < 12} onClick={setPassphrase} style={{ width: 'fit-content' }}>{t('Ask for a passphrase at start')}</button>
+            </>
+          )}
         </div>
       )}
 

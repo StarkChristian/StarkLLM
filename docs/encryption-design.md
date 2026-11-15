@@ -125,6 +125,18 @@ The cost is the unprotected items listed above. They are listed because they are
 * **Optional passphrase.** The data key is additionally wrapped with scrypt(passphrase), and the key store copy is removed.
   StarkLLM then asks for the passphrase at every start. (Implemented and tested in `data-key.js`; the start-up
   prompt in the app window is not built yet, see "Open points".)
+* **Start-up passphrase screen** (`desktop/unlock.html`, `unlock-flow.js`). With the passphrase on, the engine is locked again at every
+  start (a container that kept running would otherwise stay open), a local page in English or German asks for the passphrase instead of
+  showing the app, and only after the key reached the engine does the app open. The passphrase exists only inside the call: scrypt makes
+  the key, the key goes to the engine in memory, nothing is stored or logged (a test searches the key folder). A wrong guess is answered
+  after 250 ms, then twice as long each time up to 8 s, on top of scrypt's own cost; the page suggests the recovery key after three
+  mistakes. The recovery key opens the data key without the passphrase and switches the passphrase off (the page says so; a new one can be
+  set in Settings > Protection). When the app quits with the passphrase on, it tells the engine to forget the key
+  (`POST /system/protection/lock`, same token as unlock; it also drops the encrypted search index's decrypted rows from memory).
+  The weekly backup only starts after the app is open (after the unlock) and keeps its own passphrase in the Windows key store,
+  independent of the start-up passphrase; before the unlock the engine answers "locked" and the backup waits and retries.
+  Restoring a *protected* backup installs the backup's data key and switches the start-up passphrase off (the older key stays,
+  still wrapped with the old passphrase, as `data-key.previous-passphrase.json`); set a new passphrase afterwards.
 * **New PC, reinstalled Windows, new Windows account:** the key store copy cannot be opened. The user enters the
   recovery key; the app unwraps the data key with it and wraps it again for the new account.
 
@@ -229,7 +241,6 @@ The restore code moves directories inside the data folder, which works in both c
 
 ## 9. Open points
 
-* Start-up passphrase prompt in the app window (the module and IPC exist; no screen yet).
 * In the default (ChromaDB) mode the embeddings and chunk metadata are not encrypted; the encrypted search index (section 10) removes this.
 * Backup of the ChromaDB files copies them while the engine runs (the encrypted index is copied with SQLite's online backup, consistent); documents still being processed block a backup, but a
   chat memory written at that very moment may or may not be in the copy. The restore test would catch a store that cannot be opened.
@@ -374,3 +385,9 @@ Automatic backup (section 6.1), additionally:
 22. Put other files (and an old `starkllm-...` file with a different name) into the folder, set "keep 2", run three backups: only the oldest StarkLLM backup is removed, your other files are untouched.
 23. Choose a OneDrive folder: the page says the folder is synced and that this is fine; the `.starkbackup` file appears online and cannot be read there.
 24. Sign in as another Windows user (or copy the `protection` folder): the saved passphrase cannot be read and the page asks for it again.
+
+Start-up passphrase (section 3), additionally:
+
+25. Settings > Protection > "Start-up passphrase": set one. Quit StarkLLM completely, start it again: the lock screen appears (German on a German Windows), the app does not. A wrong passphrase gives a message and gets slower; the right one opens the app.
+26. On the lock screen use "I forgot my passphrase" with the recovery key: the app opens and Settings shows the passphrase as off. Set a new one.
+27. With the passphrase on, quit and look at `docker ps` / Task Manager: the engine may keep running, but the next start still asks for the passphrase and a request to the engine for a protected document before that answers "locked".

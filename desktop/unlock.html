@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src file:; font-src file:">
+  <title>StarkLLM</title>
+  <style>
+    @font-face { font-family: 'Geist'; src: url('assets/fonts/geist-latin-wght-normal.woff2') format('woff2-variations'); font-weight: 100 900; }
+    :root { --bg: #07060b; --fg: #f2eefb; --muted: #9d96b6; --violet: #8c14fc; --violet-soft: #b777ff; --err: #ef6a6a; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body { background: radial-gradient(60% 50% at 50% 42%, rgba(140,20,252,.16), transparent 70%), var(--bg); color: var(--fg);
+           font-family: 'Geist', 'Segoe UI', system-ui, sans-serif; display: grid; place-items: center; }
+    main { width: min(420px, 88vw); display: flex; flex-direction: column; gap: 14px; }
+    h1 { font-size: 1.7rem; font-weight: 650; letter-spacing: -.03em; }
+    p { color: var(--muted); font-size: .95rem; line-height: 1.5; }
+    input { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.05); color: var(--fg); font-size: 1rem; }
+    input:focus { outline: 2px solid var(--violet-soft); }
+    button { padding: 12px 16px; border-radius: 10px; border: 0; background: linear-gradient(135deg, var(--violet), var(--violet-soft)); color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: default; }
+    button.link { background: none; color: var(--violet-soft); font-weight: 500; padding: 4px 0; text-align: left; font-size: .9rem; }
+    .error { color: var(--err); font-size: .92rem; min-height: 1.3em; }
+    .mono { font-family: 'Geist Mono', ui-monospace, Consolas, monospace; letter-spacing: .04em; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <section id="pass">
+      <h1 data-t="title"></h1>
+      <p data-t="intro"></p>
+      <form id="passForm" style="display:flex;flex-direction:column;gap:12px;margin-top:14px">
+        <input id="passInput" type="password" autocomplete="off" spellcheck="false" autofocus>
+        <div class="error" id="passError" role="alert"></div>
+        <button id="passButton" type="submit" data-t="unlock"></button>
+        <button class="link" id="forgot" type="button" data-t="forgot"></button>
+      </form>
+    </section>
+    <section id="recover" hidden>
+      <h1 data-t="recoverTitle"></h1>
+      <p data-t="recoverIntro"></p>
+      <form id="recoverForm" style="display:flex;flex-direction:column;gap:12px;margin-top:14px">
+        <input id="recoverInput" class="mono" type="text" autocomplete="off" spellcheck="false" placeholder="XXXXX-XXXXX-XXXXX-…">
+        <div class="error" id="recoverError" role="alert"></div>
+        <button id="recoverButton" type="submit" data-t="recoverButton"></button>
+        <button class="link" id="back" type="button" data-t="back"></button>
+      </form>
+    </section>
+  </main>
+  <script>
+    // English and German, like the rest of the app. The messages that the app sends are English with a code; the text shown comes from here.
+    const TEXT = {
+      en: {
+        title: 'StarkLLM is locked', intro: 'Enter your passphrase to open your documents. It is never saved.', unlock: 'Unlock',
+        placeholder: 'Passphrase', working: 'Unlocking…', forgot: 'I forgot my passphrase',
+        recoverTitle: 'Use your recovery key', recoverIntro: 'The recovery key you wrote down when you turned protection on opens StarkLLM without the passphrase. This turns the start-up passphrase off; you can set a new one in Settings > Protection.',
+        recoverButton: 'Unlock with recovery key', back: 'Back',
+        errors: {
+          'passphrase-needed': 'Enter your passphrase.',
+          'wrong-passphrase': 'The passphrase is not right. Try again.',
+          'bad-recovery-key': 'The recovery key is not right. Check every character.',
+          'wrong-recovery-key': 'This recovery key does not belong to the data on this PC.',
+          'engine-refused': 'StarkLLM did not accept the key. Close it completely and start it again.',
+          'key-store-failed': 'The key cannot be opened with this Windows account. Use your recovery key.',
+          'no-key': 'There is no key on this PC. Use your recovery key.',
+          failed: 'Something went wrong. Close StarkLLM completely and start it again.'
+        },
+        hint: 'Several wrong attempts. If you forgot the passphrase, use your recovery key.'
+      },
+      de: {
+        title: 'StarkLLM ist gesperrt', intro: 'Geben Sie Ihre Passphrase ein, um Ihre Dokumente zu öffnen. Sie wird nie gespeichert.', unlock: 'Entsperren',
+        placeholder: 'Passphrase', working: 'Wird entsperrt…', forgot: 'Ich habe meine Passphrase vergessen',
+        recoverTitle: 'Wiederherstellungsschlüssel verwenden', recoverIntro: 'Der Wiederherstellungsschlüssel, den Sie beim Einschalten des Schutzes aufgeschrieben haben, öffnet StarkLLM ohne die Passphrase. Dabei wird die Start-Passphrase ausgeschaltet; unter Einstellungen > Schutz können Sie eine neue festlegen.',
+        recoverButton: 'Mit Wiederherstellungsschlüssel entsperren', back: 'Zurück',
+        errors: {
+          'passphrase-needed': 'Geben Sie Ihre Passphrase ein.',
+          'wrong-passphrase': 'Die Passphrase stimmt nicht. Versuchen Sie es erneut.',
+          'bad-recovery-key': 'Der Wiederherstellungsschlüssel stimmt nicht. Prüfen Sie jedes Zeichen.',
+          'wrong-recovery-key': 'Dieser Wiederherstellungsschlüssel gehört nicht zu den Daten auf diesem PC.',
+          'engine-refused': 'StarkLLM hat den Schlüssel nicht angenommen. Schließen Sie es vollständig und starten Sie es neu.',
+          'key-store-failed': 'Der Schlüssel lässt sich mit diesem Windows-Konto nicht öffnen. Verwenden Sie Ihren Wiederherstellungsschlüssel.',
+          'no-key': 'Auf diesem PC gibt es keinen Schlüssel. Verwenden Sie Ihren Wiederherstellungsschlüssel.',
+          failed: 'Etwas ist schiefgegangen. Schließen Sie StarkLLM vollständig und starten Sie es neu.'
+        },
+        hint: 'Mehrere falsche Versuche. Wenn Sie die Passphrase vergessen haben, verwenden Sie Ihren Wiederherstellungsschlüssel.'
+      }
+    };
+    const lang = (navigator.language || 'en').toLowerCase().startsWith('de') ? 'de' : 'en';
+    document.documentElement.lang = lang;
+    const T = TEXT[lang];
+    document.querySelectorAll('[data-t]').forEach((el) => { el.textContent = T[el.dataset.t]; });
+    const $ = (id) => document.getElementById(id);
+    $('passInput').placeholder = T.placeholder;
+    const say = (el, r, attempts) => {
+      el.textContent = T.errors[r.error] || T.errors.failed;
+      if (attempts >= 3 && r.error === 'wrong-passphrase') el.textContent += ' ' + T.hint;
+    };
+    const show = (which) => { $('pass').hidden = which !== 'pass'; $('recover').hidden = which !== 'recover'; (which === 'pass' ? $('passInput') : $('recoverInput')).focus(); };
+    $('forgot').onclick = () => show('recover');
+    $('back').onclick = () => show('pass');
+    async function attempt(button, errorEl, input, call) {
+      errorEl.textContent = '';
+      const label = button.textContent;
+      button.disabled = true; button.textContent = T.working;
+      try {
+        const r = await call(input.value);
+        if (r && r.ok) return;                       // the app now opens
+        say(errorEl, r || {}, r && r.attempts);
+        input.select();
+      } catch (e) {
+        say(errorEl, {});
+      } finally {
+        input.value = '';
+        button.disabled = false; button.textContent = label;
+      }
+    }
+    $('passForm').onsubmit = (e) => { e.preventDefault(); attempt($('passButton'), $('passError'), $('passInput'), (v) => window.starkllmUnlock.submit(v)); };
+    $('recoverForm').onsubmit = (e) => { e.preventDefault(); attempt($('recoverButton'), $('recoverError'), $('recoverInput'), (v) => window.starkllmUnlock.recover(v)); };
+  </script>
+</body>
+</html>
