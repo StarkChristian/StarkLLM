@@ -134,8 +134,19 @@ class ProtectionState:
     def status(self) -> dict:
         s = self.state()
         return {"enabled": bool(s.get("enabled")), "locked": self.locked, "key_id": s.get("key_id"),
-                "enabled_at": s.get("enabled_at"), "migration": s.get("migration") or {"state": "idle"},
+                "enabled_at": s.get("enabled_at"), "migration": s.get("migration") or {"state": "idle"}, "vector_mode": self.vector_mode(),
                 "key_available": self.key is not None}
+
+    # --- search index mode ---------------------------------------------------------------------------------------
+    def vector_mode(self) -> str:
+        """Where the search index lives: "chroma" (ChromaDB; its text is protected, vectors and metadata are readable) or
+        "secure" (the encrypted index of services/secure_index.py: nothing readable). "secure" needs protection on."""
+        return "secure" if self.state().get("vector_mode") == "secure" and self.enabled else "chroma"
+
+    def set_vector_mode(self, mode: str):
+        if mode not in ("chroma", "secure"):
+            raise ValueError("vector mode must be 'chroma' or 'secure'")
+        self.save_state(vector_mode=mode)
 
     def mark_enabled(self, enabled: bool):
         """Switch writing of protected data on or off (the key must be available to switch it on)."""

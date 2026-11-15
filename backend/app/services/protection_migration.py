@@ -47,9 +47,16 @@ class Targets:
     upload_dir: str
     chroma_client: object
     state: ProtectionState = None
+    secure_factory: Optional[Callable[[], object]] = None   # the encrypted index (opened only when needed)
 
     def __post_init__(self):
         self.state = self.state or default_protection
+
+    def secure(self):
+        if self.secure_factory is None:
+            from app.services.secure_index import secure_client
+            return secure_client()
+        return self.secure_factory()
 
 
 def default_targets() -> Targets:
@@ -330,6 +337,8 @@ def run(targets: Targets, direction: str, *, rollback_on_error: bool = True,
             if to_protected:
                 state.mark_enabled(True)       # from now on new data is written protected
             else:
+                if state.vector_mode() == "secure":
+                    _vectors_to_chroma(targets, counts)     # the encrypted index only exists while protection is on
                 state.mark_enabled(False)      # from now on new data is written plain; old data is read as before
             _migrate_database(targets, to_protected, counts)
             _migrate_files(targets, to_protected, counts)
@@ -369,6 +378,136 @@ def run_reverse_after_failure(targets: Targets):
     _migrate_database(targets, False, counts)
     _migrate_files(targets, False, counts)
     _migrate_vectors(targets, False, counts)
+
+
+# --- Search index: ChromaDB <-> the encrypted index ---------------------------------------------------------------------
+#
+# to "secure": every ChromaDB collection is copied (text decrypted, vectors and metadata as they are) into the encrypted
+# index and verified; then the mode is switched; then the ChromaDB collections are deleted and its file is rewritten, so
+# the readable vectors and metadata are gone. "chroma" is the same in reverse. Stopping at any point is safe: before the
+# switch the old index is still the one in use (a new run starts the copy again), after it the leftover collections
+# of the old index are removed by the next run.
+
+def _chroma_names(client):
+    return [getattr(c, "name", c) for c in client.list_collections() if not getattr(c, "name", c).endswith(TMP_SUFFIX)]
+
+
+def vector_plan(targets: Targets, to_secure: bool) -> dict:
+    """Dry run for the search-index move. Changes nothing."""
+    report = {"to": "secure" if to_secure else "chroma", "dry_run": True, "problems": [], "collections": 0, "chunks": 0}
+    if targets.state.key is None:
+        report["problems"].append("The key is not available: unlock StarkLLM first.")
+    if to_secure and not targets.state.enabled:
+        report["problems"].append("Turn on protection first.")
+    if _busy_documents(targets):
+        report["problems"].append("Documents are still being processed. Try again when they are finished.")
+    if not report["problems"]:
+        if to_secure:
+            for name in _chroma_names(targets.chroma_client):
+                report["collections"] += 1
+                report["chunks"] += targets.chroma_client.get_collection(name).count()
+        else:
+            for name in targets.secure().store.list_names():
+                report["collections"] += 1
+                report["chunks"] += targets.secure().get_collection(name).count()
+    report["ok"] = not report["problems"]
+    return report
+
+
+def _copy_into_secure(targets: Targets, counts: dict):
+    secure = targets.secure()
+    for name in _chroma_names(targets.chroma_client):
+        old = targets.chroma_client.get_collection(name)
+        try:
+            secure.delete_collection(name)                 # a copy from an earlier, stopped run: start again
+        except Exception:
+            pass
+        new = secure.create_collection(name, metadata=old.metadata)
+        done = set()
+        for _pass in range(2):                             # the second pass picks up rows written while copying
+            ids = [i for i in old.get(include=[]).get("ids", []) if i not in done]
+            for start in range(0, len(ids), BATCH):
+                got = old.get(ids=ids[start:start + BATCH], include=["documents", "metadatas", "embeddings"])
+                docs = [targets.state.open_text(d, "vectors.document") if isinstance(d, str) else d for d in got["documents"]]
+                new.add(ids=got["ids"], documents=docs, metadatas=got["metadatas"],
+                        embeddings=[[float(x) for x in e] for e in got["embeddings"]])
+                done.update(got["ids"])
+                counts["vectors"] += len(got["ids"])
+                _progress(targets.state, step="vectors", done=counts["vectors"])
+        if new.count() < old.count():
+            raise MigrationError(f"The copy of '{name}' in the encrypted index is incomplete.")
+
+
+def _copy_into_chroma(targets: Targets, counts: dict):
+    secure = targets.secure()
+    for name in secure.store.list_names():
+        old = secure.get_collection(name)
+        try:
+            targets.chroma_client.delete_collection(name)
+        except Exception:
+            pass
+        new = targets.chroma_client.get_or_create_collection(name, metadata=old.metadata)
+        ids = old.get(include=[])["ids"]
+        for start in range(0, len(ids), BATCH):
+            got = old.get(ids=ids[start:start + BATCH], include=["documents", "metadatas", "embeddings"])
+            docs = [targets.state.seal_text(d, "vectors.document") if isinstance(d, str) else d for d in got["documents"]]
+            embs = [[float(x) for x in e] for e in got["embeddings"]]
+            with_meta = [i for i, m in enumerate(got["metadatas"]) if m]
+            without = [i for i, m in enumerate(got["metadatas"]) if not m]        # ChromaDB does not take empty metadata
+            if with_meta:
+                new.add(ids=[got["ids"][i] for i in with_meta], documents=[docs[i] for i in with_meta],
+                        metadatas=[got["metadatas"][i] for i in with_meta], embeddings=[embs[i] for i in with_meta])
+            if without:
+                new.add(ids=[got["ids"][i] for i in without], documents=[docs[i] for i in without],
+                        embeddings=[embs[i] for i in without])
+            counts["vectors"] += len(got["ids"])
+            _progress(targets.state, step="vectors", done=counts["vectors"])
+        if new.count() < old.count():
+            raise MigrationError(f"The copy of '{name}' in ChromaDB is incomplete.")
+
+
+def _vectors_to_secure(targets: Targets, counts: dict):
+    if targets.state.vector_mode() != "secure":             # after the switch only the clean-up is left (a stopped run)
+        _copy_into_secure(targets, counts)
+        targets.state.set_vector_mode("secure")            # the switch: from now on the encrypted index is used
+    for name in _chroma_names(targets.chroma_client):      # ... and the readable one is removed
+        targets.chroma_client.delete_collection(name)
+    counts["cleaned"] = _scrub(targets)
+
+
+def _vectors_to_chroma(targets: Targets, counts: dict):
+    if targets.state.vector_mode() == "secure":
+        _copy_into_chroma(targets, counts)
+        targets.state.set_vector_mode("chroma")
+    secure = targets.secure()
+    for name in list(secure.store.list_names()):
+        secure.delete_collection(name)
+    secure.store.compact()
+
+
+def run_vectors(targets: Targets, to_secure: bool) -> dict:
+    """Move the search index to the encrypted index (or back). Raises MigrationError; leaves a working state."""
+    if not _RUN_LOCK.acquire(blocking=False):
+        raise MigrationError("A migration is already running.")
+    state = targets.state
+    counts = {"database": 0, "files": 0, "vectors": 0}
+    try:
+        checked = vector_plan(targets, to_secure)
+        if not checked["ok"]:
+            raise MigrationError(" ".join(checked["problems"]))
+        _progress(state, state="running", direction="secure-index" if to_secure else "plain-index", step="start", done=0,
+                  started_at=datetime.now(timezone.utc).isoformat(timespec="seconds"), error=None)
+        try:
+            (_vectors_to_secure if to_secure else _vectors_to_chroma)(targets, counts)
+        except Exception as e:
+            logger.error("Search index move failed: %s", e, exc_info=True)
+            _progress(state, state="failed", error=str(e)[:300], counts=counts)
+            raise MigrationError(str(e))
+        _progress(state, state="done", finished_at=datetime.now(timezone.utc).isoformat(timespec="seconds"), counts=counts,
+                  step="done")
+        return {"ok": True, "counts": counts, "dry_run": False}
+    finally:
+        _RUN_LOCK.release()
 
 
 def finalize(targets: Targets) -> bool:
