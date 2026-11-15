@@ -15,12 +15,16 @@
 //   test     a test certificate: STARKLLM_SIGN_PFX, STARKLLM_SIGN_PFX_PASSWORD (CI, build/make-test-cert.js).
 //            With signtool on Windows, with osslsigncode elsewhere (dry runs on Linux).
 //   azure    Azure Artifact Signing: STARKLLM_AZURE_DLIB (Azure.CodeSigning.Dlib.dll), STARKLLM_AZURE_METADATA (json)
+// Third-party files (Electron/Chromium libraries, elevate.exe: the "unsignedAllowed" list in build/unsigned-allowlist.json)
+// are NOT signed by default, only our own files. STARKLLM_SIGN_THIRD_PARTY=1 signs them too: use it only if the Smart
+// App Control test on Windows 11 shows that they are blocked (docs/signing-on-owner-pc.md). The NSIS plugin DLLs are
+// signed only by naming them on the command line (node build/sign.js <dll>...), same condition.
 // Files that already carry a valid signature (ours from an earlier run, Microsoft's d3dcompiler_47.dll in Electron)
 // are left as they are, so a run that stopped half way (SimplySign session expired) can simply be started again.
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
-const { backend, signtoolPath, inspect } = require('./signature');
+const { backend, signtoolPath, inspect, loadAllowlist, findAllowed } = require('./signature');
 
 const AZURE_TIMESTAMP = 'http://timestamp.acs.microsoft.com';
 const CERTUM_TIMESTAMP = 'http://time.certum.pl';
@@ -101,6 +105,14 @@ function signFiles(files, log = console.log) {
   const mode = process.env.STARKLLM_SIGN;
   if (!mode) return 0;
   let pending = files;
+  if (!process.env.STARKLLM_SIGN_THIRD_PARTY) {
+    const third = loadAllowlist().unsigned;
+    pending = files.filter((f) => {
+      if (!findAllowed(third, f)) return true;
+      log(`  not signed (third-party file, STARKLLM_SIGN_THIRD_PARTY is not set): ${path.basename(f)}`);
+      return false;
+    });
+  }
   let signed = 0;
   for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
     pending = pending.filter((f) => {

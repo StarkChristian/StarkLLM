@@ -40,16 +40,30 @@ test('dry run: every file signed, installer signed, latest.yml follows the signe
   const before = fs.statSync(path.join(app, 'StarkLLM.exe')).size;
   const r = releaseSign(app, path.join(tmp, 'work'));
   assert.strictEqual(r.status, 0, r.stdout + r.stderr);
-  assert.match(r.stdout, /5 signed now/);
+  assert.match(r.stdout, /3 signed now/);
   assert.match(r.stdout, /ok   StarkLLM-v[\d.]+-Setup\.exe  signed: CN="Open Source Developer, StarkLLM Test/);
-  assert.match(r.stdout, /ffmpeg\.dll {2}signed/, 'third-party files are signed too when they can be');
-  assert.match(r.stdout, /signatures made in this run \(.*\): 7\b/);  // 5 files, uninstaller, installer
+  assert.match(r.stdout, /not signed \(third-party file[^)]*\): ffmpeg\.dll/, 'third-party files are not signed by default');
+  assert.match(r.stdout, /ffmpeg\.dll {2}unsigned, allowed/);
+  assert.match(r.stdout, /signatures made in this run \(.*\): 5\b/);  // StarkLLM.exe, 7z.dll, addon.node, uninstaller, installer
   assert.strictEqual(fs.statSync(path.join(app, 'StarkLLM.exe')).size, before, 'the original app folder is not touched');
   const out = path.join(tmp, 'work', 'out');
   const yml = fs.readFileSync(path.join(out, 'latest.yml'), 'utf8');
   const size = fs.statSync(path.join(out, fs.readdirSync(out).find((f) => /Setup\.exe$/.test(f)))).size;
   assert.match(yml, new RegExp(`size: ${size}\\b`));
   assert.ok(fs.existsSync(path.join(out, fs.readdirSync(out).find((f) => /Setup\.exe$/.test(f)) + '.blockmap')));
+  fs.rmSync(tmp, { recursive: true, force: true });
+});
+
+test('dry run: STARKLLM_SIGN_THIRD_PARTY=1 signs the third-party files too', { skip }, () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starkllm-chain-'));
+  const app = path.join(tmp, 'win-unpacked');
+  makeApp(app);
+  const r = releaseSign(app, path.join(tmp, 'work'), { STARKLLM_SIGN_THIRD_PARTY: '1' });
+  assert.strictEqual(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /5 signed now/);
+  assert.match(r.stdout, /ffmpeg\.dll {2}signed/);
+  assert.match(r.stdout, /elevate\.exe {2}signed/);
+  assert.match(r.stdout, /signatures made in this run \(.*\): 7\b/);
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
@@ -68,7 +82,7 @@ test('dry run, started again: files that are signed are kept (resume after an ex
   assert.strictEqual(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout, /kept existing signature: StarkLLM\.exe/);
   assert.match(r.stdout, /kept existing signature: 7z\.dll/);
-  assert.match(r.stdout, /3 signed now/);
+  assert.match(r.stdout, /1 signed now/);
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 

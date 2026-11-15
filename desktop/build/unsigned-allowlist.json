@@ -1,5 +1,5 @@
 {
-  "_comment": "Files that may stay unsigned in a release build (checked by build/check-signed.js). Everything else we ship must carry a valid signature. Patterns match the end of the path inside the app folder, '*' matches within one folder name. Entries here are an allowance, not an instruction: sign.js signs every file electron-builder hands it, these ones too, when it can. Explained in docs/signing-on-owner-pc.md.",
+  "_comment": "Files that may stay unsigned in a release build (checked by build/check-signed.js). Everything else we ship must carry a valid signature. Patterns match the end of the path inside the app folder, '*' matches within one folder name. The files under unsignedAllowed are not signed by build/sign.js unless STARKLLM_SIGN_THIRD_PARTY=1 is set (owner decision: only if the Smart App Control test on Windows 11 blocks them); if they are signed, the check accepts that too. Explained in docs/signing-on-owner-pc.md.",
   "unsignedAllowed": [
     { "pattern": "ffmpeg.dll", "reason": "Electron/Chromium library, built and shipped unchanged by the Electron project" },
     { "pattern": "libEGL.dll", "reason": "Electron/Chromium library (ANGLE), built and shipped unchanged by the Electron project" },

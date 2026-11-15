@@ -38,7 +38,9 @@ cd desktop
 node build/check-publisher.js --from-store <thumbprint>
 ```
 
-It prints the certificate subject and the line to put into `desktop/package.json`, under `build.win.signtoolOptions`:
+It prints the certificate subject and the line to put into `desktop/package.json`, under `build.win.signtoolOptions`. The
+decision of the owner is the **common name (CN) of the certificate only**, not the full distinguished name, so a
+change of address or country in a later certificate does not lock users out (electron-updater logs a harmless hint to use the full name):
 
 ```json
 "publisherName": ["Open Source Developer, Christian Stark"]
@@ -93,24 +95,35 @@ gh release upload v<version> release-work\out\StarkLLM-v<version>-Setup.exe rele
 
 Then put the SHA-256 values into the release notes / checksum file as for every release.
 
-### Optional: the NSIS plugin DLLs
+### Only if the Windows 11 test shows a block: third-party files and NSIS plugins
 
-The installer unpacks plugin DLLs (`System.dll`, `StdUtils.dll`, `UAC.dll`, `WinShell.dll`, `nsis7z.dll`, ...) to
-`%TEMP%` and loads them; they are third-party files and stay unsigned by default. The audit in
-[`windows-trust.yml`](../.github/workflows/windows-trust.yml) flags them. To sign them too, before step 1 and in the same
-PowerShell window (adds roughly one signature per DLL):
+Decision of the owner: **only our own files are signed by default.** The third-party files (Electron/Chromium libraries,
+`elevate.exe`) and the NSIS plugin DLLs stay as they are unless the test at the end of this page shows that Smart App
+Control blocked them. Then, and only then:
 
-```powershell
-$t = "$env:TEMP\nsis-toolset"; $out = node build/copy-nsis-plugins.js $t
-$dlls = @($out | Select-Object -Skip (($out | Select-String -SimpleMatch 'DLLS').LineNumber)); node build/sign.js @dlls
-$env:ELECTRON_BUILDER_NSIS_DIR = "$t\nsis"; $env:ELECTRON_BUILDER_NSIS_RESOURCES_DIR = "$t\resources"
-```
+1. Electron/Chromium libraries and `elevate.exe`: set the switch for step 2 and run it again (files that are signed are
+   kept):
+
+   ```powershell
+   $env:STARKLLM_SIGN_THIRD_PARTY = '1'
+   node build/release-sign.js --install-check
+   ```
+
+2. NSIS plugin DLLs (`System.dll`, `StdUtils.dll`, `UAC.dll`, `WinShell.dll`, `nsis7z.dll`, ...; the installer unpacks
+   them to `%TEMP%` and loads them; [`windows-trust.yml`](../.github/workflows/windows-trust.yml) shows they are flagged
+   when unsigned). Before step 1, in the same PowerShell window (roughly one signature per DLL):
+
+   ```powershell
+   $t = "$env:TEMP\nsis-toolset"; $out = node build/copy-nsis-plugins.js $t
+   $dlls = @($out | Select-Object -Skip (($out | Select-String -SimpleMatch 'DLLS').LineNumber)); node build/sign.js @dlls
+   $env:ELECTRON_BUILDER_NSIS_DIR = "$t\nsis"; $env:ELECTRON_BUILDER_NSIS_RESOURCES_DIR = "$t\resources"
+   ```
 
 ## Signature budget and an expired session
 
-The certificate allows **5000 signatures a month**. One release needs about **10**: the app's own files (`StarkLLM.exe`,
-Electron's DLLs, `elevate.exe`, `.node` files; Microsoft's `d3dcompiler_47.dll` keeps its own signature), the
-uninstaller and the installer. The script prints "signatures made in this run". Files that already carry a valid
+The certificate allows **5000 signatures a month**. One release needs about **4 to 5**: our own files (`StarkLLM.exe`, our `.node` files), the
+uninstaller and the installer. With `STARKLLM_SIGN_THIRD_PARTY=1` about 10 (Electron's DLLs and `elevate.exe` are added;
+Microsoft's `d3dcompiler_47.dll` keeps its own signature), plus one per NSIS plugin DLL if those are signed. The script prints "signatures made in this run". Files that already carry a valid
 signature are never signed again, and all files of the app folder go to `signtool` in one call, so a repeated run costs
 only what is missing.
 
@@ -118,7 +131,7 @@ If SimplySign Desktop logs out in the middle (the error mentions the certificate
 dialog is dismissed): log in again with a **new** one-time code and start the same `release-sign.js` command again. It
 starts from the unsigned app folder, keeps the signatures that exist and signs the rest. Whether SimplySign asks for a
 confirmation per signature or per session is a setting of the Certum account; if it asks per signature, keep the phone
-at hand during step 2 (about 10 prompts). Retries (3 attempts, 5 s apart) cover a busy timestamp server only.
+at hand during step 2 (about 5 prompts). Retries (3 attempts, 5 s apart) cover a busy timestamp server only.
 
 ## Files that may stay unsigned
 
@@ -128,10 +141,10 @@ by another publisher and for a signature without timestamp.
 
 | File | Why it may stay unsigned |
 |---|---|
-| `ffmpeg.dll`, `libEGL.dll`, `libGLESv2.dll`, `vk_swiftshader.dll`, `vulkan-1.dll` | Electron/Chromium libraries of another project, shipped unchanged. `release-sign.js` signs them anyway when it can |
-| `resources\elevate.exe` | electron-builder's helper, shipped unchanged |
+| `ffmpeg.dll`, `libEGL.dll`, `libGLESv2.dll`, `vk_swiftshader.dll`, `vulkan-1.dll` | Electron/Chromium libraries of another project, shipped unchanged. Not signed unless `STARKLLM_SIGN_THIRD_PARTY=1` (see above) |
+| `resources\elevate.exe` | electron-builder's helper, shipped unchanged. Same switch |
 | `d3dcompiler_47.dll` | signed by Microsoft (allowed as a foreign signature) |
-| NSIS plugin DLLs | inside the installer, not on disk in a build folder; see the optional step above |
+| NSIS plugin DLLs | inside the installer, not on disk in a build folder; signed only by the optional step above |
 
 Our own files are never on the list: `StarkLLM.exe`, the uninstaller, the installer, our `.node` files. The same check
 runs in CI: after a signed release in [`desktop-release.yml`](../.github/workflows/desktop-release.yml) (SignPath, which
@@ -161,4 +174,5 @@ and prompts per run; electron-updater accepting the update on a PC with the real
 6. Update path: install the previous release, then update to this one from inside the app. It must download, verify the
    signature (log: `Verifying signature`) and restart into the new version.
 7. Uninstall from Settings, Apps: the uninstaller runs without a block.
-8. Note which files, if any, Smart App Control blocked (file name and event) and add them here.
+8. If Smart App Control blocked a third-party file or an NSIS plugin (file name in the event), sign them as described under
+   "Only if the Windows 11 test shows a block", build the release again and repeat this test. Note which files it was.

@@ -55,6 +55,8 @@ jobs:
           Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
           Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\TrustedPublisher | Out-Null
           "STARKLLM_SIGN=test" >> $env:GITHUB_ENV
+          # this audit wants every file signed, third-party ones too (the release default signs only our own files)
+          "STARKLLM_SIGN_THIRD_PARTY=1" >> $env:GITHUB_ENV
           "STARKLLM_SIGN_PFX=$pfx" >> $env:GITHUB_ENV
           "STARKLLM_SIGN_PFX_PASSWORD=$password" >> $env:GITHUB_ENV
           "TEST_CERT=$cer" >> $env:GITHUB_ENV

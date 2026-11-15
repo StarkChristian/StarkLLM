@@ -70,3 +70,11 @@ test('osslsigncode (Linux dry run) only does the test certificate', () => {
     assert.throws(() => sign.osslsigncodeArgs('certum', 'a.dll', 'x'), /needs Windows/);
   });
 });
+
+test('third-party files are not signed unless STARKLLM_SIGN_THIRD_PARTY is set', () => {
+  const logs = [];
+  withEnv({ STARKLLM_SIGN: 'test', STARKLLM_SIGN_PFX: 'x.pfx', STARKLLM_SIGN_THIRD_PARTY: null }, () => {
+    assert.strictEqual(sign.signFiles(['C:\\app\\ffmpeg.dll', 'C:\\app\\resources\\elevate.exe', 'C:\\app\\libEGL.dll'], (m) => logs.push(m)), 0);
+  });
+  assert.strictEqual(logs.filter((m) => /not signed \(third-party/.test(m)).length, 3);
+});
