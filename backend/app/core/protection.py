@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import threading
+from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -24,6 +25,10 @@ from app.core import crypto
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+LABEL_CACHE_SIZE = 200_000
+LABEL_CACHE_MAX_TOKEN = 600      # token length: a name or title, not a message
 
 
 class ProtectionLocked(Exception):
@@ -39,6 +44,7 @@ class ProtectionState:
         self._lock = threading.RLock()
         self._state_cache = None
         self._env_loaded = False
+        self._label_cache = OrderedDict()      # protected token -> text, for short values (names, titles); in memory only
 
     # --- locations -----------------------------------------------------------------------------------------------
     @property
@@ -101,6 +107,8 @@ class ProtectionState:
     def clear_key(self):
         with self._lock:
             self._key = None
+            self._label_cache.clear()          # decrypted short texts must not outlive the key
+            crypto.forget_cached_keys()
 
     @property
     def key(self) -> Optional[bytes]:
@@ -169,7 +177,18 @@ class ProtectionState:
             return value
         if self.key is None:
             raise ProtectionLocked("StarkLLM is locked: the key for your protected data has not been unlocked.")
-        return crypto.decrypt_text(self.sub_key("fields"), value, context)
+        short = len(value) <= LABEL_CACHE_MAX_TOKEN
+        if short:                                          # names and titles are read again and again (lists, search)
+            hit = self._label_cache.get((value, context))
+            if hit is not None:
+                return hit
+        text = crypto.decrypt_text(self.sub_key("fields"), value, context)
+        if short:
+            with self._lock:
+                self._label_cache[(value, context)] = text
+                if len(self._label_cache) > LABEL_CACHE_SIZE:
+                    self._label_cache.popitem(last=False)
+        return text
 
 
 protection = ProtectionState()

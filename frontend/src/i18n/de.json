@@ -930,7 +930,6 @@
   "The text of every indexed document and every memory (the search index)": "Der Text jedes indizierten Dokuments und jeder Erinnerung (der Suchindex)",
   "Your profile text, custom instructions, prompt templates, workspace instructions": "Ihr Profiltext, eigene Anweisungen, Prompt-Vorlagen und Anweisungen für Arbeitsbereiche",
   "Titles, senders and cases you set in the inbox": "Titel, Absender und Vorgänge, die Sie im Posteingang festlegen",
-  "File names, chat titles and workspace names (they stay readable so lists and search work)": "Dateinamen, Chat-Titel und Namen von Arbeitsbereichen (sie bleiben lesbar, damit Listen und Suche funktionieren)",
   "The numbers the search index uses to find similar text (they show topics, not words)": "Die Zahlen, mit denen der Suchindex ähnlichen Text findet (sie verraten Themen, keine Wörter)",
   "Files in your Knowledge Base folder (they are your own files and stay where they are)": "Dateien in Ihrem Wissensordner (es sind Ihre eigenen Dateien; sie bleiben, wo sie sind)",
   "Anything on your PC while StarkLLM is open and you are signed in to Windows": "Alles auf Ihrem PC, solange StarkLLM geöffnet ist und Sie in Windows angemeldet sind",
@@ -943,5 +942,7 @@
   "Starting": "Wird gestartet",
   "Working": "Wird bearbeitet",
   "Older backup (.zip)": "Ältere Sicherung (.zip)",
-  "StarkLLM is locked. Open Settings > Protection and unlock it to see your documents and chats.": "StarkLLM ist gesperrt. Öffnen Sie Einstellungen > Schutz und entsperren Sie es, um Ihre Dokumente und Chats zu sehen."
+  "StarkLLM is locked. Open Settings > Protection and unlock it to see your documents and chats.": "StarkLLM ist gesperrt. Öffnen Sie Einstellungen > Schutz und entsperren Sie es, um Ihre Dokumente und Chats zu sehen.",
+  "Names of files in your Knowledge Base folder and of documents added before protection was turned on (the files carry the same names on disk)": "Namen der Dateien in Ihrem Wissensordner und von Dokumenten, die vor dem Einschalten des Schutzes hinzugefügt wurden (die Dateien heißen auf der Festplatte genauso)",
+  "Names and titles: workspaces, folders, chats, document file names, prompt templates": "Namen und Titel: Arbeitsbereiche, Ordner, Chats, Dateinamen von Dokumenten, Prompt-Vorlagen"
 }
