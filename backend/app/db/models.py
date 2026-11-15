@@ -32,7 +32,7 @@ class Workspace(Base):
     __tablename__ = "workspaces"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    name = Column(String, index=True)
+    name = Column(ProtectedText("workspaces.name", locked_value="\U0001F512"), index=True)
     active_kb_dir_ids = Column(String, nullable=True)  # JSON-encoded list of integer folder IDs
     system_prompt = Column(ProtectedText("workspaces.system_prompt"), nullable=True)       # Custom workspace-level system prompt
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -47,7 +47,7 @@ class ChatFolder(Base):
     __tablename__ = "chat_folders"
     id = Column(Integer, primary_key=True, index=True)
     workspace_id = Column(Integer, ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
-    name = Column(String, nullable=False)
+    name = Column(ProtectedText("chat_folders.name", locked_value="\U0001F512"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     workspace = relationship("Workspace", back_populates="chat_folders")
@@ -59,7 +59,7 @@ class Chat(Base):
     id = Column(Integer, primary_key=True, index=True)
     workspace_id = Column(Integer, ForeignKey("workspaces.id"))
     folder_id = Column(Integer, ForeignKey("chat_folders.id", ondelete="SET NULL"), nullable=True)
-    title = Column(String)
+    title = Column(ProtectedText("chats.title", locked_value="\U0001F512"))
     is_pinned = Column(Integer, default=0, nullable=False)  # 0 = unpinned, 1 = pinned
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -97,11 +97,11 @@ class Document(Base):
     __tablename__ = "documents"
     id = Column(Integer, primary_key=True, index=True)
     workspace_id = Column(Integer, ForeignKey("workspaces.id"))
-    filename = Column(String)
+    filename = Column(ProtectedText("documents.filename", locked_value="\U0001F512"))
     filepath = Column(String)
     file_type = Column(String)
     status = Column(String, default=DocStatus.INDEXED, nullable=False)
-    error_message = Column(String, nullable=True)
+    error_message = Column(ProtectedText("documents.error_message", locked_value=None), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     workspace = relationship("Workspace", back_populates="documents")
@@ -110,9 +110,9 @@ class PromptTemplate(Base):
     __tablename__ = "prompt_templates"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    title = Column(String, index=True)
+    title = Column(ProtectedText("prompt_templates.title", locked_value="\U0001F512"), index=True)
     content = Column(ProtectedText("prompt_templates.content"))
-    tags = Column(String, nullable=True)
+    tags = Column(ProtectedText("prompt_templates.tags", locked_value=None), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User")
@@ -195,7 +195,7 @@ class KnowledgeBaseDocument(Base):
     last_modified = Column(DateTime, nullable=False)             # mtime as datetime
     status        = Column(String, default=KBDocStatus.PENDING, nullable=False)
     chunk_count   = Column(Integer, default=0, nullable=False)
-    error_message = Column(String, nullable=True)                # set on failure
+    error_message = Column(ProtectedText("knowledge_base_documents.error_message", locked_value=None), nullable=True)  # set on failure
     indexed_at    = Column(DateTime, nullable=True)
     created_at    = Column(DateTime, default=datetime.utcnow, nullable=False)
 

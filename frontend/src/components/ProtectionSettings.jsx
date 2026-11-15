@@ -22,8 +22,12 @@ const ENGINE_TEXT = {
   'The text of every indexed document and every memory (the search index)': t('The text of every indexed document and every memory (the search index)'),
   'Your profile text, custom instructions, prompt templates, workspace instructions': t('Your profile text, custom instructions, prompt templates, workspace instructions'),
   'Titles, senders and cases you set in the inbox': t('Titles, senders and cases you set in the inbox'),
-  'File names, chat titles and workspace names (they stay readable so lists and search work)': t('File names, chat titles and workspace names (they stay readable so lists and search work)'),
-  'The numbers the search index uses to find similar text (they show topics, not words)': t('The numbers the search index uses to find similar text (they show topics, not words)'),
+  'Names of files in your Knowledge Base folder and of documents added before protection was turned on (the files carry the same names on disk)': t('Names of files in your Knowledge Base folder and of documents added before protection was turned on (the files carry the same names on disk)'),
+  'Names and titles: workspaces, folders, chats, document file names, prompt templates': t('Names and titles: workspaces, folders, chats, document file names, prompt templates'),
+  'The search index itself: its numbers, and the file names, pages and paths stored with every piece of text': t('The search index itself: its numbers, and the file names, pages and paths stored with every piece of text'),
+  'The numbers the search index uses to find similar text, and the file names, pages and paths stored with each piece of text (they show topics, not words). Turn on the encrypted search index to lock them.': t('The numbers the search index uses to find similar text, and the file names, pages and paths stored with each piece of text (they show topics, not words). Turn on the encrypted search index to lock them.'),
+  'How many pieces of text each search collection holds, and when the search index file last changed': t('How many pieces of text each search collection holds, and when the search index file last changed'),
+  'Turn on protection first.': t('Turn on protection first.'),
   'Files in your Knowledge Base folder (they are your own files and stay where they are)': t('Files in your Knowledge Base folder (they are your own files and stay where they are)'),
   'Anything on your PC while StarkLLM is open and you are signed in to Windows': t('Anything on your PC while StarkLLM is open and you are signed in to Windows'),
   'Other programs running under your Windows account': t('Other programs running under your Windows account'),
@@ -44,6 +48,9 @@ export default function ProtectionSettings({ token }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [recoveryInput, setRecoveryInput] = useState('');
+  const [pass, setPass] = useState('');
+  const [pass2, setPass2] = useState('');
+  const [passCurrent, setPassCurrent] = useState('');
   const timer = useRef(null);
 
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
@@ -144,7 +151,44 @@ export default function ProtectionSettings({ token }) {
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
 
+  const setPassphrase = async () => {
+    setBusy(true); setError('');
+    try {
+      if (pass !== pass2) throw new Error(t('The two passphrases are not the same.'));
+      const r = await bridge().setPassphrase(pass);
+      if (r.error) throw new Error(r.error === 'weak-passphrase' ? t('Use a passphrase of at least 12 characters.') : r.message);
+      setPass(''); setPass2('');
+      await refresh();
+    } catch (e) { setError(e.message); } finally { setBusy(false); }
+  };
+
+  const removePassphrase = async () => {
+    setBusy(true); setError('');
+    try {
+      const r = await bridge().removePassphrase(passCurrent);
+      if (r.error) throw new Error(r.error === 'wrong-passphrase' ? t('The passphrase is not right. Try again.') : r.message);
+      setPassCurrent('');
+      await refresh();
+    } catch (e) { setError(e.message); } finally { setBusy(false); }
+  };
+
   const finalize = async () => { await call('/finalize', { method: 'POST' }); await refresh(); };
+
+  // Move the search index into the encrypted index (mode "secure") or back to the normal one ("chroma").
+  const moveIndex = async (mode) => {
+    setBusy(true); setError('');
+    try {
+      const p = await call('/vectors/plan', { method: 'POST', body: JSON.stringify({ mode }) });
+      if (!p.ok) throw new Error(p.problems.map(engineText).join(' '));
+      const question = mode === 'secure'
+        ? t('{collections} collections with {chunks} pieces of text will be moved into the locked search index. Nothing is deleted before the copy is complete. Continue?', p)
+        : t('{collections} collections with {chunks} pieces of text will be moved back to the normal search index. Its numbers, file names and paths are then readable on disk again. Continue?', p);
+      if (!window.confirm(question)) { setBusy(false); return; }
+      await call('/vectors/migrate', { method: 'POST', body: JSON.stringify({ mode }) });
+      setStep('running');
+      watchMigration();
+    } catch (e) { setError(e.message); setBusy(false); }
+  };
 
   const m = (status && status.migration) || {};
   const on = status && status.enabled;
@@ -180,7 +224,17 @@ export default function ProtectionSettings({ token }) {
       {locked && (
         <div style={card}>
           <h4 style={{ margin: 0 }}>{t('Unlock')}</h4>
-          <button className="btn-primary" disabled={busy} onClick={unlock} style={{ width: 'fit-content' }}>{t('Unlock with the Windows key store')}</button>
+          {keyInfo && keyInfo.passphrase ? (
+            <>
+              <input type="password" autoComplete="off" value={passCurrent} onChange={(e) => setPassCurrent(e.target.value)} placeholder={t('Passphrase')} />
+              <button className="btn-primary" disabled={busy || !passCurrent} style={{ width: 'fit-content' }}
+                      onClick={async () => { setBusy(true); setError(''); const r = await bridge().unlock(passCurrent); setPassCurrent(''); if (r.error) setError(r.error === 'wrong-passphrase' ? t('The passphrase is not right. Try again.') : r.message); await refresh(); setBusy(false); }}>
+                {t('Unlock with passphrase')}
+              </button>
+            </>
+          ) : (
+            <button className="btn-primary" disabled={busy} onClick={unlock} style={{ width: 'fit-content' }}>{t('Unlock with the Windows key store')}</button>
+          )}
           <div className={styles.hint}>{t('On a new PC or a new Windows account, enter your recovery key instead:')}</div>
           <input className={styles.input || ''} style={{ fontFamily: 'monospace' }} value={recoveryInput} placeholder="XXXXX-XXXXX-XXXXX-…"
                  onChange={(e) => setRecoveryInput(e.target.value)} />
@@ -280,6 +334,48 @@ export default function ProtectionSettings({ token }) {
           <button className="btn-secondary" style={{ width: 'fit-content' }} onClick={finalize}>{t('Delete the safety copy')}</button>
         </div>
       )}
+
+      {on && !working && !locked && bridge() && keyInfo && keyInfo.hasKey && (
+        <div style={card}>
+          <h4 style={{ margin: 0 }}>{t('Start-up passphrase')}</h4>
+          {keyInfo.passphrase ? (
+            <>
+              <div className={styles.hint}>{t('StarkLLM asks for your passphrase every time it starts. The passphrase is never saved; if you forget it, your recovery key opens StarkLLM.')}</div>
+              <input type="password" autoComplete="off" value={passCurrent} onChange={(e) => setPassCurrent(e.target.value)} placeholder={t('Current passphrase')} />
+              <button className="btn-secondary" disabled={busy || !passCurrent} onClick={removePassphrase} style={{ width: 'fit-content' }}>{t('Stop asking for a passphrase')}</button>
+            </>
+          ) : (
+            <>
+              <div className={styles.hint}>{t('Optional: ask for a passphrase every time StarkLLM starts. Without it, anyone who can use your open Windows account can open your documents. With it, they also need the passphrase. It is never saved; the recovery key is the way back in if you forget it.')}</div>
+              <input type="password" autoComplete="new-password" value={pass} onChange={(e) => setPass(e.target.value)} placeholder={t('Passphrase (at least 12 characters)')} />
+              <input type="password" autoComplete="new-password" value={pass2} onChange={(e) => setPass2(e.target.value)} placeholder={t('Passphrase again')} />
+              <button className="btn-secondary" disabled={busy || pass.length < 12} onClick={setPassphrase} style={{ width: 'fit-content' }}>{t('Ask for a passphrase at start')}</button>
+            </>
+          )}
+        </div>
+      )}
+
+      {on && !working && !locked && (
+        <div style={card}>
+          <h4 style={{ margin: 0 }}>{t('Locked search index')}</h4>
+          <div className={styles.hint}>
+            {t('The search index keeps a list of numbers for every piece of text, plus its file name, page and path. Locking the search index hides these too, so nothing about your documents can be read from the disk. It needs more memory while StarkLLM runs (about 400 MB for every 100,000 pieces of text, which is several thousand letters) and is loaded when StarkLLM starts.')}
+          </div>
+          <strong style={{ fontSize: '0.9rem' }}>
+            {status.vector_mode === 'secure' ? t('The search index is locked.') : t('The search index is not locked yet.')}
+          </strong>
+          {status.vector_mode === 'secure'
+            ? <button className="btn-secondary" disabled={busy} style={{ width: 'fit-content' }} onClick={() => moveIndex('chroma')}>{t('Go back to the normal search index')}</button>
+            : <button className="btn-primary" disabled={busy} style={{ width: 'fit-content' }} onClick={() => moveIndex('secure')}>{t('Lock the search index')}</button>}
+        </div>
+      )}
+
+      <div style={card}>
+        <h4 style={{ margin: 0 }}>{t('Windows drive encryption (recommended as well)')}</h4>
+        <div className={styles.hint}>
+          {t('Protection in StarkLLM locks your documents, chats and search index. Windows can also lock the whole drive (BitLocker, or "Device encryption" on many PCs). That covers what StarkLLM cannot: file names and titles, the programs themselves, and traces of files that were deleted earlier. Open Windows Settings > Privacy & security > Device encryption (or search for "BitLocker") and turn it on. Keep the recovery key it shows you in a safe place, away from this PC.')}
+        </div>
+      </div>
 
       {on && !working && !locked && (
         <div style={card}>
