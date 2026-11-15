@@ -8,6 +8,7 @@ import DateTimeWidget from './DateTimeWidget';
 import MarketPricesWidget from './MarketPricesWidget';
 import SystemStatusWidget from './SystemStatusWidget';
 import EmptyState from './EmptyState';
+import { LucyGuide, LucyHelper } from './Lucy';
 import { t } from '../i18n';
 
 const IMAGE_TYPES = new Set(['png', 'jpg', 'jpeg', 'webp', 'tif', 'tiff']);
@@ -198,6 +199,9 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
         <img src="/Logo.png" alt="" className={styles.heroLogo} />
       </div>
 
+      {/* Lucy explains the first steps once (not over the buttons: she is part of the page) */}
+      <LucyGuide />
+
       <div className={styles.twoCol}>
         {/* ── Dates found in the documents ── */}
         <section className={styles.card} aria-labelledby="home-dates">
@@ -251,11 +255,14 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
           {!home ? (
             <p className={styles.homeNote}>{t('Looking through your documents…')}</p>
           ) : recent.length === 0 ? (
-            <EmptyState
-              icon={FileText}
-              title={t('No documents yet')}
-              hint={t('Add a letter, a scan or a photo, or put files into your knowledge base folder.')}
-            />
+            <>
+              <EmptyState
+                icon={FileText}
+                title={t('No documents yet')}
+                hint={t('Add a letter, a scan or a photo, or put files into your knowledge base folder.')}
+              />
+              <LucyHelper text={t('No documents yet. Add a letter or a photo, and I will read it here on your PC.')} />
+            </>
           ) : (
             <ul className={styles.homeList}>
               {recent.map((doc) => (

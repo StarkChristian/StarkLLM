@@ -6,6 +6,7 @@ import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
 import { accountLabel } from '../utils/accounts';
 import AmbiguousDate, { ChosenDate } from './AmbiguousDate';
+import { LucyHelper } from './Lucy';
 import styles from './Inbox.module.css';
 
 // The document inbox (docs/document-inbox-design.md, B4): what StarkLLM read in each new letter, to check and mark
@@ -263,7 +264,10 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
         <p className={styles.note}>{error ? t('The inbox could not be loaded. Is StarkLLM running?') : t('Looking through your documents…')}</p>
       ) : tab === 'cases' ? (
         cases.length === 0 ? (
-          <EmptyState icon={FolderOpen} title={t('No cases yet')} hint={t('Letters of the same sender are put together here.')} />
+          <>
+            <EmptyState icon={FolderOpen} title={t('No cases yet')} hint={t('Letters of the same sender are put together here.')} />
+            <LucyHelper text={t('Letters of the same sender will be gathered here, so you see each case in one place.')} state="talk" />
+          </>
         ) : (
           <ul className={styles.cases}>
             {cases.map((c) => {
@@ -297,11 +301,17 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
           </ul>
         )
       ) : shown.length === 0 ? (
-        <EmptyState
-          icon={InboxIcon}
-          title={tab === 'new' ? t('No new letters') : t('No documents yet')}
-          hint={tab === 'new' ? t('New letters and documents show up here with what StarkLLM read in them.') : t('Add a letter, a scan or a photo, or put files into your knowledge base folder.')}
-        />
+        <>
+          <EmptyState
+            icon={InboxIcon}
+            title={tab === 'new' ? t('No new letters') : t('No documents yet')}
+            hint={tab === 'new' ? t('New letters and documents show up here with what StarkLLM read in them.') : t('Add a letter, a scan or a photo, or put files into your knowledge base folder.')}
+          />
+          <LucyHelper
+            text={tab === 'new' ? t('Nothing new here. When a new letter comes in, I will tell you what is in it.') : t('No documents yet. Add a letter or a photo, and I will read it here on your PC.')}
+            state={tab === 'new' ? 'talk' : 'point'}
+          />
+        </>
       ) : (
         <ul className={styles.list}>{shown.map((d) => renderDoc(d))}</ul>
       )}
