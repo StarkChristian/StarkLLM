@@ -66,12 +66,14 @@ title, cases per sender, same letter as photo and PDF.
 B5 (deadlines): the Deadlines tab of the inbox lists every deadline, payment date and appointment of all letters,
 oldest first, with the sentence it was read from, page and line, sender and amount, and the state (overdue, today,
 within a week, later). Letters with scam signs, replaced letters and second copies are left out; a date that has
-passed stays in the list until the letter is marked done. Reminders: per deadline "7 / 3 / 1 days before" or "on the
+passed stays in the list until the letter is marked done. Each deadline can also be marked done on its own (a paid
+invoice leaves the list, the dashboard and the calendar file, the letter stays in the inbox; "Show done" lists them and
+the mark can be undone; stored locally). Reminders: per deadline "7 / 3 / 1 days before" or "on the
 day" (stored in the local database); from its day a reminder shows on the dashboard until the user confirms it.
-Calendar export: `GET /api/v1/dashboard/deadlines.ics` for one, several (`key=`) or all upcoming deadlines (RFC 5545,
+Calendar export: `GET /api/v1/dashboard/deadlines.ics` for one, several (`key=`) or all upcoming deadlines, done ones skipped (RFC 5545,
 all-day events, one alarm per reminder, else 3 days before; German or English text with `lang=`), made on this PC.
 Not yet: the local model for type and summary when the rules find nothing, moving a document to another case from
-the UI (the API takes `case`), a reminder as a system notification when StarkLLM is closed.
+the UI (the API takes `case`), a reminder as a system notification when StarkLLM is closed (reminders are shown in the app only, by decision).
 
 ## 5. Out of scope here
 

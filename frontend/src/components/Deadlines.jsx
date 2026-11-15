@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarClock, CalendarPlus, Bell, BellRing, Check } from 'lucide-react';
+import { CalendarClock, CalendarPlus, Bell, BellRing, Check, RotateCcw } from 'lucide-react';
 import EmptyState from './EmptyState';
 import { UI_LOCALE } from '../utils/locale';
 import { downloadFile } from '../utils/download';
@@ -60,10 +60,13 @@ export default function Deadlines({ token, onOpen }) {
   const { data, error, headers, load } = useDeadlines(token, 20000);
   const [selected, setSelected] = useState(() => new Set());
   const [failed, setFailed] = useState(false);
+  const [showDone, setShowDone] = useState(false);
 
-  const deadlines = data?.deadlines || [];
+  const all = data?.deadlines || [];
+  const doneCount = all.filter((d) => d.done).length;
+  const deadlines = showDone ? all : all.filter((d) => !d.done);
   const keys = new Set(deadlines.map((d) => d.key));
-  const chosen = [...selected].filter((k) => keys.has(k));
+  const chosen = [...selected].filter((k) => keys.has(k) && !all.find((d) => d.key === k)?.done);
 
   const toggle = (key) => setSelected((prev) => {
     const next = new Set(prev);
@@ -83,10 +86,19 @@ export default function Deadlines({ token, onOpen }) {
     const has = deadline.reminders.includes(days);
     setReminders(deadline, has ? deadline.reminders.filter((x) => x !== days) : [...deadline.reminders, days]);
   };
+  // a paid invoice is done, the letter stays in the inbox; the mark can be taken back
+  const setDone = async (deadline, done) => {
+    await fetch('/api/v1/dashboard/deadlines/done', {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: deadline.key, done }),
+    });
+    load();
+  };
   const calendar = async (list) => setFailed(!(await saveCalendar(headers, list)));
 
   if (!data) return <p className={styles.note}>{error ? t('The deadlines could not be loaded. Is StarkLLM running?') : t('Looking through your documents…')}</p>;
-  if (deadlines.length === 0) {
+  if (all.length === 0 || (deadlines.length === 0 && doneCount === 0)) {
     return <EmptyState icon={CalendarClock} title={t('No deadlines')} hint={t('When a letter names a deadline, a payment date or an appointment, it shows up here.')} />;
   }
   const counts = data.counts || {};
@@ -97,7 +109,12 @@ export default function Deadlines({ token, onOpen }) {
         <span className={styles.summary}>
           {counts.overdue > 0 && <span className={styles.stateOverdue}>{t('{count} overdue', { count: counts.overdue })}</span>}
           {counts.today + counts.soon > 0 && <span className={styles.stateSoon}>{t('{count} due within a week', { count: counts.today + counts.soon })}</span>}
-          <span>{t('{count} in total', { count: deadlines.length })}</span>
+          <span>{t('{count} in total', { count: all.length - doneCount })}</span>
+          {doneCount > 0 && (
+            <label className={styles.showDone}>
+              <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} /> {t('Show done ({count})', { count: doneCount })}
+            </label>
+          )}
         </span>
         <span className={styles.toolbarActions}>
           <button className="btn-secondary" disabled={chosen.length === 0} onClick={() => calendar(chosen)}>
@@ -112,9 +129,9 @@ export default function Deadlines({ token, onOpen }) {
 
       <ul className={styles.list}>
         {deadlines.map((d) => (
-          <li key={d.key} className={`${styles.item} ${d.state === 'overdue' ? styles.itemOverdue : ''}`}>
+          <li key={d.key} className={`${styles.item} ${d.state === 'overdue' && !d.done ? styles.itemOverdue : ''} ${d.done ? styles.itemDone : ''}`}>
             <label className={styles.pick}>
-              <input type="checkbox" checked={selected.has(d.key)} onChange={() => toggle(d.key)} aria-label={t('Select for the calendar')} />
+              <input type="checkbox" disabled={d.done} checked={selected.has(d.key) && !d.done} onChange={() => toggle(d.key)} aria-label={t('Select for the calendar')} />
             </label>
             <span className={styles.dateBox}>
               <span className={styles.day}>{fmtDate(d.date, { day: 'numeric' })}</span>
@@ -123,7 +140,9 @@ export default function Deadlines({ token, onOpen }) {
             <div className={styles.body}>
               <div className={styles.meta}>
                 <span className={styles[`kind_${d.kind}`]}>{KIND_LABEL[d.kind] || d.kind}</span>
-                <span className={styles[STATE_CLASS[d.state]]}>{whenText(d.days)}{d.time ? ` · ${t('at {time}', { time: d.time })}` : ''}</span>
+                {d.done
+                  ? <span className={styles.doneTag}><Check size={13} /> {t('Done')}</span>
+                  : <span className={styles[STATE_CLASS[d.state]]}>{whenText(d.days)}{d.time ? ` · ${t('at {time}', { time: d.time })}` : ''}</span>}
                 {d.amount && <strong>{d.amount}</strong>}
                 {d.reminder_active && <span className={styles.bell} title={t('Reminder is on')}><BellRing size={13} /> {t('Reminder due')}</span>}
               </div>
@@ -134,6 +153,7 @@ export default function Deadlines({ token, onOpen }) {
               <button className={styles.source} onClick={() => onOpen(d)}>
                 {d.filename} · {t('Page {page}', { page: d.page })}{d.line ? `, ${t('line {line}', { line: d.line })}` : ''}
               </button>
+              {!d.done && (
               <div className={styles.reminders} role="group" aria-label={t('Remind me')}>
                 <Bell size={13} />
                 <span className={styles.remindLabel}>{t('Remind me')}</span>
@@ -148,10 +168,24 @@ export default function Deadlines({ token, onOpen }) {
                   </button>
                 ))}
               </div>
+              )}
             </div>
-            <button className={styles.calBtn} onClick={() => calendar([d.key])} title={t('Add to calendar')} aria-label={t('Add to calendar')}>
-              <CalendarPlus size={16} />
-            </button>
+            <span className={styles.itemActions}>
+              {d.done ? (
+                <button className={styles.undoBtn} onClick={() => setDone(d, false)} title={t('Take back the done mark')}>
+                  <RotateCcw size={14} /> {t('Not done')}
+                </button>
+              ) : (
+                <>
+                  <button className={styles.doneBtn} onClick={() => setDone(d, true)} title={t('Mark this deadline done; the letter stays in the inbox')}>
+                    <Check size={14} /> {t('Done')}
+                  </button>
+                  <button className={styles.calBtn} onClick={() => calendar([d.key])} title={t('Add to calendar')} aria-label={t('Add to calendar')}>
+                    <CalendarPlus size={16} />
+                  </button>
+                </>
+              )}
+            </span>
           </li>
         ))}
       </ul>
@@ -163,8 +197,16 @@ export default function Deadlines({ token, onOpen }) {
 // Reminders that have begun, and what is overdue, on the dashboard. Shows nothing when there is nothing to do.
 export function DueReminders({ token, onOpen, onShowAll }) {
   const { data, headers, load } = useDeadlines(token, 60000);
-  const list = (data?.deadlines || []).filter((d) => d.reminder_active || (d.state === 'overdue'));
+  const list = (data?.deadlines || []).filter((d) => !d.done && (d.reminder_active || d.state === 'overdue'));
   if (list.length === 0) return null;
+  const markDone = async (d) => {
+    await fetch('/api/v1/dashboard/deadlines/done', {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: d.key, done: true }),
+    });
+    load();
+  };
   const confirm = async (d) => {
     await fetch('/api/v1/dashboard/deadlines/reminders/ack', {
       method: 'POST',
@@ -187,6 +229,9 @@ export function DueReminders({ token, onOpen, onShowAll }) {
               <strong>{fmtDate(d.date, { day: 'numeric', month: 'short' })}</strong>
               <span>{KIND_LABEL[d.kind]}: {d.title || d.sender || d.filename}</span>
               {d.amount && <strong>{d.amount}</strong>}
+            </button>
+            <button className={styles.gotIt} onClick={() => markDone(d)} title={t('Mark this deadline done; the letter stays in the inbox')}>
+              <Check size={14} /> {t('Done')}
             </button>
             {d.reminder_active && (
               <button className={styles.gotIt} onClick={() => confirm(d)} title={t('Hide this reminder')}>

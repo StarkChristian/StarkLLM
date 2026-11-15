@@ -63,7 +63,7 @@ def test_deadline_list_has_source_page_and_line_and_is_sorted(tmp_path):
     assert (tax["page"], tax["line"], tax["amount"]) == (1, 5, "412,00 EUR")
     assert bill["state"] == "upcoming" and bill["days"] == 10
     assert bill["key"] == f"ws:{bill['document_id']}:{D(10).isoformat()}:deadline"
-    assert body["counts"] == {"overdue": 0, "today": 0, "soon": 0, "upcoming": 2}
+    assert body["counts"] == {"overdue": 0, "today": 0, "soon": 0, "upcoming": 2, "done": 0}
 
 
 def test_states_overdue_today_and_soon(tmp_path):
@@ -75,7 +75,7 @@ def test_states_overdue_today_and_soon(tmp_path):
         _drop(ids)
     assert [(d["filename"], d["state"]) for d in body["deadlines"]] == [
         ("a.pdf", "overdue"), ("b.pdf", "today"), ("c.pdf", "soon"), ("d.pdf", "upcoming")]
-    assert body["counts"] == {"overdue": 1, "today": 1, "soon": 1, "upcoming": 1}
+    assert body["counts"] == {"overdue": 1, "today": 1, "soon": 1, "upcoming": 1, "done": 0}
 
 
 def test_scam_letters_are_not_in_the_list(tmp_path):
@@ -317,3 +317,76 @@ def test_ics_api_for_one_selected_and_all(tmp_path):
 def test_ics_api_needs_a_login():
     assert client.get(f"{API}/deadlines.ics").status_code in (401, 403)
     assert client.get(f"{API}/deadlines").status_code in (401, 403)
+
+
+# ---------------------------------------------------------------- done per deadline
+
+def test_a_deadline_can_be_marked_done_and_undone_without_touching_the_letter(tmp_path):
+    ids, headers, doc_ids = _user(tmp_path, [("Stadtwerke.pdf", BILL), ("Steuer.pdf", TAX)])
+    try:
+        bill = next(d for d in _deadlines(headers)["deadlines"] if d["filename"] == "Stadtwerke.pdf")
+        assert bill["done"] is False
+        client.put(f"{API}/deadlines/reminders", json={"key": bill["key"], "days_before": [14]}, headers=headers)
+        assert _deadlines(headers)["reminders_due"] == 1
+        r = client.put(f"{API}/deadlines/done", json={"key": bill["key"]}, headers=headers)
+        assert r.status_code == 200 and r.json() == {"key": bill["key"], "done": True}
+        body = _deadlines(headers)
+        done = next(d for d in body["deadlines"] if d["key"] == bill["key"])
+        assert done["done"] and not done["reminder_active"], "a done deadline has no reminder"
+        assert body["reminders_due"] == 0
+        assert body["counts"] == {"overdue": 0, "today": 0, "soon": 0, "upcoming": 1, "done": 1}
+        inbox_doc = next(d for d in client.get(f"{API}/inbox", headers=headers).json()["documents"] if d["id"] == doc_ids[0])
+        assert inbox_doc["status"] == "new", "the letter itself is untouched"
+        # persists, and the same call twice changes nothing
+        client.put(f"{API}/deadlines/done", json={"key": bill["key"], "done": True}, headers=headers)
+        assert [d["done"] for d in _deadlines(headers)["deadlines"]] == [True, False]
+        # undo
+        client.put(f"{API}/deadlines/done", json={"key": bill["key"], "done": False}, headers=headers)
+        body = _deadlines(headers)
+        assert [d["done"] for d in body["deadlines"]] == [False, False] and body["counts"]["done"] == 0
+        assert body["reminders_due"] == 1, "the reminder is back"
+    finally:
+        _drop(ids)
+
+
+def test_done_is_checked_and_private(tmp_path):
+    ids, headers, _ = _user(tmp_path, [("Stadtwerke.pdf", BILL)])
+    ids2, headers2, _ = _user(tmp_path, [("Steuer.pdf", TAX)])
+    try:
+        key = _deadlines(headers)["deadlines"][0]["key"]
+        put = lambda h, body: client.put(f"{API}/deadlines/done", json=body, headers=h).status_code
+        assert put(headers, {"key": "nonsense"}) == 422
+        assert put(headers2, {"key": key}) == 404, "another user's document"
+        assert client.put(f"{API}/deadlines/done", json={"key": key}).status_code in (401, 403)
+        assert _deadlines(headers)["counts"]["done"] == 0
+    finally:
+        _drop(ids)
+        _drop(ids2)
+
+
+def test_done_deadlines_are_not_in_the_calendar_file(tmp_path):
+    ids, headers, _ = _user(tmp_path, [("Steuer.pdf", TAX), ("Stadtwerke.pdf", BILL)])
+    try:
+        got = _deadlines(headers)["deadlines"]
+        bill = next(d for d in got if d["filename"] == "Stadtwerke.pdf")
+        client.put(f"{API}/deadlines/done", json={"key": bill["key"]}, headers=headers)
+        everything = client.get(f"{API}/deadlines.ics", headers=headers)
+        selected = client.get(f"{API}/deadlines.ics", params=[("key", d["key"]) for d in got], headers=headers)
+        only_done = client.get(f"{API}/deadlines.ics", params={"key": bill["key"]}, headers=headers)
+        client.put(f"{API}/deadlines/done", json={"key": bill["key"], "done": False}, headers=headers)
+        again = client.get(f"{API}/deadlines.ics", headers=headers)
+    finally:
+        _drop(ids)
+    assert everything.text.count("BEGIN:VEVENT") == 1 and "Stadtwerke" not in everything.text
+    assert selected.text.count("BEGIN:VEVENT") == 1
+    assert only_done.status_code == 404
+    assert again.text.count("BEGIN:VEVENT") == 2
+
+
+def test_add_done_marks_by_key():
+    from types import SimpleNamespace as NS
+    from app.services.deadlines_service import add_done
+    ds = [{"key": deadline_key("ws", 1, "2026-12-15", "deadline"), "reminder_active": True},
+          {"key": deadline_key("ws", 1, "2026-12-15", "payment"), "reminder_active": True}]
+    out = add_done(ds, [NS(scope="ws", document_id=1, due_date="2026-12-15", kind="deadline")])
+    assert [(d["done"], d["reminder_active"]) for d in out] == [(True, False), (False, True)]

@@ -871,5 +871,9 @@
   "All deadlines": "Alle Fristen",
   "Hide this reminder": "Diese Erinnerung ausblenden",
   "Got it": "Verstanden",
-  "{count} more": "{count} weitere"
+  "{count} more": "{count} weitere",
+  "Show done ({count})": "Erledigte anzeigen ({count})",
+  "Take back the done mark": "Erledigt-Markierung zurücknehmen",
+  "Not done": "Nicht erledigt",
+  "Mark this deadline done; the letter stays in the inbox": "Diese Frist als erledigt markieren; der Brief bleibt im Posteingang"
 }

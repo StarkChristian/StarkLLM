@@ -99,7 +99,7 @@ def build_deadlines(inbox: Dict, today: str) -> List[Dict]:
                 "filename": doc["filename"], "title": doc.get("title"), "sender": sender, "type": kind_of_letter,
                 "kind": f["kind"], "date": f["value"], "time": f.get("time"), "amount": f.get("amount"),
                 "text": f.get("text"), "page": f.get("page"), "line": f.get("line"),
-                "days": days, "state": _state(days), "reminders": [], "reminder_active": False,
+                "days": days, "state": _state(days), "reminders": [], "reminder_active": False, "done": False,
             })
     out.sort(key=lambda d: (d["date"], d.get("time") or "", d["filename"]))
     return out
@@ -117,6 +117,17 @@ def add_reminders(deadlines: List[Dict], rows: Iterable, today: str) -> List[Dic
         d["reminders"] = sorted({r.days_before for r in mine}, reverse=True)
         d["reminder_active"] = any(
             not r.acknowledged and date.fromisoformat(r.due_date) - timedelta(days=r.days_before) <= now for r in mine)
+    return deadlines
+
+
+def add_done(deadlines: List[Dict], rows: Iterable) -> List[Dict]:
+    """Mark the deadlines the user finished (rows with scope, document_id, due_date, kind). A done deadline has no
+    active reminder."""
+    finished = {deadline_key(r.scope, r.document_id, r.due_date, r.kind) for r in rows}
+    for d in deadlines:
+        d["done"] = d["key"] in finished
+        if d["done"]:
+            d["reminder_active"] = False
     return deadlines
 
 

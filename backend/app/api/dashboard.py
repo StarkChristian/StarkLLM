@@ -611,10 +611,12 @@ def get_dates_calendar(
 
 def _deadlines(db, user_id: int):
     """(today, deadlines with their reminders) for the user's inbox letters."""
-    from app.services.deadlines_service import add_reminders, build_deadlines
+    from app.services.deadlines_service import add_done, add_reminders, build_deadlines
     inbox = document_inbox(db, user_id)
     rows = db.query(models.DeadlineReminder).filter(models.DeadlineReminder.user_id == user_id).all()
-    return inbox["today"], add_reminders(build_deadlines(inbox, inbox["today"]), rows, inbox["today"])
+    done = db.query(models.DeadlineDone).filter(models.DeadlineDone.user_id == user_id).all()
+    deadlines = add_reminders(build_deadlines(inbox, inbox["today"]), rows, inbox["today"])
+    return inbox["today"], add_done(deadlines, done)
 
 
 @router.get("/deadlines")
@@ -624,9 +626,12 @@ def get_deadlines(
 ):
     """Every deadline, payment and appointment of the inbox letters, oldest first, each with the sentence it was read
     from, its page and line, what is due, and the reminders the user set. State: overdue, today, soon (within a
-    week) or upcoming. Found by fixed rules in the document text; no model is asked."""
+    week) or upcoming. Deadlines the user marked done are in the list with done=true (so the mark can be undone) and
+    are not counted. Found by fixed rules in the document text; no model is asked."""
     today, deadlines = _deadlines(db, current_user.id)
-    counts = {s: sum(1 for d in deadlines if d["state"] == s) for s in ("overdue", "today", "soon", "upcoming")}
+    open_ones = [d for d in deadlines if not d["done"]]
+    counts = {s: sum(1 for d in open_ones if d["state"] == s) for s in ("overdue", "today", "soon", "upcoming")}
+    counts["done"] = len(deadlines) - len(open_ones)
     return {"today": today, "deadlines": deadlines, "counts": counts,
             "reminders_due": sum(1 for d in deadlines if d["reminder_active"])}
 
@@ -638,6 +643,11 @@ class RemindersIn(BaseModel):
 
 class AckIn(BaseModel):
     key: str = Field(..., max_length=120)
+
+
+class DoneIn(BaseModel):
+    key: str = Field(..., max_length=120)
+    done: bool = True
 
 
 def _checked_key(db, user_id: int, key: str) -> dict:
@@ -699,6 +709,27 @@ def acknowledge_deadline_reminders(
     return {"key": body.key, "acknowledged": changed}
 
 
+@router.put("/deadlines/done")
+def set_deadline_done(
+    body: DoneIn,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Mark one deadline done (a paid invoice) or take the mark back. Independent of the letter, which stays in the
+    inbox; a done deadline leaves the dashboard and the calendar file. Stored on this PC."""
+    parts = _checked_key(db, current_user.id, body.key)
+    row = db.query(models.DeadlineDone).filter_by(
+        user_id=current_user.id, scope=parts["scope"], document_id=parts["document_id"],
+        due_date=parts["due"], kind=parts["kind"]).first()
+    if body.done and not row:
+        db.add(models.DeadlineDone(user_id=current_user.id, scope=parts["scope"], document_id=parts["document_id"],
+                                   due_date=parts["due"], kind=parts["kind"]))
+    elif not body.done and row:
+        db.delete(row)
+    db.commit()
+    return {"key": body.key, "done": body.done}
+
+
 @router.get("/deadlines.ics")
 def get_deadlines_calendar(
     key: list[str] = Query(default=[]),
@@ -707,12 +738,13 @@ def get_deadlines_calendar(
     current_user: models.User = Depends(get_current_user),
 ):
     """The deadlines as a calendar file (RFC 5545) for Outlook, Google, Apple or a phone: the ones named with `key`
-    (one or several), else every deadline from today on. All-day events, each with an alarm (the reminders the user
+    (one or several), else every deadline from today on; deadlines marked done are left out. All-day events, each with an alarm (the reminders the user
     set, else 3 days before). Made on this PC; nothing is sent anywhere."""
     from datetime import datetime, timezone
     from fastapi.responses import Response
     from app.services.deadlines_service import deadlines_calendar
     today, deadlines = _deadlines(db, current_user.id)
+    deadlines = [d for d in deadlines if not d["done"]]
     if key:
         chosen = [d for d in deadlines if d["key"] in set(key)]
         if not chosen:
