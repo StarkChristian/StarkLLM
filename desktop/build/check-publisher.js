@@ -11,7 +11,6 @@
 //
 // Before a later certificate change, one release lists both names (old and new), so installed versions accept the next
 // one: "publisherName": ["Old name", "New name"]. See docs/signing-on-owner-pc.md.
-const { spawnSync } = require('child_process');
 const sig = require('./signature');
 
 function checkPublisher(installer, pkg = require('../package.json'), inspect = sig.inspect) {
@@ -33,7 +32,7 @@ function subjectFromStore(thumbprint) {
   const t = thumbprint.replace(/[\s:]/g, '');
   if (!/^[0-9A-Fa-f]{40}$/.test(t)) throw new Error('give the 40 hex digits of the thumbprint');
   const ps = `(Get-ChildItem Cert:\\CurrentUser\\My\\${t}).Subject`;
-  const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { encoding: 'utf8', windowsHide: true });
+  const r = sig.powershell(ps);
   if (r.status !== 0 || !r.stdout.trim()) throw new Error(`certificate ${t} not found in Cert:\\CurrentUser\\My (is SimplySign Desktop logged in?) ${r.stderr}`);
   return r.stdout.trim();
 }

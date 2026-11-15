@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { spawnSync } = require('child_process');
+const { powershell } = require('./signature');
 
 const TEST_CN = 'Open Source Developer, StarkLLM Test (not a real certificate)';
 
@@ -31,7 +32,8 @@ function makeTestCert(dir, cn = TEST_CN) {
       `Export-Certificate -Cert $c -FilePath '${path.join(dir, 'test-sign.cer')}' | Out-Null`,
       'Remove-Item $c.PSPath',
     ].join('; ');
-    run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], 'New-SelfSignedCertificate');
+    const r = powershell(ps);
+    if (r.status !== 0 || !fs.existsSync(pfx)) throw new Error(`New-SelfSignedCertificate failed: ${r.stderr || r.stdout}`);
     return { pfx, password, pem: null, cer: path.join(dir, 'test-sign.cer'), cn };
   }
   const key = path.join(dir, 'test-sign.key');

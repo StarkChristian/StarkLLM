@@ -36,7 +36,7 @@ function trustOnThisPc(cer) {
   // makes a self-signed test certificate count as trusted on this PC only (CI runner); needs administrator rights
   const ps = [`Import-Certificate -FilePath '${cer}' -CertStoreLocation Cert:\\LocalMachine\\Root | Out-Null`,
     `Import-Certificate -FilePath '${cer}' -CertStoreLocation Cert:\\LocalMachine\\TrustedPublisher | Out-Null`].join('; ');
-  const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { encoding: 'utf8', windowsHide: true });
+  const r = sig.powershell(ps);
   if (r.status !== 0) throw new Error(`could not trust the test certificate (run as administrator): ${r.stderr}`);
 }
 

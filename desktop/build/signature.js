@@ -21,6 +21,15 @@ function backend() {
   return process.platform === 'win32' ? 'signtool' : 'osslsigncode';
 }
 
+// Windows PowerShell started from Node. PSModulePath is dropped: when Node itself was started from PowerShell 7 (a CI
+// step, pwsh) the inherited value points at PowerShell 7 modules and Windows PowerShell cannot load Cert:, Security, ...
+// (the same fix as in electron-updater). $ErrorActionPreference makes a failing command a failing exit code.
+function powershell(script) {
+  const env = { ...process.env };
+  delete env.PSModulePath;
+  return spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `$ErrorActionPreference = 'Stop'; ${script}`], { encoding: 'utf8', windowsHide: true, env });
+}
+
 function signtoolPath() {
   if (process.env.SIGNTOOL_PATH) return process.env.SIGNTOOL_PATH;
   const base = 'C:\\Program Files (x86)\\Windows Kits\\10\\bin';
@@ -51,7 +60,7 @@ function inspect(file) {
     const script = `$s = Get-AuthenticodeSignature -LiteralPath '${file.replace(/'/g, "''")}'; ` +
       `[pscustomobject]@{ Status = [string]$s.Status; Subject = $s.SignerCertificate.Subject; Thumbprint = $s.SignerCertificate.Thumbprint; ` +
       `Timestamped = [bool]$s.TimeStamperCertificate } | ConvertTo-Json -Compress`;
-    const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', windowsHide: true });
+    const r = powershell(script);
     if (r.status !== 0) throw new Error(`Get-AuthenticodeSignature failed for ${file}: ${r.stderr || r.stdout}`);
     const j = JSON.parse(r.stdout);
     const state = j.Status === 'Valid' ? 'valid' : j.Status === 'NotSigned' ? 'unsigned' : 'invalid';
@@ -131,6 +140,6 @@ function listPeFiles(dir) {
 }
 
 module.exports = {
-  PE_EXTENSIONS, backend, signtoolPath, inspect, opensslSubjectToWindows, publisherMatches, commonName,
+  PE_EXTENSIONS, backend, powershell, signtoolPath, inspect, opensslSubjectToWindows, publisherMatches, commonName,
   configuredPublisherNames, loadAllowlist, findAllowed, listPeFiles, ALLOWLIST_FILE,
 };
