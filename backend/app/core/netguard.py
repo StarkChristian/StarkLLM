@@ -52,6 +52,7 @@ FEATURES: Dict[str, str] = {
     "market_prices": "Live prices in the dashboard widget the user switched on",
     "cloud_llm": "Chat with the online AI provider the user configured",
     "speech_model_download": "One-time download of the speech recognition model",
+    "ocr_language_pack": "Download of one OCR language file the user asked for in Settings",
     "unattributed": "A connection that did not go through StarkLLM's network layer",
 }
 

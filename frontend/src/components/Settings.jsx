@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal, BrainCircuit, Server, Play, Loader, Key, Globe, Keyboard, ShieldCheck, Lock } from 'lucide-react';
+import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal, BrainCircuit, Server, Play, Loader, Key, Globe, Keyboard, ShieldCheck, Lock, ScanText } from 'lucide-react';
 import styles from './Settings.module.css';
 import BackupRestoreSettings from './BackupRestoreSettings';
+import OcrSettings from './OcrSettings';
+import { useLucyVisible } from './Lucy';
+import { setHidden as setLucyHidden } from '../utils/lucy';
 import ProtectionSettings from './ProtectionSettings';
 import EncryptedBackupSettings from './EncryptedBackupSettings';
 import AutomaticBackupSettings from './AutomaticBackupSettings';
@@ -24,6 +27,7 @@ const SECTIONS = [
   { id: 'privacy',  label: t('Privacy & network'), icon: ShieldCheck },
   { id: 'ui',       label: t('Appearance'),    icon: Palette },
   { id: 'language', label: t('Language & Locale'), icon: Globe },
+  { id: 'ocr',      label: t('Reading photos and scans'), icon: ScanText },
   { id: 'shortcuts', label: t('Keyboard Shortcuts'), icon: Keyboard },
   { id: 'protection', label: t('Protection'), icon: Lock },
   { id: 'system',   label: t('Backup & Restore'), icon: Archive },
@@ -293,6 +297,7 @@ print(response.choices[0].message.content)`;
   const [fontSize, setFontSize] = useState(localStorage.getItem('ui_font_size') || 'medium');
   const [theme, setTheme] = useState(() => localStorage.getItem('ui_theme') || 'dark');
   const [uiSaved, setUiSaved] = useState(false);
+  const lucyOn = useLucyVisible();
 
   // Workspace AI Persona
   const [wsSystemPrompt, setWsSystemPrompt] = useState('');
@@ -1093,6 +1098,13 @@ print(response.choices[0].message.content)`;
                 </div>
               </div>
 
+              <Toggle
+                checked={lucyOn}
+                onChange={(on) => setLucyHidden(!on)}
+                label={t('Show Lucy, the helper robot')}
+                hint={t('Lucy explains the first steps and shows up on empty pages. She never covers buttons and never appears in error messages.')}
+              />
+
               <button className="btn-primary" onClick={saveUi}>
                 {uiSaved ? <><CheckCircle size={14} /> {t('Applied!')}</> : <><Save size={14} /> {t('Apply Settings')}</>}
               </button>
@@ -1121,7 +1133,7 @@ print(response.choices[0].message.content)`;
                     >
                       <div className={styles.languageHeaderRow}>
                         <div className={styles.languageTitleGroup}>
-                          <span className={styles.languageFlag}>{lang.flag}</span>
+                          <span className={styles.languageFlag}>{lang.code.toUpperCase()}</span>
                           <div className={styles.languageNames}>
                             <span className={styles.languageNative}>{lang.nativeName}</span>
                             <span className={styles.languageEnglish}>{lang.name}</span>
@@ -1134,9 +1146,6 @@ print(response.choices[0].message.content)`;
                         )}
                       </div>
 
-                      <div className={styles.languageFooterRow}>
-                        <span>{lang.region}</span>
-                      </div>
                     </div>
                   );
                 })}
@@ -1150,6 +1159,9 @@ print(response.choices[0].message.content)`;
               </div>
             </div>
           )}
+
+          {/* ───── Reading photos and scans (OCR languages) ───── */}
+          {activeSection === 'ocr' && <OcrSettings token={token} />}
 
           {/* ───── Keyboard Shortcuts ───── */}
           {activeSection === 'shortcuts' && (

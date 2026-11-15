@@ -13,6 +13,8 @@ try {
 }
 
 contextBridge.exposeInMainWorld('starkllmDesktop', {
+  // the interface language the user chose: dialogs and the tray menu of the desktop app follow it
+  setLanguage: (code) => ipcRenderer.send('desktop:set-language', String(code || '')),
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),
   openKnowledgeFolder: () => ipcRenderer.invoke('kb:open-folder'),
   // download progress of an update: cb({ phase: 'downloading' | 'done', percent }); returns an unsubscribe function

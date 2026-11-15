@@ -224,3 +224,18 @@ class DocumentReview(Base):
     title       = Column(ProtectedText("document_reviews.title"), nullable=True)                  # the user's own title, else the suggested one
     case_key    = Column(ProtectedText("document_reviews.case_key"), nullable=True)                  # the user's case, else the suggested one
     updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class DateChoice(Base):
+    """How the user reads a date that the letter leaves open ("03/04/2026": 3 April or 4 March). StarkLLM never guesses
+    such a date: until the user chooses, it is shown with both readings and used for no reminder or calendar entry.
+    literal is the date as written in the document; reading is "dmy" (day first) or "mdy" (month first)."""
+    __tablename__ = "date_choices"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    user_id     = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    scope       = Column(String, nullable=False)                 # "ws" or "kb"
+    document_id = Column(Integer, nullable=False, index=True)
+    literal     = Column(ProtectedText("date_choices.literal"), nullable=False)
+    reading     = Column(String, nullable=False)                 # "dmy" or "mdy"
+    updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

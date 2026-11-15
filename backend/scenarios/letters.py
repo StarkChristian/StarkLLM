@@ -3,7 +3,7 @@
 Real letters say the same thing in many ways: "bis zum 15.12.2026", "Zahlungsziel: 15.12.2026", "spätestens am
 15. Dezember 2026", "bis 15.12." (no year), amounts as "1.234,56 EUR", "€ 412,00", "412,- €". Each generated letter
 carries what a correct reader finds in it (EXPECTED) and what it must not report (dates that are not something to do,
-like the date of the letter or a birthday). Fully deterministic (seeded), German and English.
+like the date of the letter or a birthday). Fully deterministic (seeded): German, English (US and UK), French, Spanish, Italian and Turkish.
 
     python3 -m scenarios.letters            # in backend/: prints recall, precision and amount accuracy
 """
@@ -19,6 +19,60 @@ MONTHS_EN = ["January", "February", "March", "April", "May", "June", "July", "Au
 SENDERS = ["Stadtwerke Neckartal", "Rhein-Main Versicherung AG", "Finanzamt Oststadt", "Hausverwaltung Lindner GmbH",
            "Telekomm Plus GmbH", "Krankenkasse Südwest", "Autohaus Berger KG", "Zahnarztpraxis Dr. Ilić",
            "Volkshochschule Talstadt", "Bürgeramt Weststadt", "Kita Sonnenblume e.V.", "Fitnessclub Aktiv"]
+
+
+MONTHS = {
+    "fr": ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"],
+    "es": ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"],
+    "it": ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"],
+    "tr": ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"],
+}
+
+
+def _grouped(euros: int, sep: str) -> str:
+    return f"{euros:,}".replace(",", sep)
+
+
+def foreign_letter(kind: str, rnd: random.Random, sender: str, written: date, due: date, cents: int):
+    """(text, expected) of an invoice or reminder in French, Spanish, Italian, Turkish, American or British English:
+    their dates, amounts and deadline words."""
+    euros, c = divmod(cents, 100)
+    style = rnd.randint(0, 2)
+    lang = kind.split("_")[0]
+    if lang in MONTHS:
+        m = MONTHS[lang]
+        due_name = {"fr": f"{due.day} {m[due.month - 1]} {due.year}", "es": f"{due.day} de {m[due.month - 1]} de {due.year}",
+                    "it": f"{due.day} {m[due.month - 1]} {due.year}", "tr": f"{due.day} {m[due.month - 1]} {due.year}"}[lang]
+        due_num = f"{due:%d/%m/%Y}" if lang != "tr" else f"{due:%d.%m.%Y}"
+        due_text = (due_name, due_num, due_name)[style]
+        written_text = {"fr": f"Paris, le {written.day} {m[written.month - 1]} {written.year}",
+                        "es": f"Madrid, {written.day} de {m[written.month - 1]} de {written.year}",
+                        "it": f"Roma, {written.day} {m[written.month - 1]} {written.year}",
+                        "tr": f"Ankara, {written.day} {m[written.month - 1]} {written.year}"}[lang]
+        sep = " " if lang == "fr" else "."
+        num = f"{_grouped(euros, sep)},{c:02d}"
+        amount_text = {"fr": f"{num} €", "es": f"{num} €", "it": f"€ {num}", "tr": f"{num} TL"}[lang]
+        key, shown = num, num
+        body = {
+            "fr": f"Facture\n\nLe montant de votre facture est de {amount_text}.\nVeuillez régler cette somme avant le {due_text}.",
+            "es": f"Factura\n\nEl importe de su factura es de {amount_text}.\nLe rogamos que pague antes del {due_text}.",
+            "it": f"Fattura\n\nL'importo della sua fattura è di {amount_text}.\nLa preghiamo di pagare entro il {due_text}.",
+            "tr": f"Fatura\n\nFatura tutarınız {amount_text}'dir.\nLütfen tutarı {due_text} tarihine kadar ödeyiniz.",
+        }[lang]
+        text = f"{sender}\nMusterstraße 1\n\n{written_text}\n\n{body}\n\n{sender}"
+        return text, [{"date": due.isoformat(), "kind": "deadline", "amount": key}]
+    if lang == "us":
+        mdy = f"{due:%m/%d/%Y}" if style != 2 else f"{MONTHS_EN[due.month - 1]} {due.day}, {due.year}"
+        num = f"{euros:,}.{c:02d}"
+        text = (f"{sender}\n\nDate: {written:%m/%d/%Y}\n\nInvoice\n\nYour total is ${num}.\n"
+                f"Please pay by {mdy}. Payment is due in full.\n\n{sender}")
+        return text, [{"date": due.isoformat(), "kind": "deadline", "amount": num}]
+    # gb: day first, pounds, "no later than"
+    gb = f"{due.day} {MONTHS_EN[due.month - 1]} {due.year}" if style != 1 else f"{due:%d/%m/%Y}"
+    num = f"{euros:,}.{c:02d}"
+    text = (f"{sender}\n\nDate: {written.day} {MONTHS_EN[written.month - 1]} {written.year}\n\nPayment reminder\n\n"
+            f"We have not received payment of £{num}.\nPlease pay no later than {gb}.\n\n{sender}")
+    return text, [{"date": due.isoformat(), "kind": "deadline", "amount": num}]
 
 
 def fmt_date_de(d: date, style: int) -> str:
@@ -49,7 +103,13 @@ def generate(n: int = 120, seed: int = 2026, today: date = date(2026, 11, 10)) -
         ds = rnd.randint(0, 4)
         am = rnd.randint(0, 4)
         kind = rnd.choice(["invoice", "invoice_label", "reminder", "change", "appointment", "cancel_confirm",
-                           "notice", "debit", "english_invoice", "english_appointment", "no_year", "birthday_noise"])
+                           "notice", "debit", "english_invoice", "english_appointment", "no_year", "birthday_noise",
+                           "fr_invoice", "es_invoice", "it_invoice", "tr_invoice", "us_invoice", "gb_reminder"])
+        if kind in ("fr_invoice", "es_invoice", "it_invoice", "tr_invoice", "us_invoice", "gb_reminder"):
+            text, expected = foreign_letter(kind, rnd, sender, written, due, cents)
+            letters.append({"id": f"L{i:03d}-{kind}", "lang": kind.split("_")[0], "text": text, "expected": expected,
+                            "unwanted": [written.isoformat()]})
+            continue
         head = f"{sender}\nMusterstraße {rnd.randint(1, 99)}, {rnd.randint(10000, 99999)} Musterstadt\n\nAnna Beispiel\n" \
                f"Gartenweg 5\n{rnd.randint(10000, 99999)} Musterstadt\n\nDatum: {written:%d.%m.%Y}\n" \
                f"Kundennummer: {rnd.randint(100000, 999999)}\n\n"
@@ -154,7 +214,7 @@ def score(letters: List[Dict], find) -> Dict:
                 wrong.append(f"{letter['id']}: {e['date']} is {h.kind}, expected {e['kind']}")
             if e.get("amount"):
                 amount_total += 1
-                if h.amount and h.amount.split()[0] == e["amount"]:
+                if h.amount and h.amount.rsplit(" ", 1)[0] == e["amount"]:
                     amount_ok += 1
                 else:
                     wrong.append(f"{letter['id']}: amount {h.amount}, expected {e['amount']}")

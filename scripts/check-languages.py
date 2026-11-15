@@ -1,4 +1,4 @@
-"""The project's languages are English and German (docs/RULES.md, R2). This fails when a tracked text file contains
+"""The project's languages are English, German, Spanish, French, Italian and Turkish (docs/RULES.md, R2). This fails when a tracked text file contains
 Arabic-script characters (used by Persian and Arabic), so the rule is checked by CI instead of by memory.
 
     python3 scripts/check-languages.py      (from the repository root; exit 1 and the places when something is found)
@@ -27,7 +27,7 @@ def main() -> int:
                 found.append(f"{path}:{number}: {line.strip()[:80]}")
     for place in found:
         print(place)
-    print(f"{len(found)} line(s) with Persian or Arabic script" if found else "only English and German script found")
+    print(f"{len(found)} line(s) with Persian or Arabic script" if found else "no Persian or Arabic script found")
     return 1 if found else 0
 
 

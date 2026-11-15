@@ -54,3 +54,12 @@ def test_wordings_that_were_not_used_to_tune_the_finder():
     assert one("Abrechnungszeitraum 01.01.2025 bis 31.12.2025") == []
     # the old amount is not the one due
     assert one("Ihr Beitrag beträgt 687,12 EUR (bisher 598,40 EUR). Grund ist X. Der Betrag wird am 01.01.2027 abgebucht.")[0][2] == "687,12 EUR"
+
+
+def test_generated_letters_of_other_countries_benchmark():
+    # French, Spanish, Italian, Turkish, American and British letters: their date formats, currencies and deadline words
+    foreign = [l for l in generate(600) if l["lang"] in ("fr", "es", "it", "tr", "us", "gb")]
+    assert len(foreign) >= 100 and {l["lang"] for l in foreign} == {"fr", "es", "it", "tr", "us", "gb"}
+    result = score(foreign, find_dates)
+    assert result["recall"] >= 0.99 and result["precision"] >= 0.99, (result["misses"] + result["wrong"])[:10]
+    assert result["amount_accuracy"] >= 0.99 and result["kind_accuracy"] >= 0.99, result["wrong"][:10]

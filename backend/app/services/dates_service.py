@@ -3,72 +3,162 @@
 Every date returned is in the text, with the sentence it stands in, so the UI can show and link it. This is the
 first part of "understanding" documents (docs/document-inbox-design.md, B3).
 """
+import calendar
 import re
 from dataclasses import dataclass, asdict
-from datetime import date
-from typing import List, Optional
+from datetime import date, timedelta
+from decimal import Decimal, InvalidOperation
+from typing import List, Optional, Tuple
 
-MONTHS = {
-    # German
-    "januar": 1, "jänner": 1, "februar": 2, "märz": 3, "maerz": 3, "april": 4, "mai": 5, "juni": 6, "juli": 7,
-    "august": 8, "september": 9, "oktober": 10, "november": 11, "dezember": 12,
-    # English
-    "january": 1, "february": 2, "march": 3, "may": 5, "june": 6, "july": 7, "october": 10, "december": 12,
-}
-_MONTH_NAMES = "|".join(sorted(MONTHS, key=len, reverse=True))
+from app.services.locale_rules import (
+    CONTRACT_START, CURRENCY, MONTHS, MONTH_PATTERN, NOTICE_WORDS, NUMBER_WORDS, PERIOD_BEFORE, PERIOD_UNITS, compiled,
+    currency_code, month_number, rule,
+)
+
+_MONTH_NAMES = MONTH_PATTERN
+_UPPER = "A-ZÀ-ÖØ-ÞİŞĞ"  # a letter that can start a sentence, in the languages above
+# a day, its ending ("1er", "15th", "15.") and the month name with the little words of the language ("15 de diciembre de 2026")
+_DAY = r"(?<!\d)(?P<d>\d{1,2})(?:\.|er|º|°|st|nd|rd|th)?"
+_OF = r"(?:de\s+|of\s+|d['’]\s?)?"
 
 DATE_PATTERNS = [
-    # 15.12.2026, 1.1.27
+    # 15.12.2026, 1.1.27 (Germany, Austria, Switzerland, Turkey, Russia ...)
     re.compile(r"(?<![\d.])(?P<d>\d{1,2})\.\s?(?P<m>\d{1,2})\.\s?(?P<y>\d{4}|\d{2})(?![\d.]*\d)"),
-    # 2026-12-15
-    re.compile(r"(?<!\d)(?P<y>\d{4})-(?P<m>\d{2})-(?P<d>\d{2})(?!\d)"),
-    # 15. Dezember 2026, 15 December 2026
-    re.compile(rf"(?<!\d)(?P<d>\d{{1,2}})\.?\s+(?P<mn>{_MONTH_NAMES})\s+(?P<y>\d{{4}})", re.IGNORECASE),
-    # December 15, 2026
-    re.compile(rf"(?P<mn>{_MONTH_NAMES})\s+(?P<d>\d{{1,2}}),?\s+(?P<y>\d{{4}})", re.IGNORECASE),
+    # 2026-12-15, 2026/12/15, 2026.12.15
+    re.compile(r"(?<!\d)(?P<y>\d{4})[-/.](?P<m>\d{1,2})[-/.](?P<d>\d{1,2})(?!\d)"),
+    # 15/12/2026, 12/15/2026, 15-12-2026: day first or month first, see date_order()
+    re.compile(r"(?<![\d/.\-])(?P<a>\d{1,2})(?P<sep>[/\-])(?P<b>\d{1,2})(?P=sep)(?P<y>\d{4}|(?<=/)\d{2})(?![\d/])"),
+    # 15. Dezember 2026, 15 December 2026, 1er décembre 2026, 15 de diciembre de 2026, 15 Aralık 2026
+    re.compile(rf"{_DAY}\s+{_OF}(?P<mn>{_MONTH_NAMES})\.?\s+(?:de\s+)?(?P<y>\d{{4}})", re.IGNORECASE),
+    # December 15, 2026 / Dec 15th, 2026
+    re.compile(rf"(?<![\w])(?P<mn>{_MONTH_NAMES})\.?\s+(?P<d>\d{{1,2}})(?:st|nd|rd|th)?,?\s+(?P<y>\d{{4}})", re.IGNORECASE),
 ]
+SLASH_DATE = DATE_PATTERNS[2]
 
-DEADLINE_WORDS = re.compile(
-    r"\b(frist|fristen|bis zum|bis spätestens|spätestens|fällig|fälligkeit|zahlungsziel|zahlbar|kündigungsfrist|kündig|"
-    r"einspruch|widerspruch|widersprechen|ablauf|endet|gültig bis|"
-    r"due|deadline|no later than|by|until|expires|expiry|cancel|objection)\b",
-    re.IGNORECASE,
-)
-PAYMENT_WORDS = re.compile(
-    r"\b(überweis\w*|zahlung\w*|zahlen|bezahlen|lastschrift|eingezogen|abgebucht|betrag|beitrag|rechnung\w*|nachzahlung|"
-    r"payment|pay|paid|debit\w*|amount|invoice|renews|renewal|charged|billed|abbuchung|abgebucht)\b",
-    re.IGNORECASE,
-)
-BY_DATE = re.compile(r"\b(bis zum|bis spätestens|spätestens (am|bis)?|bis|fällig am|by|until|no later than|before)\s*$",
-                     re.IGNORECASE)
+DEADLINE_WORDS = compiled("deadline")
+PAYMENT_WORDS = compiled("payment", r"\b(?:{})\b")
+BY_DATE = compiled("by_date", r"\b(?:{})\s*$")
+# Turkish puts the word behind the date: "15.12.2026 tarihine kadar"
+BY_DATE_AFTER = re.compile(rf"^\s*(?:{rule('by_date_after')})(?![^\W\d_])", re.IGNORECASE)
 SHORT_LINE = 60  # shorter lines without an end mark are headings, address lines or "label: value" rows
 # "bitte kommen Sie am 18.11.2026 um 10:30 Uhr": an appointment needs a time of day or a word that names one
-APPOINTMENT_WORDS = re.compile(
-    r"\b(termin\w*|einladung|eingeladen|kommen sie|erscheinen|vorsprache|vorstellungsgespräch|sprechstunde|"
-    r"appointment|interview|meeting|please come|attend)\b",
+APPOINTMENT_WORDS = compiled("appointment")
+# 10:30, 10.30 Uhr, 3:30 pm, 9 am, 14h30, "a las 10:30", "alle ore 9", "saat 10:30"
+TIME_OF_DAY = re.compile(
+    r"\b(?P<h>[01]?\d|2[0-3]):(?P<min>[0-5]\d)(?:\s?(?P<ap>am|pm|a\.m\.|p\.m\.))?(?![\d:])"
+    r"|\b(?P<h1>[01]?\d|2[0-3])\.(?P<min1>[0-5]\d)\s?(?:uhr|h\b|am\b|pm\b)"
+    r"|\b(?P<h2>[01]?\d|2[0-3]) uhr\b"
+    r"|\b(?P<h3>1[0-2]|0?[1-9])\s?(?P<ap3>am|pm)\b"
+    r"|\b(?P<h4>[01]?\d|2[0-3])\s?h\s?(?P<min4>[0-5]\d)?\b"
+    r"|\b(?:a las|a la|alle ore|alle|ore|saat)\s+(?P<h5>[01]?\d|2[0-3])(?:[:.](?P<min5>[0-5]\d))?\b",
     re.IGNORECASE,
 )
-TIME_OF_DAY = re.compile(r"\b(?P<h>[01]?\d|2[0-3])[:.](?P<min>[0-5]\d)\s?(uhr|h\b|am\b|pm\b)|\b(?P<h2>[01]?\d|2[0-3]) uhr\b",
-                         re.IGNORECASE)
-LETTER_DATE = re.compile(r"\b(datum|date|ausgestellt am|vom)\s*:?\s*$", re.IGNORECASE)
-AMOUNT = re.compile(
-    # English first ("EUR 1,308.45", "€1,308.45"): comma thousands, point decimals
-    r"(?:(?:€|EUR|\$|USD)\s?(?P<a3>(?<![\d.,])\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\d+\.\d{2})(?![\d,]))"
-    # German ("1.234,56 EUR", "€ 412,00", "412,00 Euro"); never a piece of a longer number
-    r"|(?:(?:€|EUR)\s?(?P<a1>(?<![\d.,])\d{1,3}(?:[.\s]\d{3})*(?:,\d{2})|\d+(?:[.,]\d{2}))(?![\d]))"
-    r"|(?:(?P<a2>(?<![\d.,])\d{1,3}(?:[.\s]\d{3})*(?:,\d{2})|\d+(?:[.,]\d{2}))\s?(?:€|EUR|Euro))",
-    re.IGNORECASE,
-)
+# the label of the date of the letter ("Datum:"), or of an earlier document ("Rechnung vom"): not something to do
+LETTER_DATE = re.compile(rf"\b(?:{rule('letter_date_label')}|{rule('document_date_ref')})\s*:?\s*$", re.IGNORECASE)
+# "Due date: 15.12.2026" and "Zahlungsziel" are deadlines even though they end in "date"
+NOT_LETTER_DATE = re.compile(r"\b(?:due|payment|pay|expiry|expiration|deadline|cancellation|renewal|effective|delivery|"
+                             r"appointment|closing|start|end|termination)\s+date\s*:?\s*$", re.IGNORECASE)
+
+
+def _numbers():
+    # amounts: 1.234,56 (point thousands, comma decimals), 1,234.56, 1 234,56 (spaces), 1'234.56 (Swiss), 412,- , 500
+    sep = "[.,'’   ]"
+    return (rf"(?<![\d.,'’  ])(?:\d{{1,3}}(?:{sep}\d{{3}})+|\d+)"
+            r"(?:[.,]\d{1,2}(?!\d)|[.,][-–—]{1,2}(?!\w))?(?!\d|[.,]\d)")
+
+
+NUMBER = _numbers()
+AMOUNT = re.compile(rf"(?:(?P<c1>{CURRENCY})\s?(?P<n1>{NUMBER}))|(?:(?P<n2>{NUMBER})\s?(?P<c2>{CURRENCY}))", re.IGNORECASE)
 # "eine Mahngebühr von 10,00 EUR. Bitte überweisen Sie den offenen Betrag bis …": the fee is not what is due
-FEE_BEFORE = re.compile(r"(gebühr\w*|mahnkosten|kosten|porto|zinsen|fee|charge)\W{0,3}(von|in höhe von|of|:)?\s*$",
+FEE_BEFORE = re.compile(rf"(?:{rule('fee')})(?:\s+(?:de|d['’]|di|del|por)\s+\w+)?\W{{0,3}}(?:von|in höhe von|of|de|d['’]|di|por|:)?\s*$",
                         re.IGNORECASE)
 # "687,12 EUR (bisher 598,40 EUR)", "6,90 EUR statt bisher 4,90 EUR": the old amount is not what is due
-OLD_BEFORE = re.compile(r"\b(bisher|vorher|statt|anstatt|alt|ehemals|previously|instead of|was)\W{0,3}(bisher\W{0,2})?$",
-                        re.IGNORECASE)
+OLD_BEFORE = re.compile(rf"\b(?:{rule('old_amount')})\W{{0,3}}(?:bisher\W{{0,2}})?$", re.IGNORECASE)
 # "ab dem 01.02.2027 beträgt Ihr Beitrag …": the day something changes, not something to do or pay
-FROM_DATE = re.compile(r"\b(ab( dem| 1\.)?|from|with effect from|gültig ab|wirksam ab)\s*$", re.IGNORECASE)
+FROM_DATE = compiled("from_date", r"\b(?:{})\s*$")
+FROM_DATE_AFTER = re.compile(rf"^\s*(?:{rule('from_date_after')})(?![^\W\d_])", re.IGNORECASE)
 # "bis zum 15.12." without a year, after a word that makes it a deadline; the letter's year is meant
 NO_YEAR = re.compile(r"(?<![\d.])(?P<d>\d{1,2})\.(?P<m>\d{1,2})\.(?!\s?\d)")
+# "bis zum 15. Dezember", "avant le 15 décembre", "hasta el 15 de diciembre"
+NO_YEAR_NAMED = re.compile(rf"{_DAY}\s+{_OF}(?P<mn>{_MONTH_NAMES})(?![\w])(?!\.?\s*(?:de\s+)?\d{{4}})", re.IGNORECASE)
+# "Zeitraum 01.01.2025 bis 31.12.2025", "du 01/01/2026 au 31/12/2026": the end of a period, not a deadline
+PERIOD_END = re.compile(rf"\d{{2,4}}\s*(?:{rule('period_join')})\s*$", re.IGNORECASE)
+# the line "Rheinstadt, 03.11.2026", "Paris, le 3 novembre 2026", "Madrid, 3 de noviembre de 2026"
+PLACE_DATE = re.compile(rf"^\s*[{_UPPER}][\w .\-]{{1,40}},\s*(?:den\s+|le\s+|el\s+|il\s+|the\s+)?(?P<rest>\d.{{5,30}})$", re.MULTILINE)
+
+
+# Notice periods: "give notice at least 30 days before 31 March 2027" -> the last day to give notice is 1 March 2027.
+_COUNT = r"(?P<n>\d{1,3}|" + "|".join(sorted(NUMBER_WORDS, key=len, reverse=True)) + r")"
+_UNIT = r"(?P<unit>" + "|".join(PERIOD_UNITS.values()) + r")\b"
+NOTICE_SENTENCE = re.compile(r"\b(?:" + "|".join(NOTICE_WORDS.values()) + r")", re.IGNORECASE)
+NOTICE_BEFORE = re.compile(_COUNT + r"[\s-]*" + _UNIT + r"(?:['’]s?)?\s+(?:(?:written\s+)?notice\s+)?(?:" + "|".join(PERIOD_BEFORE.values())
+                           + r")\b(?P<tail>[^\d]{0,50})$", re.IGNORECASE)
+# "ein Monat vor Ablauf, also bis 30.11.2026": the letter already names the last day, nothing is counted back
+EXPLICIT_DAY = re.compile(r"\b(?:bis|sp[äa]testens|also|d\.\s?h\.|by|until|i\.e\.|namely|jusqu\w*|hasta|es decir|entro|cio[èe]|yani)\b|c.est-[àa]-dire",
+                          re.IGNORECASE)
+# Turkish puts it behind the date: "31 Mart 2027 tarihinden en az 30 gün önce"
+NOTICE_AFTER = re.compile(r"^\s*(?:tarihinden\s+|tarihine\s+)?(?:en az\s+)?" + _COUNT + r"\s*" + _UNIT + r"\s+önce", re.IGNORECASE)
+CONTRACT_START_BEFORE = re.compile(r"(?:" + CONTRACT_START + r")[^\d]{0,25}$", re.IGNORECASE)
+CONTRACT_START_SENTENCE = re.compile(CONTRACT_START, re.IGNORECASE)
+
+
+def _count(word: str) -> Optional[int]:
+    return int(word) if word.isdigit() else NUMBER_WORDS.get(word.lower())
+
+
+def _unit(word: str) -> Optional[str]:
+    return next((k for k, rx in PERIOD_UNITS.items() if re.fullmatch(rx, word, re.IGNORECASE)), None)
+
+
+def minus_period(day: date, count: int, unit: str) -> date:
+    """day minus count days, weeks or months (31 March minus one month is 28 February, the last day that exists)."""
+    if unit == "days":
+        return day - timedelta(days=count)
+    if unit == "weeks":
+        return day - timedelta(weeks=count)
+    year, month = divmod(day.year * 12 + day.month - 1 - count, 12)
+    return date(year, month + 1, min(day.day, calendar.monthrange(year, month + 1)[1]))
+
+
+def notice_deadline(sentence: str, start: int, end: int, when: date) -> Optional[dict]:
+    """When the sentence is about giving notice of a contract and says that this has to happen N days, weeks or months
+    before the date at sentence[start:end], {"date", "base", "count", "unit"}: the last day to give notice, counted back
+    from the date, which is the end of the contract and is not the deadline itself."""
+    if not NOTICE_SENTENCE.search(sentence):
+        return None
+    hit = NOTICE_BEFORE.search(sentence[max(0, start - 110):start]) or NOTICE_AFTER.search(sentence[end:end + 70])
+    if hit and "tail" in hit.groupdict() and EXPLICIT_DAY.search(hit.group("tail")):
+        return None
+    count, unit = (_count(hit.group("n")), _unit(hit.group("unit"))) if hit else (None, None)
+    if not count or not unit:
+        return None
+    return {"date": minus_period(when, count, unit).isoformat(), "base": when.isoformat(), "count": count, "unit": unit}
+
+
+def parse_number(text: str) -> Optional[str]:
+    """The value of an amount as written ("1.234,56", "1,234.56", "1 234,56", "1'234.50", "412,-") as "1234.56"."""
+    s = re.sub(r"[.,][-–—]+$", ",00", (text or "").strip())  # 412,- and CHF 148.-
+    s = re.sub(r"[\s  '’]", "", s)
+    if "," in s and "." in s:
+        decimal = "," if s.rfind(",") > s.rfind(".") else "."
+        s = s.replace("," if decimal == "." else ".", "").replace(decimal, ".")
+    elif "," in s or "." in s:
+        sep = "," if "," in s else "."
+        parts = s.split(sep)
+        if len(parts) > 2 or (len(parts[-1]) == 3 and parts[0] not in ("0", "00")):
+            s = "".join(parts)  # 1.234 / 1,234,567: thousands
+        else:
+            s = ".".join(parts)
+    try:
+        return f"{Decimal(s):.2f}"
+    except InvalidOperation:
+        return None
+
+
+def amount_parts(a) -> Tuple[str, Optional[str], str]:
+    """(the number as written, its value "1234.56", the ISO currency code) of an AMOUNT match."""
+    written = (a.group("n1") or a.group("n2") or "").replace(" ", " ").replace(" ", " ").strip()
+    return written, parse_number(written), currency_code(a.group("c1") or a.group("c2"))
 
 
 # "2026-11-14 08:00:01 INFO started", "[2026-11-14T08:00:01Z] ERROR ...", "2026-11-14 WARN ...": a log line starts with a
@@ -92,7 +182,8 @@ def without_log_lines(text: str) -> str:
 
 
 def _amount_text(a) -> str:
-    return (a.group("a3") or a.group("a1") or a.group("a2")) + " EUR"
+    written, _, code = amount_parts(a)
+    return f"{written} {code}"
 
 
 @dataclass
@@ -102,21 +193,92 @@ class FoundDate:
     text: str  # the sentence or line it stands in
     amount: Optional[str] = None
     time: Optional[str] = None  # hh:mm, for appointments
+    # "03/04/2026" without anything in the letter that says which comes first: the date above is only the default
+    # reading, both are given and the user chooses (see ambiguous_readings). literal is the date as written.
+    ambiguous: bool = False
+    readings: Optional[dict] = None  # {"dmy": "2026-04-03", "mdy": "2026-03-04"}
+    literal: Optional[str] = None
+    # "at least 30 days before 31 March 2027": date is the last day to give notice (1 March 2027), counted back from
+    # notice["base"], the end of the contract; the sentence with its page and line says so
+    notice: Optional[dict] = None
 
 
-def _parse(m) -> Optional[date]:
+def _parse(m, order: str = "dmy") -> Optional[date]:
+    """The date of a DATE_PATTERNS match. order ("dmy" or "mdy") only matters for 03/04/2026; a reading that is
+    possible in one order only (15/12/2026) always wins."""
+    g = m.groupdict()
     try:
-        d = int(m.group("d"))
-        if "mn" in m.re.groupindex and m.group("mn"):
-            mo = MONTHS[m.group("mn").lower()]
-        else:
-            mo = int(m.group("m"))
-        y = int(m.group("y"))
+        y = int(g["y"])
         if y < 100:
             y += 2000
-        return date(y, mo, d)
-    except (ValueError, KeyError):
+        if g.get("mn"):
+            return date(y, month_number(g["mn"]), int(g["d"]))
+        if g.get("a") is not None:
+            a, b = int(g["a"]), int(g["b"])
+            d, mo = (a, b) if order == "dmy" else (b, a)
+            if mo > 12 >= d:
+                d, mo = mo, d
+            return date(y, mo, d)
+        return date(y, int(g["m"]), int(g["d"]))
+    except (ValueError, KeyError, TypeError):
         return None
+
+
+def date_order_evidence(text: str) -> Optional[str]:
+    """"dmy" or "mdy" when a date in the document proves how its slash dates are written (15/12/2026 can only be day
+    first, 12/15/2026 only month first), else None."""
+    day_first = month_first = False
+    for m in SLASH_DATE.finditer(text or ""):
+        a, b = int(m.group("a")), int(m.group("b"))
+        if a > 12 >= b:
+            day_first = True
+        elif b > 12 >= a:
+            month_first = True
+    if day_first != month_first:
+        return "dmy" if day_first else "mdy"
+    return None
+
+
+def ambiguous_readings(m, order_known: bool) -> Optional[dict]:
+    """The two readings of a slash date like 03/04/2026 when nothing in the letter says which is meant, else None:
+    {"dmy": "2026-04-03", "mdy": "2026-03-04"}. Never a guess: the caller shows both and the user chooses."""
+    if order_known or m.re is not SLASH_DATE:
+        return None
+    a, b = int(m.group("a")), int(m.group("b"))
+    if a > 12 or b > 12 or a == b:
+        return None
+    y = int(m.group("y"))
+    y += 2000 if y < 100 else 0
+    try:
+        return {"dmy": date(y, b, a).isoformat(), "mdy": date(y, a, b).isoformat()}
+    except ValueError:
+        return None
+
+
+def date_order(text: str) -> str:
+    """"dmy" or "mdy": how 03/04/2026 is read by default in this document. Another date in it can tell (15/12/2026 is
+    day first, 12/15/2026 month first); else a US-looking letter ($, no euro or pound) is month first, and everything
+    else day first, as in most of the world. Such a guess is only a default: find_dates marks the date ambiguous."""
+    evidence = date_order_evidence(text)
+    if evidence:
+        return evidence
+    if re.search(r"\$|\bUSD\b", text or "") and not re.search(r"[€£]|\b(?:EUR|GBP|CHF)\b", text or "") \
+            and re.search(r"\b(?:the|your|and)\b", text or "", re.IGNORECASE):
+        return "mdy"
+    return "dmy"
+
+
+def _clock(m) -> str:
+    """hh:mm of a TIME_OF_DAY match."""
+    g = m.groupdict()
+    hour = int(g["h"] or g["h1"] or g["h2"] or g["h3"] or g["h4"] or g["h5"] or 0)
+    minute = g["min"] or g["min1"] or g["min4"] or g["min5"] or "00"
+    ampm = (g["ap"] or g["ap3"] or "").lower().replace(".", "")
+    if ampm == "pm" and hour < 12:
+        hour += 12
+    elif ampm == "am" and hour == 12:
+        hour = 0
+    return f"{hour:02d}:{minute}"
 
 
 def _sentences(text: str) -> List[str]:
@@ -134,11 +296,17 @@ def _sentences(text: str) -> List[str]:
         if i == len(lines) - 1:
             break
         stripped = line.strip()
-        label_value = re.match(r"^[\wÄÖÜäöüß .()/-]{2,45}:\s+\S", stripped) and not stripped.endswith((".", ","))
-        short_line = (label_value or 0 < len(stripped) < short) and not re.search(r"[,;:\-–(]$|\b(bis|zum|zur|am|vom|den|der|die|das|und|oder|von|für|by|on|the|to|of|and)$", stripped, re.I)
+        label_value = re.match(r"^[\w .()/-]{2,45}:\s+\S", stripped) and not stripped.endswith((".", ","))
+        # "Paris, le 3 novembre 2026" under the letterhead is a line of its own, however long it is
+        placed = bool(PLACE_DATE.match(stripped)) and not re.search(r"[.!?]$", stripped)
+        short_line = (label_value or placed or 0 < len(stripped) < short) and not re.search(
+            r"[,;:\-–(]$|\b(bis|zum|zur|am|vom|den|der|die|das|und|oder|von|für|by|on|the|to|of|and|"
+            r"le|la|du|de|au|avant|et|ou|pour|par|el|del|hasta|antes|y|para|por|il|di|entro|al|dal|per|ve|ile)$",
+            stripped, re.I)
         joined += "\n\n" if short_line else "\n"
     # also after a full date or number at a line end ("… bis zum 20.11.2026.\nDanach …"), but not inside "15. Dezember"
-    parts = re.split(r"(?<=[^\d\s][.!?])\s+(?=[A-ZÄÖÜ])|(?<=\d{4}[.!?])\s+(?=[A-ZÄÖÜ])|(?<=\d[.!?])[ \t]*\n\s*(?=[A-ZÄÖÜ])|\n{2,}",
+    up = f"[{_UPPER}]"
+    parts = re.split(rf"(?<=[^\d\s][.!?])\s+(?={up})|(?<=\d{{4}}[.!?])\s+(?={up})|(?<=\d[.!?])[ \t]*\n\s*(?={up})|\n{{2,}}",
                      joined)
     return [p.replace("\n", " ").strip() for p in parts if p.strip()]
 
@@ -167,28 +335,34 @@ def _window(sentence: str, start: int, end: int, size: int = 240) -> str:
     return ("… " if left else "") + text + (" …" if len(sentence) > left + size else "")
 
 
-def find_dates(text: str, reference: Optional[date] = None) -> List[FoundDate]:
+def find_dates(text: str, reference: Optional[date] = None, order_hint: Optional[str] = None) -> List[FoundDate]:
     """Deadlines, payments, appointments and changes in a document's text, in the order they appear. reference is the
     day the letter was written (its "Datum:", else today); a date without a year ("bis zum 15.12.") is the next such
     day from then."""
     found, seen = [], set()
-    text = without_log_lines(text or "")
+    text = without_log_lines(text or "")  # a timestamp in a log is no date to act on
     sentences = _sentences(text)
+    # order_hint: what the whole document says about slash dates, when text is only one page of it
+    order = order_hint or date_order(text)
+    order_known = order_hint is not None or date_order_evidence(text) is not None
     if reference is None:
         written = letter_date(text or "")
         reference = date.fromisoformat(written) if written else date.today()
     for index, sentence in enumerate(sentences):
-        matches = [(m, _parse(m)) for pattern in DATE_PATTERNS for m in pattern.finditer(sentence)]
-        for m in NO_YEAR.finditer(sentence):
+        matches = [(m, _parse(m, order)) for pattern in DATE_PATTERNS for m in pattern.finditer(sentence)]
+        for m in [*NO_YEAR.finditer(sentence), *NO_YEAR_NAMED.finditer(sentence)]:
             lead = sentence[max(0, m.start() - 22):m.start()]
             # "bis zum 15.12.", or "am 15.12." in a sentence about a payment ("Die Abbuchung … erfolgt am 15.12.")
-            if BY_DATE.search(lead) or (re.search(r"\b(am|on)\s*$", lead, re.IGNORECASE) and PAYMENT_WORDS.search(sentence)):
-                when = _without_year(int(m.group("d")), int(m.group("m")), reference)
+            if BY_DATE.search(lead) or BY_DATE_AFTER.search(sentence[m.end():m.end() + 30]) or (
+                    re.search(r"\b(am|on|le|el|il)\s*$", lead, re.IGNORECASE) and PAYMENT_WORDS.search(sentence)):
+                month = int(m.group("m")) if "m" in m.re.groupindex else month_number(m.group("mn"))
+                when = _without_year(int(m.group("d")), month, reference) if month else None
                 if when:
                     matches.append((m, when))
         # "Ihre Kündigung zum 31.12.2026 muss uns bis zum 30.11.2026 vorliegen": with several dates, the one right after
         # "bis zum" / "by" is the deadline, the others only describe it
-        marked = [x for x in matches if BY_DATE.search(sentence[max(0, x[0].start() - 22):x[0].start()])]
+        marked = [x for x in matches if BY_DATE.search(sentence[max(0, x[0].start() - 22):x[0].start()])
+                  or BY_DATE_AFTER.search(sentence[x[0].end():x[0].end() + 30])]
         if marked and len(matches) > 1:
             matches = marked
         for m, when in sorted(matches, key=lambda x: x[0].start()):
@@ -196,21 +370,28 @@ def find_dates(text: str, reference: Optional[date] = None) -> List[FoundDate]:
                 continue
             before = sentence[: m.start()]
             # "Datum: 03.11.2026" is the date of the letter, not something to do
-            if LETTER_DATE.search(before[-25:]):
+            if LETTER_DATE.search(before[-34:]) and not NOT_LETTER_DATE.search(before[-34:]):
                 continue
             clock = TIME_OF_DAY.search(sentence[m.end():m.end() + 40])
-            time_of_day = None
-            if clock:
-                time_of_day = f"{int(clock.group('h') or clock.group('h2')):02d}:{clock.group('min') or '00'}"
+            time_of_day = _clock(clock) if clock else None
             # "Zeitraum 01.01.2025 bis 31.12.2025": the end of a period, not a deadline
-            if re.search(r"\d{1,2}\.\s?\d{1,2}\.\s?\d{2,4}\s*(bis|-|–)\s*$", before[-30:]):
+            if PERIOD_END.search(before[-30:]):
                 continue
-            by = BY_DATE.search(before[-22:])
-            if APPOINTMENT_WORDS.search(sentence) and (clock or not DEADLINE_WORDS.search(sentence)):
+            by = BY_DATE.search(before[-22:]) or BY_DATE_AFTER.search(sentence[m.end():m.end() + 30])
+            # the start of a contract is not something to do: "The contract starts on 1 April 2026"
+            if CONTRACT_START_BEFORE.search(before[-70:]) or (
+                    CONTRACT_START_SENTENCE.search(sentence) and not by and not DEADLINE_WORDS.search(sentence)):
+                continue
+            notice = notice_deadline(sentence, m.start(), m.end(), when)
+            if notice:
+                when = date.fromisoformat(notice["date"])
+            if notice:
+                kind = "deadline"
+            elif APPOINTMENT_WORDS.search(sentence) and (clock or not DEADLINE_WORDS.search(sentence)):
                 kind = "appointment"
             elif by or DEADLINE_WORDS.search(sentence):
                 kind = "deadline"
-            elif FROM_DATE.search(before[-20:]):
+            elif FROM_DATE.search(before[-24:]) or FROM_DATE_AFTER.search(sentence[m.end():m.end() + 30]):
                 kind = "change"
             elif PAYMENT_WORDS.search(sentence):
                 kind = "payment"
@@ -231,7 +412,7 @@ def find_dates(text: str, reference: Optional[date] = None) -> List[FoundDate]:
                 candidates = [(sentences[index + 1], a) for a in AMOUNT.finditer(sentences[index + 1])]
             chosen = next((a for t, a in candidates if not _is_fee(t, a)), candidates[0][1] if candidates else None)
             amount = _amount_text(chosen) if chosen else None
-            if kind == "appointment":
+            if kind == "appointment" or notice:
                 amount = None
             elif kind == "change":
                 # "ab dem 01.02.2027 beträgt der Beitrag 6,90 EUR": the new amount follows the date
@@ -239,6 +420,14 @@ def find_dates(text: str, reference: Optional[date] = None) -> List[FoundDate]:
                 amount = _amount_text(after[0]) if after else None
             found.append(FoundDate(date=when.isoformat(), kind=kind, text=_window(sentence, m.start(), m.end()),
                                    amount=amount, time=time_of_day if kind == "appointment" else None))
+            if notice:
+                found[-1].notice = notice
+            readings = ambiguous_readings(m, order_known)
+            if readings and notice:  # both readings of the contract end, each counted back
+                readings = {k: minus_period(date.fromisoformat(v), notice["count"], notice["unit"]).isoformat()
+                            for k, v in readings.items()}
+            if readings:
+                found[-1].ambiguous, found[-1].readings, found[-1].literal = True, readings, m.group(0)
     return found
 
 
@@ -254,33 +443,59 @@ def _without_year(day: int, month: int, reference: date) -> Optional[date]:
     return None
 
 
-# "Diese korrigierte Abrechnung ersetzt die Abrechnung vom 20.10.2026", "replaces our letter of 20 October 2026"
-REPLACES = re.compile(r"\b(ersetzt|ersetzen|replaces|supersedes)\b[^.]{0,80}?\b(vom|of|dated)\s+", re.IGNORECASE)
-LETTER_DATE_LINE = re.compile(r"^\s*(datum|date)\s*:?\s*(?P<rest>.+)$", re.IGNORECASE | re.MULTILINE)
+# "Diese korrigierte Abrechnung ersetzt die Abrechnung vom 20.10.2026", "replaces our letter of 20 October 2026",
+# "remplace la facture du 20/10/2026", "sustituye a la factura del 20/10/2026", "sostituisce la fattura del 20/10/2026"
+REPLACES = re.compile(rf"\b(?:{rule('replaces')})\b[^.]{{0,80}}?\b(?:{rule('replaces_of')})\s+", re.IGNORECASE)
+LETTER_DATE_LINE = re.compile(rf"^\s*(?:{rule('letter_date_label')})\s*:?\s*(?P<rest>.+)$", re.IGNORECASE | re.MULTILINE)
 
 
-def _first_date(text: str) -> Optional[date]:
-    hits = [(m.start(), _parse(m)) for p in DATE_PATTERNS for m in p.finditer(text)]
+def _first_date(text: str, order: str = "dmy") -> Optional[date]:
+    hits = [(m.start(), _parse(m, order)) for p in DATE_PATTERNS for m in p.finditer(text)]
     hits = [h for h in hits if h[1]]
     return min(hits)[1] if hits else None
 
 
+def letter_date_line(text: str) -> Optional[Tuple[str, str]]:
+    """(the date the letter was written, ISO; the line it was read from): "Datum: 05.11.2026", "Date: 11/05/2026",
+    or the place and date under the letterhead ("Rheinstadt, 03.11.2026", "Paris, le 3 novembre 2026")."""
+    text = text or ""
+    order = date_order(text)
+    for m in LETTER_DATE_LINE.finditer(text):
+        d = _first_date(m.group("rest"), order)
+        if d:
+            return d.isoformat(), m.group(0).strip()
+    for m in PLACE_DATE.finditer(text):
+        d = _first_date(m.group("rest"), order)
+        if d:
+            return d.isoformat(), m.group(0).strip()
+    return None
+
+
 def letter_date(text: str) -> Optional[str]:
     """The date the letter was written ("Datum: 05.11.2026"), ISO, or None."""
-    for m in LETTER_DATE_LINE.finditer(text or ""):
-        d = _first_date(m.group("rest"))
-        if d:
-            return d.isoformat()
-    return None
+    found = letter_date_line(text)
+    return found[0] if found else None
 
 
 def replaced_letters(text: str) -> List[str]:
     """Dates of earlier letters this one says it replaces, ISO."""
     out = []
+    order = date_order(text or "")
     for m in REPLACES.finditer(text or ""):
-        d = _first_date(text[m.end():m.end() + 30])
+        d = _first_date(text[m.end():m.end() + 30], order)
         if d and d.isoformat() not in out:
             out.append(d.isoformat())
+    return out
+
+
+def choose_reading(item: dict, reading: Optional[str]) -> dict:
+    """A date (as a dict: "date" or "value", "readings", ...) with the user's choice applied: the chosen reading becomes
+    its date and it is no longer ambiguous. A date that is not ambiguous, or an unknown choice, is returned as it is."""
+    if not item.get("ambiguous") or reading not in ("dmy", "mdy") or not (item.get("readings") or {}).get(reading):
+        return item
+    chosen = item["readings"][reading]
+    out = {**item, "ambiguous": False, "chosen": reading}
+    out["value" if "value" in item else "date"] = chosen
     return out
 
 

@@ -68,6 +68,20 @@ B6 and B7 (draft, needs the manual test in `encryption-design.md` on a Windows P
 inbox titles and the text of the search index are stored encrypted (AES-256-GCM) with a key that the desktop app keeps in the
 Windows key store; migration with dry run and rollback; one-file encrypted backup (Argon2id passphrase) with an automatic restore test.
 
+## 4b. Languages and countries
+
+The inbox does not assume one country. The rules of B3 (`facts_service.py`, `dates_service.py`, `document_checks.py`)
+take their words and formats from `locale_rules.py` for English (US and UK), German (also Austria, Switzerland),
+French, Spanish, Italian and Turkish: day-first and month-first dates (`15/12/2026`, `12/15/2026`), month names with or
+without accents, `1.234,56` and `1,234.56` and `1 234,56` and `1'234.50`, the currency written next to the amount
+(EUR, USD, GBP, CHF, TRY and others; the fact carries the number as written and the ISO code), bank accounts (IBAN,
+US routing and account number, UK sort code, Australian BSB, BIC/SWIFT), and the signs of a scam in each language.
+Photos and scans are read in the languages the user chose (English and German are bundled, other Tesseract languages
+are downloaded on request). A value always stands on a page of the document and is shown with its line.
+An ambiguous date (`03/04/2026` with nothing in the letter that says which comes first) is not guessed: both readings are
+shown, the user chooses, and it is used for no reminder or calendar entry before that.
+How to add a language: [adding-a-language.md](adding-a-language.md).
+
 ## 5. Out of scope here
 
 Phone capture and transfer (remote access design, #59), handwriting recognition, legal advice. StarkLLM explains

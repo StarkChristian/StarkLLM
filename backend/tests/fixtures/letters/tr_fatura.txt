@@ -1,0 +1,19 @@
+Nehir Enerji A.Ş.
+Atatürk Caddesi 12, 06420 Ankara
+
+Sayın Ayşe Örnek
+Çiçek Sokak 5
+34000 İstanbul
+
+Ankara, 3 Kasım 2026
+Müşteri numarası: 4400118
+Fatura numarası: FT-2026-4471
+
+Elektrik faturası
+
+Sayın Müşterimiz,
+Ekim ayı fatura tutarınız 1.234,56 TL'dir.
+Gecikme faizi 10,00 TL olarak uygulanır.
+Lütfen tutarı 15.12.2026 tarihine kadar ödeyiniz.
+Havale için IBAN TR33 0006 1005 1978 6457 8413 26.
+Teknisyen randevunuz 24.11.2026 tarihinde saat 10:30'dur.

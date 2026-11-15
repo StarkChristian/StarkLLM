@@ -53,8 +53,8 @@ test('a user who turned the switch on before is not asked again after an update'
   assert.deepStrictEqual(seen, []);
 });
 
-test('the question is in English or German, by the language of the system', async () => {
-  for (const [locale, key] of [['en-US', 'en'], ['de', 'de'], ['de-AT', 'de'], ['fr', 'en']]) {
+test('the question is in the language of the interface (en, de, es, fr, it, tr), else English', async () => {
+  for (const [locale, key] of [['en-US', 'en'], ['de', 'de'], ['de-AT', 'de'], ['fr', 'fr'], ['es', 'es'], ['it-IT', 'it'], ['tr', 'tr'], ['ja', 'en']]) {
     const seen = [];
     await askOfflineChoice({ dialog: dialogAnswering(0, seen), guard: createGuard({ dir: null }), locale });
     assert.strictEqual(seen[0].message, TEXTS[key].message, locale);

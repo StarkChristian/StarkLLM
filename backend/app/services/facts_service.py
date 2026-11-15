@@ -1,7 +1,7 @@
 """Facts of a letter: what kind of document it is, who sent it, when, its reference numbers, amounts, bank accounts
 and dates (docs/document-inbox-design.md, B3).
 
-Found by fixed rules for German and English letters, never by the language model, so every value is text that stands
+Found by fixed rules for English, German, French, Spanish, Italian and Turkish letters (locale_rules.py), never by the language model, so every value is text that stands
 on a page of the document; each fact carries that page and the line it was read from, and the UI links to it. The
 facts feed the inbox (suggested title, case) and can be handed to the model, which then does not have to find them.
 """
@@ -9,58 +9,30 @@ import hashlib
 import re
 from typing import Dict, List, Optional
 
-from app.services.dates_service import (AMOUNT, DATE_PATTERNS, _amount_text, _is_fee, _parse, find_dates, is_log_line,
-                                        letter_date)
-from app.services.document_checks import findings, ibans
+from app.services.dates_service import (
+    AMOUNT, OLD_BEFORE, PLACE_DATE, amount_parts, _amount_text, _is_fee, date_order_evidence, find_dates, is_log_line,
+    letter_date, letter_date_line,
+)
+from app.services.document_checks import bank_accounts, findings, ibans
+from app.services import locale_rules
 
 # Kinds of documents, most specific first: a "Mahnung" from an "Inkassobüro" is debt collection, a
 # "Kündigungsbestätigung" is a confirmation and not a contract, a "Beitragsrechnung" of an insurer is an invoice.
-# Each kind: words in the heading (first lines) count first, then anywhere in the letter.
-TYPES = [
-    ("debt_collection", r"inkasso\w*|forderungsmanagement|debt collect\w*|collection agency"),
-    ("reminder", r"mahnung|zahlungserinnerung|letzte erinnerung|pfändungsankündigung|payment reminder|final notice|overdue notice"),
-    ("fine", r"bußgeldbescheid|bussgeldbescheid|verwarnungsgeld|anhörung im bußgeldverfahren|penalty notice|parking fine"),
-    ("tax_notice", r"steuerbescheid|bescheid für \d{4} über|einkommensteuer\w*bescheid|tax assessment"),
-    ("payslip", r"gehaltsabrechnung|entgeltabrechnung|lohnabrechnung|verdienstabrechnung|payslip|pay slip|salary statement"),
-    ("termination", r"kündigungsbestätigung|bestätigung (ihrer|der) kündigung|kündigung|cancellation confirm\w*|notice of termination"),
-    ("statement", r"nebenkostenabrechnung|betriebskostenabrechnung|jahresabrechnung|kontoauszug|abrechnung|account statement|statement of account"),
-    ("invoice", r"\w*(?<!be)rechnung|invoice|bill\b"),
-    ("job_offer", r"offer of employment|job offer|offer letter|pleased to offer you|arbeitsangebot|stellenangebot"),
-    ("contract", r"\w*mietvertrag|\w*arbeitsvertrag|vertrag\b|employment contract|tenancy agreement|agreement|terms and conditions"),
-    ("invitation", r"einladung|vorladung|invitation|appointment\b"),
-    ("medical", r"arztbrief|befundbericht|befund|diagnose|entlassungsbericht|medical report|diagnosis"),
-    ("price_change", r"beitragsanpassung|preisanpassung|preisänderung|zusatzbeitrag|entgeltänderung|"
-                     r"änderung (der|unserer|ihrer) (entgelte|preise|beiträge|bedingungen|konditionen)|"
-                     r"(beitrag|preis|entgelt)\w* ändert sich|neue bankverbindung|price change|change (of|in) (fees|prices)"),
-    ("payment_notice", r"ankündigung der lastschrift|lastschriftankündigung|vorabankündigung|payment notice|direct debit notice"),
-    ("notice", r"bescheid\b|verwaltungsakt|official notice"),
-    ("insurance", r"versicherung\w*|versicherungsschein|police\b|insurance|policy"),
-    ("prize", r"gewinnbenachrichtigung|gewinner|gewonnen|you have won|prize"),
-]
+# Each kind: words in the heading (first lines) count first, then anywhere in the letter. The words of every
+# language are in locale_rules.TYPES.
+TYPES = locale_rules.type_patterns()
 _TYPE_RES = [(k, re.compile(r"\b(" + p + r")", re.IGNORECASE)) for k, p in TYPES]
 # a screenshot of a text message: "Nachricht von +44 7700 900123 heute 09:14", then "PaketExpress: Ihr Paket …"
-MESSAGE = re.compile(r"^\s*(nachricht von|sms von|imessage von|message from|text message from)\b\s*(?P<from>.*)$", re.IGNORECASE)
+MESSAGE = re.compile(rf"^\s*({locale_rules.MESSAGE_WORDS})\b\s*(?P<from>.*)$", re.IGNORECASE)
 # "zwischen Dieter Brand, vertreten durch …": the other party of a contract
-BETWEEN = re.compile(r"^\s*(zwischen|between)\s+(?P<name>[^,(\n]+?)(\s*,|\s*\(|\s+(vertreten|represented|und|and)\b|$)", re.IGNORECASE)
+BETWEEN = re.compile(rf"^\s*({locale_rules.BETWEEN_WORDS})\s+(?P<name>[^,(\n]+?)(\s*,|\s*\(|\s+({locale_rules.BETWEEN_AND})\b|$)",
+                     re.IGNORECASE)
 
 # "Kundennummer: 4400-118-27", "Rechnung Nr. 2026-4471", "Az.: 3 C 112/26", "Policy number: AB-1234"
-REFERENCE_LABELS = [
-    ("customer_number", r"kunden[- ]?(nummer|nr\.?)|kd\.?[- ]?nr\.?|customer (number|no\.?|id)"),
-    ("invoice_number", r"rechnungs[- ]?(nummer|nr\.?)|rechnung nr\.?|invoice (number|no\.?)"),
-    ("contract_number", r"vertrags[- ]?(nummer|nr\.?)|vertrag nr\.?|contract (number|no\.?)"),
-    ("policy_number", r"versicherungs[- ]?(schein[- ]?)?(nummer|nr\.?)|policen?[- ]?(nummer|nr\.?)|policy (number|no\.?)"),
-    ("tax_number", r"steuer[- ]?(nummer|nr\.?)|steuer-id|steuerliche identifikationsnummer|tax (id|number)"),
-    ("file_number", r"aktenzeichen|az\.|geschäftszeichen|unser zeichen|kassenzeichen|file (number|no\.?)|our ref(erence)?\.?"),
-    ("member_number", r"mitglieds[- ]?(nummer|nr\.?)|versichertennummer|member(ship)? (number|no\.?)"),
-    ("employee_number", r"personal[- ]?(nummer|nr\.?)|employee (number|no\.?|id)"),
-    ("mandate_reference", r"mandatsreferenz|mandate reference"),
-    ("reference", r"referenz(nummer)?|reference( number)?|vorgangs[- ]?(nummer|nr\.?)|bestell[- ]?(nummer|nr\.?)|order (number|no\.?)"),
-]
+REFERENCE_LABELS = locale_rules.REFERENCE_LABELS
 _REF_VALUE = r"\s*[:#.]?\s*(?P<v>[A-Z0-9][A-Z0-9/\-.]*(?:[ ][A-Z0-9][A-Z0-9/\-.]*){0,3})"
-_REF_RES = [(k, re.compile(r"(?<![\wÄÖÜäöüß])(?P<label>" + p + r")" + _REF_VALUE, re.IGNORECASE)) for k, p in REFERENCE_LABELS]
-
-# "Rheinstadt, 03.11.2026", "Rheinstadt, den 3. November 2026": the date of the letter next to the place
-PLACE_DATE = re.compile(r"^\s*[A-ZÄÖÜ][\wÄÖÜäöüß .\-]{1,40},\s*(den\s+)?(?P<rest>\d.{5,25})$", re.MULTILINE)
+# the label must end where a word ends: "refund 12" is not a reference
+_REF_RES = [(k, re.compile(r"(?<![\wÄÖÜäöüß])(?P<label>" + p + r")(?![^\W\d_])" + _REF_VALUE, re.IGNORECASE)) for k, p in REFERENCE_LABELS]
 
 
 def _line_of(text: str, start: int, end: int) -> str:
@@ -129,13 +101,13 @@ def sender(pages: Dict[int, str]) -> Optional[Dict]:
         return None
     first_page = min(pages)
     lines = [re.sub(r"\s+", " ", l) for l in _lines(pages, 20)]
-    lines = [l for l in lines if len(l) >= 3 and re.search(r"[A-Za-zÄÖÜäöüß]{2,}|\+\d", l)
+    lines = [l for l in lines if len(l) >= 3 and re.search(r"[^\W\d_]{2,}|\+\d", l)
              and not re.fullmatch(r"[\d\s:.,/\-]+(uhr|am|pm)?", l, re.IGNORECASE)]
     if not lines:
         return None
     msg = MESSAGE.match(lines[0])
     if msg:
-        named = re.match(r"^([\wÄÖÜäöüß .&-]{2,30}):\s", lines[1]) if len(lines) > 1 else None
+        named = re.match(r"^([\w .&-]{2,30}):\s", lines[1]) if len(lines) > 1 else None
         if named:
             return _fact(named.group(1).strip(), first_page, lines[1][:200])
         number = re.search(r"\+?[\d][\d ()/-]{5,}\d", msg.group("from"))
@@ -156,8 +128,11 @@ def sender(pages: Dict[int, str]) -> Optional[Dict]:
 # "<catalog><product id=…" (XML), "Sheet: Inventory" (a spreadsheet as text), "2026-11-07 02:00:01 INFO backup
 # started" (a log), "Columns: supplier,city,…" (a CSV file), '"service": "billing-api",' (JSON), "The image shows a
 # photograph of …" (the description of a photo), or a sentence.
-_NOT_A_NAME = re.compile(r"^\s*([#<{\[|>*=\"']|sheet\s*:|tabelle\s*:|columns\s*:|spalten\s*:|\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}|"
-                         r"(the|this|a|an) (image|photo|picture|screenshot)\b|(das|dieses|ein) (bild|foto)\b|auf dem (bild|foto)\b)",
+_NOT_A_NAME = re.compile(r"^\s*([#<{\[|>*=\"']|(sheet|tabelle|feuille|hoja|foglio|sayfa)\s*:|(columns|spalten|colonnes|columnas|colonne|sütunlar)\s*:|"
+                         r"\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}|"
+                         r"(the|this|a|an) (image|photo|picture|screenshot)\b|(das|dieses|ein) (bild|foto)\b|auf dem (bild|foto)\b|"
+                         r"(l['’]image|cette image|la photo|une photo|la imagen|esta imagen|una foto|una imagen|l['’]immagine|"
+                         r"questa immagine|una foto|bu (resim|görsel|fotoğraf))\b)",
                          re.IGNORECASE)
 
 
@@ -168,18 +143,11 @@ def _not_a_name(line: str) -> bool:
 
 
 def written_on(pages: Dict[int, str]) -> Optional[Dict]:
-    """The date the letter was written: "Datum: 03.11.2026" or "Rheinstadt, 03.11.2026"."""
+    """The date the letter was written: "Datum: 03.11.2026", "Date: 11/03/2026" or "Rheinstadt, 03.11.2026"."""
     for page in sorted(pages):
-        text = pages[page] or ""
-        iso = letter_date(text)
-        if iso:
-            m = re.search(r"^\s*(datum|date)\s*:?.*$", text, re.IGNORECASE | re.MULTILINE)
-            return _fact(iso, page, (m.group(0).strip() if m else iso)[:200])
-        for m in PLACE_DATE.finditer(text):
-            for p in DATE_PATTERNS:
-                d = p.search(m.group("rest"))
-                if d and _parse(d):
-                    return _fact(_parse(d).isoformat(), page, m.group(0).strip()[:200])
+        found = letter_date_line(pages[page] or "")
+        if found:
+            return _fact(found[0], page, found[1][:200])
     return None
 
 
@@ -188,17 +156,18 @@ def references(pages: Dict[int, str]) -> List[Dict]:
     out, seen = [], set()
     for page in sorted(pages):
         text = pages[page] or ""
+        banks = {a["key"] for a in bank_accounts(text)}  # "Account number: 123456789" next to a routing number is a bank account
         for kind, rx in _REF_RES:
             for m in rx.finditer(text):
-                value = m.group("v").strip(" .-/")
+                value = m.group("v").strip(" .,;:)(-/")
                 # "Kundennummer 4400-118-27 Datum" -> stop at a word without digits
                 parts = value.split(" ")
                 while len(parts) > 1 and not re.search(r"\d", parts[-1]):
                     parts.pop()
                 value = " ".join(parts)
-                if not re.search(r"\d", value) or len(value) < 3 or ibans(value):
+                if not re.search(r"\d", value) or len(value) < 3 or ibans(value) or re.sub(r"\D", "", value) in banks:
                     continue
-                key = (kind, value.replace(" ", ""))
+                key = re.sub(r"\W", "", value).upper()  # the same number under two labels is listed once, the more specific label first
                 if key in seen:
                     continue
                 seen.add(key)
@@ -207,8 +176,9 @@ def references(pages: Dict[int, str]) -> List[Dict]:
 
 
 def amounts(pages: Dict[int, str], limit: int = 12) -> List[Dict]:
-    """Amounts of money with their line. role "fee" for fees and "old" for an amount that was replaced
-    ("statt bisher 4,90 EUR"), so they are not taken for what is due."""
+    """Amounts of money with their line. value is as the document writes it plus the currency code ("1.234,56 EUR",
+    "$1,234.56" -> "1,234.56 USD"); number is the same value as "1234.56". role "fee" for fees and "old" for an amount
+    that was replaced ("statt bisher 4,90 EUR"), so they are not taken for what is due."""
     out, seen = [], set()
     for page in sorted(pages):
         text = pages[page] or ""
@@ -218,26 +188,26 @@ def amounts(pages: Dict[int, str], limit: int = 12) -> List[Dict]:
             if (value, line) in seen:
                 continue
             seen.add((value, line))
-            before = text[max(0, m.start() - 30):m.start()].lower()
-            role = "old" if re.search(r"(bisher|statt|vorher|previously|instead of)\W{0,3}$", before) else (
-                "fee" if _is_fee(text, m) else None)
-            out.append(_fact(value, page, line, role=role))
+            before = text[max(0, m.start() - 30):m.start()]
+            role = "old" if OLD_BEFORE.search(before) else ("fee" if _is_fee(text, m) else None)
+            _, number, currency = amount_parts(m)
+            out.append(_fact(value, page, line, role=role, number=number, currency=currency))
             if len(out) >= limit:
                 return out
     return out
 
 
 def accounts(pages: Dict[int, str]) -> List[Dict]:
+    """Bank accounts: IBAN, and where the letter names them US routing and account numbers, UK sort codes and
+    account numbers, Australian BSB, and BIC/SWIFT. kind says which."""
     out, seen = [], set()
     for page in sorted(pages):
         text = pages[page] or ""
-        for iban in ibans(text):
-            if iban in seen:
+        for acc in bank_accounts(text):
+            if (acc["kind"], acc["key"]) in seen:
                 continue
-            seen.add(iban)
-            spaced = " ".join(iban[i:i + 4] for i in range(0, len(iban), 4))
-            at = text.find(iban[:4])
-            out.append(_fact(spaced, page, _line_of(text, at, at + 4) if at >= 0 else spaced))
+            seen.add((acc["kind"], acc["key"]))
+            out.append(_fact(acc["value"], page, _line_of(text, acc["start"], acc["end"]), kind=acc["kind"]))
     return out
 
 
@@ -247,17 +217,22 @@ def dates(pages: Dict[int, str]) -> List[Dict]:
     written = letter_date(full)
     from datetime import date
     reference = date.fromisoformat(written) if written else None
+    hint = date_order_evidence(full)  # a date on another page can show how slash dates are written
     for page in sorted(pages):
-        for f in find_dates(pages[page] or "", reference):
-            out.append(_fact(f.date, page, f.text, kind=f.kind, amount=f.amount, time=f.time))
+        for f in find_dates(pages[page] or "", reference, hint):
+            out.append(_fact(f.date, page, f.text, kind=f.kind, amount=f.amount, time=f.time,
+                             **({"ambiguous": True, "readings": f.readings, "literal": f.literal} if f.ambiguous else {}),
+                             **({"notice": f.notice} if f.notice else {})))
     return out
 
 
 def _norm(value: str) -> str:
-    return re.sub(r"[^0-9a-zäöüß]", "", (value or "").lower())
+    """Letters and digits only, without accents, so a photo and a PDF of the same letter match."""
+    return re.sub(r"[^0-9a-z]", "", locale_rules.strip_accents(value or ""))
 
 
-_STOP = {"für", "fuer", "der", "die", "das", "des", "und", "von", "vom", "the", "of", "and", "for", "&", "-"}
+_STOP = {"für", "fuer", "der", "die", "das", "des", "und", "von", "vom", "the", "of", "and", "for", "&", "-",
+         "le", "la", "les", "du", "de", "des", "et", "el", "los", "las", "del", "y", "il", "lo", "gli", "di", "della", "e", "ve"}
 
 
 def case_key(facts: Dict) -> Optional[str]:
@@ -266,7 +241,7 @@ def case_key(facts: Dict) -> Optional[str]:
     s = facts.get("sender")
     if not s:
         return None
-    words = [w for w in re.findall(r"[\wÄÖÜäöüß+]+", s["value"].lower()) if w not in _STOP]
+    words = [w for w in re.findall(r"[\w+]+", s["value"].lower()) if w not in _STOP]
     return " ".join(words[:2]) or None
 
 

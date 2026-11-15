@@ -8,6 +8,7 @@ import DateTimeWidget from './DateTimeWidget';
 import MarketPricesWidget from './MarketPricesWidget';
 import SystemStatusWidget from './SystemStatusWidget';
 import EmptyState from './EmptyState';
+import { LucyGuide, LucyHelper } from './Lucy';
 import { t } from '../i18n';
 
 const IMAGE_TYPES = new Set(['png', 'jpg', 'jpeg', 'webp', 'tif', 'tiff']);
@@ -198,6 +199,9 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
         <img src="/Logo.png" alt="" className={styles.heroLogo} />
       </div>
 
+      {/* Lucy explains the first steps once (not over the buttons: she is part of the page) */}
+      <LucyGuide />
+
       <div className={styles.twoCol}>
         {/* ── Dates found in the documents ── */}
         <section className={styles.card} aria-labelledby="home-dates">
@@ -220,15 +224,15 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
                 <li key={i}>
                   <button className={`${styles.dateRow} ${d.passed ? styles.datePassed : ''}`} onClick={() => openDoc(d)}>
                     <span className={styles.dateBox}>
-                      <span className={styles.dateDay}>{fmtDate(d.date, { day: 'numeric' })}</span>
-                      <span className={styles.dateMonth}>{fmtDate(d.date, { month: 'short', year: 'numeric' })}</span>
+                      <span className={styles.dateDay}>{d.ambiguous ? '?' : fmtDate(d.date, { day: 'numeric' })}</span>
+                      <span className={styles.dateMonth}>{d.ambiguous ? d.literal : fmtDate(d.date, { month: 'short', year: 'numeric' })}</span>
                     </span>
                     <span className={styles.dateBody}>
                       <span className={styles.dateMeta}>
                         <span className={KIND_STYLE[d.kind] ? styles[KIND_STYLE[d.kind]] : styles.kindPayment}>
-                          {d.kind === 'deadline' ? t('Deadline') : d.kind === 'appointment' ? t('Appointment') : d.kind === 'change' ? t('Change') : t('Payment')}
+                          {d.notice ? t('Last day to give notice') : d.kind === 'deadline' ? t('Deadline') : d.kind === 'appointment' ? t('Appointment') : d.kind === 'change' ? t('Change') : t('Payment')}
                         </span>
-                        <span>{whenText(d.date)}{d.time ? ` · ${t('at {time}', { time: d.time })}` : ''}</span>
+                        <span>{d.ambiguous ? t('Unclear date: {literal}', { literal: d.literal }) : whenText(d.date)}{d.time ? ` · ${t('at {time}', { time: d.time })}` : ''}</span>
                         {d.amount && <strong>{d.amount}</strong>}
                       </span>
                       <span className={styles.dateText}>{d.text}</span>
@@ -251,11 +255,14 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
           {!home ? (
             <p className={styles.homeNote}>{t('Looking through your documents…')}</p>
           ) : recent.length === 0 ? (
-            <EmptyState
-              icon={FileText}
-              title={t('No documents yet')}
-              hint={t('Add a letter, a scan or a photo, or put files into your knowledge base folder.')}
-            />
+            <>
+              <EmptyState
+                icon={FileText}
+                title={t('No documents yet')}
+                hint={t('Add a letter, a scan or a photo, or put files into your knowledge base folder.')}
+              />
+              <LucyHelper text={t('No documents yet. Add a letter or a photo, and I will read it here on your PC.')} />
+            </>
           ) : (
             <ul className={styles.homeList}>
               {recent.map((doc) => (

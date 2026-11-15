@@ -35,6 +35,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "StarkLLM",
+      "multiLanguageInstaller": true,
+      "installerLanguages": ["en_US", "de_DE", "es_ES", "fr_FR", "it_IT", "tr_TR"],
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico",
       "artifactName": "StarkLLM-v${version}-Setup.${ext}"
