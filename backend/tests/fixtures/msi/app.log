@@ -1,0 +1,5 @@
+2026-11-14 08:00:01 INFO started
+2026-11-14 08:00:02 INFO listening on port 8080
+2026-11-14 08:03:17 WARN certificate expires soon, renew by the next release
+2026-11-14 08:05:44 ERROR upstream timeout after 30s
+2026-11-14 08:05:45 INFO retry 1 of 3
