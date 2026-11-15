@@ -10,7 +10,7 @@ import chromadb
 from typing import List ,Dict ,Any ,Tuple ,Optional 
 from html .parser import HTMLParser 
 from app .core .config import settings 
-from app .core .protection import ProtectionLocked 
+from app .core .protection import ProtectionLocked ,protection
 from app .services .llm_service import llm_service 
 from app .services import vault 
 from app .services .protected_collection import wrap as protect_collection 
@@ -183,16 +183,23 @@ class RAGService :
             # Collection helpers
             # ------------------------------------------------------------------
 
+    def vector_client (self ):
+        """Where the search index lives now: ChromaDB, or the encrypted index (Settings > Protection)."""
+        if protection .vector_mode ()=="secure":
+            from app .services .secure_index import secure_client
+            return secure_client ()
+        return self .chroma_client
+
     def get_or_create_collection (self ,workspace_id :int ,user_id :int ):
         name =f"user_{user_id }_workspace_{workspace_id }"
-        return protect_collection (self .chroma_client .get_or_create_collection (name =name ))
+        return protect_collection (self .vector_client ().get_or_create_collection (name =name ))
 
     def get_kb_collection_name (self ,user_id :int )->str :
         return f"user_{user_id }_knowledge_base"
 
     def get_or_create_kb_collection (self ,user_id :int ):
         name =self .get_kb_collection_name (user_id )
-        return protect_collection (self .chroma_client .get_or_create_collection (name =name ))
+        return protect_collection (self .vector_client ().get_or_create_collection (name =name ))
 
     def get_document_preview(self, collection, filepath: str) -> str:
         """Fetches the first few chunks of a document to serve as a preview."""
@@ -501,8 +508,8 @@ class RAGService :
                     f"Recreating collection to match new embedding model dimensions..."
                 )
                 col_name = collection.name
-                self.chroma_client.delete_collection(col_name)
-                collection = protect_collection(self.chroma_client.get_or_create_collection(
+                self.vector_client().delete_collection(col_name)
+                collection = protect_collection(self.vector_client().get_or_create_collection(
                     name=col_name,
                     metadata={"hnsw:space": "cosine"}
                 ))

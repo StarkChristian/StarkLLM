@@ -5,6 +5,7 @@ import json
 from app.core.config import settings
 from app.services.llm_service import llm_service
 from app.services.protected_collection import wrap as protect_collection
+from app.core.protection import protection
 
 logger = logging.getLogger(__name__)
 
@@ -14,13 +15,29 @@ class MemoryService:
             path=settings.CHROMA_PERSIST_DIRECTORY,
             settings=chromadb.config.Settings(anonymized_telemetry=False),
         )
-        self.memory_collection = protect_collection(self.chroma_client.get_or_create_collection(name="long_term_memory"))
+        self._memory_collection = None
         self.embedding_model = settings.DEFAULT_EMBEDDING_MODEL
         self.summarize_model = settings.DEFAULT_TEXT_MODEL
-        
+
+    @property
+    def memory_collection(self):
+        """The long-term memory collection, opened where the search index lives now (ChromaDB or the encrypted index)."""
+        if self._memory_collection is not None:
+            return self._memory_collection
+        if protection.vector_mode() == "secure":
+            from app.services.secure_index import secure_client
+            return secure_client().get_or_create_collection(name="long_term_memory")
+        if self.chroma_client is None:
+            raise RuntimeError("The vector store is being replaced.")
+        return protect_collection(self.chroma_client.get_or_create_collection(name="long_term_memory"))
+
+    @memory_collection.setter
+    def memory_collection(self, value):
+        self._memory_collection = value             # tests and the restore put a collection (or None) here
+
     def refresh(self):
         """Open the memory collection again (the protection migration replaces collections)."""
-        self.memory_collection = protect_collection(self.chroma_client.get_or_create_collection(name="long_term_memory"))
+        self._memory_collection = None
 
     def summarize_and_store_conversation(self, chat_history: str, workspace_id: int):
         """
