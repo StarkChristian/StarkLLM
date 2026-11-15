@@ -230,7 +230,7 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
                     <span className={styles.dateBody}>
                       <span className={styles.dateMeta}>
                         <span className={KIND_STYLE[d.kind] ? styles[KIND_STYLE[d.kind]] : styles.kindPayment}>
-                          {d.kind === 'deadline' ? t('Deadline') : d.kind === 'appointment' ? t('Appointment') : d.kind === 'change' ? t('Change') : t('Payment')}
+                          {d.notice ? t('Last day to give notice') : d.kind === 'deadline' ? t('Deadline') : d.kind === 'appointment' ? t('Appointment') : d.kind === 'change' ? t('Change') : t('Payment')}
                         </span>
                         <span>{d.ambiguous ? t('Unclear date: {literal}', { literal: d.literal }) : whenText(d.date)}{d.time ? ` · ${t('at {time}', { time: d.time })}` : ''}</span>
                         {d.amount && <strong>{d.amount}</strong>}

@@ -159,7 +159,7 @@ def references(pages: Dict[int, str]) -> List[Dict]:
         banks = {a["key"] for a in bank_accounts(text)}  # "Account number: 123456789" next to a routing number is a bank account
         for kind, rx in _REF_RES:
             for m in rx.finditer(text):
-                value = m.group("v").strip(" .-/")
+                value = m.group("v").strip(" .,;:)(-/")
                 # "Kundennummer 4400-118-27 Datum" -> stop at a word without digits
                 parts = value.split(" ")
                 while len(parts) > 1 and not re.search(r"\d", parts[-1]):
@@ -167,7 +167,7 @@ def references(pages: Dict[int, str]) -> List[Dict]:
                 value = " ".join(parts)
                 if not re.search(r"\d", value) or len(value) < 3 or ibans(value) or re.sub(r"\D", "", value) in banks:
                     continue
-                key = (kind, value.replace(" ", ""))
+                key = re.sub(r"\W", "", value).upper()  # the same number under two labels is listed once, the more specific label first
                 if key in seen:
                     continue
                 seen.add(key)
@@ -221,7 +221,8 @@ def dates(pages: Dict[int, str]) -> List[Dict]:
     for page in sorted(pages):
         for f in find_dates(pages[page] or "", reference, hint):
             out.append(_fact(f.date, page, f.text, kind=f.kind, amount=f.amount, time=f.time,
-                             **({"ambiguous": True, "readings": f.readings, "literal": f.literal} if f.ambiguous else {})))
+                             **({"ambiguous": True, "readings": f.readings, "literal": f.literal} if f.ambiguous else {}),
+                             **({"notice": f.notice} if f.notice else {})))
     return out
 
 

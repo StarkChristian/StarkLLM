@@ -3,13 +3,17 @@
 Every date returned is in the text, with the sentence it stands in, so the UI can show and link it. This is the
 first part of "understanding" documents (docs/document-inbox-design.md, B3).
 """
+import calendar
 import re
 from dataclasses import dataclass, asdict
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import List, Optional, Tuple
 
-from app.services.locale_rules import CURRENCY, MONTHS, MONTH_PATTERN, compiled, currency_code, month_number, rule
+from app.services.locale_rules import (
+    CONTRACT_START, CURRENCY, MONTHS, MONTH_PATTERN, NOTICE_WORDS, NUMBER_WORDS, PERIOD_BEFORE, PERIOD_UNITS, compiled,
+    currency_code, month_number, rule,
+)
 
 _MONTH_NAMES = MONTH_PATTERN
 _UPPER = "A-ZÀ-ÖØ-ÞİŞĞ"  # a letter that can start a sentence, in the languages above
@@ -60,7 +64,7 @@ def _numbers():
     # amounts: 1.234,56 (point thousands, comma decimals), 1,234.56, 1 234,56 (spaces), 1'234.56 (Swiss), 412,- , 500
     sep = "[.,'’   ]"
     return (rf"(?<![\d.,'’  ])(?:\d{{1,3}}(?:{sep}\d{{3}})+|\d+)"
-            r"(?:[.,]\d{1,2}(?!\d)|,[-–—]{1,2}(?!\w))?(?!\d|[.,]\d)")
+            r"(?:[.,]\d{1,2}(?!\d)|[.,][-–—]{1,2}(?!\w))?(?!\d|[.,]\d)")
 
 
 NUMBER = _numbers()
@@ -83,9 +87,57 @@ PERIOD_END = re.compile(rf"\d{{2,4}}\s*(?:{rule('period_join')})\s*$", re.IGNORE
 PLACE_DATE = re.compile(rf"^\s*[{_UPPER}][\w .\-]{{1,40}},\s*(?:den\s+|le\s+|el\s+|il\s+|the\s+)?(?P<rest>\d.{{5,30}})$", re.MULTILINE)
 
 
+# Notice periods: "give notice at least 30 days before 31 March 2027" -> the last day to give notice is 1 March 2027.
+_COUNT = r"(?P<n>\d{1,3}|" + "|".join(sorted(NUMBER_WORDS, key=len, reverse=True)) + r")"
+_UNIT = r"(?P<unit>" + "|".join(PERIOD_UNITS.values()) + r")\b"
+NOTICE_SENTENCE = re.compile(r"\b(?:" + "|".join(NOTICE_WORDS.values()) + r")", re.IGNORECASE)
+NOTICE_BEFORE = re.compile(_COUNT + r"[\s-]*" + _UNIT + r"(?:['’]s?)?\s+(?:(?:written\s+)?notice\s+)?(?:" + "|".join(PERIOD_BEFORE.values())
+                           + r")\b(?P<tail>[^\d]{0,50})$", re.IGNORECASE)
+# "ein Monat vor Ablauf, also bis 30.11.2026": the letter already names the last day, nothing is counted back
+EXPLICIT_DAY = re.compile(r"\b(?:bis|sp[äa]testens|also|d\.\s?h\.|by|until|i\.e\.|namely|jusqu\w*|hasta|es decir|entro|cio[èe]|yani)\b|c.est-[àa]-dire",
+                          re.IGNORECASE)
+# Turkish puts it behind the date: "31 Mart 2027 tarihinden en az 30 gün önce"
+NOTICE_AFTER = re.compile(r"^\s*(?:tarihinden\s+|tarihine\s+)?(?:en az\s+)?" + _COUNT + r"\s*" + _UNIT + r"\s+önce", re.IGNORECASE)
+CONTRACT_START_BEFORE = re.compile(r"(?:" + CONTRACT_START + r")[^\d]{0,25}$", re.IGNORECASE)
+CONTRACT_START_SENTENCE = re.compile(CONTRACT_START, re.IGNORECASE)
+
+
+def _count(word: str) -> Optional[int]:
+    return int(word) if word.isdigit() else NUMBER_WORDS.get(word.lower())
+
+
+def _unit(word: str) -> Optional[str]:
+    return next((k for k, rx in PERIOD_UNITS.items() if re.fullmatch(rx, word, re.IGNORECASE)), None)
+
+
+def minus_period(day: date, count: int, unit: str) -> date:
+    """day minus count days, weeks or months (31 March minus one month is 28 February, the last day that exists)."""
+    if unit == "days":
+        return day - timedelta(days=count)
+    if unit == "weeks":
+        return day - timedelta(weeks=count)
+    year, month = divmod(day.year * 12 + day.month - 1 - count, 12)
+    return date(year, month + 1, min(day.day, calendar.monthrange(year, month + 1)[1]))
+
+
+def notice_deadline(sentence: str, start: int, end: int, when: date) -> Optional[dict]:
+    """When the sentence is about giving notice of a contract and says that this has to happen N days, weeks or months
+    before the date at sentence[start:end], {"date", "base", "count", "unit"}: the last day to give notice, counted back
+    from the date, which is the end of the contract and is not the deadline itself."""
+    if not NOTICE_SENTENCE.search(sentence):
+        return None
+    hit = NOTICE_BEFORE.search(sentence[max(0, start - 110):start]) or NOTICE_AFTER.search(sentence[end:end + 70])
+    if hit and "tail" in hit.groupdict() and EXPLICIT_DAY.search(hit.group("tail")):
+        return None
+    count, unit = (_count(hit.group("n")), _unit(hit.group("unit"))) if hit else (None, None)
+    if not count or not unit:
+        return None
+    return {"date": minus_period(when, count, unit).isoformat(), "base": when.isoformat(), "count": count, "unit": unit}
+
+
 def parse_number(text: str) -> Optional[str]:
     """The value of an amount as written ("1.234,56", "1,234.56", "1 234,56", "1'234.50", "412,-") as "1234.56"."""
-    s = re.sub(r"[,][-–—]+$", ",00", (text or "").strip())
+    s = re.sub(r"[.,][-–—]+$", ",00", (text or "").strip())  # 412,- and CHF 148.-
     s = re.sub(r"[\s  '’]", "", s)
     if "," in s and "." in s:
         decimal = "," if s.rfind(",") > s.rfind(".") else "."
@@ -126,6 +178,9 @@ class FoundDate:
     ambiguous: bool = False
     readings: Optional[dict] = None  # {"dmy": "2026-04-03", "mdy": "2026-03-04"}
     literal: Optional[str] = None
+    # "at least 30 days before 31 March 2027": date is the last day to give notice (1 March 2027), counted back from
+    # notice["base"], the end of the contract; the sentence with its page and line says so
+    notice: Optional[dict] = None
 
 
 def _parse(m, order: str = "dmy") -> Optional[date]:
@@ -302,7 +357,16 @@ def find_dates(text: str, reference: Optional[date] = None, order_hint: Optional
             if PERIOD_END.search(before[-30:]):
                 continue
             by = BY_DATE.search(before[-22:]) or BY_DATE_AFTER.search(sentence[m.end():m.end() + 30])
-            if APPOINTMENT_WORDS.search(sentence) and (clock or not DEADLINE_WORDS.search(sentence)):
+            # the start of a contract is not something to do: "The contract starts on 1 April 2026"
+            if CONTRACT_START_BEFORE.search(before[-70:]) or (
+                    CONTRACT_START_SENTENCE.search(sentence) and not by and not DEADLINE_WORDS.search(sentence)):
+                continue
+            notice = notice_deadline(sentence, m.start(), m.end(), when)
+            if notice:
+                when = date.fromisoformat(notice["date"])
+            if notice:
+                kind = "deadline"
+            elif APPOINTMENT_WORDS.search(sentence) and (clock or not DEADLINE_WORDS.search(sentence)):
                 kind = "appointment"
             elif by or DEADLINE_WORDS.search(sentence):
                 kind = "deadline"
@@ -327,7 +391,7 @@ def find_dates(text: str, reference: Optional[date] = None, order_hint: Optional
                 candidates = [(sentences[index + 1], a) for a in AMOUNT.finditer(sentences[index + 1])]
             chosen = next((a for t, a in candidates if not _is_fee(t, a)), candidates[0][1] if candidates else None)
             amount = _amount_text(chosen) if chosen else None
-            if kind == "appointment":
+            if kind == "appointment" or notice:
                 amount = None
             elif kind == "change":
                 # "ab dem 01.02.2027 beträgt der Beitrag 6,90 EUR": the new amount follows the date
@@ -335,7 +399,12 @@ def find_dates(text: str, reference: Optional[date] = None, order_hint: Optional
                 amount = _amount_text(after[0]) if after else None
             found.append(FoundDate(date=when.isoformat(), kind=kind, text=_window(sentence, m.start(), m.end()),
                                    amount=amount, time=time_of_day if kind == "appointment" else None))
+            if notice:
+                found[-1].notice = notice
             readings = ambiguous_readings(m, order_known)
+            if readings and notice:  # both readings of the contract end, each counted back
+                readings = {k: minus_period(date.fromisoformat(v), notice["count"], notice["unit"]).isoformat()
+                            for k, v in readings.items()}
             if readings:
                 found[-1].ambiguous, found[-1].readings, found[-1].literal = True, readings, m.group(0)
     return found

@@ -306,6 +306,8 @@
   "Next": "İleri",
   "Show Lucy, the helper robot": "Yardımcı robot Lucy'yi göster",
   "Lucy explains the first steps and shows up on empty pages. She never covers buttons and never appears in error messages.": "Lucy ilk adımları anlatır ve boş sayfalarda görünür. Düğmelerin üstünü hiç kapatmaz ve hata iletilerinde hiç görünmez.",
+  "Last day to give notice": "Fesih bildiriminin son günü",
+  "counted back from the end of the contract on {date}": "sözleşmenin bittiği {date} tarihinden geriye doğru hesaplandı",
   "Unclear date: {literal}": "Belirsiz tarih: {literal}",
   "The letter does not say which comes first. Choose how to read it; until then this date is used for no reminder and no calendar entry.": "Mektup, önce neyin geldiğini belirtmiyor. Nasıl okunacağını seçin; o zamana kadar bu tarih hiçbir hatırlatma ve takvim kaydı için kullanılmaz.",
   "Day first: {date}": "Önce gün: {date}",

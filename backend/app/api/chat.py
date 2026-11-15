@@ -241,6 +241,9 @@ def _dates_section(db, user_id: int, workspace_id: int, include_kb: bool, messag
         days = (when - today).days
         rel = "today" if days == 0 else ("tomorrow" if days == 1 else (f"in {days} days" if days > 0 else f"PASSED {-days} days ago"))
         what = d["kind"] + (f" {d['time']}" if d.get("time") else "") + (f", {d['amount']}" if d.get("amount") else "")
+        if d.get("notice"):  # "30 days before 31 March 2027": the date is the last day to give notice, not the end of the contract
+            what = (f"LAST DAY TO GIVE NOTICE ({d['notice']['count']} {d['notice']['unit']} before the contract end "
+                    f"{d['notice']['base']})")
         lines.append(f"- {when.isoformat()} ({when:%a}, {rel}) {what} | {d['filename']}: \"{d['text'][:170]}\"")
     return (
         "\n═══════════════════════════════════════\n"

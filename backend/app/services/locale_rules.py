@@ -207,6 +207,47 @@ RULES: Dict[str, Dict[str, str]] = {
 }
 
 
+# Notice periods in contracts: "at least 30 days before 31 March 2027" means the notice has to be given by 1 March 2027.
+NUMBER_WORDS = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+    "twelve": 12,
+    "ein": 1, "eine": 1, "einen": 1, "einem": 1, "zwei": 2, "drei": 3, "vier": 4, "fünf": 5, "sechs": 6, "sieben": 7,
+    "acht": 8, "neun": 9, "zehn": 10, "zwölf": 12,
+    "un": 1, "une": 1, "deux": 2, "trois": 3, "quatre": 4, "cinq": 5, "sept": 7, "huit": 8, "neuf": 9, "dix": 10, "douze": 12,
+    "uno": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5, "seis": 6, "siete": 7, "ocho": 8, "nueve": 9, "diez": 10, "doce": 12,
+    "due": 2, "tre": 3, "quattro": 4, "cinque": 5, "sei": 6, "sette": 7, "otto": 8, "nove": 9, "dieci": 10, "dodici": 12,
+    "bir": 1, "iki": 2, "üç": 3, "dört": 4, "beş": 5, "altı": 6, "yedi": 7, "sekiz": 8, "dokuz": 9,
+}
+# the unit of the period, by language (a regular expression for each of days, weeks, months)
+PERIOD_UNITS = {
+    "days": r"days?|tage[n]?|jours?|d[ií]as?|giorni|giorno|gün",
+    "weeks": r"weeks?|wochen?|semaines?|semanas?|settimane|settimana|hafta",
+    "months": r"months?|monate[n]?|monat|mois|mes(?:es)?|mesi|mese|ay",
+}
+# words that make a sentence about giving notice of a contract
+NOTICE_WORDS = {
+    "en": r"notice|cancel\w*|terminat\w*",
+    "de": r"k[üu]e?ndig\w*",
+    "fr": r"pr[ée]avis|r[ée]sili\w*",
+    "es": r"preaviso|rescind\w*|rescis\w*|cancelar|cancelaci[oó]n|dar de baja|baja del",
+    "it": r"disdett\w*|recesso|preavviso|recedere",
+    "tr": r"fesih\w*|ihbar\w*|iptal\w*|bildirim\w*",
+}
+# between the period and the date: "30 days BEFORE 31 March", "3 Monate VOR dem Vertragsende am 31.03.", "antes del"
+PERIOD_BEFORE = {
+    "en": r"before|prior to|ahead of", "de": r"vor|zum", "fr": r"avant", "es": r"antes\s+(?:del?|al?)",
+    "it": r"prima\s+(?:del|della|dello|di)|prima",
+}
+# a contract starting is not something to do: "The contract starts on 1 April 2026", "Vertragsbeginn: 01.04.2026"
+CONTRACT_START = (r"(?:contract|agreement|lease|tenancy|policy|membership|subscription)\s+(?:starts?|begins?|commences?|"
+                  r"is effective)|start date|commencement|effective date of the"
+                  r"|vertragsbeginn|mietbeginn|versicherungsbeginn|beginn des vertrag\w*|vertrag beginnt|versicherungsschutz beginnt"
+                  r"|d[ée]but du contrat|date de d[ée]but|le contrat (?:commence|prend effet)"
+                  r"|inicio del contrato|fecha de inicio|el contrato (?:comienza|empieza|entra en vigor)"
+                  r"|inizio del contratto|data di inizio|il contratto (?:inizia|decorre)|decorrenza del contratto"
+                  r"|s[öo]zle[sş]me ba[sş]lang[ıi][cç]|ba[sş]lang[ıi][cç] tarihi|s[öo]zle[sş]me .{0,20}ba[sş]lar")
+
+
 def rule(name: str, langs: Optional[Iterable[str]] = None) -> str:
     """The fragments of one rule for these languages (default: all), joined as one alternation."""
     table = RULES[name]

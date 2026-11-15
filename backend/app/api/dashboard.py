@@ -645,7 +645,7 @@ def dates_calendar(today, dates, stamp: str) -> str:
         if d.get("ambiguous"):
             continue  # no calendar entry or reminder for a date the user has not read for us
         day = d["date"].replace("-", "")
-        title = f"{names.get(d['kind'], 'Date')}: {d['filename']}" + (f" ({d['amount']})" if d.get("amount") else "")
+        title = f"{'Last day to give notice' if d.get('notice') else names.get(d['kind'], 'Date')}: {d['filename']}" + (f" ({d['amount']})" if d.get("amount") else "")
         uid = hashlib.sha256(f"{d['filename']}|{d['date']}|{d['kind']}".encode()).hexdigest()[:24] + "@starkllm.local"
         lines += ["BEGIN:VEVENT", f"UID:{uid}", f"DTSTAMP:{stamp}"]
         if d["kind"] == "appointment" and d.get("time"):
