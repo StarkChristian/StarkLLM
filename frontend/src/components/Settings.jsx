@@ -7,6 +7,7 @@ import { useLucyVisible } from './Lucy';
 import { setHidden as setLucyHidden } from '../utils/lucy';
 import ProtectionSettings from './ProtectionSettings';
 import EncryptedBackupSettings from './EncryptedBackupSettings';
+import AutomaticBackupSettings from './AutomaticBackupSettings';
 import { AVAILABLE_THEMES, applyTheme } from '../utils/themes';
 import OtherAppsPanel from './OtherAppsPanel';
 import { t, language, setLanguage } from '../i18n';
@@ -1258,6 +1259,7 @@ print(response.choices[0].message.content)`;
           {activeSection === 'system' && (
             <>
               <EncryptedBackupSettings token={token} />
+              <AutomaticBackupSettings />
               <BackupRestoreSettings token={token} />
             </>
           )}

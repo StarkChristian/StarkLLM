@@ -241,7 +241,7 @@ def test_enable_protects_everything_and_data_still_reads(env):
     originals = _populate_plain(env)
     protection.set_key(crypto.new_key())
     result = mig.run(env.targets, "enable")
-    assert {k: result["counts"][k] for k in ("database", "files", "vectors")} == {"database": 2, "files": 2, "vectors": 2}
+    assert {k: result["counts"][k] for k in ("database", "files", "vectors")} == {"database": 4, "files": 2, "vectors": 2}  # content, sources, workspace name, chat title
     assert result["counts"]["cleaned"] == {"database": True, "vectors": True}   # no plain traces left in the files
     assert protection.enabled
     for name, data in originals.items():
@@ -352,3 +352,78 @@ def test_migration_does_not_overwrite_a_row_changed_meanwhile(env):
         n = c.execute(text('UPDATE "messages" SET "content" = :new WHERE id = 1 AND "content" = :old'),
                       {"new": "TOKEN", "old": "old text"}).rowcount
     assert n == 0
+
+
+LABELS = ("Mueller Steuern 2025", "Vermieter Post", "Kuendigung Wohnung", "Bescheid_AENDERUNG.pdf", "Mahnung beantworten")
+
+
+def _add_labels(env):
+    s = env.Session()
+    u = models.User(username="l" + os.urandom(4).hex(), hashed_password="x"); s.add(u); s.flush()
+    ws = models.Workspace(user_id=u.id, name=LABELS[0]); s.add(ws); s.flush()
+    folder = models.ChatFolder(workspace_id=ws.id, name=LABELS[1]); s.add(folder); s.flush()
+    s.add(models.Chat(workspace_id=ws.id, title=LABELS[2], folder_id=folder.id))
+    s.add(models.Document(workspace_id=ws.id, filename=LABELS[3], filepath="p", file_type="pdf", status="indexed"))
+    s.add(models.PromptTemplate(user_id=u.id, title=LABELS[4], content="x"))
+    s.commit(); s.close()
+
+
+def test_migration_protects_names_and_titles_and_leaves_no_plain_trace(env):
+    _add_labels(env)
+    protection.set_key(crypto.new_key())
+    plan = mig.plan(env.targets, "enable")
+    for column in ("workspaces.name", "chat_folders.name", "chats.title", "documents.filename", "prompt_templates.title"):
+        assert plan["database"][column]["todo"] == 1, column
+    result = mig.run(env.targets, "enable")
+    assert result["counts"]["cleaned"]["database"] is True
+    data = open(env.tmp / "test.db", "rb").read()
+    assert not [label for label in LABELS if label.encode() in data]
+    s = env.Session()
+    assert s.query(models.Workspace).first().name == LABELS[0] and s.query(models.Document).first().filename == LABELS[3]
+    s.close()
+    mig.run(env.targets, "disable")
+    assert [r[0] for r in _raw(env.engine, "select name from workspaces")] == [LABELS[0]]
+    assert [r[0] for r in _raw(env.engine, "select title from chats")] == [LABELS[2]]
+
+
+def test_failed_enable_rolls_back_the_labels_too(env, monkeypatch):
+    _add_labels(env)
+    protection.set_key(crypto.new_key())
+    real, calls = mig._migrate_files, {"n": 0}
+
+    def fail_once(*a, **k):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise OSError("disk full")
+        return real(*a, **k)
+    monkeypatch.setattr(mig, "_migrate_files", fail_once)
+    with pytest.raises(mig.MigrationError):
+        mig.run(env.targets, "enable")
+    monkeypatch.undo()
+    assert [r[0] for r in _raw(env.engine, "select name from workspaces")] == [LABELS[0]]
+    assert [r[0] for r in _raw(env.engine, "select filename from documents")] == [LABELS[3]]
+
+
+def test_cleaning_a_database_waits_for_readers_instead_of_leaving_plain_text_in_the_log(tmp_path, monkeypatch):
+    """Found by CI: a connection that was still reading made the checkpoint report 'busy' without raising, so the old plain
+    text stayed in the write-ahead log. The cleaning now retries and says False if it could not finish."""
+    import sqlite3
+    import threading
+    import time
+    path = str(tmp_path / "x.db")
+    con = sqlite3.connect(path, isolation_level=None)
+    con.execute("PRAGMA journal_mode=WAL")
+    con.execute("create table t (v text)")
+    con.execute("insert into t values ('Steuerbescheid Mueller')")
+    reader = sqlite3.connect(path, isolation_level=None, check_same_thread=False)
+    reader.execute("BEGIN")
+    reader.execute("select * from t").fetchall()                      # a reader that holds the old pages
+    con.execute("update t set v = 'locked'")
+    assert mig._checkpoint(con, attempts=2, pause=0.01) is False      # busy: reported, not ignored
+    assert b"Steuerbescheid" in open(path + "-wal", "rb").read()
+    threading.Timer(0.3, lambda: reader.execute("COMMIT")).start()    # the reader finishes a moment later
+    t0 = time.time()
+    assert mig._vacuum(path) is True and time.time() - t0 >= 0.2
+    for name in os.listdir(tmp_path):
+        assert b"Steuerbescheid" not in open(tmp_path / name, "rb").read(), name
+    con.close(); reader.close()

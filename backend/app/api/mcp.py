@@ -172,10 +172,9 @@ def execute_mcp_tool(
                 try:
                     resolved_ws_id = int(raw_ws_id)
                 except (ValueError, TypeError):
-                    ws = db.query(models.Workspace).filter(
-                        models.Workspace.user_id == current_user.id,
-                        models.Workspace.name == str(raw_ws_id)
-                    ).first()
+                    # names may be stored protected, so they are compared after reading
+                    ws = next((w for w in db.query(models.Workspace).filter(models.Workspace.user_id == current_user.id)
+                               if w.name == str(raw_ws_id)), None)
                     if ws:
                         resolved_ws_id = ws.id
             if not resolved_ws_id:

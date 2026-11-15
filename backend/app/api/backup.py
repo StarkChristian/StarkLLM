@@ -51,7 +51,11 @@ def create(req: CreateRequest, current_user: models.User = Depends(require_admin
     token = secrets.token_hex(16)
     path = os.path.join(_backup_dir(), token + backups.EXTENSION)
     try:
-        report = backups.create_and_test(path, req.passphrase, chroma_client=rag_service.chroma_client,
+        secure = None
+        if protection.vector_mode() == "secure":
+            from app.services.secure_index import secure_client
+            secure = secure_client()
+        report = backups.create_and_test(path, req.passphrase, chroma_client=rag_service.chroma_client, secure_client=secure,
                                          app_version=settings.VERSION, busy_check=lambda: migration._busy_documents(
                                              migration.default_targets()))
     except backups.BackupError as e:
@@ -99,7 +103,9 @@ def _release_live_state():
     from app.db.session import engine
     from app.services.memory_service import memory_service
     from app.services.rag_service import rag_service
+    from app.services import secure_index
     engine.dispose()
+    secure_index.release()
     rag_service.chroma_client = memory_service.chroma_client = memory_service.memory_collection = None
     gc.collect()
     try:
