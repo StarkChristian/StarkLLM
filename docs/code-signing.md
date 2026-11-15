@@ -4,6 +4,11 @@ Windows Smart App Control blocks new unsigned programs, and it blocked StarkLLM 
 (2.0.8, 2.0.14, 2.0.15). The SignPath Foundation signs open source projects for free. The certificate is
 issued to SignPath Foundation, so Windows shows "SignPath Foundation" as the publisher.
 
+> **Own certificate instead of SignPath:** with the Certum Open Source Code Signing certificate (SimplySign, key in
+> Certum's cloud) a release is signed on the owner's PC with `desktop/build/release-sign.js`, see
+> [signing-on-owner-pc.md](signing-on-owner-pc.md). The files that may stay unsigned, the `publisherName` step and
+> the dry run with a test certificate are the same for both routes.
+
 The public policy is on [www.starkllm.com/code-signing](https://www.starkllm.com/code-signing) and in the
 [README](../README.md#code-signing-policy).
 

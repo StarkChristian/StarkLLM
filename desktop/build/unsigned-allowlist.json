@@ -1,0 +1,17 @@
+{
+  "_comment": "Files that may stay unsigned in a release build (checked by build/check-signed.js). Everything else we ship must carry a valid signature. Patterns match the end of the path inside the app folder, '*' matches within one folder name. Entries here are an allowance, not an instruction: sign.js signs every file electron-builder hands it, these ones too, when it can. Explained in docs/signing-on-owner-pc.md.",
+  "unsignedAllowed": [
+    { "pattern": "ffmpeg.dll", "reason": "Electron/Chromium library, built and shipped unchanged by the Electron project" },
+    { "pattern": "libEGL.dll", "reason": "Electron/Chromium library (ANGLE), built and shipped unchanged by the Electron project" },
+    { "pattern": "libGLESv2.dll", "reason": "Electron/Chromium library (ANGLE), built and shipped unchanged by the Electron project" },
+    { "pattern": "vk_swiftshader.dll", "reason": "Electron/Chromium library (software Vulkan), built and shipped unchanged by the Electron project" },
+    { "pattern": "vulkan-1.dll", "reason": "Electron/Chromium library (Vulkan loader), built and shipped unchanged by the Electron project" },
+    { "pattern": "resources/elevate.exe", "reason": "electron-builder helper for installing for all users, third-party binary shipped unchanged" }
+  ],
+  "foreignSignatureAllowed": [
+    { "pattern": "d3dcompiler_47.dll", "reason": "signed by Microsoft; a second signature from us is neither needed nor allowed to replace it" }
+  ],
+  "insideInstallerOnly": [
+    { "pattern": "System.dll, StdUtils.dll, UAC.dll, WinShell.dll, nsis7z.dll, nsProcess.dll", "reason": "NSIS plugins from NSIS and electron-builder, unpacked to a temp folder by the installer; they are not on disk in a build folder, so no check can see them. CI signs them in the NSIS toolset copy before the build (windows-trust.yml); on the owner's PC they stay unsigned unless build/copy-nsis-plugins.js is used" }
+  ]
+}

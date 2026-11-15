@@ -193,6 +193,16 @@ jobs:
             '{0,-12} {1}' -f $s.Status, $_.FullName.Substring((Split-Path $exe).Length + 1)
           }
 
+      - name: "Every file of ours is signed (allowed to stay unsigned: desktop/build/unsigned-allowlist.json)"
+        if: inputs.sign
+        working-directory: desktop
+        shell: pwsh
+        run: |
+          $setup = (Get-Item 'dist/StarkLLM-v${{ steps.version.outputs.version }}-Setup.exe').FullName
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\StarkLLM'
+          node build/check-signed.js $dir $setup --allow 'Uninstall StarkLLM.exe=SignPath cannot sign it, NSIS writes it in the middle of the installer build (docs/code-signing.md)'
+          if ($LASTEXITCODE -ne 0) { throw 'a file of ours is not signed' }
+
       - name: Checksums
         shell: pwsh
         run: |

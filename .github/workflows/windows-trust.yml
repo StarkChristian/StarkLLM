@@ -1,0 +1,143 @@
+name: Windows trust (signing, App Control)
+
+# Roadmap phase 0: StarkLLM must install and run on PCs where Windows Smart App Control is on. Smart App Control is
+# App Control for Business with Microsoft's policy: every EXE and DLL is checked when it loads, and an unsigned file
+# Microsoft does not know is blocked (the 2.0.8 update and the 2.0.10 installer were, on a real PC).
+#
+# This builds the installer, signs every file with a test certificate (later: Azure Artifact Signing, the same
+# script), turns on an App Control policy in audit mode that trusts Microsoft-signed files and that certificate, installs, starts and
+# uninstalls StarkLLM, and reads which of our files App Control would have blocked (event 3076).
+#   signed:   no file may be flagged, and every file must carry a valid signature
+#   unsigned: the same build without signing must be flagged, or the check itself would be blind
+on:
+  pull_request:
+    paths: ['desktop/**', '.github/workflows/windows-trust.yml']
+  push:
+    branches: ['ci/**']
+    paths: ['desktop/**', '.github/workflows/windows-trust.yml']
+  workflow_dispatch:
+
+jobs:
+  trust:
+    strategy:
+      fail-fast: false
+      matrix:
+        signing: [signed, unsigned]
+    name: ${{ matrix.signing }}
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install
+        working-directory: desktop
+        run: npm ci --no-audit --no-fund
+
+      - name: Test certificate (this runner only)
+        if: matrix.signing == 'signed'
+        run: |
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=StarkLLM Test Signing (CI only)' `
+            -KeyAlgorithm RSA -KeyLength 3072 -CertStoreLocation Cert:\CurrentUser\My -NotAfter (Get-Date).AddDays(2)
+          $password = [guid]::NewGuid().ToString()
+          "::add-mask::$password"
+          $pfx = Join-Path $env:RUNNER_TEMP 'test-sign.pfx'
+          $cer = Join-Path $env:RUNNER_TEMP 'test-sign.cer'
+          Export-PfxCertificate -Cert $cert -FilePath $pfx -Password (ConvertTo-SecureString $password -AsPlainText -Force) | Out-Null
+          Export-Certificate -Cert $cert -FilePath $cer | Out-Null
+          # trusted on this runner only, so it counts like a certificate from a real certificate authority
+          Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
+          Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\TrustedPublisher | Out-Null
+          "STARKLLM_SIGN=test" >> $env:GITHUB_ENV
+          "STARKLLM_SIGN_PFX=$pfx" >> $env:GITHUB_ENV
+          "STARKLLM_SIGN_PFX_PASSWORD=$password" >> $env:GITHUB_ENV
+          "TEST_CERT=$cer" >> $env:GITHUB_ENV
+
+      - name: Sign the NSIS plugins that go into the installer
+        if: matrix.signing == 'signed'
+        working-directory: desktop
+        run: |
+          $toolset = Join-Path $env:RUNNER_TEMP 'nsis-toolset'
+          $out = node build/copy-nsis-plugins.js $toolset
+          if ($LASTEXITCODE -ne 0) { throw "copying the NSIS toolset failed: $out" }
+          $dlls = @($out | Select-Object -Skip (($out | Select-String -SimpleMatch 'DLLS').LineNumber))
+          "$($dlls.Count) plugin DLLs"
+          node build/sign.js @dlls
+          if ($LASTEXITCODE -ne 0) { throw 'signing the NSIS plugins failed' }
+          "ELECTRON_BUILDER_NSIS_DIR=$toolset\nsis" >> $env:GITHUB_ENV
+          "ELECTRON_BUILDER_NSIS_RESOURCES_DIR=$toolset\resources" >> $env:GITHUB_ENV
+
+      - name: Build the installer
+        working-directory: desktop
+        run: npx electron-builder --win nsis --x64 --publish never
+
+      - name: App Control in audit mode (trusts Microsoft-signed files and the test certificate, like Smart App Control)
+        run: |
+          $xml = Join-Path $env:RUNNER_TEMP 'starkllm-audit.xml'
+          # AllowMicrosoft: Windows and every Microsoft-signed file (Electron ships Microsoft's d3dcompiler_47.dll), as
+          # Smart App Control does; DefaultWindows would also flag Microsoft redistributables
+          Copy-Item "$env:windir\schemas\CodeIntegrity\ExamplePolicies\AllowMicrosoft.xml" $xml
+          Set-RuleOption -FilePath $xml -Option 3   # audit mode: log, do not block
+          Set-CIPolicyIdInfo -FilePath $xml -PolicyName 'StarkLLM CI audit' -ResetPolicyID | Out-Null
+          if ($env:TEST_CERT) { Add-SignerRule -FilePath $xml -CertificatePath $env:TEST_CERT -User }
+          $id = ([xml](Get-Content $xml)).SiPolicy.PolicyID
+          $cip = Join-Path $env:RUNNER_TEMP "$id.cip"
+          ConvertFrom-CIPolicy -XmlFilePath $xml -BinaryFilePath $cip | Out-Null
+          CiTool.exe --update-policy $cip -json | Out-String
+          if ($LASTEXITCODE -ne 0) { throw "CiTool could not activate the policy ($LASTEXITCODE)" }
+          wevtutil cl 'Microsoft-Windows-CodeIntegrity/Operational'
+          "AUDIT_FROM=$((Get-Date).ToUniversalTime().ToString('o'))" >> $env:GITHUB_ENV
+
+      - name: Install, start and uninstall StarkLLM
+        run: |
+          $setup = (Get-ChildItem desktop/dist/*-Setup.exe | Select-Object -First 1).FullName
+          $p = Start-Process $setup -ArgumentList '/S', '/currentuser' -Wait -PassThru
+          "installer exit code $($p.ExitCode)"
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\StarkLLM'
+          if (-not (Test-Path "$dir\StarkLLM.exe")) { throw 'StarkLLM.exe was not installed' }
+          $app = Start-Process "$dir\StarkLLM.exe" -PassThru
+          Start-Sleep 40
+          Get-Process -Name StarkLLM -ErrorAction SilentlyContinue | Stop-Process -Force
+          $un = Get-ChildItem $dir -Filter 'Uninstall*.exe' | Select-Object -First 1
+          # keep a copy: the uninstaller removes itself, and its signature is checked below
+          Copy-Item $dir "$env:RUNNER_TEMP\installed" -Recurse
+          $u = Start-Process $un.FullName -ArgumentList '/S', '/currentuser' -Wait -PassThru
+          "uninstaller exit code $($u.ExitCode)"
+          Start-Sleep 5
+
+      - name: Every installed file is signed
+        if: matrix.signing == 'signed'
+        run: |
+          $files = @(Get-ChildItem "$env:RUNNER_TEMP\installed" -Recurse -File -Include *.exe, *.dll, *.node) + @(Get-ChildItem desktop/dist/*-Setup.exe)
+          $bad = $files | ForEach-Object { $s = Get-AuthenticodeSignature $_.FullName; if ($s.Status -ne 'Valid') { "$($s.Status)  $($_.FullName)" } }
+          "$($files.Count) files checked"
+          if ($bad) { $bad; throw "$(@($bad).Count) files without a valid signature" }
+          $signers = $files | ForEach-Object { (Get-AuthenticodeSignature $_.FullName).SignerCertificate.Subject } | Group-Object | ForEach-Object { "$($_.Count)  $($_.Name)" }
+          $signers
+
+      - name: Files App Control would have blocked
+        run: |
+          $from = [datetime]::Parse($env:AUDIT_FROM).ToUniversalTime()
+          $events = @(Get-WinEvent -LogName 'Microsoft-Windows-CodeIntegrity/Operational' -ErrorAction SilentlyContinue |
+            Where-Object { $_.Id -in 3076, 3077 -and $_.TimeCreated.ToUniversalTime() -ge $from })
+          # "Code Integrity determined that a process (<process>) attempted to load <file> that did not meet ..."
+          $loads = @($events | ForEach-Object {
+            if ($_.Message -match 'process \((.+?)\) attempted to load (.+?) that did not') { [pscustomobject]@{ Process = $Matches[1]; File = $Matches[2] } }
+          } | Sort-Object File, Process -Unique)
+          $isOurs = { param($path) $path -match 'StarkLLM|\\~?ns[a-zA-Z0-9]+\.tmp\\' }
+          # ours: the installer, its NSIS temp folder (plugins, uninstaller copy), the installed app and its files
+          $ours = @($loads | Where-Object { & $isOurs $_.File })
+          # files of others that our processes load: Smart App Control would block them too, so they are listed
+          $others = @($loads | Where-Object { -not (& $isOurs $_.File) -and (& $isOurs $_.Process) })
+          "$($events.Count) audit events in total; $($ours.Count) StarkLLM files would be blocked:"
+          $ours | ForEach-Object { "  $($_.File)    (loaded by $(Split-Path $_.Process -Leaf))" }
+          "other files StarkLLM's processes load that would be blocked: $($others.Count)"
+          $others | ForEach-Object { "  $($_.File)    (loaded by $(Split-Path $_.Process -Leaf))" }
+          if ('${{ matrix.signing }}' -eq 'signed' -and $ours.Count -gt 0) { throw 'App Control would block these StarkLLM files' }
+          if ('${{ matrix.signing }}' -eq 'unsigned' -and $ours.Count -eq 0) { throw 'the unsigned build was not flagged: the check does not see our files' }
