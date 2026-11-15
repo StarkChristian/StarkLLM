@@ -3,6 +3,8 @@ import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, 
 import styles from './Settings.module.css';
 import BackupRestoreSettings from './BackupRestoreSettings';
 import OcrSettings from './OcrSettings';
+import { useLucyVisible } from './Lucy';
+import { setHidden as setLucyHidden } from '../utils/lucy';
 import ProtectionSettings from './ProtectionSettings';
 import EncryptedBackupSettings from './EncryptedBackupSettings';
 import { AVAILABLE_THEMES, applyTheme } from '../utils/themes';
@@ -292,6 +294,7 @@ print(response.choices[0].message.content)`;
   const [fontSize, setFontSize] = useState(localStorage.getItem('ui_font_size') || 'medium');
   const [theme, setTheme] = useState(() => localStorage.getItem('ui_theme') || 'dark');
   const [uiSaved, setUiSaved] = useState(false);
+  const lucyOn = useLucyVisible();
 
   // Workspace AI Persona
   const [wsSystemPrompt, setWsSystemPrompt] = useState('');
@@ -1088,6 +1091,13 @@ print(response.choices[0].message.content)`;
                   })}
                 </div>
               </div>
+
+              <Toggle
+                checked={lucyOn}
+                onChange={(on) => setLucyHidden(!on)}
+                label={t('Show Lucy, the helper robot')}
+                hint={t('Lucy explains the first steps and shows up on empty pages. She never covers buttons and never appears in error messages.')}
+              />
 
               <button className="btn-primary" onClick={saveUi}>
                 {uiSaved ? <><CheckCircle size={14} /> {t('Applied!')}</> : <><Save size={14} /> {t('Apply Settings')}</>}
