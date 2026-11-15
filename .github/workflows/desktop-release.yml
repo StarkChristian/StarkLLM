@@ -1,0 +1,209 @@
+name: Desktop release (signed)
+
+# Builds the Windows release from main and has the SignPath Foundation sign it (free code signing for open
+# source, see docs/code-signing.md). Every signing request waits until it is approved by hand in SignPath.
+#
+#   1. Build the installer once, unsigned, to get the finished app folder (win-unpacked, with app-update.yml).
+#   2. SignPath signs StarkLLM.exe in that folder, so the installed program is signed.
+#   3. Build the installer again from the signed folder (--prepackaged packs it as it is).
+#   4. SignPath signs the installer.
+#   5. latest.yml and the .blockmap are computed again, because signing changed the installer's bytes.
+#   6. Install the signed installer and check the installed StarkLLM.exe is the signed one.
+#
+# "sign: false" runs the same steps without SignPath (dry run). Pull requests that change this pipeline run the
+# dry run too.
+
+on:
+  pull_request:
+    paths: ['.github/workflows/desktop-release.yml', 'desktop/build/refresh-update-info.js']
+  workflow_dispatch:
+    inputs:
+      sign:
+        description: 'Sign with SignPath (off = dry run, unsigned)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+
+env:
+  SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+  SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG || 'StarkLLM' }}
+  SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 300
+    steps:
+      - name: Only from main
+        if: inputs.sign && github.ref != 'refs/heads/main'
+        run: |
+          echo "Releases are built from main only (this run: ${{ github.ref }})."
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install
+        working-directory: desktop
+        run: npm ci --no-audit --no-fund
+
+      - name: Unit tests
+        working-directory: desktop
+        run: npm test --if-present
+
+      - name: Version
+        id: version
+        shell: pwsh
+        run: |
+          $v = (Get-Content desktop/package.json -Raw | ConvertFrom-Json).version
+          "version=$v" >> $env:GITHUB_OUTPUT
+          "StarkLLM $v"
+
+      - name: 1. Build (unsigned)
+        working-directory: desktop
+        run: npx electron-builder --win --x64 --publish never
+
+      - name: Keep the app folder
+        shell: pwsh
+        run: |
+          $app = 'desktop/dist/win-unpacked'
+          if (-not (Test-Path "$app/resources/app-update.yml")) { throw 'app-update.yml is missing: the app could not find updates' }
+          $exe = Get-Item "$app/StarkLLM.exe"
+          "StarkLLM.exe version info:"; $exe.VersionInfo | Format-List ProductName, ProductVersion, FileVersion, CompanyName, LegalCopyright | Out-String
+          Move-Item $app "$env:RUNNER_TEMP/app-unsigned"
+          Remove-Item desktop/dist -Recurse -Force
+
+      - name: Upload the app folder for signing
+        id: app-unsigned
+        uses: actions/upload-artifact@v7
+        with:
+          name: app-unsigned
+          path: ${{ runner.temp }}/app-unsigned/
+          retention-days: 1
+
+      - name: 2. Sign StarkLLM.exe (SignPath, waits for approval)
+        if: inputs.sign
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ env.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ env.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ env.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: app
+          github-artifact-id: ${{ steps.app-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 7200
+          download-signed-artifact-timeout-in-seconds: 1200
+          output-artifact-directory: ${{ runner.temp }}/app-signed
+          parameters: |
+            version: ${{ toJSON(steps.version.outputs.version) }}
+
+      - name: Dry run, no signing
+        if: ${{ !inputs.sign }}
+        shell: pwsh
+        run: Copy-Item "$env:RUNNER_TEMP/app-unsigned" "$env:RUNNER_TEMP/app-signed" -Recurse
+
+      - name: Check the signed app folder
+        shell: pwsh
+        run: |
+          $before = Get-ChildItem "$env:RUNNER_TEMP/app-unsigned" -Recurse -File
+          $after = Get-ChildItem "$env:RUNNER_TEMP/app-signed" -Recurse -File
+          "files: $($before.Count) before, $($after.Count) after"
+          if ($before.Count -ne $after.Count) { throw 'signing changed the number of files in the app folder' }
+          if (-not (Test-Path "$env:RUNNER_TEMP/app-signed/resources/app-update.yml")) { throw 'app-update.yml is missing after signing' }
+          $sig = Get-AuthenticodeSignature "$env:RUNNER_TEMP/app-signed/StarkLLM.exe"
+          "StarkLLM.exe signature: $($sig.Status) $($sig.SignerCertificate.Subject)"
+          if ('${{ inputs.sign }}' -eq 'true' -and $sig.Status -ne 'Valid') { throw 'StarkLLM.exe is not signed' }
+
+      - name: 3. Build the installer from the signed app
+        working-directory: desktop
+        shell: pwsh
+        run: npx electron-builder --win nsis --x64 --prepackaged "$env:RUNNER_TEMP/app-signed" --publish never
+
+      - name: Upload the installer for signing
+        id: setup-unsigned
+        uses: actions/upload-artifact@v7
+        with:
+          path: desktop/dist/StarkLLM-v${{ steps.version.outputs.version }}-Setup.exe
+          archive: false
+          retention-days: 1
+
+      - name: 4. Sign the installer (SignPath, waits for approval)
+        if: inputs.sign
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ env.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ env.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ env.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.setup-unsigned.outputs.artifact-id }}
+          skip-decompress: true
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 7200
+          download-signed-artifact-timeout-in-seconds: 600
+          output-artifact-directory: ${{ runner.temp }}/setup-signed
+          parameters: |
+            version: ${{ toJSON(steps.version.outputs.version) }}
+
+      - name: Put the signed installer in place
+        if: inputs.sign
+        shell: pwsh
+        run: |
+          $name = 'StarkLLM-v${{ steps.version.outputs.version }}-Setup.exe'
+          $signed = Get-ChildItem "$env:RUNNER_TEMP/setup-signed" -Recurse -File -Filter *.exe | Select-Object -First 1
+          if (-not $signed) { throw 'SignPath returned no installer' }
+          Copy-Item $signed.FullName "desktop/dist/$name" -Force
+
+      - name: 5. latest.yml and blockmap from the final installer
+        working-directory: desktop
+        run: node build/refresh-update-info.js dist
+
+      - name: 6. Install and check
+        shell: pwsh
+        run: |
+          $setup = Get-Item 'desktop/dist/StarkLLM-v${{ steps.version.outputs.version }}-Setup.exe'
+          $sig = Get-AuthenticodeSignature $setup.FullName
+          "installer: $($sig.Status) $($sig.SignerCertificate.Subject)"
+          "installer version info:"; $setup.VersionInfo | Format-List ProductName, ProductVersion, FileVersion | Out-String
+          if ('${{ inputs.sign }}' -eq 'true' -and $sig.Status -ne 'Valid') { throw 'the installer is not signed' }
+          $p = Start-Process $setup.FullName -ArgumentList '/S', '/currentuser' -Wait -PassThru
+          "installer exit code $($p.ExitCode)"
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\StarkLLM\StarkLLM.exe'
+          $deadline = (Get-Date).AddMinutes(6)
+          while (-not (Test-Path $exe) -and (Get-Date) -lt $deadline) { Start-Sleep 3 }
+          if (-not (Test-Path $exe)) { throw 'StarkLLM.exe was not installed' }
+          $want = (Get-FileHash "$env:RUNNER_TEMP/app-signed/StarkLLM.exe").Hash
+          $got = (Get-FileHash $exe).Hash
+          if ($want -ne $got) { throw "the installed StarkLLM.exe is not the signed one ($got, expected $want)" }
+          $isig = Get-AuthenticodeSignature $exe
+          "installed StarkLLM.exe: $($isig.Status) $($isig.SignerCertificate.Subject)"
+          Get-ChildItem (Split-Path $exe) -Recurse -Include *.exe, *.dll | ForEach-Object {
+            $s = Get-AuthenticodeSignature $_.FullName
+            '{0,-12} {1}' -f $s.Status, $_.FullName.Substring((Split-Path $exe).Length + 1)
+          }
+
+      - name: Checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem desktop/dist/*-Setup.exe | ForEach-Object { "$((Get-FileHash $_ -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } | Tee-Object -Variable sums
+          "## StarkLLM ${{ steps.version.outputs.version }}`n``````n$sums`n``````" >> $env:GITHUB_STEP_SUMMARY
+          Get-Content desktop/dist/latest.yml
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: starkllm-windows-release
+          path: |
+            desktop/dist/*-Setup.exe
+            desktop/dist/*-Setup.exe.blockmap
+            desktop/dist/latest.yml
