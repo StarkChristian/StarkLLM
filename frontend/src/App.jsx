@@ -14,6 +14,7 @@ import GlobalSearch from './components/GlobalSearch';
 import SummaryModal from './components/SummaryModal';
 import WorkspaceKBModal from './components/WorkspaceKBModal';
 import HealthBanner from './components/HealthBanner';
+import OfflineBanner, { useOffline } from './components/OfflineBanner';
 import OnboardingWizard from './components/OnboardingWizard';
 import ModelHubModal from './components/ModelHubModal';
 import StudioModal from './components/StudioModal';
@@ -24,7 +25,7 @@ import { exportChat } from './utils/chatExport';
 import { currentCloudHost } from './utils/cloud';
 import { isUploadable } from './utils/uploadTypes';
 import { serverDate } from './utils/time';
-import { t } from './i18n';
+import { t, language } from './i18n';
 
 const NO_ANSWER_TEXT = '*[The model returned no answer. Try again, raise the token limit, or choose another model.]*';
 
@@ -70,6 +71,7 @@ export default function App() {
   }, [token]);
   const [useKb, setUseKb] = useState(false);
   const [useWebSearch, setUseWebSearch] = useState(false);
+  const offline = useOffline(token); // the fully offline switch (Settings > Privacy & network)
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(false);
   const [workspacesError, setWorkspacesError] = useState(null);
   const [hasFetchedWorkspaces, setHasFetchedWorkspaces] = useState(false);
@@ -555,8 +557,9 @@ export default function App() {
             base_url: savedBaseUrl,
             api_key: savedApiKey,
             stream: true,
+            language: language(),
             use_knowledge_base: useKb,
-            use_web_search: useWebSearch,
+            use_web_search: useWebSearch && !offline,
             use_hybrid_search: localStorage.getItem('rag_hybrid_search') !== 'false',
             use_query_rewriting: localStorage.getItem('rag_query_rewriting') !== 'false',
             use_context_compression: localStorage.getItem('rag_context_compression') !== 'false'
@@ -1161,6 +1164,7 @@ export default function App() {
 
         {activeView === 'chat' && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <OfflineBanner offline={offline} />
             <HealthBanner token={token} />
             <ChatArea 
               messages={messages} 
@@ -1181,7 +1185,8 @@ export default function App() {
               onFileUpload={handleFileUpload}
               useKb={useKb}
               onToggleKb={() => setUseKb(!useKb)}
-              useWebSearch={useWebSearch}
+              useWebSearch={useWebSearch && !offline}
+              offline={offline}
               onToggleWebSearch={() => setUseWebSearch(!useWebSearch)}
               cloudHost={currentCloudHost()}
               onOpenSettings={() => setActiveView('settings')}

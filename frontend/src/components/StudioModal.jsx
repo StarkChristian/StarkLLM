@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
 import { t, language } from '../i18n';
+import { speechLanguage } from '../utils/speech';
 import { useEscape } from '../utils/useEscape';
 import { blockRemoteImages } from '../utils/markdown';
 
@@ -124,6 +125,7 @@ export default function StudioModal({
     const turn = dialogueList[index];
     const utterance = new SpeechSynthesisUtterance(turn.text);
     utterance.rate = playbackSpeed;
+    utterance.lang = speechLanguage(turn.text, language());  // the voice of the text's language, not of the system
 
     // Use distinct pitch for Alex vs Taylor
     if (turn.speaker === 'Taylor') {

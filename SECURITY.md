@@ -20,12 +20,16 @@ Only the latest release gets security fixes. StarkLLM updates itself; please kee
 - The engine listens on `127.0.0.1` only; other computers cannot connect.
 - Other programs on the same PC can use StarkLLM only after the user turns this on and creates a key
   (Settings > Other apps); keys are stored as hashes.
-- No internet connection is made without the user's choice (model downloads, update check, web search, Telegram).
+- No internet connection is made without the user's choice (model downloads, update check, web search).
+- Every connection the app and its engine make is listed in Settings > Privacy & network, and the "Fully offline"
+  switch there refuses all of them (see [docs/privacy-network.md](docs/privacy-network.md); how to check it yourself:
+  [docs/verify-privacy.md](docs/verify-privacy.md)).
 - Uploaded documents, chat messages and the text of the search index can be stored encrypted (Settings > Protection); the key
   lives in the Windows key store of the user's account and never in the data folder. What this does and does not protect is
   written down in [docs/encryption-design.md](docs/encryption-design.md).
 - Backups (Settings > Backup & Restore) are one file encrypted with a passphrase, tested by restoring them into a temporary folder.
 - Text inside documents is treated as data, never as instructions; letters that try to instruct an AI assistant are
-  flagged.
+  flagged, text hidden in a file is left out, and a tool runs only after the user's click. A public set of 73 documents
+  in 14 languages (`tests/injection/`) is part of the tests.
 
 A way around any of these is a vulnerability.

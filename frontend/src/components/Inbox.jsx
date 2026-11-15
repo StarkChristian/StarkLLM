@@ -5,6 +5,9 @@ import EmptyState from './EmptyState';
 import Deadlines from './Deadlines';
 import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
+import { accountLabel } from '../utils/accounts';
+import AmbiguousDate, { ChosenDate } from './AmbiguousDate';
+import { LucyHelper } from './Lucy';
 import styles from './Inbox.module.css';
 
 // The document inbox (docs/document-inbox-design.md, B4): what StarkLLM read in each new letter, to check and mark
@@ -101,6 +104,15 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
     });
     load();
   };
+  // an ambiguous date ("03/04/2026"): the user says how to read it (or takes the choice back with null)
+  const chooseDate = async (doc, d, reading) => {
+    await fetch(`/api/v1/dashboard/inbox/${doc.scope}/${doc.id}/date`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ literal: d.literal, reading }),
+    });
+    load();
+  };
   const allDone = async () => {
     await fetch('/api/v1/dashboard/inbox/done', { method: 'POST', headers });
     load();
@@ -142,7 +154,7 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
     const key = `${doc.scope}-${doc.id}`;
     const isEditing = editing?.key === key;
     const due = (f.amounts || []).filter((a) => !a.role).slice(0, 3);
-    const datesShown = (f.dates || []).filter((d) => d.value >= data.today).sort((a, b) => a.value.localeCompare(b.value)).slice(0, 3);
+    const datesShown = (f.dates || []).filter((d) => d.value >= data.today || (d.ambiguous && Object.values(d.readings).some((v) => v >= data.today))).sort((a, b) => a.value.localeCompare(b.value)).slice(0, 3);
     return (
       <li key={key} className={`${styles.doc} ${doc.status === 'done' ? styles.docDone : ''}`}>
         <div className={styles.docHead}>
@@ -208,21 +220,24 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
             <React.Fragment key={`r${i}`}><dt>{REFERENCE_LABEL[r.kind] || t('Reference')}</dt><dd>{factLink(doc, r, r.value)}</dd></React.Fragment>
           ))}
           {due.length > 0 && (<><dt>{t('Amounts')}</dt><dd className={styles.factList}>{due.map((a, i) => factLink(doc, a, a.value, i))}</dd></>)}
-          {(f.accounts || []).length > 0 && (<><dt>{t('Bank account')}</dt><dd className={styles.factList}>{f.accounts.map((a, i) => factLink(doc, a, <span className={styles.mono}>{a.value}</span>, i))}</dd></>)}
+          {(f.accounts || []).length > 0 && (<><dt>{t('Bank account')}</dt><dd className={styles.factList}>{f.accounts.map((a, i) => factLink(doc, a, <span className={styles.mono}>{accountLabel(a.kind) ? `${accountLabel(a.kind)} ${a.value}` : a.value}</span>, i))}</dd></>)}
         </dl>
 
         {datesShown.length > 0 && !doc.suspicious && !doc.replaced && (
           <ul className={styles.dates}>
             {datesShown.map((d, i) => (
               <li key={i}>
-                {factLink(doc, d, (
+                {d.ambiguous ? (
+                  <AmbiguousDate date={d} onChoose={(reading) => chooseDate(doc, d, reading)} onOpen={() => open(doc, d)} />
+                ) : factLink(doc, d, (
                   <>
-                    <span className={styles[`kind_${d.kind}`] || styles.kind_payment}>{DATE_LABEL[d.kind] || d.kind}</span>
+                    <span className={styles[`kind_${d.kind}`] || styles.kind_payment}>{d.notice ? t('Last day to give notice') : (DATE_LABEL[d.kind] || d.kind)}</span>
                     <strong>{fmtDate(d.value)}</strong>
-                    <span className={styles.dateWhen}>{whenText(d.value)}{d.time ? ` · ${t('at {time}', { time: d.time })}` : ''}</span>
+                    <span className={styles.dateWhen}>{whenText(d.value)}{d.time ? ` · ${t('at {time}', { time: d.time })}` : ''}{d.notice ? ` · ${t('counted back from the end of the contract on {date}', { date: fmtDate(d.notice.base) })}` : ''}</span>
                     {d.amount && <span>{d.amount}</span>}
                   </>
                 ))}
+                {d.chosen && <ChosenDate date={d} onUndo={() => chooseDate(doc, d, null)} />}
               </li>
             ))}
           </ul>
@@ -264,7 +279,10 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
         <p className={styles.note}>{error ? t('The inbox could not be loaded. Is StarkLLM running?') : t('Looking through your documents…')}</p>
       ) : tab === 'cases' ? (
         cases.length === 0 ? (
-          <EmptyState icon={FolderOpen} title={t('No cases yet')} hint={t('Letters of the same sender are put together here.')} />
+          <>
+            <EmptyState icon={FolderOpen} title={t('No cases yet')} hint={t('Letters of the same sender are put together here.')} />
+            <LucyHelper text={t('Letters of the same sender will be gathered here, so you see each case in one place.')} state="talk" />
+          </>
         ) : (
           <ul className={styles.cases}>
             {cases.map((c) => {
@@ -298,11 +316,17 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
           </ul>
         )
       ) : shown.length === 0 ? (
-        <EmptyState
-          icon={InboxIcon}
-          title={tab === 'new' ? t('No new letters') : t('No documents yet')}
-          hint={tab === 'new' ? t('New letters and documents show up here with what StarkLLM read in them.') : t('Add a letter, a scan or a photo, or put files into your knowledge base folder.')}
-        />
+        <>
+          <EmptyState
+            icon={InboxIcon}
+            title={tab === 'new' ? t('No new letters') : t('No documents yet')}
+            hint={tab === 'new' ? t('New letters and documents show up here with what StarkLLM read in them.') : t('Add a letter, a scan or a photo, or put files into your knowledge base folder.')}
+          />
+          <LucyHelper
+            text={tab === 'new' ? t('Nothing new here. When a new letter comes in, I will tell you what is in it.') : t('No documents yet. Add a letter or a photo, and I will read it here on your PC.')}
+            state={tab === 'new' ? 'talk' : 'point'}
+          />
+        </>
       ) : (
         <ul className={styles.list}>{shown.map((d) => renderDoc(d))}</ul>
       )}

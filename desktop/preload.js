@@ -13,6 +13,8 @@ try {
 }
 
 contextBridge.exposeInMainWorld('starkllmDesktop', {
+  // the interface language the user chose: dialogs and the tray menu of the desktop app follow it
+  setLanguage: (code) => ipcRenderer.send('desktop:set-language', String(code || '')),
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),
   openKnowledgeFolder: () => ipcRenderer.invoke('kb:open-folder'),
   // download progress of an update: cb({ phase: 'downloading' | 'done', percent }); returns an unsubscribe function
@@ -21,6 +23,11 @@ contextBridge.exposeInMainWorld('starkllmDesktop', {
     ipcRenderer.on('updates:status', handler);
     return () => ipcRenderer.removeListener('updates:status', handler);
   },
+  // Settings > Privacy: the fully offline switch of the app and the list of its outgoing connections
+  getPrivacy: () => ipcRenderer.invoke('privacy:get'),
+  setOffline: (on) => ipcRenderer.invoke('privacy:set-offline', Boolean(on)),
+  getNetworkLog: (limit) => ipcRenderer.invoke('privacy:log', limit),
+  clearNetworkLog: () => ipcRenderer.invoke('privacy:clear-log'),
   localToken,
   // Settings > Protection: the key is created, wrapped and handed to the engine by the desktop app; the page only
   // gets the recovery key (once, to show it) and answers.

@@ -12,6 +12,10 @@ from app.db.session import get_db
 from app.db import models
 from app.api.auth import get_current_user
 from app.services.deadlines_service import ics_text as _ics_text, ics_fold as _ics_fold
+from app.core import netguard
+import asyncio
+import re
+import requests
 from app.core.protection import protection
 
 router = APIRouter()
@@ -84,8 +88,14 @@ def get_dashboard_stats(
         "kb_documents": kb_doc_count or 0,
     }
 
-import httpx
 from fastapi import HTTPException
+
+
+def _fetch_market_json(feature: str, url: str, headers: dict = None) -> dict:
+    resp = netguard.get(url, feature=feature, headers=headers or {}, timeout=5.0)
+    resp.raise_for_status()
+    return resp.json()
+
 
 @router.get("/market-prices")
 async def get_market_prices(symbol: str, consent: int = 0, current_user: models.User = Depends(get_current_user)):
@@ -97,17 +107,32 @@ async def get_market_prices(symbol: str, consent: int = 0, current_user: models.
         raise HTTPException(status_code=403, detail="Live market prices are off. Turn them on in the dashboard widget to allow this external request.")
     if symbol not in ["GC=F", "BZ=F"]:
         raise HTTPException(status_code=400, detail="Invalid symbol")
-    
+
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(url, headers=headers, timeout=5.0)
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            raise HTTPException(status_code=502, detail=f"Failed to fetch market data: {str(e)}")
+    try:
+        return await asyncio.to_thread(_fetch_market_json, "market_prices", url, {"User-Agent": "Mozilla/5.0"})
+    except netguard.OfflineBlocked as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch market data: {str(e)}")
+
+
+@router.get("/crypto-prices")
+async def get_crypto_prices(ids: str, consent: int = 0, current_user: models.User = Depends(get_current_user)):
+    """CoinGecko prices for the dashboard widget, fetched by the engine so that the request is recorded in the network
+    activity list and refused in fully offline mode (the browser used to ask CoinGecko directly)."""
+    if consent != 1:
+        raise HTTPException(status_code=403, detail="Live market prices are off. Turn them on in the dashboard widget to allow this external request.")
+    wanted = [i for i in ids.split(",") if re.fullmatch(r"[a-z0-9-]{1,40}", i)]
+    if not wanted or len(wanted) > 30:
+        raise HTTPException(status_code=400, detail="Invalid ids")
+    url = f"https://api.coingecko.com/api/v3/simple/price?ids={','.join(wanted)}&vs_currencies=usd&include_24hr_change=true"
+    try:
+        return await asyncio.to_thread(_fetch_market_json, "market_prices", url)
+    except netguard.OfflineBlocked as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch market data: {str(e)}")
 
 
 import time as _time
@@ -165,45 +190,48 @@ async def get_system_status(
     ollama_url = app_settings.OLLAMA_BASE_URL
     t0 = _time.monotonic()
     try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
-            tags_resp = await client.get(f"{ollama_url}/api/tags")
-            tags_resp.raise_for_status()
-            latency = round((_time.monotonic() - t0) * 1000)
-            result["ollama"]["status"] = "online"
-            result["ollama"]["latency_ms"] = latency
-            result["ollama"]["error"] = None
+        def probe_ollama():
+            tags = netguard.get(f"{ollama_url}/api/tags", feature="ollama", timeout=4.0)
+            tags.raise_for_status()
+            latency_ms = round((_time.monotonic() - t0) * 1000)
             try:
-                version = (await client.get(f"{ollama_url}/api/version")).json().get("version", "")
+                version = netguard.get(f"{ollama_url}/api/version", feature="ollama", timeout=4.0).json().get("version", "")
             except Exception:
                 version = ""
-            result["ollama"]["version"] = version or None
-            result["ollama"]["min_version"] = MIN_OLLAMA
-            result["ollama"]["outdated"] = ollama_outdated(version)
+            return tags, latency_ms, version
 
-            models_raw = tags_resp.json().get("models", [])
-            available = [m.get("name", "") for m in models_raw]
-            result["available_models"] = available
+        tags_resp, latency, version = await asyncio.to_thread(probe_ollama)
+        result["ollama"]["status"] = "online"
+        result["ollama"]["latency_ms"] = latency
+        result["ollama"]["error"] = None
+        result["ollama"]["version"] = version or None
+        result["ollama"]["min_version"] = MIN_OLLAMA
+        result["ollama"]["outdated"] = ollama_outdated(version)
 
-            # Check if configured models are present
-            text_model = app_settings.DEFAULT_TEXT_MODEL
-            embed_model = app_settings.DEFAULT_EMBEDDING_MODEL
+        models_raw = tags_resp.json().get("models", [])
+        available = [m.get("name", "") for m in models_raw]
+        result["available_models"] = available
 
-            def _model_present(name: str, available: list[str]) -> bool:
-                """Exact match; a name without a tag means ':latest' (Ollama's own rule).
-                'qwen2.5:7b' must NOT be satisfied by 'qwen2.5vl:7b'."""
-                norm = lambda n: n if ":" in n else n + ":latest"
-                return norm(name) in {norm(a) for a in available}
+        # Check if configured models are present
+        text_model = app_settings.DEFAULT_TEXT_MODEL
+        embed_model = app_settings.DEFAULT_EMBEDDING_MODEL
 
-            text_model_present = _model_present(text_model, available)
-            embed_model_present = _model_present(embed_model, available)
+        def _model_present(name: str, available: list[str]) -> bool:
+            """Exact match; a name without a tag means ':latest' (Ollama's own rule).
+            'qwen2.5:7b' must NOT be satisfied by 'qwen2.5vl:7b'."""
+            norm = lambda n: n if ":" in n else n + ":latest"
+            return norm(name) in {norm(a) for a in available}
 
-            result["text_model"]["status"] = "online" if text_model_present else "missing"
-            result["text_model"]["error"] = None if text_model_present else f"Model '{text_model}' is missing. Run 'ollama pull {text_model}' in your terminal."
+        text_model_present = _model_present(text_model, available)
+        embed_model_present = _model_present(embed_model, available)
 
-            result["embedding_model"]["status"] = "online" if embed_model_present else "missing"
-            result["embedding_model"]["error"] = None if embed_model_present else f"Model '{embed_model}' is missing. Run 'ollama pull {embed_model}' in your terminal."
+        result["text_model"]["status"] = "online" if text_model_present else "missing"
+        result["text_model"]["error"] = None if text_model_present else f"Model '{text_model}' is missing. Run 'ollama pull {text_model}' in your terminal."
 
-    except httpx.ConnectError:
+        result["embedding_model"]["status"] = "online" if embed_model_present else "missing"
+        result["embedding_model"]["error"] = None if embed_model_present else f"Model '{embed_model}' is missing. Run 'ollama pull {embed_model}' in your terminal."
+
+    except requests.exceptions.ConnectionError:
         result["ollama"]["status"] = "offline"
         result["ollama"]["error"] = "Ollama is unreachable. Ensure Ollama is installed and running (e.g. 'ollama serve')."
         result["text_model"]["status"] = "offline"
@@ -270,18 +298,25 @@ def _pages_by_where(collection, where: dict) -> dict:
 _DATES_CACHE: dict = {}
 
 
-def _dates_cached(text: str):
-    """find_dates for a page text, computed once per text (the home page is opened often, letters rarely change)."""
+def _dates_cached(text: str, order_hint=None):
+    """find_dates for a page text, computed once per text (the home page is opened often, letters rarely change).
+    order_hint: how the whole document writes slash dates, when the page alone does not show it."""
     from app.services.dates_service import find_dates
     import hashlib
     from datetime import date
     # a date without a year ("bis zum 15.12.") is read relative to today when the letter has no date of its own
-    key = date.today().isoformat() + hashlib.sha1(text.encode("utf-8", "ignore")).hexdigest()
+    key = date.today().isoformat() + str(order_hint) + hashlib.sha1(text.encode("utf-8", "ignore")).hexdigest()
     if key not in _DATES_CACHE:
         if len(_DATES_CACHE) > 20000:
             _DATES_CACHE.clear()
-        _DATES_CACHE[key] = find_dates(text)
+        _DATES_CACHE[key] = find_dates(text, order_hint=order_hint)
     return _DATES_CACHE[key]
+
+
+def date_choices(db, user_id: int) -> dict:
+    """The user's readings of ambiguous dates: {(scope, document_id, "03/04/2026"): "dmy" | "mdy"}."""
+    return {(c.scope, c.document_id, c.literal): c.reading
+            for c in db.query(models.DateChoice).filter(models.DateChoice.user_id == user_id).all()}
 
 
 def documents_with_pages(db, user_id: int, workspace_id: int = None, include_kb: bool = True):
@@ -358,6 +393,7 @@ def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool 
     and by the chat, which hands these dates to the model for questions like "what is due in the next two weeks?"."""
     from datetime import date, timedelta
     from app.services.document_checks import findings
+    from app.services.facts_service import is_machine_document
 
     items, pages_of = documents_with_pages(db, user_id, workspace_id, include_kb)
     today = date.today()
@@ -369,19 +405,22 @@ def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool 
     # none), and a letter, its copy and the photo of it are one date, read from the oldest of them.
     from app.services.deadlines_service import counts_as_letter, same_deadline, _norm_ref
     from app.services.facts_service import document_facts_cached
-    order = sorted(range(len(items)), key=lambda i: (items[i]["added"] or "", items[i]["scope"], items[i]["id"]))
-    replaced = replaced_documents(pages_of)
     dates, seen_fp = [], {}
+    choices = date_choices(db, user_id)
+    replaced = replaced_documents(pages_of)
+    order = sorted(range(len(items)), key=lambda i: (items[i]["added"] or "", items[i]["scope"], items[i]["id"]))
     for i in order:
         item, pages = items[i], pages_of[i]
         if replaced[i]:
             item["replaced"] = True
             continue
+        if is_machine_document(pages, item["filename"]):
+            continue  # a log, table, JSON or note: its timestamps and dates are not deadlines
         full = "\n".join(text for _, text in sorted(pages.items()))
-        if any(f["kind"] in ("scam_signs", "ai_instructions") for f in findings([{"file": item["filename"], "text": full}])):
+        if any(f["kind"] in ("scam_signs", "ai_instructions", "hidden_text") for f in findings([{"file": item["filename"], "text": full}])):
             item["suspicious"] = True  # a scam's "deadline" is not something to do
             continue
-        facts = document_facts_cached(pages)
+        facts = document_facts_cached(pages, item["filename"])
         if not counts_as_letter({"facts": facts, "file_type": item.get("file_type")}):
             continue
         fp = facts.get("fingerprint")
@@ -390,15 +429,20 @@ def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool 
         if fp:
             seen_fp[fp] = i
         refs = {_norm_ref(r["value"]) for r in facts.get("references", [])}
+        from app.services.dates_service import choose_reading, date_order_evidence
+        hint = date_order_evidence(full)
         for page, text in sorted(pages.items()):
-            for f in _dates_cached(text):
-                if f.date < first.isoformat():
+            for f in _dates_cached(text, hint):
+                d = choose_reading({**f.__dict__}, choices.get((item["scope"], item["id"], f.literal)))
+                latest = max([d["date"], *(d.get("readings") or {}).values()])  # an open date counts by its later reading
+                if latest < first.isoformat():
                     continue
-                entry = {**f.__dict__, "page": page, "passed": f.date < today.isoformat(),
+                entry = {**d, "page": page, "passed": latest < today.isoformat(),
                          "scope": item["scope"], "document_id": item["id"], "workspace_id": item["workspace_id"],
                          "filename": item["filename"]}
-                reading = {"kind": f.kind, "date": f.date, "amount": f.amount, "case": facts.get("case"), "refs": refs}
-                if any(same_deadline(reading, d["_reading"]) for d in dates):
+                reading = {"kind": d["kind"], "date": d["date"], "amount": d.get("amount"), "case": facts.get("case"), "refs": refs,
+                           "notice": bool(d.get("notice"))}
+                if any(same_deadline(reading, x["_reading"]) for x in dates):
                     continue  # the photo of a letter, read slightly differently
                 dates.append({**entry, "_reading": reading})
     for d in dates:
@@ -427,7 +471,8 @@ _IS_LETTER: dict = {}
 
 
 def _next_date(facts: dict, today: str):
-    upcoming = [d for d in facts.get("dates", []) if d.get("kind") in CASE_KINDS and d["value"] >= today]
+    # an ambiguous date ("03/04/2026") is never "next": the user has to choose how to read it first
+    upcoming = [d for d in facts.get("dates", []) if d.get("kind") in CASE_KINDS and not d.get("ambiguous") and d["value"] >= today]
     return min(upcoming, key=lambda d: d["value"]) if upcoming else None
 
 
@@ -442,9 +487,14 @@ def document_inbox(db, user_id: int) -> dict:
                db.query(models.DocumentReview).filter(models.DocumentReview.user_id == user_id).all()}
     today = date.today().isoformat()
     recent = (datetime.utcnow() - timedelta(days=INBOX_NEW_DAYS)).isoformat()
+    choices = date_choices(db, user_id)
     docs = []
     for item, pages, is_replaced in zip(items, pages_of, replaced_documents(pages_of)):
-        facts = document_facts_cached(pages)
+        facts = document_facts_cached(pages, item["filename"])
+        if any(d.get("ambiguous") for d in facts.get("dates", [])):  # the user's choice is not part of the cached facts
+            from app.services.dates_service import choose_reading
+            facts = {**facts, "dates": [choose_reading(d, choices.get((item["scope"], item["id"], d.get("literal"))))
+                                        for d in facts["dates"]]}
         review = reviews.get((item["scope"], item["id"]))
         _IS_LETTER[(user_id, item["scope"], item["id"])] = bool(facts.get("letter"))
         # a note, manual, spreadsheet or photo is listed under all documents, but not among the new letters
@@ -524,6 +574,11 @@ def get_inbox_count(
     return {"new_count": new}
 
 
+class DateChoiceIn(BaseModel):
+    literal: str = Field(..., max_length=20)  # the date as written in the document, "03/04/2026"
+    reading: Optional[str] = Field(None, pattern="^(dmy|mdy)$")  # day first, month first; none: choose again
+
+
 class ReviewIn(BaseModel):
     status: Optional[str] = Field(None, pattern="^(new|done)$")
     title: Optional[str] = Field(None, max_length=200)
@@ -573,6 +628,33 @@ def set_review(
     return {"scope": scope, "id": document_id, "status": r.status, "title": r.title, "case": r.case_key}
 
 
+@router.post("/inbox/{scope}/{document_id}/date")
+def set_date_choice(
+    scope: str,
+    document_id: int,
+    body: DateChoiceIn,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """The user says how an ambiguous date of a document ("03/04/2026") is read: day first or month first. Without a
+    reading the choice is taken back. Only then does the date count for the deadline list, reminders and calendar."""
+    if not _owns(db, current_user.id, scope, document_id):
+        raise HTTPException(status_code=404, detail="Document not found")
+    rows = [c for c in db.query(models.DateChoice).filter(
+        models.DateChoice.user_id == current_user.id, models.DateChoice.scope == scope,
+        models.DateChoice.document_id == document_id).all() if c.literal == body.literal]
+    if not body.reading:
+        for c in rows:
+            db.delete(c)
+    elif rows:
+        rows[0].reading = body.reading
+    else:
+        db.add(models.DateChoice(user_id=current_user.id, scope=scope, document_id=document_id, literal=body.literal,
+                                 reading=body.reading))
+    db.commit()
+    return {"scope": scope, "id": document_id, "literal": body.literal, "reading": body.reading}
+
+
 @router.post("/inbox/done")
 def set_all_done(
     db: Session = Depends(get_db),
@@ -599,8 +681,10 @@ def dates_calendar(today, dates, stamp: str) -> str:
     for d in dates:
         if d.get("passed"):
             continue
+        if d.get("ambiguous"):
+            continue  # no calendar entry or reminder for a date the user has not read for us
         day = d["date"].replace("-", "")
-        title = f"{names.get(d['kind'], 'Date')}: {d['filename']}" + (f" ({d['amount']})" if d.get("amount") else "")
+        title = f"{'Last day to give notice' if d.get('notice') else names.get(d['kind'], 'Date')}: {d['filename']}" + (f" ({d['amount']})" if d.get("amount") else "")
         uid = hashlib.sha256(f"{d['filename']}|{d['date']}|{d['kind']}".encode()).hexdigest()[:24] + "@starkllm.local"
         lines += ["BEGIN:VEVENT", f"UID:{uid}", f"DTSTAMP:{stamp}"]
         if d["kind"] == "appointment" and d.get("time"):
@@ -772,7 +856,7 @@ def set_deadline_done(
 @router.get("/deadlines.ics")
 def get_deadlines_calendar(
     key: list[str] = Query(default=[]),
-    lang: str = Query("en", pattern="^(en|de)$"),
+    lang: str = Query("en", pattern="^(en|de|es|fr|it|tr)$"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):

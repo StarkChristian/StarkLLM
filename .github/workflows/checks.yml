@@ -54,8 +54,10 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci --no-audit --no-fund
-      - name: German UI complete, no hidden translator
+      - name: UI translations complete (every language file), no hidden translator
         run: node scripts/check-i18n.mjs
+      - name: Language helpers (choice of language, date and money formats, speech language)
+        run: npm test
       - name: Build
         run: npm run build
 

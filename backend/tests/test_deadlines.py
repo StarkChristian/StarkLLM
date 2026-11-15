@@ -510,3 +510,60 @@ def test_a_log_file_in_the_inbox_has_no_deadline_and_no_home_date(tmp_path):
     finally:
         _drop(ids)
     assert names == ["Stadtwerke.pdf"] and home == ["Stadtwerke.pdf"]
+
+
+# ---------------------------------------------------------------- ambiguous dates and notice deadlines (#99)
+
+def test_an_ambiguous_date_is_no_deadline_until_the_user_chooses(tmp_path):
+    from test_ambiguous_dates import _letter
+    due, _, literal, text = _letter()
+    ids, headers, doc_ids = _user(tmp_path, [("bill.pdf", text)])
+    try:
+        assert _deadlines(headers)["deadlines"] == [], "both readings are open: nothing to remind of"
+        assert client.get(f"{API}/deadlines.ics", headers=headers).text.count("BEGIN:VEVENT") == 0
+        client.post(f"{API}/inbox/ws/{doc_ids[0]}/date", json={"literal": literal, "reading": "dmy"}, headers=headers)
+        got = _deadlines(headers)["deadlines"]
+        assert [d["date"] for d in got] == [due.isoformat()] and got[0]["page"] == 1
+        key = got[0]["key"]
+        assert client.put(f"{API}/deadlines/reminders", json={"key": key, "days_before": [3]}, headers=headers).status_code == 200
+        assert client.get(f"{API}/deadlines.ics", headers=headers).text.count("BEGIN:VEVENT") == 1
+        client.post(f"{API}/inbox/ws/{doc_ids[0]}/date", json={"literal": literal}, headers=headers)  # taken back
+        assert _deadlines(headers)["deadlines"] == []
+    finally:
+        _drop(ids)
+
+
+def test_ambiguous_dates_are_skipped_by_the_builder():
+    doc = _doc(1, "a.pdf", "2026-12-12", added="1")
+    doc["facts"]["dates"].append({"value": "2026-12-14", "kind": "deadline", "page": 1, "ambiguous": True,
+                                  "readings": {"dmy": "2026-12-14", "mdy": "2026-12-04"}, "literal": "14/12/2026"})
+    assert [d["date"] for d in build_deadlines({"documents": [doc]}, "2026-11-15")] == ["2026-12-12"]
+
+
+def test_the_last_day_to_give_notice_is_in_the_list_with_its_label(tmp_path):
+    end = D(120)
+    last = end - timedelta(days=30)
+    text = (f"Harbour Services Ltd\nDate: 3 November 2026\nContract C-77\nNotice must be given at least 30 days before "
+            f"{end.day} {end.strftime('%B %Y')}.\n")
+    ids, headers, _ = _user(tmp_path, [("contract.pdf", text)])
+    try:
+        got = _deadlines(headers)["deadlines"]
+        ics_en = client.get(f"{API}/deadlines.ics", params={"lang": "en"}, headers=headers).text
+        ics_de = client.get(f"{API}/deadlines.ics", params={"lang": "de"}, headers=headers).text
+    finally:
+        _drop(ids)
+    assert [d["date"] for d in got] == [last.isoformat()]
+    assert got[0]["notice"]["base"] == end.isoformat() and got[0]["notice"]["count"] == 30
+    assert "SUMMARY:Last day to give notice: Harbour Services Ltd" in ics_en
+    assert "SUMMARY:Letzter Tag für die Kündigung: Harbour Services Ltd" in ics_de
+
+
+def test_the_calendar_file_speaks_every_ui_language(tmp_path):
+    ids, headers, _ = _user(tmp_path, [("Stadtwerke.pdf", BILL)])
+    try:
+        got = {lang: client.get(f"{API}/deadlines.ics", params={"lang": lang}, headers=headers) for lang in ("en", "de", "es", "fr", "it", "tr")}
+    finally:
+        _drop(ids)
+    assert all(r.status_code == 200 for r in got.values())
+    summaries = {lang: next(l for l in r.text.split("\r\n") if l.startswith("SUMMARY:")).split(":")[1] for lang, r in got.items()}
+    assert summaries == {"en": "Deadline", "de": "Frist", "es": "Plazo", "fr": "Échéance", "it": "Scadenza", "tr": "Son tarih"}

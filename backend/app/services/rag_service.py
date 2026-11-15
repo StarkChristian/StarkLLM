@@ -16,6 +16,7 @@ from app .services import vault
 from app .services .protected_collection import wrap as protect_collection 
 from app .services .vision_service import vision_service 
 from app .services .ocr_service import ocr_service ,PICTURE_EXTENSIONS 
+from app .services import untrusted 
 try :
     import pymupdf as fitz 
 except ImportError :
@@ -87,6 +88,28 @@ GERMAN_STOP_WORDS ={
 "müssen","muessen","soll","sollen","gibt","mir","mich","uns","dir","ihre","ihren","ihrem","seine","seinen"
 }
 
+# The same for the other languages letters come in (French, Spanish, Italian, Turkish, Portuguese, Dutch).
+OTHER_STOP_WORDS ={
+# French
+"le","la","les","un","une","des","du","de","et","ou","mais","ne","pas","est","sont","était","ont","avoir","être","que","qui",
+"quoi","quand","comment","pourquoi","où","combien","quel","quelle","quels","quelles","dans","sur","avec","pour","par","chez",
+"au","aux","ce","cette","ces","mon","ma","mes","votre","vos","je","tu","il","elle","nous","vous","ils","elles","se","sa","ses",
+# Spanish
+"el","los","las","unos","unas","y","o","pero","no","es","fue","han","ha","haber","ser","qué","quién","cuándo","cómo","por",
+"dónde","cuánto","cuál","cuáles","en","con","para","del","al","este","esta","estos","estas","mi","mis","su","sus","yo","tú","él",
+"ella","nosotros","usted","ustedes","se","lo","le",
+# Italian
+"il","lo","gli","uno","una","dei","delle","della","dello","di","da","e","ma","non","è","sono","era","hanno","avere","essere","che",
+"chi","cosa","quando","come","perché","dove","quanto","quale","quali","nel","nella","con","per","tra","fra","questo","questa","mio",
+"mia","miei","suo","sua","io","tu","lui","lei","noi","voi","loro","si","ci",
+# Turkish
+"ve","bir","bu","şu","o","için","ile","ama","veya","de","da","ki","mi","mı","mu","mü","ne","nasıl","neden","nerede","kaç","hangi",
+"kim","ben","sen","biz","siz","onlar","benim","senin","bizim","sizin","çok","daha","en","gibi","kadar",
+# Portuguese and Dutch
+"os","as","um","uma","uns","umas","do","da","dos","das","em","no","na","nos","nas","com","para","por","meu","minha","não","é",
+"een","het","de","en","of","maar","niet","is","zijn","was","hebben","dat","wie","wat","wanneer","hoe","waarom","waar","mijn","ik","je",
+}
+
 # Asked of the vision model for a scanned page OCR could not read (forms, certificates, handwriting).
 SCANNED_FORM_PROMPT = (
     "This is a scanned page from a PDF document. "
@@ -118,19 +141,34 @@ class HTMLTextExtractor (HTMLParser ):
         self .fed =[]
         self .ignore_tags ={"script","style","head"}
         self .current_ignore =set ()
+        self .hidden_depth =0
+        self .hidden =0
+
+    # elements that are in the page but not on the screen (display:none, white, zero size ...) are left out; their number is
+    # in self.hidden so that the import can tell the user (untrusted.py)
+    VOID ={"br","hr","img","input","meta","link","area","base","col","embed","source","track","wbr"}
 
     def handle_starttag (self ,tag ,attrs ):
         if tag in self .ignore_tags :
             self .current_ignore .add (tag )
+        if tag in self .VOID :
+            return
+        if self .hidden_depth :
+            self .hidden_depth +=1
+        elif untrusted .html_element_is_hidden (attrs ):
+            self .hidden_depth =1
+            self .hidden +=1
 
     def handle_endtag (self ,tag ):
+        if self .hidden_depth and tag not in self .VOID :
+            self .hidden_depth -=1
         if tag in self .ignore_tags :
             self .current_ignore .discard (tag )
         if tag in {"p","br","div","h1","h2","h3","h4","h5","h6","li","tr","td"}:
             self .fed .append (" ")
 
     def handle_data (self ,d ):
-        if not self .current_ignore :
+        if not self .current_ignore and not self .hidden_depth :
             self .fed .append (d )
 
     def get_data (self ):
@@ -242,7 +280,10 @@ class RAGService :
 
                 for page_num in range (len (doc )):
                     page =doc .load_page (page_num )
-                    text =page .get_text ("text")
+                    # hidden text (white, tiny, off the page) is left out; a marker tells the user (untrusted.py)
+                    text ,hidden_parts =untrusted .pdf_page_text (page )
+                    if hidden_parts and text .strip ():
+                        text =text +"\n"+untrusted .hidden_marker (hidden_parts )
 
                     if text and text.strip():
                         page_chunks = self._semantic_chunk_text(text)
@@ -337,8 +378,11 @@ class RAGService :
                     sections = []
                     current_heading = "General"
                     current_texts = []
+                    hidden_parts = 0
                     for p in doc.paragraphs:
-                        p_text = p.text.strip()
+                        p_text, hid = untrusted.docx_paragraph_text(p)
+                        hidden_parts += hid
+                        p_text = p_text.strip()
                         if not p_text:
                             continue
                         style_name = getattr(getattr(p, 'style', None), 'name', '') or ''
@@ -356,7 +400,9 @@ class RAGService :
                         for row in table.rows:
                             cells = []
                             for c in row.cells:
-                                t = c.text.strip()
+                                cell_parts = [untrusted.docx_paragraph_text(cp) for cp in c.paragraphs]
+                                hidden_parts += sum(n for _, n in cell_parts)
+                                t = "\n".join(x for x, _ in cell_parts).strip() if any(n for _, n in cell_parts) else c.text.strip()
                                 if t and (not cells or cells[-1] != t):
                                     cells.append(t)
                             if cells:
@@ -366,6 +412,9 @@ class RAGService :
                     if not sections:
                         full_text = "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
                         sections = [("General", full_text)]
+                    if hidden_parts:
+                        marker = untrusted.hidden_marker(hidden_parts)
+                        sections = [(title, body + "\n" + marker) for title, body in sections]
 
                     chunk_counter = 0
                     for sec_title, sec_text in sections:
@@ -1056,7 +1105,7 @@ class RAGService :
 
             # Tokenize query, filter stop words
         raw_words =re .findall (r'\b\w+\b',_fold (query_text ))
-        query_terms =[w for w in raw_words if len (w )>1 and w not in ENGLISH_STOP_WORDS and w not in GERMAN_STOP_WORDS ]
+        query_terms =[w for w in raw_words if len (w )>1 and w not in ENGLISH_STOP_WORDS and w not in GERMAN_STOP_WORDS and w not in OTHER_STOP_WORDS ]
         if not query_terms :
         # Safeguard fallback: if all query terms are stop words, retain them
             query_terms =[w for w in raw_words if len (w )>1 ]

@@ -139,7 +139,7 @@ export default function Deadlines({ token, onOpen }) {
             </span>
             <div className={styles.body}>
               <div className={styles.meta}>
-                <span className={styles[`kind_${d.kind}`]}>{KIND_LABEL[d.kind] || d.kind}</span>
+                <span className={styles[`kind_${d.kind}`]}>{d.notice ? t('Last day to give notice') : (KIND_LABEL[d.kind] || d.kind)}</span>
                 {d.done
                   ? <span className={styles.doneTag}><Check size={13} /> {t('Done')}</span>
                   : <span className={styles[STATE_CLASS[d.state]]}>{whenText(d.days)}{d.time ? ` · ${t('at {time}', { time: d.time })}` : ''}</span>}
@@ -147,6 +147,7 @@ export default function Deadlines({ token, onOpen }) {
                 {d.reminder_active && <span className={styles.bell} title={t('Reminder is on')}><BellRing size={13} /> {t('Reminder due')}</span>}
               </div>
               <div className={styles.who}>{d.title || d.sender || d.filename}</div>
+              {d.notice && <div className={styles.copies}>{t('counted back from the end of the contract on {date}', { date: fmtDate(d.notice.base) })}</div>}
               <button className={styles.text} onClick={() => onOpen(d)} title={t('Show on page {page}: {text}', { page: d.page, text: d.text })}>
                 {d.text}
               </button>
@@ -237,7 +238,7 @@ export function DueReminders({ token, onOpen, onShowAll }) {
             <button className={styles.reminderMain} onClick={() => onOpen(d)}>
               <span className={styles[STATE_CLASS[d.state]]}>{whenText(d.days)}</span>
               <strong>{fmtDate(d.date, { day: 'numeric', month: 'short' })}</strong>
-              <span>{KIND_LABEL[d.kind]}: {d.title || d.sender || d.filename}</span>
+              <span>{d.notice ? t('Last day to give notice') : KIND_LABEL[d.kind]}: {d.title || d.sender || d.filename}</span>
               {d.amount && <strong>{d.amount}</strong>}
             </button>
             <button className={styles.gotIt} onClick={() => markDone(d)} title={t('Mark this deadline done; the letter stays in the inbox')}>

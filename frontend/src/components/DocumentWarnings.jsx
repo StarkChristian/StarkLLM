@@ -5,7 +5,7 @@ import { t } from '../i18n';
 
 // Warnings from StarkLLM's own rules on the documents an answer used (document_checks.py). They do not depend on the
 // model: a small model may overlook or even contradict them in its text.
-//   red:    text that instructs AI assistants, several signs of a scam, one sender with two accounts
+//   red:    text that instructs AI assistants, hidden text that was left out, several signs of a scam, one sender with two accounts
 //   yellow: a sender announces a new bank account (normal, but worth confirming before paying)
 function signText(sign) {
   switch (sign) {
@@ -28,6 +28,9 @@ function accountsText(w) {
 function message(w) {
   if (w.kind === 'ai_instructions') {
     return t('{file} contains text that tries to instruct AI assistants. Genuine letters never do this: treat it as a possible scam.', { file: w.file });
+  }
+  if (w.kind === 'hidden_text') {
+    return t('{file} contains text that cannot be seen on the page (white, tiny, hidden or invisible characters). StarkLLM left it out. Genuine letters do not hide text: treat this document with care.', { file: w.file });
   }
   if (w.kind === 'scam_signs') {
     return t('{file} shows several typical signs of a scam: {signs}. Do not pay, click links or send codes. Check with the organisation using contact details you already know.', {

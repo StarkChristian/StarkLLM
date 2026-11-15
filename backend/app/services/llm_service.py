@@ -4,6 +4,7 @@ import logging
 import re
 from typing import Generator, List
 from app.core.config import settings
+from app.core import netguard
 
 
 def uses_openai_compatible(provider: str, base_url: str = None) -> bool:
@@ -187,6 +188,9 @@ def explain_ollama_error(model: str, detail: str, status: int | None = None) -> 
 
 
 def _transport_error(model: str, e: requests.exceptions.RequestException) -> LLMBackendError | None:
+    if isinstance(e, netguard.OfflineBlocked):
+        return LLMBackendError(f"StarkLLM is fully offline, so model '{model}' (which runs online) cannot be used. Turn off the "
+                               f"fully offline switch in Settings > Privacy, or choose a model on this PC.", "offline", 403)
     if isinstance(e, requests.exceptions.Timeout):
         return LLMBackendError(
             f"Model '{model}' did not answer within {REQUEST_TIMEOUT_SECONDS} seconds. It may still be loading, or this computer is too slow "
@@ -198,6 +202,9 @@ def _transport_error(model: str, e: requests.exceptions.RequestException) -> LLM
 
 def _openai_compatible_error(e: requests.exceptions.RequestException) -> LLMBackendError:
     """Message for an OpenAI-compatible service (cloud API, LM Studio, vLLM) that did not answer; never includes the API key."""
+    if isinstance(e, netguard.OfflineBlocked):
+        return LLMBackendError("StarkLLM is fully offline: it does not contact online AI services. Turn off the fully offline "
+                               "switch in Settings > Privacy, or choose a model on this PC.", "offline", 403)
     status = getattr(getattr(e, "response", None), "status_code", None)
     if status in (401, 403):
         return LLMBackendError("The service rejected the API key (HTTP %s). Check the key in the model settings." % status, "auth", 502)
@@ -219,7 +226,7 @@ class LLMService:
     def get_available_models(self) -> List[str]:
         url = f"{self.base_url}/api/tags"
         try:
-            response = requests.get(url, timeout=10)
+            response = netguard.get(url, feature="ollama", timeout=10)
             response.raise_for_status()
             models = response.json().get("models", [])
             return [m["name"] for m in models]
@@ -231,7 +238,7 @@ class LLMService:
         """Fetch full model metadata from Ollama (size, modified, parameters, etc.)."""
         url = f"{self.base_url}/api/tags"
         try:
-            response = requests.get(url, timeout=10)
+            response = netguard.get(url, feature="ollama", timeout=10)
             response.raise_for_status()
             models = response.json().get("models", [])
             return models
@@ -259,7 +266,7 @@ class LLMService:
         url = f"{self.base_url}/api/pull"
         payload = {"name": model_name, "stream": True}
         try:
-            with requests.post(url, json=payload, stream=True, timeout=1800) as response:
+            with netguard.post(url, feature="model_download", via="registry.ollama.ai", json=payload, stream=True, timeout=1800) as response:
                 response.raise_for_status()
                 for line in response.iter_lines():
                     if line:
@@ -286,7 +293,7 @@ class LLMService:
         url = f"{self.base_url}/api/delete"
         payload = {"name": model_name}
         try:
-            response = requests.delete(url, json=payload, timeout=30)
+            response = netguard.delete(url, feature="ollama", json=payload, timeout=30)
             response.raise_for_status()
             return True
         except Exception as e:
@@ -312,6 +319,10 @@ class LLMService:
                 return self._generate_openai_compatible(target_base, api_key, model, messages, options)
 
         # Default: Local Ollama
+        try:
+            netguard.check_model(model)  # a ":cloud" model leaves this PC: it obeys the offline switch and is logged
+        except netguard.OfflineBlocked as e:
+            raise _transport_error(model, e)
         url = f"{self.base_url}/api/chat"
         payload = {
             "model": model,
@@ -333,7 +344,7 @@ class LLMService:
             return self._stream_response(url, payload)
         else:
             try:
-                response = requests.post(url, json=payload, timeout=REQUEST_TIMEOUT_SECONDS)
+                response = netguard.post(url, feature="ollama", json=payload, timeout=REQUEST_TIMEOUT_SECONDS)
                 if response.status_code == 404:
                     raise ModelNotFoundError(f"Model '{payload.get('model')}' not found in Ollama. Please ensure it is pulled (e.g. ollama pull {payload.get('model')}).")
                 if response.status_code >= 400:
@@ -379,7 +390,7 @@ class LLMService:
             if "max_tokens" in options: payload["max_tokens"] = options["max_tokens"]
 
         try:
-            with requests.post(url, json=payload, headers=headers, stream=True, timeout=180) as response:
+            with netguard.post(url, feature="cloud_llm", json=payload, headers=headers, stream=True, timeout=180) as response:
                 response.raise_for_status()
                 wrote, thought = False, False
                 for line in response.iter_lines():
@@ -433,7 +444,7 @@ class LLMService:
             if "max_tokens" in options: payload["max_tokens"] = options["max_tokens"]
 
         try:
-            response = requests.post(url, json=payload, headers=headers, timeout=180)
+            response = netguard.post(url, feature="cloud_llm", json=payload, headers=headers, timeout=180)
             response.raise_for_status()
             data = response.json()
             content = data["choices"][0]["message"]["content"]
@@ -448,7 +459,7 @@ class LLMService:
 
     def _stream_response(self, url: str, payload: dict) -> Generator[str, None, None]:
         try:
-            with requests.post(url, json=payload, stream=True, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+            with netguard.post(url, feature="ollama", json=payload, stream=True, timeout=REQUEST_TIMEOUT_SECONDS) as response:
                 if response.status_code == 404:
                     raise ModelNotFoundError(f"Model '{payload.get('model')}' not found in Ollama. Please ensure it is pulled (e.g. ollama pull {payload.get('model')}).")
                 if response.status_code >= 400:
@@ -484,7 +495,7 @@ class LLMService:
             "prompt": prompt
         }
         try:
-            response = requests.post(url, json=payload, timeout=EMBED_TIMEOUT)
+            response = netguard.post(url, feature="ollama", json=payload, timeout=EMBED_TIMEOUT)
             response.raise_for_status()
             return response.json().get("embedding", [])
         except requests.exceptions.RequestException as e:
@@ -498,7 +509,7 @@ class LLMService:
             "input": prompts
         }
         try:
-            response = requests.post(url, json=payload, timeout=EMBED_TIMEOUT)
+            response = netguard.post(url, feature="ollama", json=payload, timeout=EMBED_TIMEOUT)
             response.raise_for_status()
             return response.json().get("embeddings", [])
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):

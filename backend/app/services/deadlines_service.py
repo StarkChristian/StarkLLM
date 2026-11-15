@@ -17,9 +17,17 @@ ALARM_HOUR = 9                     # an all-day event's alarm rings at 09:00, no
 
 LABELS = {
     "en": {"deadline": "Deadline", "payment": "Payment", "appointment": "Appointment", "date": "Date",
-           "source": "Source: {file}, page {page}", "line": ", line {line}"},
+           "notice": "Last day to give notice", "source": "Source: {file}, page {page}", "line": ", line {line}"},
     "de": {"deadline": "Frist", "payment": "Zahlung", "appointment": "Termin", "date": "Termin",
-           "source": "Quelle: {file}, Seite {page}", "line": ", Zeile {line}"},
+           "notice": "Letzter Tag für die Kündigung", "source": "Quelle: {file}, Seite {page}", "line": ", Zeile {line}"},
+    "es": {"deadline": "Plazo", "payment": "Pago", "appointment": "Cita", "date": "Fecha",
+           "notice": "Último día para dar el aviso", "source": "Fuente: {file}, página {page}", "line": ", línea {line}"},
+    "fr": {"deadline": "Échéance", "payment": "Paiement", "appointment": "Rendez-vous", "date": "Date",
+           "notice": "Dernier jour pour résilier", "source": "Source : {file}, page {page}", "line": ", ligne {line}"},
+    "it": {"deadline": "Scadenza", "payment": "Pagamento", "appointment": "Appuntamento", "date": "Data",
+           "notice": "Ultimo giorno per la disdetta", "source": "Fonte: {file}, pagina {page}", "line": ", riga {line}"},
+    "tr": {"deadline": "Son tarih", "payment": "Ödeme", "appointment": "Randevu", "date": "Tarih",
+           "notice": "Fesih bildirimi için son gün", "source": "Kaynak: {file}, sayfa {page}", "line": ", satır {line}"},
 }
 
 
@@ -82,6 +90,7 @@ def same_deadline(a: Dict, b: Dict) -> bool:
     reference number that contradicts the other (a copy or a photo may have lost one). Without a sender nothing is
     merged here; identical copies are merged by their document group instead."""
     return (a["kind"] == b["kind"] and a["date"] == b["date"] and (a.get("amount") or "") == (b.get("amount") or "")
+            and bool(a.get("notice")) == bool(b.get("notice"))
             and bool(a.get("case")) and a.get("case") == b.get("case")
             and (not a["refs"] or not b["refs"] or bool(a["refs"] & b["refs"])))
 
@@ -120,12 +129,15 @@ def build_deadlines(inbox: Dict, today: str) -> List[Dict]:
         for f in facts.get("dates", []):
             if f.get("kind") not in DEADLINE_KINDS:
                 continue
+            if f.get("ambiguous"):
+                continue  # "03/04/2026": no deadline, reminder or calendar entry until the user has chosen a reading
             days = (date.fromisoformat(f["value"]) - now).days
             key = deadline_key(doc["scope"], doc["id"], f["value"], f["kind"])
             source = {"key": key, "scope": doc["scope"], "document_id": doc["id"], "workspace_id": doc.get("workspace_id"),
                       "filename": doc["filename"], "page": f.get("page"), "line": f.get("line")}
             reading = {"kind": f["kind"], "date": f["value"], "amount": f.get("amount"), "case": facts.get("case"),
-                       "refs": refs}
+                       "refs": refs,
+                       "notice": bool(f.get("notice"))}
             mine = next((d for d in out if d["kind"] == f["kind"] and d["date"] == f["value"]
                          and (group in d["_groups"] or same_deadline(reading, d["_reading"]))), None)
             if mine:
@@ -140,6 +152,7 @@ def build_deadlines(inbox: Dict, today: str) -> List[Dict]:
                 "scope": doc["scope"], "document_id": doc["id"], "workspace_id": doc.get("workspace_id"),
                 "filename": doc["filename"], "title": doc.get("title"), "sender": sender, "type": kind_of_letter,
                 "kind": f["kind"], "date": f["value"], "time": f.get("time"), "amount": f.get("amount"),
+                "notice": f.get("notice"),
                 "text": f.get("text"), "page": f.get("page"), "line": f.get("line"),
                 "days": days, "state": _state(days), "reminders": [], "reminder_active": False, "done": False,
                 "_groups": {group}, "_reading": reading, "_new": doc.get("status") == "new",
@@ -225,7 +238,7 @@ def deadlines_calendar(deadlines: List[Dict], stamp: str, lang: str = "en") -> s
         day = date.fromisoformat(d["date"])
         timed = d["kind"] == "appointment" and bool(d.get("time"))
         who = d.get("title") or d.get("sender") or d["filename"]
-        title = f"{words.get(d['kind'], words['date'])}: {who}" + (f" ({d['amount']})" if d.get("amount") else "")
+        title = f"{words['notice'] if d.get('notice') else words.get(d['kind'], words['date'])}: {who}" + (f" ({d['amount']})" if d.get("amount") else "")
         source = words["source"].format(file=d["filename"], page=d.get("page") or 1) \
             + (words["line"].format(line=d["line"]) if d.get("line") else "")
         uid = hashlib.sha256(d["key"].encode()).hexdigest()[:24] + "@starkllm.local"

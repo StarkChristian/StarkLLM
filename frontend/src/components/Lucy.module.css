@@ -1,0 +1,13 @@
+/* In the flow of the page: she never floats over buttons or text. */
+.helper { display: flex; align-items: flex-end; gap: 12px; max-width: 640px; margin: 12px auto; padding: 8px 12px; }
+.figure { flex: none; pointer-events: none; }
+.bubble { position: relative; flex: 1; min-width: 0; padding: 12px 14px; border-radius: 14px; background: var(--glass-bg, rgba(255, 255, 255, 0.06)); border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12)); color: var(--text-primary); font-size: 0.9rem; line-height: 1.5; display: flex; flex-direction: column; gap: 8px; }
+.bubble::before { content: ''; position: absolute; left: -7px; bottom: 22px; width: 12px; height: 12px; background: inherit; border-left: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12)); border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12)); transform: rotate(45deg); }
+.bubble p { margin: 0; }
+.count { font-size: 0.75rem; color: var(--text-secondary); }
+.buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.buttons button, .hide { display: inline-flex; align-items: center; gap: 4px; font-size: 0.8rem; padding: 4px 10px; border-radius: var(--radius-md, 8px); border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12)); background: transparent; color: var(--text-secondary); cursor: pointer; }
+.hide { align-self: flex-start; }
+.buttons button:hover, .hide:hover { background: var(--bg-hover); color: var(--text-primary); }
+.buttons .primary { color: var(--text-primary); border-color: var(--accent-bright, #818cf8); }
+@media (max-width: 520px) { .helper { flex-direction: column; align-items: center; } .bubble::before { display: none; } }

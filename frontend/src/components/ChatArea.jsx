@@ -16,7 +16,8 @@ import SourcesModal from './SourcesModal';
 import DocumentViewerModal from './DocumentViewerModal';
 import DocumentWarnings from './DocumentWarnings';
 import { UI_LOCALE } from '../utils/locale';
-import { t } from '../i18n';
+import { t, language } from '../i18n';
+import { pickVoice } from '../utils/speech';
 import { UPLOAD_ACCEPT } from '../utils/uploadTypes';
 import { blockRemoteImages, escapeHtml } from '../utils/markdown';
 
@@ -82,54 +83,17 @@ md.linkify.set({ fuzzyLink: false, fuzzyEmail: false });
 blockRemoteImages(md);
 
 
-// ---------------------------------------------------------------------------
-// Robust language detector — no external library needed.
-// ---------------------------------------------------------------------------
-
-const GERMAN_WORDS = [
-  'ich', 'du', 'er', 'sie', 'es', 'wir', 'ihr',
-  'mein', 'dein', 'sein', 'unser',
-  'der', 'die', 'das', 'den', 'dem', 'des',
-  'ein', 'eine', 'einen', 'einem', 'einer', 'eines',
-  'ist', 'sind', 'war', 'waren', 'wird', 'werden', 'wurde', 'wurden',
-  'haben', 'hat', 'hatte', 'kann', 'können', 'muss', 'müssen', 'soll', 'sollen',
-  'und', 'nicht', 'oder', 'aber', 'auch', 'wenn', 'dann', 'dass', 'weil',
-  'mit', 'von', 'zu', 'auf', 'bei', 'nach', 'seit', 'für',
-  'hier', 'dort', 'bitte', 'danke', 'dank', 'vielen', 'ja', 'nein', 'doch', 'hallo',
-  'heute', 'immer', 'jetzt', 'schon', 'sehr', 'wie', 'was', 'wer', 'wo', 'warum'
-];
-
-const ENGLISH_WORDS = [
-  'the', 'of', 'to', 'and', 'a', 'in', 'is', 'it', 'you', 'that',
-  'he', 'was', 'for', 'on', 'are', 'as', 'with', 'his', 'they', 'i',
-  'at', 'be', 'this', 'have', 'from', 'or', 'one', 'had', 'by', 'word',
-  'but', 'not', 'what', 'all', 'were', 'we', 'when', 'your', 'can',
-  'said', 'there', 'use', 'an', 'each', 'which', 'she', 'do', 'how',
-  'their', 'if', 'would', 'about', 'who', 'get', 'go', 'me', 'my', 'them',
-  'your', 'youre', 'theyre', 'please', 'thanks'
-];
-
-const GERMAN_UMLAUT_RE = /[äöüÄÖÜß]/;
-
-function detectVoice(text) {
-  if (GERMAN_UMLAUT_RE.test(text)) return 'de_DE-thorsten-medium';
-
-  const tokens = text.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(Boolean);
-  if (tokens.length === 0) return 'en_US-lessac-medium';
-
-  let deScore = 0;
-  let enScore = 0;
-
-  for (const token of tokens) {
-    if (GERMAN_WORDS.includes(token)) deScore++;
-    if (ENGLISH_WORDS.includes(token)) enScore++;
+// Which voice speaks a message: the installed voice for the language of the text (utils/speech.js), the default
+// voice otherwise. The list of voices is asked once.
+let voiceList = null;
+async function voicesFor(token) {
+  if (!voiceList) {
+    try {
+      const res = await fetch('/api/v1/voice/voices', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      voiceList = res.ok ? (await res.json()).voices : [];
+    } catch (_) { voiceList = []; }
   }
-
-  if (enScore >= deScore) return 'en_US-lessac-medium';
-  if (deScore === 0) return 'en_US-lessac-medium';
-
-  const ratio = deScore / tokens.length;
-  return ratio >= 0.20 ? 'de_DE-thorsten-medium' : 'en_US-lessac-medium';
+  return voiceList;
 }
 
 function isRTL(text) {
@@ -685,7 +649,7 @@ export default function ChatArea({
     activePlayIndexRef.current = index;
     setPlayingIndex(index);
 
-    const voice = detectVoice(text);
+    const voice = pickVoice(await voicesFor(token), text, language());
     try {
       const response = await fetch('/api/v1/voice/synthesize', {
         method: 'POST',

@@ -20,11 +20,13 @@ services:
       - STARKLLM_ENGINE_BUILD=${STARKLLM_ENGINE_BUILD:-}   # set by the desktop app: which engine files this container was built from
       - TZ=${STARKLLM_TZ:-UTC}   # the PC's time zone (set by the desktop app): "today" and "overdue" follow the user's day
       - STARKLLM_KB_SYNC=${STARKLLM_KB_SYNC:-}   # "OneDrive" etc. when the knowledge base folder is synced to a cloud
+      - STARKLLM_OFFLINE=${STARKLLM_OFFLINE:-}   # 1: the "fully offline" switch of the desktop app is on (nothing leaves this PC)
       - OLLAMA_THINK=${OLLAMA_THINK:-false}   # true: let thinking models (qwen3, deepseek-r1) think first
       # Security & Privacy: Disable telemetry globally
       - HF_HUB_DISABLE_TELEMETRY=1
       - DO_NOT_TRACK=1
       - ANONYMIZED_TELEMETRY=False
+      - RAGAS_DO_NOT_TRACK=true
       - HOST_KB_PATH=${HOST_KB_PATH:-knowledge_base_data (inside the StarkLLM project folder)}
       - SECRET_KEY=${SECRET_KEY:-starkllm_research_beta_secure_fallback_key_2026_change_in_production}
     extra_hosts:
