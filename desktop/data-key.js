@@ -14,6 +14,7 @@ const fs = require('fs');
 const path = require('path');
 
 const KEY_BYTES = 32;
+const MIN_PASSPHRASE = 12;
 const AAD = Buffer.from('starkllm-data-key-v1');
 const SCRYPT = { N: 2 ** 15, r: 8, p: 1 };
 const UNLOCK_CONTEXT = 'starkllm-protection-unlock';
@@ -257,7 +258,7 @@ class DataKeyManager {
   // Optional: also ask for a passphrase at every start. The key store copy is removed, so someone using the open
   // Windows session still cannot start StarkLLM's protected data without the passphrase.
   enablePassphrase(passphrase, currentKey) {
-    if (String(passphrase || '').length < 8) throw new DataKeyError('weak-passphrase', 'Use a passphrase of at least 8 characters.');
+    if (String(passphrase || '').length < MIN_PASSPHRASE) throw new DataKeyError('weak-passphrase', 'Use a passphrase of at least 12 characters.');
     const kdf = { name: 'scrypt', ...this.scrypt, salt: b64(crypto.randomBytes(16)) };
     this.write('data-key.passphrase.json', JSON.stringify(seal(passphraseKek(passphrase, kdf), currentKey, { kdf })));
     this.remove('data-key.wrapped');
@@ -298,7 +299,19 @@ async function deliverKey({ apiUrl, secret, key, fetchImpl = fetch }) {
   return { ok: false, status: res.status, detail };
 }
 
+async function lockEngine({ apiUrl, secret, fetchImpl = fetch, timeoutMs = 3000 }) {
+  try {
+    const res = await fetchImpl(`${apiUrl}/api/v1/system/protection/lock`, {
+      method: 'POST', headers: { 'X-StarkLLM-Internal': unlockToken(secret) }, signal: AbortSignal.timeout(timeoutMs)
+    });
+    return { ok: res.ok };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
 module.exports = {
-  DataKeyManager, DataKeyError, createSafeStorageKeyStore, createMemoryKeyStore,
+  lockEngine,
+  MIN_PASSPHRASE, DataKeyManager, DataKeyError, createSafeStorageKeyStore, createMemoryKeyStore,
   formatRecoveryKey, parseRecoveryKey, unlockToken, deliverKey, KEY_BYTES
 };

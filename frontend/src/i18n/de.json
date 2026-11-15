@@ -943,5 +943,14 @@
   "Starting": "Wird gestartet",
   "Working": "Wird bearbeitet",
   "Older backup (.zip)": "Ältere Sicherung (.zip)",
-  "StarkLLM is locked. Open Settings > Protection and unlock it to see your documents and chats.": "StarkLLM ist gesperrt. Öffnen Sie Einstellungen > Schutz und entsperren Sie es, um Ihre Dokumente und Chats zu sehen."
+  "StarkLLM is locked. Open Settings > Protection and unlock it to see your documents and chats.": "StarkLLM ist gesperrt. Öffnen Sie Einstellungen > Schutz und entsperren Sie es, um Ihre Dokumente und Chats zu sehen.",
+  "Start-up passphrase": "Passphrase beim Start",
+  "StarkLLM asks for your passphrase every time it starts. The passphrase is never saved; if you forget it, your recovery key opens StarkLLM.": "StarkLLM fragt bei jedem Start nach Ihrer Passphrase. Die Passphrase wird nie gespeichert; wenn Sie sie vergessen, öffnet Ihr Wiederherstellungsschlüssel StarkLLM.",
+  "Current passphrase": "Aktuelle Passphrase",
+  "Stop asking for a passphrase": "Nicht mehr nach einer Passphrase fragen",
+  "Optional: ask for a passphrase every time StarkLLM starts. Without it, anyone who can use your open Windows account can open your documents. With it, they also need the passphrase. It is never saved; the recovery key is the way back in if you forget it.": "Optional: bei jedem Start von StarkLLM nach einer Passphrase fragen. Ohne sie kann jeder, der Ihr geöffnetes Windows-Konto benutzen kann, Ihre Dokumente öffnen. Mit ihr braucht er zusätzlich die Passphrase. Sie wird nie gespeichert; bei Vergessen ist der Wiederherstellungsschlüssel der Weg zurück.",
+  "Ask for a passphrase at start": "Beim Start nach Passphrase fragen",
+  "Unlock with passphrase": "Mit Passphrase entsperren",
+  "The passphrase is not right. Try again.": "Die Passphrase stimmt nicht. Versuchen Sie es erneut.",
+  "Use a passphrase of at least 12 characters.": "Verwenden Sie eine Passphrase mit mindestens 12 Zeichen."
 }

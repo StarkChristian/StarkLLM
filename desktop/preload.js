@@ -35,3 +35,11 @@ contextBridge.exposeInMainWorld('starkllmDesktop', {
     forgetKey: () => ipcRenderer.invoke('protection:forget-key'),
   },
 });
+
+// The start-up passphrase page (unlock.html) is a local file, not the app: it gets its own two calls and nothing else.
+if (window.location.protocol === 'file:' && /unlock\.html$/.test(window.location.pathname)) {
+  contextBridge.exposeInMainWorld('starkllmUnlock', {
+    submit: (passphrase) => ipcRenderer.invoke('unlock:submit', passphrase),
+    recover: (recoveryKey) => ipcRenderer.invoke('unlock:recover', recoveryKey),
+  });
+}

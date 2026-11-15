@@ -91,6 +91,14 @@ The cost is the unprotected items listed above. They are listed because they are
 * **Optional passphrase.** The data key is additionally wrapped with scrypt(passphrase), and the key store copy is removed.
   StarkLLM then asks for the passphrase at every start. (Implemented and tested in `data-key.js`; the start-up
   prompt in the app window is not built yet, see "Open points".)
+* **Start-up passphrase screen** (`desktop/unlock.html`, `unlock-flow.js`). With the passphrase on, the engine is locked again at every
+  start (a container that kept running would otherwise stay open), a local page in English or German asks for the passphrase instead of
+  showing the app, and only after the key reached the engine does the app open. The passphrase exists only inside the call: scrypt makes
+  the key, the key goes to the engine in memory, nothing is stored or logged (a test searches the key folder). A wrong guess is answered
+  after 250 ms, then twice as long each time up to 8 s, on top of scrypt's own cost; the page suggests the recovery key after three
+  mistakes. The recovery key opens the data key without the passphrase and switches the passphrase off (the page says so; a new one can be
+  set in Settings > Protection). When the app quits with the passphrase on, it tells the engine to forget the key
+  (`POST /system/protection/lock`, same token as unlock).
 * **New PC, reinstalled Windows, new Windows account:** the key store copy cannot be opened. The user enters the
   recovery key; the app unwraps the data key with it and wraps it again for the new account.
 
@@ -173,7 +181,6 @@ The restore code moves directories inside the data folder, which works in both c
 
 ## 9. Open points
 
-* Start-up passphrase prompt in the app window (the module and IPC exist; no screen yet).
 * The vector store's embeddings are not encrypted (section 2).
 * Backup of the vector store copies its files while the engine runs; documents still being processed block a backup, but a
   chat memory written at that very moment may or may not be in the copy. The restore test would catch a store that cannot be opened.
@@ -198,3 +205,6 @@ DPAPI and the in-app flow cannot be tested on Linux CI. Before a release that co
 11. Windows account password change / reset: the app still starts (DPAPI follows password changes; after an *admin reset* use the recovery key).
 12. Turn off protection: documents open in Notepad again (plain), chats still work.
 13. Kill StarkLLM from the Task Manager in the middle of "Turn on", start it again: everything opens; run "Turn on" again: it finishes.
+14. Settings > Protection > "Start-up passphrase": set one. Quit StarkLLM completely, start it again: the lock screen appears (German on a German Windows), the app does not. A wrong passphrase gives a message and gets slower; the right one opens the app.
+15. On the lock screen use "I forgot my passphrase" with the recovery key: the app opens and Settings shows the passphrase as off. Set a new one.
+16. With the passphrase on, quit and look at `docker ps` / Task Manager: the engine may keep running, but the next start still asks for the passphrase and a request to the engine for a protected document before that answers "locked".

@@ -60,6 +60,16 @@ def unlock(req: UnlockRequest, x_starkllm_internal: Optional[str] = Header(None)
     return protection.status()
 
 
+@router.post("/lock")
+def lock(x_starkllm_internal: Optional[str] = Header(None)):
+    """Forget the key (the desktop app calls this when it quits and before it asks for the start-up passphrase), so a
+    running engine does not stay open without it. Protected data is unreadable again until the next unlock."""
+    if not x_starkllm_internal or not hmac.compare_digest(x_starkllm_internal, internal_token()):
+        raise HTTPException(status_code=403, detail="Only the StarkLLM desktop app may lock the engine.")
+    protection.clear_key()
+    return protection.status()
+
+
 @router.post("/plan")
 def plan(req: MigrateRequest, current_user: models.User = Depends(require_admin)):
     """Dry run: what would change, and whether it can run. Changes nothing."""

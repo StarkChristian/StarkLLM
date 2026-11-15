@@ -71,6 +71,18 @@ def test_unlock_needs_the_internal_token(api):
     assert r.status_code == 200 and r.json()["key_available"] is True and r.json()["enabled"] is False
 
 
+def test_lock_forgets_the_key_and_needs_the_token(api):
+    key = base64.b64encode(crypto.new_key()).decode()
+    api.client.post("/api/v1/system/protection/unlock", json={"key": key}, headers=_unlock_headers())
+    protection.mark_enabled(True)
+    assert api.client.post("/api/v1/system/protection/lock").status_code == 403
+    assert protection.key is not None
+    r = api.client.post("/api/v1/system/protection/lock", headers=_unlock_headers())
+    assert r.status_code == 200 and r.json()["locked"] is True and protection.key is None
+    again = api.client.post("/api/v1/system/protection/unlock", json={"key": key}, headers=_unlock_headers())
+    assert again.status_code == 200 and again.json()["locked"] is False       # the same key opens it again
+
+
 def test_unlock_rejects_a_bad_key_and_a_wrong_key(api):
     h = _unlock_headers()
     assert api.client.post("/api/v1/system/protection/unlock", json={"key": "not base64!"}, headers=h).status_code == 400
