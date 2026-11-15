@@ -71,6 +71,26 @@ FROM_DATE = re.compile(r"\b(ab( dem| 1\.)?|from|with effect from|gültig ab|wirk
 NO_YEAR = re.compile(r"(?<![\d.])(?P<d>\d{1,2})\.(?P<m>\d{1,2})\.(?!\s?\d)")
 
 
+# "2026-11-14 08:00:01 INFO started", "[2026-11-14T08:00:01Z] ERROR ...", "2026-11-14 WARN ...": a log line starts with a
+# bare timestamp. Its date is when something happened, never a deadline, unless a deadline word stands in the line.
+LOG_LINE = re.compile(
+    r"^\s*[\[(]?\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?(?:[.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?[\])]?|[\])]?\s+"
+    r"(?:trace|debug|info|notice|warn|warning|error|err|fatal|critical|severe)\b)", re.IGNORECASE)
+LOG_DEADLINE_WORDS = re.compile(
+    r"\b(frist|fällig|fälligkeit|zahlungsziel|bis zum|bis spätestens|spätestens|gültig bis|"
+    r"deadline|due|no later than|expires|expiry|valid until)\b", re.IGNORECASE)
+
+
+def is_log_line(line: str) -> bool:
+    """A log line: a bare ISO timestamp (or date and log level) at the start, and no deadline word in the line."""
+    return bool(LOG_LINE.match(line)) and not LOG_DEADLINE_WORDS.search(line)
+
+
+def without_log_lines(text: str) -> str:
+    """The text with its log lines emptied, so a timestamp is not read as a date to act on."""
+    return "\n".join("" if is_log_line(line) else line for line in (text or "").split("\n"))
+
+
 def _amount_text(a) -> str:
     return (a.group("a3") or a.group("a1") or a.group("a2")) + " EUR"
 
@@ -152,7 +172,8 @@ def find_dates(text: str, reference: Optional[date] = None) -> List[FoundDate]:
     day the letter was written (its "Datum:", else today); a date without a year ("bis zum 15.12.") is the next such
     day from then."""
     found, seen = [], set()
-    sentences = _sentences(text or "")
+    text = without_log_lines(text or "")
+    sentences = _sentences(text)
     if reference is None:
         written = letter_date(text or "")
         reference = date.fromisoformat(written) if written else date.today()
