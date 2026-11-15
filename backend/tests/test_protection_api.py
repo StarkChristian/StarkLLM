@@ -266,3 +266,25 @@ def test_upload_index_preview_and_duplicate_with_protection_on(tmp_path, monkeyp
     again = client.post(f"/api/v1/documents/{ws_id}/upload", files={"file": ("Kopie.txt", letter)}, headers=h).json()
     assert again.get("duplicate") is True and again["id"] == first["id"]
     protection.set_directory(None); protection.clear_key(); protection._state_cache = None
+
+
+def test_lock_also_drops_the_decrypted_search_index_from_memory(api, tmp_path, monkeypatch):
+    """With the start-up passphrase the engine is locked again at every start and when the app quits. The encrypted search
+    index keeps its rows decrypted in memory while unlocked: locking must drop them, or a 'locked' engine would still answer."""
+    from app.core.protection import ProtectionLocked
+    from app.services import secure_index
+    monkeypatch.setattr(settings, "SECURE_INDEX_DIR", str(tmp_path / "secure"))
+    key = base64.b64encode(crypto.new_key()).decode()
+    api.client.post("/api/v1/system/protection/unlock", json={"key": key}, headers=_unlock_headers())
+    protection.mark_enabled(True)
+    secure_index.release()
+    coll = secure_index.secure_client().get_or_create_collection("user_1_workspace_1", metadata={"hnsw:space": "cosine"})
+    coll.add(ids=["a"], documents=["Kuendigung Mueller"], embeddings=[[0.1, 0.2, 0.3]], metadatas=[{"page": 1}])
+    assert coll.get(ids=["a"])["documents"] == ["Kuendigung Mueller"]
+    assert api.client.post("/api/v1/system/protection/lock", headers=_unlock_headers()).status_code == 200
+    assert secure_index._client is None                              # the decrypted rows are no longer held in memory
+    with pytest.raises(ProtectionLocked):
+        secure_index.secure_client().get_or_create_collection("user_1_workspace_1").get(ids=["a"])
+    api.client.post("/api/v1/system/protection/unlock", json={"key": key}, headers=_unlock_headers())
+    assert secure_index.secure_client().get_or_create_collection("user_1_workspace_1").get(ids=["a"])["documents"] == ["Kuendigung Mueller"]
+    secure_index.release()

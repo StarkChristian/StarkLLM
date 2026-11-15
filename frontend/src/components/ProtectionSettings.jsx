@@ -22,8 +22,12 @@ const ENGINE_TEXT = {
   'The text of every indexed document and every memory (the search index)': t('The text of every indexed document and every memory (the search index)'),
   'Your profile text, custom instructions, prompt templates, workspace instructions': t('Your profile text, custom instructions, prompt templates, workspace instructions'),
   'Titles, senders and cases you set in the inbox': t('Titles, senders and cases you set in the inbox'),
-  'File names, chat titles and workspace names (they stay readable so lists and search work)': t('File names, chat titles and workspace names (they stay readable so lists and search work)'),
-  'The numbers the search index uses to find similar text (they show topics, not words)': t('The numbers the search index uses to find similar text (they show topics, not words)'),
+  'Names of files in your Knowledge Base folder and of documents added before protection was turned on (the files carry the same names on disk)': t('Names of files in your Knowledge Base folder and of documents added before protection was turned on (the files carry the same names on disk)'),
+  'Names and titles: workspaces, folders, chats, document file names, prompt templates': t('Names and titles: workspaces, folders, chats, document file names, prompt templates'),
+  'The search index itself: its numbers, and the file names, pages and paths stored with every piece of text': t('The search index itself: its numbers, and the file names, pages and paths stored with every piece of text'),
+  'The numbers the search index uses to find similar text, and the file names, pages and paths stored with each piece of text (they show topics, not words). Turn on the encrypted search index to lock them.': t('The numbers the search index uses to find similar text, and the file names, pages and paths stored with each piece of text (they show topics, not words). Turn on the encrypted search index to lock them.'),
+  'How many pieces of text each search collection holds, and when the search index file last changed': t('How many pieces of text each search collection holds, and when the search index file last changed'),
+  'Turn on protection first.': t('Turn on protection first.'),
   'Files in your Knowledge Base folder (they are your own files and stay where they are)': t('Files in your Knowledge Base folder (they are your own files and stay where they are)'),
   'Anything on your PC while StarkLLM is open and you are signed in to Windows': t('Anything on your PC while StarkLLM is open and you are signed in to Windows'),
   'Other programs running under your Windows account': t('Other programs running under your Windows account'),
@@ -169,6 +173,22 @@ export default function ProtectionSettings({ token }) {
   };
 
   const finalize = async () => { await call('/finalize', { method: 'POST' }); await refresh(); };
+
+  // Move the search index into the encrypted index (mode "secure") or back to the normal one ("chroma").
+  const moveIndex = async (mode) => {
+    setBusy(true); setError('');
+    try {
+      const p = await call('/vectors/plan', { method: 'POST', body: JSON.stringify({ mode }) });
+      if (!p.ok) throw new Error(p.problems.map(engineText).join(' '));
+      const question = mode === 'secure'
+        ? t('{collections} collections with {chunks} pieces of text will be moved into the locked search index. Nothing is deleted before the copy is complete. Continue?', p)
+        : t('{collections} collections with {chunks} pieces of text will be moved back to the normal search index. Its numbers, file names and paths are then readable on disk again. Continue?', p);
+      if (!window.confirm(question)) { setBusy(false); return; }
+      await call('/vectors/migrate', { method: 'POST', body: JSON.stringify({ mode }) });
+      setStep('running');
+      watchMigration();
+    } catch (e) { setError(e.message); setBusy(false); }
+  };
 
   const m = (status && status.migration) || {};
   const on = status && status.enabled;
@@ -334,6 +354,28 @@ export default function ProtectionSettings({ token }) {
           )}
         </div>
       )}
+
+      {on && !working && !locked && (
+        <div style={card}>
+          <h4 style={{ margin: 0 }}>{t('Locked search index')}</h4>
+          <div className={styles.hint}>
+            {t('The search index keeps a list of numbers for every piece of text, plus its file name, page and path. Locking the search index hides these too, so nothing about your documents can be read from the disk. It needs more memory while StarkLLM runs (about 400 MB for every 100,000 pieces of text, which is several thousand letters) and is loaded when StarkLLM starts.')}
+          </div>
+          <strong style={{ fontSize: '0.9rem' }}>
+            {status.vector_mode === 'secure' ? t('The search index is locked.') : t('The search index is not locked yet.')}
+          </strong>
+          {status.vector_mode === 'secure'
+            ? <button className="btn-secondary" disabled={busy} style={{ width: 'fit-content' }} onClick={() => moveIndex('chroma')}>{t('Go back to the normal search index')}</button>
+            : <button className="btn-primary" disabled={busy} style={{ width: 'fit-content' }} onClick={() => moveIndex('secure')}>{t('Lock the search index')}</button>}
+        </div>
+      )}
+
+      <div style={card}>
+        <h4 style={{ margin: 0 }}>{t('Windows drive encryption (recommended as well)')}</h4>
+        <div className={styles.hint}>
+          {t('Protection in StarkLLM locks your documents, chats and search index. Windows can also lock the whole drive (BitLocker, or "Device encryption" on many PCs). That covers what StarkLLM cannot: file names and titles, the programs themselves, and traces of files that were deleted earlier. Open Windows Settings > Privacy & security > Device encryption (or search for "BitLocker") and turn it on. Keep the recovery key it shows you in a safe place, away from this PC.')}
+        </div>
+      </div>
 
       {on && !working && !locked && (
         <div style={card}>

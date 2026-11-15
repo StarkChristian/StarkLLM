@@ -210,6 +210,8 @@ class DataKeyManager {
     this.requireKeyStore();
     if (!Buffer.isBuffer(key) || key.length !== KEY_BYTES) throw new DataKeyError('bad-key', 'The key must be 32 bytes.');
     if (fs.existsSync(this.file('data-key.wrapped'))) fs.copyFileSync(this.file('data-key.wrapped'), this.file('data-key.previous'));
+    // in passphrase mode the older key is only wrapped with the passphrase: keep that envelope (still locked) for an undone restore
+    if (fs.existsSync(this.file('data-key.passphrase.json'))) fs.copyFileSync(this.file('data-key.passphrase.json'), this.file('data-key.previous-passphrase.json'));
     const recovery = crypto.randomBytes(KEY_BYTES);
     const salt = crypto.randomBytes(16);
     this.write('data-key.recovery.json', JSON.stringify(seal(recoveryKek(recovery, salt), key, { salt: b64(salt) })));
@@ -273,7 +275,7 @@ class DataKeyManager {
 
   // Protection is off for good and the user wants the key gone (the recovery key stops working as well).
   forget() {
-    for (const f of ['data-key.wrapped', 'data-key.recovery.json', 'data-key.passphrase.json', 'data-key.previous']) this.remove(f);
+    for (const f of ['data-key.wrapped', 'data-key.recovery.json', 'data-key.passphrase.json', 'data-key.previous', 'data-key.previous-passphrase.json']) this.remove(f);
   }
 }
 

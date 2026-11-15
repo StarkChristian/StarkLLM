@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, dialog, net, session, safeStorage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, dialog, net, session, safeStorage, Notification } = require('electron');
 const { sameOrigin, isWebLink, permissionAllowed } = require('./window-security');
 const fs = require('fs');
 const path = require('path');
@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const { DataKeyManager, DataKeyError, createSafeStorageKeyStore, deliverKey, lockEngine } = require('./data-key');
 const { createUnlockFlow } = require('./unlock-flow');
 const { pathToFileURL } = require('url');
+const { BackupScheduler } = require('./backup-schedule');
 const { createUpdater } = require('./updates');
 const { installOllama } = require('./ollama-install');
 const { autoUpdater } = require('electron-updater');
@@ -65,6 +66,7 @@ function initApp() {
   registerProtectionHandlers();
   registerUnlockHandlers();
   lockEngineOnQuit();
+  registerBackupHandlers();
   ipcMain.handle('updates:check', async (event) => {
     if (!event.senderFrame || !sameOrigin(event.senderFrame.url, APP_URL)) return { error: 'not allowed' };
     const r = await updater.check({ manual: true });
@@ -337,6 +339,54 @@ function lockEngineOnQuit() {
   });
 }
 
+// Automatic encrypted backup (backup-schedule.js): the desktop app drives it because the engine may not see the user's folders.
+let scheduler = null;
+function backupScheduler() {
+  if (!scheduler) {
+    scheduler = new BackupScheduler({
+      dir: path.join(app.getPath('userData'), 'protection'),
+      keyStore: keyManager().keyStore,
+      getApi: () => (localToken ? { url: API_URL, token: localToken } : null),
+      notify: (title, body) => {
+        try {
+          if (Notification.isSupported()) new Notification({ title, body }).show();
+        } catch (e) {
+          // a missing notification must not matter
+        }
+      },
+      log: logLine
+    });
+  }
+  return scheduler;
+}
+
+function registerBackupHandlers() {
+  const guard = (fn) => async (event, ...args) => {
+    if (!fromAppPage(event)) return { error: 'not-allowed' };
+    try {
+      return await fn(...args);
+    } catch (e) {
+      return { error: e.code || 'failed', message: e.message };
+    }
+  };
+  ipcMain.handle('backup:status', guard(() => backupScheduler().status()));
+  ipcMain.handle('backup:choose-folder', guard(async () => {
+    const r = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory', 'createDirectory'] });
+    return r.canceled || !r.filePaths[0] ? { canceled: true } : { folder: r.filePaths[0] };
+  }));
+  ipcMain.handle('backup:configure', guard((settings) => backupScheduler().configure(settings || {})));
+  ipcMain.handle('backup:run-now', guard(() => backupScheduler().runNow()));
+  ipcMain.handle('backup:disable', guard(() => backupScheduler().disable()));
+}
+
+let backupTimer = null;
+function startBackupSchedule() {
+  if (backupTimer) return;
+  const tick = () => backupScheduler().tick().catch((e) => logLine(`backup schedule: ${e.message}`));
+  setTimeout(tick, 2 * 60 * 1000);                      // not while the app is still starting
+  backupTimer = setInterval(tick, 30 * 60 * 1000);
+}
+
 async function showApp() {
   if (!engineUnlocked) {
     if (keyManager().status().passphrase) {
@@ -353,6 +403,7 @@ async function showApp() {
   await mainWindow.webContents.executeJavaScript("document.body.classList.add('leaving')").catch(() => {});
   await wait(SPLASH_FADE_MS);
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.loadURL(APP_URL);
+  startBackupSchedule();
 }
 
 // "Install Ollama for me" on the what-is-missing page: download, check the signature, install, start again.
