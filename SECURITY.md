@@ -21,6 +21,10 @@ Only the latest release gets security fixes. StarkLLM updates itself; please kee
 - Other programs on the same PC can use StarkLLM only after the user turns this on and creates a key
   (Settings > Other apps); keys are stored as hashes.
 - No internet connection is made without the user's choice (model downloads, update check, web search, Telegram).
+- Uploaded documents, chat messages and the text of the search index can be stored encrypted (Settings > Protection); the key
+  lives in the Windows key store of the user's account and never in the data folder. What this does and does not protect is
+  written down in [docs/encryption-design.md](docs/encryption-design.md).
+- Backups (Settings > Backup & Restore) are one file encrypted with a passphrase, tested by restoring them into a temporary folder.
 - Text inside documents is treated as data, never as instructions; letters that try to instruct an AI assistant are
   flagged.
 

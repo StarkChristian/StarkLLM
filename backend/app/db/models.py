@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Float, Boo
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.db.session import Base
+from app.core.protection import ProtectedText
 
 
 # ---------------------------------------------------------------------------
@@ -13,8 +14,8 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
     hashed_password = Column(String)
-    profile_context = Column(String, nullable=True)
-    custom_instructions = Column(String, nullable=True)
+    profile_context = Column(ProtectedText("users.profile_context", locked_value=None), nullable=True)
+    custom_instructions = Column(ProtectedText("users.custom_instructions", locked_value=None), nullable=True)
     default_model = Column(String, nullable=True)
     temperature = Column(Float, nullable=True)
     top_p = Column(Float, nullable=True)
@@ -33,7 +34,7 @@ class Workspace(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     name = Column(String, index=True)
     active_kb_dir_ids = Column(String, nullable=True)  # JSON-encoded list of integer folder IDs
-    system_prompt = Column(String, nullable=True)       # Custom workspace-level system prompt
+    system_prompt = Column(ProtectedText("workspaces.system_prompt"), nullable=True)       # Custom workspace-level system prompt
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="workspaces")
@@ -72,11 +73,11 @@ class Message(Base):
     id = Column(Integer, primary_key=True, index=True)
     chat_id = Column(Integer, ForeignKey("chats.id"))
     role = Column(String)  # 'user', 'assistant', 'system'
-    content = Column(String)
+    content = Column(ProtectedText("messages.content"))
     feedback = Column(String, nullable=True)  # 'positive', 'negative', or None
     # JSON {"kb_used", "kb", "ws", "web": [{"title", "url"}]}: the source chips of an answer, shown again when the
     # chat is reopened (they used to exist only in the headers of the live response).
-    sources = Column(String, nullable=True)
+    sources = Column(ProtectedText("messages.sources"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     chat = relationship("Chat", back_populates="messages")
@@ -110,7 +111,7 @@ class PromptTemplate(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     title = Column(String, index=True)
-    content = Column(String)
+    content = Column(ProtectedText("prompt_templates.content"))
     tags = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -220,6 +221,6 @@ class DocumentReview(Base):
     scope       = Column(String, nullable=False)                 # "ws" or "kb"
     document_id = Column(Integer, nullable=False)
     status      = Column(String, default="new", nullable=False)  # "new" or "done"
-    title       = Column(String, nullable=True)                  # the user's own title, else the suggested one
-    case_key    = Column(String, nullable=True)                  # the user's case, else the suggested one
+    title       = Column(ProtectedText("document_reviews.title"), nullable=True)                  # the user's own title, else the suggested one
+    case_key    = Column(ProtectedText("document_reviews.case_key"), nullable=True)                  # the user's case, else the suggested one
     updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

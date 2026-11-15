@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from fastapi.background import BackgroundTasks
 from app.api.auth import get_current_user
+from app.core.protection import protection
 from app.db import models
 from sqlalchemy import func
 from app.db.session import engine, get_db
@@ -56,6 +57,9 @@ def backup_system(current_user: models.User = Depends(require_admin)):
     """
     Creates a zip archive of the local data directory and returns it as a download.
     """
+    if protection.enabled:
+        raise HTTPException(status_code=409, detail="Protection is on: a plain .zip backup would not contain the key and "
+                            "could not be restored. Use the encrypted backup (Settings > Backup).")
     if not os.path.exists(DATA_DIR):
         raise HTTPException(status_code=404, detail="Data directory not found.")
         
@@ -96,6 +100,8 @@ async def restore_system(
     Restores the system from an uploaded zip backup.
     NOTE: On Windows, file locks on sqlite/chroma files may prevent overwrite.
     """
+    if protection.enabled:
+        raise HTTPException(status_code=409, detail="Protection is on: restore an encrypted backup (.starkbackup) instead.")
     if not file.filename.endswith('.zip'):
         raise HTTPException(status_code=400, detail="Must upload a .zip backup file.")
         
