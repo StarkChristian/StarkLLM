@@ -73,6 +73,8 @@ jobs:
           $exe = Join-Path $env:LOCALAPPDATA 'Programs\StarkLLM\StarkLLM.exe'
           # the first-start update question would cover the page in the screenshot
           $env:STARKLLM_UPDATE_CHECK = '0'
+          # nobody is there to answer the first-start question (stay online / fully offline)
+          $env:STARKLLM_ASK_OFFLINE = '0'
           $p = Start-Process $exe -PassThru
           $log = Join-Path $env:APPDATA 'StarkLLM\engine.log'
           $deadline = (Get-Date).AddMinutes(12)
@@ -104,6 +106,8 @@ jobs:
           (Get-Item $exe).LastWriteTimeUtc = (Get-Date).ToUniversalTime().AddDays(-1)
           $before = (Get-Item $exe).LastWriteTimeUtc
           $env:STARKLLM_UPDATE_CHECK = '0'
+          # nobody is there to answer the first-start question (stay online / fully offline)
+          $env:STARKLLM_ASK_OFFLINE = '0'
           $app = Start-Process $exe -PassThru
           Start-Sleep 15
           $setup = Get-ChildItem desktop/dist/*-Setup.exe | Select-Object -First 1

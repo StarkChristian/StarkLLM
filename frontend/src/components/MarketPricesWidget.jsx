@@ -152,9 +152,11 @@ export default function MarketPricesWidget({ token }) {
   // Batch-fetch CoinGecko for all selected crypto
   const fetchCoingeckoBatch = async (ids) => {
     const joined = ids.join(',');
-    const res = await fetch(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${joined}&vs_currencies=usd&include_24hr_change=true`
-    );
+    // through the engine, like the Yahoo prices: the request is recorded in Settings > Privacy & network and is refused
+    // while StarkLLM is fully offline (the browser used to ask CoinGecko directly)
+    const res = await fetch(`/api/v1/dashboard/crypto-prices?consent=1&ids=${encodeURIComponent(joined)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
     if (!res.ok) return null;
     return res.json();
   };

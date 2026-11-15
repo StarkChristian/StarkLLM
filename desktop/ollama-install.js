@@ -6,16 +6,19 @@ const os = require('os');
 const path = require('path');
 const https = require('https');
 const { execFile } = require('child_process');
+const { getShared } = require('./netguard');
 
 const INSTALLER_URL = 'https://ollama.com/download/OllamaSetup.exe';
 
 // Follows redirects (ollama.com -> GitHub releases); onProgress(downloaded, total)
-function download(url, target, onProgress = () => {}, redirects = 5) {
+function download(url, target, onProgress = () => {}, redirects = 5, onHop = () => {}) {
   return new Promise((resolve, reject) => {
     const req = https.get(url, { headers: { 'User-Agent': 'StarkLLM-Desktop' }, timeout: 60000 }, (res) => {
       if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && redirects > 0) {
         res.resume();
-        resolve(download(new URL(res.headers.location, url).toString(), target, onProgress, redirects - 1));
+        const next = new URL(res.headers.location, url).toString();
+        onHop(next); // the download goes on at another host: the network layer lists it too
+        resolve(download(next, target, onProgress, redirects - 1, onHop));
         return;
       }
       if (res.statusCode !== 200) {
@@ -85,12 +88,28 @@ function runInstaller(file) {
  * for the user otherwise. deps are for tests.
  */
 async function installOllama({ onStatus = () => {}, log = () => {}, deps = {} } = {}) {
+  const guard = deps.guard || getShared();
   const d = { download, signature, runInstaller, tmpdir: os.tmpdir, ...deps };
   const target = path.join(d.tmpdir(), `OllamaSetup-${Date.now()}.exe`);
+  // announced to the network layer: recorded, and refused while the app is fully offline
+  const announced = guard.begin('ollama_install', INSTALLER_URL, 'Download of the Ollama installer the user asked for');
   onStatus('Downloading Ollama from ollama.com...', null);
-  const { bytes } = await d.download(INSTALLER_URL, target, (done, total) => {
-    if (total) onStatus(`Downloading Ollama: ${Math.floor((done / total) * 100)} % (${Math.round(done / 1e6)} MB of ${Math.round(total / 1e6)} MB)`, done / total);
-  });
+  let bytes;
+  try {
+    ({ bytes } = await d.download(INSTALLER_URL, target, (done, total) => {
+      if (total) onStatus(`Downloading Ollama: ${Math.floor((done / total) * 100)} % (${Math.round(done / 1e6)} MB of ${Math.round(total / 1e6)} MB)`, done / total);
+    }, 5, (hop) => {
+      try {
+        guard.begin('ollama_install', hop, 'Download of the Ollama installer (redirect)').finish({});
+      } catch (e) {
+        // the switch was turned on during the download: the next start refuses; this callback must not throw
+      }
+    }));
+    announced.finish({ status: 200, bytesIn: bytes });
+  } catch (e) {
+    announced.fail(e);
+    throw e;
+  }
   log(`Ollama installer downloaded (${Math.round(bytes / 1e6)} MB)`);
   onStatus('Checking the Ollama installer...', null);
   const sig = await d.signature(target);

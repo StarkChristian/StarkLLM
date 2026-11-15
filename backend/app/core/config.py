@@ -1,6 +1,12 @@
 import os
 from pydantic_settings import BaseSettings
 
+# The libraries the engine uses can report usage to their makers; StarkLLM never allows that, wherever it runs
+# (docker-compose.yml sets the same variables). setdefault: a developer may still choose otherwise on purpose.
+for _name, _value in (("ANONYMIZED_TELEMETRY", "False"), ("HF_HUB_DISABLE_TELEMETRY", "1"), ("DO_NOT_TRACK", "1"),
+                      ("RAGAS_DO_NOT_TRACK", "true")):
+    os.environ.setdefault(_name, _value)
+
 class Settings(BaseSettings):
     PROJECT_NAME: str = "StarkLLM"
     VERSION: str = "2.0.16"  # shown by /health; keep equal to the released app version

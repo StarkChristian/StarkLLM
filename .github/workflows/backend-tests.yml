@@ -7,11 +7,13 @@ on:
   pull_request:
     paths:
       - 'backend/**'
+      - 'tests/injection/**'
       - '.github/workflows/backend-tests.yml'
   push:
     branches: [main]
     paths:
       - 'backend/**'
+      - 'tests/injection/**'
   workflow_dispatch:
 
 permissions:
@@ -45,3 +47,12 @@ jobs:
         run: |
           docker run --rm -e STARKLLM_REQUIRE_OCR=1 -v "$PWD:/repo" -w /repo/backend starkllm-backend:test \
             sh -c "pip install -q pytest && python -m pytest -q -rs tests --ignore=tests/run_rigorous_e2e.py -p no:cacheprovider"
+
+      # Exit test of roadmap phase 3 (provable privacy): the same tests in a container with no network device at all.
+      # Nothing in the engine may need, or attempt, a connection to anything but this PC. pytest is installed first,
+      # while the network is still there, into a folder that the offline run reads.
+      - name: Tests without any network (docker run --network none)
+        run: |
+          docker run --rm -v "$PWD/.pytest-lib:/pt" starkllm-backend:test pip install -q --target /pt pytest
+          docker run --rm --network none -v "$PWD/.pytest-lib:/pt" -e PYTHONPATH=/pt -e STARKLLM_REQUIRE_OCR=1 -v "$PWD:/repo" -w /repo/backend starkllm-backend:test \
+            python -m pytest -q -rs tests --ignore=tests/run_rigorous_e2e.py -p no:cacheprovider
