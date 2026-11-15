@@ -15,6 +15,7 @@ except Exception as _e:  # never stop the engine from starting
 
 from app.db.session import engine, Base
 from app.api import api_router
+from app.core import netguard
 from app.core.protection import ProtectionLocked
 from sqlalchemy.exc import StatementError
 from app.services import vault
@@ -191,6 +192,9 @@ def health_check():
 def version():
     """The web UI only reaches /api/ through its proxy; the About page reads the version here."""
     return {"version": settings.VERSION}
+
+# Every outgoing connection of the engine is recorded, and refused while the app is fully offline (roadmap phase 3)
+netguard.install()
 
 # Include routers
 app.include_router(api_router, prefix=settings.API_V1_STR)

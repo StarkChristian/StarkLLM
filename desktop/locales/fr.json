@@ -100,5 +100,12 @@
   "Downloading Ollama: {percent} % ({done} MB of {total} MB)": "Téléchargement d'Ollama : {percent} % ({done} Mo sur {total} Mo)",
   "Checking the Ollama installer...": "Vérification du programme d'installation d'Ollama...",
   "The downloaded file is not validly signed by Ollama ({status}), so it was not run. Install Ollama from ollama.com instead.": "Le fichier téléchargé n'est pas signé de façon valide par Ollama ({status}) ; il n'a donc pas été exécuté. Installez plutôt Ollama depuis ollama.com.",
-  "Installing Ollama (about a minute)...": "Installation d'Ollama (environ une minute)..."
+  "Installing Ollama (about a minute)...": "Installation d'Ollama (environ une minute)...",
+  "Fully offline: on (no connections)": "Entièrement hors ligne : activé (aucune connexion)",
+  "Fully offline: off": "Entièrement hors ligne : désactivé",
+  "StarkLLM is fully offline.": "StarkLLM est entièrement hors ligne.",
+  "It does not look for updates. Turn off \"Fully offline\" in Settings > Privacy to check for a new version.": "Il ne recherche pas de mises à jour. Désactivez « Entièrement hors ligne » dans Paramètres > Confidentialité et réseau pour rechercher une nouvelle version.",
+  "The AI model {model} is not on this PC, and StarkLLM is fully offline, so it was not downloaded. Turn off \"Fully offline\" in Settings > Privacy to download it.": "Le modèle d'IA {model} n'est pas présent sur ce PC et StarkLLM est entièrement hors ligne : il n'a donc pas été téléchargé. Désactivez « Entièrement hors ligne » dans Paramètres > Confidentialité et réseau pour le télécharger.",
+  "StarkLLM is fully offline, and the engine files are not on this PC yet (they are downloaded once). Turn off \"Fully offline\" in Settings > Privacy, start StarkLLM once online, then turn it on again.": "StarkLLM est entièrement hors ligne et les fichiers du moteur ne sont pas encore sur ce PC (ils sont téléchargés une seule fois). Désactivez « Entièrement hors ligne » dans Paramètres > Confidentialité et réseau, démarrez StarkLLM une fois en ligne, puis réactivez-le.",
+  "StarkLLM is fully offline: starting the engine from the files on this PC...": "StarkLLM est entièrement hors ligne : démarrage du moteur à partir des fichiers de ce PC..."
 }

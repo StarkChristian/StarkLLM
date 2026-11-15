@@ -181,7 +181,19 @@ _BLOCKED_MODULES = {
     "os", "subprocess", "socket", "shutil", "ctypes", "importlib", "pathlib", "multiprocessing", "threading", "signal",
     "urllib", "http", "ftplib", "smtplib", "telnetlib", "requests", "httpx", "aiohttp", "sqlite3", "pickle", "marshal",
     "builtins", "sys", "inspect", "gc", "resource", "pty", "tempfile", "glob", "zipfile", "tarfile", "webbrowser", "asyncio",
+    "_socket", "ssl", "_ssl", "select", "selectors", "xmlrpc", "imaplib", "poplib", "nntplib", "socketserver",
 }
+
+# The child process never opens a network connection (roadmap phase 3: nothing leaves the PC because of a snippet, for
+# example pandas.read_csv("https://...")). Imports of the usual modules are refused above; this also makes the socket
+# calls of libraries that are allowed (pandas, numpy ...) fail. A convenience limit like the rest of the runner.
+_NO_NETWORK = (
+    "import socket as _s\n"
+    "def _deny(*a, **k):\n    raise OSError('The code runner has no network access.')\n"
+    "for _n in ('connect', 'connect_ex', 'bind', 'listen', 'sendto'):\n    setattr(_s.socket, _n, _deny)\n"
+    "for _n in ('getaddrinfo', 'gethostbyname', 'gethostbyname_ex', 'create_connection'):\n    setattr(_s, _n, _deny)\n"
+    "del _s, _deny, _n\n"
+)
 _BLOCKED_CALLS = {"open", "exec", "eval", "compile", "__import__", "input", "breakpoint", "globals", "locals", "vars", "getattr", "setattr", "delattr"}
 
 
@@ -257,7 +269,7 @@ def execute_code(
     with tempfile.TemporaryDirectory() as workdir:
         try:
             proc = subprocess.run(
-                [sys.executable, "-I", "-c", req.code],
+                [sys.executable, "-I", "-c", _NO_NETWORK + "exec(compile(" + repr(req.code) + ", '<string>', 'exec'))"],
                 capture_output=True, text=True, timeout=timeout, cwd=workdir, env=env,
                 preexec_fn=_limit_resources(timeout + 1) if os.name == "posix" else None,
             )

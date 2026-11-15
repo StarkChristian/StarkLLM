@@ -100,5 +100,12 @@
   "Downloading Ollama: {percent} % ({done} MB of {total} MB)": "Descargando Ollama: {percent} % ({done} MB de {total} MB)",
   "Checking the Ollama installer...": "Comprobando el instalador de Ollama...",
   "The downloaded file is not validly signed by Ollama ({status}), so it was not run. Install Ollama from ollama.com instead.": "El archivo descargado no tiene una firma válida de Ollama ({status}), por lo que no se ejecutó. Instale Ollama desde ollama.com.",
-  "Installing Ollama (about a minute)...": "Instalando Ollama (aproximadamente un minuto)..."
+  "Installing Ollama (about a minute)...": "Instalando Ollama (aproximadamente un minuto)...",
+  "Fully offline: on (no connections)": "Totalmente sin conexión: activado (sin conexiones)",
+  "Fully offline: off": "Totalmente sin conexión: desactivado",
+  "StarkLLM is fully offline.": "StarkLLM está totalmente sin conexión.",
+  "It does not look for updates. Turn off \"Fully offline\" in Settings > Privacy to check for a new version.": "No busca actualizaciones. Desactive \"Totalmente sin conexión\" en Ajustes > Privacidad para buscar una versión nueva.",
+  "The AI model {model} is not on this PC, and StarkLLM is fully offline, so it was not downloaded. Turn off \"Fully offline\" in Settings > Privacy to download it.": "El modelo de IA {model} no está en este PC y StarkLLM está totalmente sin conexión, por lo que no se descargó. Desactive \"Totalmente sin conexión\" en Ajustes > Privacidad para descargarlo.",
+  "StarkLLM is fully offline, and the engine files are not on this PC yet (they are downloaded once). Turn off \"Fully offline\" in Settings > Privacy, start StarkLLM once online, then turn it on again.": "StarkLLM está totalmente sin conexión y los archivos del motor aún no están en este PC (se descargan una sola vez). Desactive \"Totalmente sin conexión\" en Ajustes > Privacidad, inicie StarkLLM una vez en línea y vuelva a activarlo.",
+  "StarkLLM is fully offline: starting the engine from the files on this PC...": "StarkLLM está totalmente sin conexión: iniciando el motor con los archivos de este PC..."
 }

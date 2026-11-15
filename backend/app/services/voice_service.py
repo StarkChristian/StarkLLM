@@ -2,6 +2,7 @@ import os
 import re
 import logging
 from faster_whisper import WhisperModel
+from app.core import netguard
 import subprocess
 from typing import Optional
 
@@ -62,7 +63,14 @@ class VoiceService:
         if self._model is None:
             logger.info("Initializing WhisperModel on CPU...")
             try:
-                self._model = WhisperModel("base", device="cpu", compute_type="int8")
+                try:
+                    # the model is on this PC after its first download: then nothing is fetched at all
+                    self._model = WhisperModel("base", device="cpu", compute_type="int8", local_files_only=True)
+                except Exception:
+                    # first use: a one-time download from huggingface.co, recorded, and refused while fully offline
+                    with netguard.external("speech_model_download", "huggingface.co",
+                                           purpose="One-time download of the speech recognition model"):
+                        self._model = WhisperModel("base", device="cpu", compute_type="int8")
             except Exception as e:
                 logger.error(f"Error initializing WhisperModel: {e}")
                 raise

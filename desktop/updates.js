@@ -8,9 +8,11 @@ const fs = require('fs');
 const path = require('path');
 const { spawn: nodeSpawn } = require('child_process');
 const { t } = require('./i18n');
+const { getShared } = require('./netguard');
 
 const RELEASES_API = 'https://api.github.com/repos/StarkChristian/StarkLLM/releases/latest';
 const DOWNLOAD_PAGE = 'https://www.starkllm.com/download';
+const FEATURES_TEXT = require('./netguard').FEATURES;
 
 // "v2.0.3" or "2.0.3-beta" -> [2, 0, 3]; anything else -> null
 function parseVersion(v) {
@@ -93,7 +95,7 @@ function startInstaller(file, args, spawn = nodeSpawn) {
 // onStatus({ phase, percent }) tells the page what happens while the download runs: 'downloading' with a percent,
 // then 'done'. Without it, Settings showed "Checking..." for the whole download (2.0.12 on Windows).
 function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null, log = () => {}, onChange = () => {}, onStatus = () => {},
-  spawn = nodeSpawn, quit = () => app.quit() }) {
+  spawn = nodeSpawn, quit = () => app.quit(), guard = getShared() }) {
   // Only the installed app can replace itself; the portable exe and runs from source cannot.
   const selfUpdate = Boolean(autoUpdater && app.isPackaged && !process.env.PORTABLE_EXECUTABLE_DIR);
   if (selfUpdate) {
@@ -131,7 +133,8 @@ function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null,
   };
 
   async function fetchLatest() {
-    const res = await net.fetch(RELEASES_API, {
+    // announced to the network layer: recorded, and refused while the app is fully offline
+    const res = await guard.wrapFetch((u, o) => net.fetch(u, o), 'update_check', FEATURES_TEXT.update_check)(RELEASES_API, {
       headers: { Accept: 'application/vnd.github+json', 'User-Agent': `StarkLLM-Desktop/${app.getVersion()}` },
       signal: AbortSignal.timeout(10000)
     });
@@ -141,6 +144,13 @@ function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null,
 
   // manual: started from the tray menu, so also say "up to date" or why the check failed.
   async function check({ manual = false } = {}) {
+    if (guard.isOffline()) {
+      log('update check skipped: the app is fully offline');
+      if (manual) {
+        await dialog.showMessageBox(parent(), { type: 'info', title: 'StarkLLM', message: t('StarkLLM is fully offline.'), detail: t('It does not look for updates. Turn off "Fully offline" in Settings > Privacy to check for a new version.') });
+      }
+      return { error: 'offline' };
+    }
     let release;
     try {
       release = await fetchLatest();
@@ -195,11 +205,16 @@ function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null,
     };
     onStatus({ phase: 'downloading', percent: 0 });
     autoUpdater.on('download-progress', onProgress);
+    let announced = null;
     try {
+      // electron-updater makes its own requests: announce them (recorded; refused while fully offline)
+      announced = guard.begin('update_download', 'https://github.com/StarkChristian/StarkLLM/releases', FEATURES_TEXT.update_download);
       const info = await autoUpdater.checkForUpdates();
       if (!info || !info.updateInfo || !isNewer(info.updateInfo.version, current)) throw new Error('the release has no update files for this app');
       await autoUpdater.downloadUpdate();
+      announced.finish({ status: 200 });
     } catch (e) {
+      if (announced) announced.fail(e);
       log(`self-update failed: ${e.message}`);
       const { response: r } = await dialog.showMessageBox(parent(), {
         type: 'warning', title: t('StarkLLM update'), message: t('The update could not be downloaded.'),
@@ -268,7 +283,7 @@ function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null,
 
   // On every start: ask once whether checking is OK, then check if the user agreed.
   async function onStart() {
-    if (process.env.STARKLLM_UPDATE_CHECK === '0') return;
+    if (process.env.STARKLLM_UPDATE_CHECK === '0' || guard.isOffline()) return;
     let s = readSettings();
     if (typeof s.updateCheck !== 'boolean') {
       const { response } = await dialog.showMessageBox(parent(), {

@@ -100,5 +100,12 @@
   "Downloading Ollama: {percent} % ({done} MB of {total} MB)": "Ollama wird heruntergeladen: {percent} % ({done} MB von {total} MB)",
   "Checking the Ollama installer...": "Ollama-Installationsprogramm wird geprüft...",
   "The downloaded file is not validly signed by Ollama ({status}), so it was not run. Install Ollama from ollama.com instead.": "Die heruntergeladene Datei ist nicht gültig von Ollama signiert ({status}) und wurde deshalb nicht ausgeführt. Installieren Sie Ollama stattdessen von ollama.com.",
-  "Installing Ollama (about a minute)...": "Ollama wird installiert (etwa eine Minute)..."
+  "Installing Ollama (about a minute)...": "Ollama wird installiert (etwa eine Minute)...",
+  "Fully offline: on (no connections)": "Vollständig offline: an (keine Verbindungen)",
+  "Fully offline: off": "Vollständig offline: aus",
+  "StarkLLM is fully offline.": "StarkLLM ist vollständig offline.",
+  "It does not look for updates. Turn off \"Fully offline\" in Settings > Privacy to check for a new version.": "Es sucht nicht nach Updates. Schalten Sie unter Einstellungen > Datenschutz „Vollständig offline“ aus, um nach einer neuen Version zu suchen.",
+  "The AI model {model} is not on this PC, and StarkLLM is fully offline, so it was not downloaded. Turn off \"Fully offline\" in Settings > Privacy to download it.": "Das KI-Modell {model} ist nicht auf diesem PC, und StarkLLM ist vollständig offline, deshalb wurde es nicht heruntergeladen. Schalten Sie unter Einstellungen > Datenschutz „Vollständig offline“ aus, um es herunterzuladen.",
+  "StarkLLM is fully offline, and the engine files are not on this PC yet (they are downloaded once). Turn off \"Fully offline\" in Settings > Privacy, start StarkLLM once online, then turn it on again.": "StarkLLM ist vollständig offline, und die Engine-Dateien sind noch nicht auf diesem PC (sie werden einmal heruntergeladen). Schalten Sie unter Einstellungen > Datenschutz „Vollständig offline“ aus, starten Sie StarkLLM einmal online und schalten Sie es danach wieder ein.",
+  "StarkLLM is fully offline: starting the engine from the files on this PC...": "StarkLLM ist vollständig offline: Die Engine wird aus den Dateien auf diesem PC gestartet..."
 }

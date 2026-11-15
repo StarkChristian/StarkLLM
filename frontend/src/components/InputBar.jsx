@@ -7,7 +7,7 @@ import { UPLOAD_ACCEPT } from '../utils/uploadTypes';
 import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
 
-export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleKb, useWebSearch, onToggleWebSearch, cloudHost, onOpenSettings, isGenerating, onStopGeneration, token, activeWorkspace, onOpenKbSettings }) {
+export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleKb, useWebSearch, onToggleWebSearch, offline, cloudHost, onOpenSettings, isGenerating, onStopGeneration, token, activeWorkspace, onOpenKbSettings }) {
   const toast = useToast();
   const [text, setText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -179,7 +179,8 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
         <button
           className={`${styles.kbToggle} ${useWebSearch ? styles.kbToggleOn : ''}`}
           onClick={onToggleWebSearch}
-          title={useWebSearch ? t('Web Search active — click to disable') : t('Enable Web Search')}
+          disabled={offline}
+          title={offline ? t('Web Search is off while StarkLLM is fully offline') : useWebSearch ? t('Web Search active — click to disable') : t('Enable Web Search')}
           type="button"
         >
           <Globe size={16} />

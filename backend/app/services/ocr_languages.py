@@ -16,9 +16,9 @@ import re
 import shutil
 import subprocess
 import tempfile
-import urllib.request
 from typing import Callable, Dict, List, Optional
 
+from app.core import netguard
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -142,11 +142,20 @@ def tessdata_arg(tesseract_cmd: str = "tesseract") -> Optional[str]:
 
 
 def fetch(url: str) -> bytes:
-    """Download one language pack (a plain GET; nothing about the user or the documents is sent)."""
-    req = urllib.request.Request(url, headers={"User-Agent": "StarkLLM-language-pack"})
-    with urllib.request.urlopen(req, timeout=120) as r:
-        data = r.read(MAX_PACK_BYTES + 1)
-    return data
+    """Download one language pack (a plain GET through the network layer, which records it and refuses it while the
+    app is fully offline; nothing about the user or the documents is sent)."""
+    resp = netguard.request("GET", url, feature="ocr_language_pack", timeout=120, stream=True,
+                            headers={"User-Agent": "StarkLLM-language-pack"})
+    try:
+        resp.raise_for_status()
+        data = b""
+        for chunk in resp.iter_content(1024 * 1024):
+            data += chunk
+            if len(data) > MAX_PACK_BYTES:
+                break
+        return data
+    finally:
+        resp.close()
 
 
 def install(code: str, fetcher: Optional[Callable[[str], bytes]] = None) -> str:

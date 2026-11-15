@@ -100,5 +100,12 @@
   "Downloading Ollama: {percent} % ({done} MB of {total} MB)": "Download di Ollama: {percent} % ({done} MB di {total} MB)",
   "Checking the Ollama installer...": "Verifica del programma di installazione di Ollama...",
   "The downloaded file is not validly signed by Ollama ({status}), so it was not run. Install Ollama from ollama.com instead.": "Il file scaricato non è firmato validamente da Ollama ({status}), perciò non è stato eseguito. Installi Ollama da ollama.com.",
-  "Installing Ollama (about a minute)...": "Installazione di Ollama (circa un minuto)..."
+  "Installing Ollama (about a minute)...": "Installazione di Ollama (circa un minuto)...",
+  "Fully offline: on (no connections)": "Completamente offline: attivo (nessuna connessione)",
+  "Fully offline: off": "Completamente offline: disattivato",
+  "StarkLLM is fully offline.": "StarkLLM è completamente offline.",
+  "It does not look for updates. Turn off \"Fully offline\" in Settings > Privacy to check for a new version.": "Non cerca aggiornamenti. Disattivi \"Completamente offline\" in Impostazioni > Privacy per verificare la presenza di una nuova versione.",
+  "The AI model {model} is not on this PC, and StarkLLM is fully offline, so it was not downloaded. Turn off \"Fully offline\" in Settings > Privacy to download it.": "Il modello di IA {model} non è su questo PC e StarkLLM è completamente offline, perciò non è stato scaricato. Disattivi \"Completamente offline\" in Impostazioni > Privacy per scaricarlo.",
+  "StarkLLM is fully offline, and the engine files are not on this PC yet (they are downloaded once). Turn off \"Fully offline\" in Settings > Privacy, start StarkLLM once online, then turn it on again.": "StarkLLM è completamente offline e i file del motore non sono ancora su questo PC (vengono scaricati una sola volta). Disattivi \"Completamente offline\" in Impostazioni > Privacy, avvii StarkLLM una volta online, poi lo riattivi.",
+  "StarkLLM is fully offline: starting the engine from the files on this PC...": "StarkLLM è completamente offline: avvio del motore dai file presenti su questo PC..."
 }

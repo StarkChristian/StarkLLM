@@ -10,8 +10,8 @@ import re
 from typing import Dict, List, Optional
 
 from app.services.dates_service import (
-    AMOUNT, OLD_BEFORE, PLACE_DATE, amount_parts, _amount_text, _is_fee, date_order_evidence, find_dates, letter_date,
-    letter_date_line,
+    AMOUNT, OLD_BEFORE, PLACE_DATE, amount_parts, _amount_text, _is_fee, date_order_evidence, find_dates, is_log_line,
+    letter_date, letter_date_line,
 )
 from app.services.document_checks import bank_accounts, findings, ibans
 from app.services import locale_rules
@@ -245,20 +245,62 @@ def case_key(facts: Dict) -> Optional[str]:
     return " ".join(words[:2]) or None
 
 
-def document_facts(pages: Dict[int, str]) -> Dict:
-    """All facts of one document; pages is {page number (1-based): text}."""
+# Files that are data, notes or program code, never letters, whatever dates they contain (MSI test, 15 Nov 2026:
+# an app.log counted as a new letter and its timestamp showed as an expired deadline).
+NOT_LETTER_EXTENSIONS = frozenset({
+    ".log", ".csv", ".tsv", ".json", ".jsonl", ".ndjson", ".xml", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
+    ".env", ".properties", ".md", ".markdown", ".rst", ".sql", ".py", ".js", ".mjs", ".ts", ".jsx", ".tsx", ".java",
+    ".c", ".h", ".cpp", ".hpp", ".cs", ".go", ".rs", ".rb", ".php", ".sh", ".bat", ".ps1", ".css", ".scss", ".kt",
+    ".swift", ".lua", ".r",
+})
+_STRUCTURE_START = re.compile(r"^\s*(\{|\[\s*[\[{\"]|<\?xml|<!doctype|<[A-Za-z][\w:.-]*[\s/>])", re.IGNORECASE)
+
+
+# "The image shows a photograph of a meeting room sign ...": what the vision model wrote about a photo
+_PHOTO_DESCRIPTION = re.compile(r"^\s*(the|this|a|an) (image|photo|picture|screenshot)\s+(shows|depicts|contains|is)\b|"
+                                r"^\s*(das|dieses|ein) (bild|foto)\s+(zeigt|enthält|ist)\b", re.IGNORECASE)
+
+
+def machine_file_name(filename: Optional[str]) -> bool:
+    """True for a file type that is data, a note format or program code: .log, .csv, .json, .xml, .yaml, .md, …"""
+    name = (filename or "").strip().lower()
+    return "." in name and "." + name.rsplit(".", 1)[1] in NOT_LETTER_EXTENSIONS
+
+
+def machine_text(full: str) -> bool:
+    """True when the text is a log (half of its lines start with a bare timestamp or a log level), JSON/XML structure
+    or the description of a photo, whatever the file is called. A letter has none of these."""
+    lines = [l for l in (full or "").splitlines() if l.strip()]
+    if not lines:
+        return False
+    if _PHOTO_DESCRIPTION.match(lines[0]):
+        return True
+    if _STRUCTURE_START.match(lines[0]) and (len(lines) > 1 or lines[0].rstrip().endswith(("}", "]", ">"))):
+        return True
+    return len(lines) >= 2 and sum(1 for l in lines if is_log_line(l)) * 2 >= len(lines)
+
+
+def is_machine_document(pages: Dict[int, str], filename: Optional[str] = None) -> bool:
+    """A log, table, JSON, XML, YAML, Markdown note, photo description or program code: never a letter, and its dates are not deadlines."""
+    return machine_file_name(filename) or machine_text("\n".join((pages or {})[p] or "" for p in sorted(pages or {})))
+
+
+def document_facts(pages: Dict[int, str], filename: Optional[str] = None) -> Dict:
+    """All facts of one document; pages is {page number (1-based): text}. The file name is used to recognise files
+    that are never letters (a log, a table, JSON, Markdown, program code)."""
     pages = {p: t for p, t in (pages or {}).items() if (t or "").strip()}
     full = "\n".join(pages[p] for p in sorted(pages))
+    machine = machine_file_name(filename) or machine_text(full)
     facts = {
-        "type": doc_type(pages),
-        "sender": sender(pages),
-        "date": written_on(pages),
-        "references": references(pages),
-        "amounts": amounts(pages),
-        "accounts": accounts(pages),
-        "dates": dates(pages),
+        "type": None if machine else doc_type(pages),
+        "sender": None if machine else sender(pages),
+        "date": None if machine else written_on(pages),
+        "references": [] if machine else references(pages),
+        "amounts": [] if machine else amounts(pages),
+        "accounts": [] if machine else accounts(pages),
+        "dates": [] if machine else dates(pages),
         "warnings": sorted({f["kind"] for f in findings([{"file": "-", "text": full}])
-                            if f["kind"] in ("scam_signs", "ai_instructions")}),
+                            if f["kind"] in ("scam_signs", "ai_instructions", "hidden_text")}),
         # the same letter as a photo and as a PDF has the same text after OCR noise is removed
         "fingerprint": hashlib.sha1(_norm(full)[:4000].encode()).hexdigest() if full else None,
     }
@@ -275,10 +317,10 @@ def document_facts(pages: Dict[int, str]) -> Dict:
 _CACHE: Dict[str, Dict] = {}
 
 
-def document_facts_cached(pages: Dict[int, str]) -> Dict:
-    key = hashlib.sha1(repr(sorted((pages or {}).items())).encode("utf-8", "ignore")).hexdigest()
+def document_facts_cached(pages: Dict[int, str], filename: Optional[str] = None) -> Dict:
+    key = hashlib.sha1(repr((sorted((pages or {}).items()), filename)).encode("utf-8", "ignore")).hexdigest()
     if key not in _CACHE:
         if len(_CACHE) > 5000:
             _CACHE.clear()
-        _CACHE[key] = document_facts(pages)
+        _CACHE[key] = document_facts(pages, filename)
     return _CACHE[key]

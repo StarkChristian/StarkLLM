@@ -40,3 +40,4 @@ live_download2.html
 preflight_report.txt
 kb_mappings.json
 
+!backend/tests/fixtures/**/*.log

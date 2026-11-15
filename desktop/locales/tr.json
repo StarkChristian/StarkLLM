@@ -100,5 +100,12 @@
   "Downloading Ollama: {percent} % ({done} MB of {total} MB)": "Ollama indiriliyor: %{percent} ({done} MB / {total} MB)",
   "Checking the Ollama installer...": "Ollama yükleyicisi denetleniyor...",
   "The downloaded file is not validly signed by Ollama ({status}), so it was not run. Install Ollama from ollama.com instead.": "İndirilen dosya Ollama tarafından geçerli şekilde imzalanmamış ({status}), bu yüzden çalıştırılmadı. Bunun yerine Ollama'yı ollama.com'dan kurun.",
-  "Installing Ollama (about a minute)...": "Ollama kuruluyor (yaklaşık bir dakika)..."
+  "Installing Ollama (about a minute)...": "Ollama kuruluyor (yaklaşık bir dakika)...",
+  "Fully offline: on (no connections)": "Tamamen çevrimdışı: açık (bağlantı yok)",
+  "Fully offline: off": "Tamamen çevrimdışı: kapalı",
+  "StarkLLM is fully offline.": "StarkLLM tamamen çevrimdışı.",
+  "It does not look for updates. Turn off \"Fully offline\" in Settings > Privacy to check for a new version.": "Güncelleme aramaz. Yeni sürümü denetlemek için Ayarlar > Gizlilik ve ağ bölümünde \"Tamamen çevrimdışı\" seçeneğini kapatın.",
+  "The AI model {model} is not on this PC, and StarkLLM is fully offline, so it was not downloaded. Turn off \"Fully offline\" in Settings > Privacy to download it.": "{model} yapay zeka modeli bu PC'de yok ve StarkLLM tamamen çevrimdışı olduğu için indirilmedi. İndirmek için Ayarlar > Gizlilik ve ağ bölümünde \"Tamamen çevrimdışı\" seçeneğini kapatın.",
+  "StarkLLM is fully offline, and the engine files are not on this PC yet (they are downloaded once). Turn off \"Fully offline\" in Settings > Privacy, start StarkLLM once online, then turn it on again.": "StarkLLM tamamen çevrimdışı ve motor dosyaları henüz bu PC'de değil (bir kez indirilirler). Ayarlar > Gizlilik ve ağ bölümünde \"Tamamen çevrimdışı\" seçeneğini kapatın, StarkLLM'i bir kez çevrimiçi başlatın, sonra seçeneği yeniden açın.",
+  "StarkLLM is fully offline: starting the engine from the files on this PC...": "StarkLLM tamamen çevrimdışı: motor, bu PC'deki dosyalardan başlatılıyor..."
 }
