@@ -4,6 +4,7 @@ import uuid
 import json
 from app.core.config import settings
 from app.services.llm_service import llm_service
+from app.services.protected_collection import wrap as protect_collection
 
 logger = logging.getLogger(__name__)
 
@@ -13,10 +14,14 @@ class MemoryService:
             path=settings.CHROMA_PERSIST_DIRECTORY,
             settings=chromadb.config.Settings(anonymized_telemetry=False),
         )
-        self.memory_collection = self.chroma_client.get_or_create_collection(name="long_term_memory")
+        self.memory_collection = protect_collection(self.chroma_client.get_or_create_collection(name="long_term_memory"))
         self.embedding_model = settings.DEFAULT_EMBEDDING_MODEL
         self.summarize_model = settings.DEFAULT_TEXT_MODEL
         
+    def refresh(self):
+        """Open the memory collection again (the protection migration replaces collections)."""
+        self.memory_collection = protect_collection(self.chroma_client.get_or_create_collection(name="long_term_memory"))
+
     def summarize_and_store_conversation(self, chat_history: str, workspace_id: int):
         """
         Background task to summarize a conversation and extract facts.
@@ -63,7 +68,7 @@ Conversation:
             try:
                 fact_objects = json.loads(content)
             except json.JSONDecodeError:
-                logger.warning(f"Failed to parse memory JSON: {content}")
+                logger.warning(f"Failed to parse memory JSON ({len(content)} characters; the text is not logged)")
                 return
 
             if not isinstance(fact_objects, list) or len(fact_objects) == 0:

@@ -17,6 +17,8 @@ from app.services.llm_service import describe_indexing_error
 from app.core.config import settings
 from app.core import netguard
 import requests
+from app.services import vault
+from app.core.protection import ProtectionLocked
 from app.api.auth import get_current_user
 
 router = APIRouter()
@@ -86,11 +88,7 @@ def _sha256(path: str) -> str:
     cached = _HASHES.get(path)
     if cached and cached[:2] == (stat.st_size, stat.st_mtime):
         return cached[2]
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for block in iter(lambda: f.read(1 << 20), b""):
-            h.update(block)
-    _HASHES[path] = (stat.st_size, stat.st_mtime, h.hexdigest())
+    _HASHES[path] = (stat.st_size, stat.st_mtime, vault.sha256(path))   # of the document itself, also if protected
     return _HASHES[path][2]
 
 
@@ -102,7 +100,7 @@ def _same_document(db, workspace_id: int, path: str, size: int):
     digest = None
     for doc in candidates:
         try:
-            if not doc.filepath or doc.filepath == path or os.path.getsize(doc.filepath) != size:
+            if not doc.filepath or doc.filepath == path or vault.size(doc.filepath) != size:
                 continue
             digest = digest or _sha256(path)
             if _sha256(doc.filepath) == digest:
@@ -147,15 +145,19 @@ async def upload_document(
     file_path = os.path.join(settings.UPLOAD_DIR, safe_name)
 
     try:
-        with open(file_path, "wb") as buffer:
+        with vault.open_write(file_path) as buffer:   # encrypted on disk while protection is on
             shutil.copyfileobj(file.file, buffer)
+    except ProtectionLocked:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise
     except Exception as e:
         logger.error(f"Failed to save uploaded file '{file.filename}': {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to save file to disk: {str(e)[:200]}")
 
     # Validate file size after saving (100MB limit)
     MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB
-    actual_size = os.path.getsize(file_path)
+    actual_size = vault.size(file_path)
     if actual_size > MAX_FILE_SIZE:
         os.remove(file_path)
         size_mb = actual_size / (1024 * 1024)
@@ -287,10 +289,9 @@ async def ingest_url(
     file_path = os.path.join(settings.UPLOAD_DIR, file_disk_name)
 
     markdown_content = f"# {page_title}\n\n**Source URL:** {target_url}\n\n---\n\n{clean_text}"
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(markdown_content)
+    vault.write_text(file_path, markdown_content)
 
-    actual_size = os.path.getsize(file_path)
+    actual_size = vault.size(file_path)
 
     doc = models.Document(
         workspace_id=workspace_id,
@@ -437,10 +438,9 @@ async def ingest_youtube(
     )
 
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(markdown_content)
+    vault.write_text(file_path, markdown_content)
 
-    actual_size = os.path.getsize(file_path)
+    actual_size = vault.size(file_path)
 
     doc = models.Document(
         workspace_id=workspace_id,
@@ -657,10 +657,9 @@ async def ingest_github(
     file_path = os.path.join(settings.UPLOAD_DIR, file_disk_name)
 
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(markdown_content)
+    vault.write_text(file_path, markdown_content)
 
-    actual_size = os.path.getsize(file_path)
+    actual_size = vault.size(file_path)
 
     doc = models.Document(
         workspace_id=workspace_id,
@@ -735,10 +734,9 @@ async def ingest_note(
     markdown_content = f"# {title}\n\n---\n\n{content}"
 
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(markdown_content)
+    vault.write_text(file_path, markdown_content)
 
-    actual_size = os.path.getsize(file_path)
+    actual_size = vault.size(file_path)
 
     doc = models.Document(
         workspace_id=workspace_id,
@@ -793,7 +791,7 @@ def get_documents(
     result = []
     for d in docs:
         exists = os.path.exists(d.filepath) if d.filepath else False
-        size = os.path.getsize(d.filepath) if exists else 0
+        size = vault.size(d.filepath) if exists else 0
 
         # If file is missing but was supposedly indexed, override status
         effective_status = d.status
@@ -1010,7 +1008,7 @@ async def get_document_file(
         "csv": "text/csv; charset=utf-8",
     }
     media_type = media_map.get(ext, "application/octet-stream")
-    return FileResponse(doc.filepath, media_type=media_type, filename=doc.filename)
+    return vault.file_response(doc.filepath, media_type, doc.filename)
 
 
 TEXT_FILE_TYPES = {"txt", "md", "markdown", "csv", "json", "xml", "log", "html"}
@@ -1094,18 +1092,19 @@ async def get_document_content(
                 import pymupdf as fitz
             except ImportError:
                 import fitz
-            doc_fitz = fitz.open(doc.filepath)
-            for p_no in range(len(doc_fitz)):
-                txt = doc_fitz[p_no].get_text("text").strip()
-                # a scanned page has no text layer; show what OCR read from it
-                pages.append({"page": p_no + 1, "text": txt or indexed.get(p_no + 1, "")})
+            with vault.plain_path(doc.filepath) as readable:
+                doc_fitz = fitz.open(readable)
+                for p_no in range(len(doc_fitz)):
+                    txt = doc_fitz[p_no].get_text("text").strip()
+                    # a scanned page has no text layer; show what OCR read from it
+                    pages.append({"page": p_no + 1, "text": txt or indexed.get(p_no + 1, "")})
+                doc_fitz.close()
         except Exception as e:
             logger.error(f"Error reading PDF content: {e}")
             pages = [{"page": n, "text": t} for n, t in sorted(indexed.items())]
     elif ext in TEXT_FILE_TYPES:
         try:
-            with open(doc.filepath, "r", encoding="utf-8-sig", errors="replace") as f:
-                pages.append({"page": 1, "text": f.read()})
+            pages.append({"page": 1, "text": vault.read_text(doc.filepath)})
         except Exception as e:
             logger.error(f"Error reading document text: {e}")
     else:

@@ -6,6 +6,7 @@ from app.db.session import get_db
 from app.db import models
 from app.api.auth import get_current_user
 from app.services.rag_service import rag_service
+from app.core.protection import protection
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -88,18 +89,34 @@ def global_search(
     # We need chats NOT already in title_matching_chats
     already_found_chat_ids = {c.id for c in title_matching_chats}
 
-    matching_messages = (
-        db.query(models.Message.chat_id)
-        .join(models.Chat, models.Message.chat_id == models.Chat.id)
-        .filter(
-            models.Chat.workspace_id.in_(user_ws_ids),
-            models.Message.content.ilike(pattern, escape="\\"),
-            ~models.Message.chat_id.in_(already_found_chat_ids),
+    if protection.enabled:
+        # Message text is stored protected: SQL cannot search it, so it is read (decrypted) and searched here.
+        needle = q.lower()
+        seen, matching_messages = set(), []
+        rows = (
+            db.query(models.Message.chat_id, models.Message.content)
+            .join(models.Chat, models.Message.chat_id == models.Chat.id)
+            .filter(models.Chat.workspace_id.in_(user_ws_ids), ~models.Message.chat_id.in_(already_found_chat_ids))
         )
-        .distinct()
-        .limit(MAX_RESULTS_PER_GROUP)
-        .all()
-    )
+        for chat_id, content in rows:
+            if chat_id not in seen and needle in (content or "").lower():
+                seen.add(chat_id)
+                matching_messages.append(type("Row", (), {"chat_id": chat_id}))
+                if len(matching_messages) >= MAX_RESULTS_PER_GROUP:
+                    break
+    else:
+        matching_messages = (
+            db.query(models.Message.chat_id)
+            .join(models.Chat, models.Message.chat_id == models.Chat.id)
+            .filter(
+                models.Chat.workspace_id.in_(user_ws_ids),
+                models.Message.content.ilike(pattern, escape="\\"),
+                ~models.Message.chat_id.in_(already_found_chat_ids),
+            )
+            .distinct()
+            .limit(MAX_RESULTS_PER_GROUP)
+            .all()
+        )
 
     message_chat_ids = [row.chat_id for row in matching_messages]
     if message_chat_ids:

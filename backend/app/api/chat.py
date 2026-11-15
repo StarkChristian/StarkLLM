@@ -19,6 +19,7 @@ from app.services.mcp_service import mcp_service
 from app.core import netguard
 from app.services import untrusted
 from app.core.config import settings
+from app.core.protection import protection
 from app.api.auth import get_current_user
 from app.api.deps import get_workspace_or_404, get_chat_or_404, get_message_or_404
 from pydantic import BaseModel, Field, field_validator
@@ -697,7 +698,7 @@ async def chat(
         async def fetch_web():
             if not getattr(req, "use_web_search", False):
                 return [], [], ""
-            logger.info(f"Web Search enabled for query: {req.message}")
+            logger.info(f"Web Search enabled for a query of {len(req.message)} characters")
             try:
                 def do_web_search():
                     if DDGS is None:
@@ -1362,26 +1363,47 @@ def list_chats(
     if q:
         search_pattern = f"%{q}%"
         
-        # Subquery to check if there is a matching message
-        content_match_exists = select(1).where(
-            and_(
-                models.Message.chat_id == models.Chat.id,
-                models.Message.content.ilike(search_pattern)
+        if protection.enabled:
+            # Message text is stored protected: SQL cannot search it, so it is read (decrypted) and searched here.
+            needle = q.lower()
+            matched_chat_ids = {
+                chat_id for chat_id, content in
+                db.query(models.Message.chat_id, models.Message.content)
+                .join(models.Chat, models.Message.chat_id == models.Chat.id)
+                .filter(models.Chat.workspace_id == workspace_id)
+                if needle in (content or "").lower()
+            }
+            found = (
+                db.query(models.Chat)
+                .filter(models.Chat.workspace_id == workspace_id)
+                .filter(or_(models.Chat.title.ilike(search_pattern), models.Chat.id.in_(matched_chat_ids)))
+                .order_by(models.Chat.is_pinned.desc(), models.Chat.created_at.desc())
+                .all()
             )
-        ).exists()
-
-        chats_with_match = (
-            db.query(models.Chat, content_match_exists.label("content_match"))
-            .filter(models.Chat.workspace_id == workspace_id)
-            .filter(
-                or_(
-                    models.Chat.title.ilike(search_pattern),
-                    content_match_exists
+            chats_with_match = [
+                type("Hit", (), {"Chat": c, "content_match": c.id in matched_chat_ids}) for c in found
+            ]
+        else:
+            # Subquery to check if there is a matching message
+            content_match_exists = select(1).where(
+                and_(
+                    models.Message.chat_id == models.Chat.id,
+                    models.Message.content.ilike(search_pattern)
                 )
+            ).exists()
+
+            chats_with_match = (
+                db.query(models.Chat, content_match_exists.label("content_match"))
+                .filter(models.Chat.workspace_id == workspace_id)
+                .filter(
+                    or_(
+                        models.Chat.title.ilike(search_pattern),
+                        content_match_exists
+                    )
+                )
+                .order_by(models.Chat.is_pinned.desc(), models.Chat.created_at.desc())
+                .all()
             )
-            .order_by(models.Chat.is_pinned.desc(), models.Chat.created_at.desc())
-            .all()
-        )
         
         return [
             {

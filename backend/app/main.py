@@ -1,9 +1,24 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse, Response
 from app.core.config import settings
+# A restore that could not be put in place while the engine ran (locked files) is finished now, before anything
+# opens the database or the vector store.
+try:
+    from app.services import backup_service as _backup_service
+    _restored = _backup_service.apply_pending_restore()
+    if _restored and _restored.get("data_key"):
+        from app.core.protection import protection as _protection
+        _protection.set_key(__import__("base64").b64decode(_restored["data_key"]))
+except Exception as _e:  # never stop the engine from starting
+    import logging as _logging
+    _logging.getLogger(__name__).error("Pending restore could not be applied: %s", _e)
+
 from app.db.session import engine, Base
 from app.api import api_router
 from app.core import netguard
+from app.core.protection import ProtectionLocked
+from sqlalchemy.exc import StatementError
+from app.services import vault
 import os
 
 # Create database tables
@@ -22,6 +37,9 @@ for _sql in _migrations:
             conn.execute(text(_sql))
     except Exception:
         pass  # Column already exists or table doesn't exist
+
+# Decrypted scratch copies of protected documents never survive a restart
+vault.wipe_temp()
 
 # Create upload directory if it doesn't exist
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
@@ -114,6 +132,20 @@ async def local_only(request: Request, call_next):
         if _host_name(origin) not in allowed:
             return JSONResponse({"detail": "Requests from other web sites are not allowed."}, status_code=403)
     return await call_next(request)
+
+
+@app.exception_handler(ProtectionLocked)
+async def protection_locked_handler(request: Request, exc: ProtectionLocked):
+    """Protection at rest is on but the key has not been handed to the engine: nothing protected can be read."""
+    return JSONResponse(status_code=423, content={"detail": str(exc), "code": "protection_locked"})
+
+
+@app.exception_handler(StatementError)
+async def statement_error_handler(request: Request, exc: StatementError):
+    """SQLAlchemy wraps what a column type raises; a locked key must still answer 423, not 500."""
+    if isinstance(exc.orig, ProtectionLocked):
+        return await protection_locked_handler(request, exc.orig)
+    raise exc
 
 
 # Custom HTTPException handler: returns JSON with CORS headers baked in.

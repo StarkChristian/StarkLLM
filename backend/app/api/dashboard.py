@@ -15,6 +15,7 @@ from app.core import netguard
 import asyncio
 import re
 import requests
+from app.core.protection import protection
 
 router = APIRouter()
 
@@ -180,6 +181,8 @@ async def get_system_status(
             "error": None
         },
         "available_models": [],
+        # protection at rest: locked = the key has not reached the engine, protected data cannot be read
+        "protection": {"enabled": protection.enabled, "locked": protection.locked},
     }
 
     # Probe Ollama
