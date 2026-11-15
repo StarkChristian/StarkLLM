@@ -291,7 +291,6 @@
   "Knowledge Base active — click to disable": "Base de conocimiento activa — haga clic para desactivarla",
   "LM Studio (Local)": "LM Studio (local)",
   "Language & Locale": "Idioma y región",
-<<<<<<< HEAD
   "No documents yet. Add a letter or a photo, and I will read it here on your PC.": "Aún no hay documentos. Añada una carta o una foto y la leeré aquí, en su PC.",
   "Letters of the same sender will be gathered here, so you see each case in one place.": "Aquí reuniré las cartas del mismo remitente, para que vea cada caso en un solo lugar.",
   "Nothing new here. When a new letter comes in, I will tell you what is in it.": "Aquí no hay nada nuevo. Cuando llegue una carta nueva, le diré qué contiene.",
@@ -307,10 +306,8 @@
   "Next": "Siguiente",
   "Show Lucy, the helper robot": "Mostrar a Lucy, la robot ayudante",
   "Lucy explains the first steps and shows up on empty pages. She never covers buttons and never appears in error messages.": "Lucy explica los primeros pasos y aparece en las páginas vacías. Nunca tapa botones y nunca aparece en los mensajes de error.",
-=======
   "Last day to give notice": "Último día para avisar de la baja",
   "counted back from the end of the contract on {date}": "contado hacia atrás desde el fin del contrato el {date}",
->>>>>>> app-international
   "Unclear date: {literal}": "Fecha poco clara: {literal}",
   "The letter does not say which comes first. Choose how to read it; until then this date is used for no reminder and no calendar entry.": "La carta no indica qué va primero. Elija cómo leerla; hasta entonces esta fecha no se usa para ningún recordatorio ni entrada del calendario.",
   "Day first: {date}": "Día primero: {date}",
