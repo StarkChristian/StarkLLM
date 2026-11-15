@@ -269,18 +269,25 @@ def _pages_by_where(collection, where: dict) -> dict:
 _DATES_CACHE: dict = {}
 
 
-def _dates_cached(text: str):
-    """find_dates for a page text, computed once per text (the home page is opened often, letters rarely change)."""
+def _dates_cached(text: str, order_hint=None):
+    """find_dates for a page text, computed once per text (the home page is opened often, letters rarely change).
+    order_hint: how the whole document writes slash dates, when the page alone does not show it."""
     from app.services.dates_service import find_dates
     import hashlib
     from datetime import date
     # a date without a year ("bis zum 15.12.") is read relative to today when the letter has no date of its own
-    key = date.today().isoformat() + hashlib.sha1(text.encode("utf-8", "ignore")).hexdigest()
+    key = date.today().isoformat() + str(order_hint) + hashlib.sha1(text.encode("utf-8", "ignore")).hexdigest()
     if key not in _DATES_CACHE:
         if len(_DATES_CACHE) > 20000:
             _DATES_CACHE.clear()
-        _DATES_CACHE[key] = find_dates(text)
+        _DATES_CACHE[key] = find_dates(text, order_hint=order_hint)
     return _DATES_CACHE[key]
+
+
+def date_choices(db, user_id: int) -> dict:
+    """The user's readings of ambiguous dates: {(scope, document_id, "03/04/2026"): "dmy" | "mdy"}."""
+    return {(c.scope, c.document_id, c.literal): c.reading
+            for c in db.query(models.DateChoice).filter(models.DateChoice.user_id == user_id).all()}
 
 
 def documents_with_pages(db, user_id: int, workspace_id: int = None, include_kb: bool = True):
@@ -365,6 +372,7 @@ def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool 
     # a corrected letter ("ersetzt die Abrechnung vom 20.10.2026") replaces the earlier one from the same sender: the
     # earlier letter's dates and amounts are no longer valid and are not shown
     dates = []
+    choices = date_choices(db, user_id)
     for item, pages, is_replaced in zip(items, pages_of, replaced_documents(pages_of)):
         if is_replaced:
             item["replaced"] = True
@@ -373,11 +381,15 @@ def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool 
         if any(f["kind"] in ("scam_signs", "ai_instructions") for f in findings([{"file": item["filename"], "text": full}])):
             item["suspicious"] = True  # a scam's "deadline" is not something to do
             continue
+        from app.services.dates_service import choose_reading, date_order_evidence
+        hint = date_order_evidence(full)
         for page, text in sorted(pages.items()):
-            for f in _dates_cached(text):
-                if f.date < first.isoformat():
+            for f in _dates_cached(text, hint):
+                d = choose_reading({**f.__dict__}, choices.get((item["scope"], item["id"], f.literal)))
+                latest = max([d["date"], *(d.get("readings") or {}).values()])  # an open date counts by its later reading
+                if latest < first.isoformat():
                     continue
-                dates.append({**f.__dict__, "page": page, "passed": f.date < today.isoformat(),
+                dates.append({**d, "page": page, "passed": latest < today.isoformat(),
                               "scope": item["scope"], "document_id": item["id"], "workspace_id": item["workspace_id"],
                               "filename": item["filename"]})
     dates.sort(key=lambda d: (d["date"], d["filename"]))
@@ -404,7 +416,8 @@ _IS_LETTER: dict = {}
 
 
 def _next_date(facts: dict, today: str):
-    upcoming = [d for d in facts.get("dates", []) if d.get("kind") in CASE_KINDS and d["value"] >= today]
+    # an ambiguous date ("03/04/2026") is never "next": the user has to choose how to read it first
+    upcoming = [d for d in facts.get("dates", []) if d.get("kind") in CASE_KINDS and not d.get("ambiguous") and d["value"] >= today]
     return min(upcoming, key=lambda d: d["value"]) if upcoming else None
 
 
@@ -419,9 +432,14 @@ def document_inbox(db, user_id: int) -> dict:
                db.query(models.DocumentReview).filter(models.DocumentReview.user_id == user_id).all()}
     today = date.today().isoformat()
     recent = (datetime.utcnow() - timedelta(days=INBOX_NEW_DAYS)).isoformat()
+    choices = date_choices(db, user_id)
     docs = []
     for item, pages, is_replaced in zip(items, pages_of, replaced_documents(pages_of)):
         facts = document_facts_cached(pages)
+        if any(d.get("ambiguous") for d in facts.get("dates", [])):  # the user's choice is not part of the cached facts
+            from app.services.dates_service import choose_reading
+            facts = {**facts, "dates": [choose_reading(d, choices.get((item["scope"], item["id"], d.get("literal"))))
+                                        for d in facts["dates"]]}
         review = reviews.get((item["scope"], item["id"]))
         _IS_LETTER[(user_id, item["scope"], item["id"])] = bool(facts.get("letter"))
         # a note, manual, spreadsheet or photo is listed under all documents, but not among the new letters
@@ -501,6 +519,11 @@ def get_inbox_count(
     return {"new_count": new}
 
 
+class DateChoiceIn(BaseModel):
+    literal: str = Field(..., max_length=20)  # the date as written in the document, "03/04/2026"
+    reading: Optional[str] = Field(None, pattern="^(dmy|mdy)$")  # day first, month first; none: choose again
+
+
 class ReviewIn(BaseModel):
     status: Optional[str] = Field(None, pattern="^(new|done)$")
     title: Optional[str] = Field(None, max_length=200)
@@ -550,6 +573,33 @@ def set_review(
     return {"scope": scope, "id": document_id, "status": r.status, "title": r.title, "case": r.case_key}
 
 
+@router.post("/inbox/{scope}/{document_id}/date")
+def set_date_choice(
+    scope: str,
+    document_id: int,
+    body: DateChoiceIn,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """The user says how an ambiguous date of a document ("03/04/2026") is read: day first or month first. Without a
+    reading the choice is taken back. Only then does the date count for the deadline list, reminders and calendar."""
+    if not _owns(db, current_user.id, scope, document_id):
+        raise HTTPException(status_code=404, detail="Document not found")
+    rows = [c for c in db.query(models.DateChoice).filter(
+        models.DateChoice.user_id == current_user.id, models.DateChoice.scope == scope,
+        models.DateChoice.document_id == document_id).all() if c.literal == body.literal]
+    if not body.reading:
+        for c in rows:
+            db.delete(c)
+    elif rows:
+        rows[0].reading = body.reading
+    else:
+        db.add(models.DateChoice(user_id=current_user.id, scope=scope, document_id=document_id, literal=body.literal,
+                                 reading=body.reading))
+    db.commit()
+    return {"scope": scope, "id": document_id, "literal": body.literal, "reading": body.reading}
+
+
 @router.post("/inbox/done")
 def set_all_done(
     db: Session = Depends(get_db),
@@ -592,6 +642,8 @@ def dates_calendar(today, dates, stamp: str) -> str:
     for d in dates:
         if d.get("passed"):
             continue
+        if d.get("ambiguous"):
+            continue  # no calendar entry or reminder for a date the user has not read for us
         day = d["date"].replace("-", "")
         title = f"{names.get(d['kind'], 'Date')}: {d['filename']}" + (f" ({d['amount']})" if d.get("amount") else "")
         uid = hashlib.sha256(f"{d['filename']}|{d['date']}|{d['kind']}".encode()).hexdigest()[:24] + "@starkllm.local"

@@ -220,15 +220,15 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
                 <li key={i}>
                   <button className={`${styles.dateRow} ${d.passed ? styles.datePassed : ''}`} onClick={() => openDoc(d)}>
                     <span className={styles.dateBox}>
-                      <span className={styles.dateDay}>{fmtDate(d.date, { day: 'numeric' })}</span>
-                      <span className={styles.dateMonth}>{fmtDate(d.date, { month: 'short', year: 'numeric' })}</span>
+                      <span className={styles.dateDay}>{d.ambiguous ? '?' : fmtDate(d.date, { day: 'numeric' })}</span>
+                      <span className={styles.dateMonth}>{d.ambiguous ? d.literal : fmtDate(d.date, { month: 'short', year: 'numeric' })}</span>
                     </span>
                     <span className={styles.dateBody}>
                       <span className={styles.dateMeta}>
                         <span className={KIND_STYLE[d.kind] ? styles[KIND_STYLE[d.kind]] : styles.kindPayment}>
                           {d.kind === 'deadline' ? t('Deadline') : d.kind === 'appointment' ? t('Appointment') : d.kind === 'change' ? t('Change') : t('Payment')}
                         </span>
-                        <span>{whenText(d.date)}{d.time ? ` · ${t('at {time}', { time: d.time })}` : ''}</span>
+                        <span>{d.ambiguous ? t('Unclear date: {literal}', { literal: d.literal }) : whenText(d.date)}{d.time ? ` · ${t('at {time}', { time: d.time })}` : ''}</span>
                         {d.amount && <strong>{d.amount}</strong>}
                       </span>
                       <span className={styles.dateText}>{d.text}</span>

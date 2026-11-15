@@ -121,6 +121,11 @@ class FoundDate:
     text: str  # the sentence or line it stands in
     amount: Optional[str] = None
     time: Optional[str] = None  # hh:mm, for appointments
+    # "03/04/2026" without anything in the letter that says which comes first: the date above is only the default
+    # reading, both are given and the user chooses (see ambiguous_readings). literal is the date as written.
+    ambiguous: bool = False
+    readings: Optional[dict] = None  # {"dmy": "2026-04-03", "mdy": "2026-03-04"}
+    literal: Optional[str] = None
 
 
 def _parse(m, order: str = "dmy") -> Optional[date]:
@@ -144,10 +149,9 @@ def _parse(m, order: str = "dmy") -> Optional[date]:
         return None
 
 
-def date_order(text: str) -> str:
-    """"dmy" or "mdy": how 03/04/2026 is read in this document. Another date in it can tell (15/12/2026 is day first,
-    12/15/2026 month first); else a US-looking letter ($, no euro or pound) is month first, and everything else day
-    first, as in most of the world."""
+def date_order_evidence(text: str) -> Optional[str]:
+    """"dmy" or "mdy" when a date in the document proves how its slash dates are written (15/12/2026 can only be day
+    first, 12/15/2026 only month first), else None."""
     day_first = month_first = False
     for m in SLASH_DATE.finditer(text or ""):
         a, b = int(m.group("a")), int(m.group("b"))
@@ -157,7 +161,33 @@ def date_order(text: str) -> str:
             month_first = True
     if day_first != month_first:
         return "dmy" if day_first else "mdy"
-    if not day_first and re.search(r"\$|\bUSD\b", text or "") and not re.search(r"[€£]|\b(?:EUR|GBP|CHF)\b", text or "") \
+    return None
+
+
+def ambiguous_readings(m, order_known: bool) -> Optional[dict]:
+    """The two readings of a slash date like 03/04/2026 when nothing in the letter says which is meant, else None:
+    {"dmy": "2026-04-03", "mdy": "2026-03-04"}. Never a guess: the caller shows both and the user chooses."""
+    if order_known or m.re is not SLASH_DATE:
+        return None
+    a, b = int(m.group("a")), int(m.group("b"))
+    if a > 12 or b > 12 or a == b:
+        return None
+    y = int(m.group("y"))
+    y += 2000 if y < 100 else 0
+    try:
+        return {"dmy": date(y, b, a).isoformat(), "mdy": date(y, a, b).isoformat()}
+    except ValueError:
+        return None
+
+
+def date_order(text: str) -> str:
+    """"dmy" or "mdy": how 03/04/2026 is read by default in this document. Another date in it can tell (15/12/2026 is
+    day first, 12/15/2026 month first); else a US-looking letter ($, no euro or pound) is month first, and everything
+    else day first, as in most of the world. Such a guess is only a default: find_dates marks the date ambiguous."""
+    evidence = date_order_evidence(text)
+    if evidence:
+        return evidence
+    if re.search(r"\$|\bUSD\b", text or "") and not re.search(r"[€£]|\b(?:EUR|GBP|CHF)\b", text or "") \
             and re.search(r"\b(?:the|your|and)\b", text or "", re.IGNORECASE):
         return "mdy"
     return "dmy"
@@ -230,13 +260,15 @@ def _window(sentence: str, start: int, end: int, size: int = 240) -> str:
     return ("… " if left else "") + text + (" …" if len(sentence) > left + size else "")
 
 
-def find_dates(text: str, reference: Optional[date] = None) -> List[FoundDate]:
+def find_dates(text: str, reference: Optional[date] = None, order_hint: Optional[str] = None) -> List[FoundDate]:
     """Deadlines, payments, appointments and changes in a document's text, in the order they appear. reference is the
     day the letter was written (its "Datum:", else today); a date without a year ("bis zum 15.12.") is the next such
     day from then."""
     found, seen = [], set()
     sentences = _sentences(text or "")
-    order = date_order(text or "")
+    # order_hint: what the whole document says about slash dates, when text is only one page of it
+    order = order_hint or date_order(text or "")
+    order_known = order_hint is not None or date_order_evidence(text or "") is not None
     if reference is None:
         written = letter_date(text or "")
         reference = date.fromisoformat(written) if written else date.today()
@@ -303,6 +335,9 @@ def find_dates(text: str, reference: Optional[date] = None) -> List[FoundDate]:
                 amount = _amount_text(after[0]) if after else None
             found.append(FoundDate(date=when.isoformat(), kind=kind, text=_window(sentence, m.start(), m.end()),
                                    amount=amount, time=time_of_day if kind == "appointment" else None))
+            readings = ambiguous_readings(m, order_known)
+            if readings:
+                found[-1].ambiguous, found[-1].readings, found[-1].literal = True, readings, m.group(0)
     return found
 
 
@@ -360,6 +395,17 @@ def replaced_letters(text: str) -> List[str]:
         d = _first_date(text[m.end():m.end() + 30], order)
         if d and d.isoformat() not in out:
             out.append(d.isoformat())
+    return out
+
+
+def choose_reading(item: dict, reading: Optional[str]) -> dict:
+    """A date (as a dict: "date" or "value", "readings", ...) with the user's choice applied: the chosen reading becomes
+    its date and it is no longer ambiguous. A date that is not ambiguous, or an unknown choice, is returned as it is."""
+    if not item.get("ambiguous") or reading not in ("dmy", "mdy") or not (item.get("readings") or {}).get(reading):
+        return item
+    chosen = item["readings"][reading]
+    out = {**item, "ambiguous": False, "chosen": reading}
+    out["value" if "value" in item else "date"] = chosen
     return out
 
 

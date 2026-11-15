@@ -309,3 +309,34 @@ def test_other_languages_photo_descriptions_are_not_senders():
                  "L'immagine mostra una fotografia del mare", "Bu resim denizin bir fotoğrafını gösteriyor",
                  "Feuille : Inventaire", "Hoja: Inventario", "Foglio: Inventario", "Sayfa: Envanter"):
         assert document_facts({1: f"{line}\nweitere Zeile ohne Brief\n"})["sender"] is None, line
+
+
+# ---- ambiguous slash dates: never a silent guess
+
+def test_a_slash_date_the_letter_does_not_settle_is_shown_with_both_readings():
+    found = find_dates("Date: 2 November 2026\nPlease pay by 03/04/2026.")
+    assert [(f.ambiguous, f.readings, f.literal) for f in found] == [(True, {"dmy": "2026-04-03", "mdy": "2026-03-04"}, "03/04/2026")]
+    # another date in the letter settles it: then it is no guess
+    for text, day in (("Date: 15/11/2026\nPay by 03/04/2027.", "2027-04-03"), ("Date: 11/15/2026\nPay by 03/04/2027.", "2027-03-04")):
+        (f,) = find_dates(text)
+        assert (f.ambiguous, f.readings, f.date) == (False, None, day), text
+    # day and month the same, a day above 12, a written month and a dotted date: one reading only
+    for text in ("Pay by 05/05/2026.", "Pay by 25/04/2026.", "Pay by 4 March 2026.", "Bitte zahlen Sie bis zum 03.04.2026."):
+        assert not any(f.ambiguous for f in find_dates(text)), text
+
+
+def test_the_page_alone_may_not_show_the_order_but_the_whole_letter_does():
+    pages = {1: "Paris, le 2 novembre 2026\nPayable avant le 03/04/2027.", 2: "Echéance de la prime : 15/12/2026"}
+    facts = document_facts(pages)
+    assert [(d["value"], d.get("ambiguous", False)) for d in facts["dates"]] == [("2027-04-03", False), ("2026-12-15", False)]
+
+
+def test_a_chosen_reading_replaces_the_default_and_clears_the_doubt():
+    from app.services.dates_service import choose_reading
+    (f,) = find_dates("Date: 2 November 2026\nPlease pay by 03/04/2026.")
+    item = {"date": f.date, "ambiguous": True, "readings": f.readings}
+    assert choose_reading(item, "mdy")["date"] == "2026-03-04" and choose_reading(item, "mdy")["ambiguous"] is False
+    assert choose_reading(item, "dmy")["date"] == "2026-04-03"
+    assert choose_reading(item, None) is item and choose_reading(item, "xyz") is item
+    facts_item = {"value": f.date, "ambiguous": True, "readings": f.readings}
+    assert choose_reading(facts_item, "mdy")["value"] == "2026-03-04"

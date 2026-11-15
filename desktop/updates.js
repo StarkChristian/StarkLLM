@@ -7,6 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn: nodeSpawn } = require('child_process');
+const { t } = require('./i18n');
 
 const RELEASES_API = 'https://api.github.com/repos/StarkChristian/StarkLLM/releases/latest';
 const DOWNLOAD_PAGE = 'https://www.starkllm.com/download';
@@ -146,7 +147,7 @@ function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null,
     } catch (e) {
       log(`update check failed: ${e.message}`);
       if (manual) {
-        await dialog.showMessageBox(parent(), { type: 'warning', title: 'StarkLLM', message: 'Could not check for updates.', detail: `${e.message}\n\nYou can also look at ${DOWNLOAD_PAGE}.` });
+        await dialog.showMessageBox(parent(), { type: 'warning', title: 'StarkLLM', message: t('Could not check for updates.'), detail: t('{error}\n\nYou can also look at {page}.', { error: e.message, page: DOWNLOAD_PAGE }) });
       }
       return { error: e.message };
     }
@@ -154,16 +155,16 @@ function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null,
     const d = decide(release, current, manual ? {} : readSettings(), { minAgeMs: manual ? 0 : AUTO_MIN_RELEASE_AGE_MS });
     log(`update check: current ${current}, latest ${d.latest || '?'}${d.show ? ' (newer)' : ''}${d.tooNew ? ` (published less than a day ago, offered after ${d.offerAfter})` : ''}`);
     if (!d.show) {
-      if (manual) await dialog.showMessageBox(parent(), { type: 'info', title: 'StarkLLM', message: `StarkLLM ${current} is the newest version.` });
+      if (manual) await dialog.showMessageBox(parent(), { type: 'info', title: 'StarkLLM', message: t('StarkLLM {version} is the newest version.', { version: current }) });
       return d;
     }
     if (selfUpdate) return offerSelfUpdate(d, current);
     const { response } = await dialog.showMessageBox(parent(), {
       type: 'info',
-      title: 'StarkLLM update',
-      message: `StarkLLM ${d.latest} is available.`,
-      detail: `You have version ${current}. Download the new version and install it over this one; your chats and documents stay.`,
-      buttons: ['Open download page', 'Later', 'Skip this version'],
+      title: t('StarkLLM update'),
+      message: t('StarkLLM {version} is available.', { version: d.latest }),
+      detail: t('You have version {current}. Download the new version and install it over this one; your chats and documents stay.', { current }),
+      buttons: [t('Open download page'), t('Later'), t('Skip this version')],
       defaultId: 0,
       cancelId: 1
     });
@@ -177,10 +178,10 @@ function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null,
     if (busy) return { ...d, busy: true };
     const { response } = await dialog.showMessageBox(parent(), {
       type: 'info',
-      title: 'StarkLLM update',
-      message: `StarkLLM ${d.latest} is available.`,
-      detail: `You have version ${current}. StarkLLM can download and install it now; you can keep working while it downloads. Your chats and documents stay, and the database is backed up first.`,
-      buttons: ['Download and install', 'Later', 'Skip this version'],
+      title: t('StarkLLM update'),
+      message: t('StarkLLM {version} is available.', { version: d.latest }),
+      detail: t('You have version {current}. StarkLLM can download and install it now; you can keep working while it downloads. Your chats and documents stay, and the database is backed up first.', { current }),
+      buttons: [t('Download and install'), t('Later'), t('Skip this version')],
       defaultId: 0,
       cancelId: 1
     });
@@ -201,9 +202,9 @@ function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null,
     } catch (e) {
       log(`self-update failed: ${e.message}`);
       const { response: r } = await dialog.showMessageBox(parent(), {
-        type: 'warning', title: 'StarkLLM update', message: 'The update could not be downloaded.',
-        detail: `${e.message}\n\nYou can install it from the download page instead.`,
-        buttons: ['Open download page', 'Close'], defaultId: 0, cancelId: 1
+        type: 'warning', title: t('StarkLLM update'), message: t('The update could not be downloaded.'),
+        detail: t('{error}\n\nYou can install it from the download page instead.', { error: e.message }),
+        buttons: [t('Open download page'), t('Close')], defaultId: 0, cancelId: 1
       });
       if (r === 0) shell.openExternal(DOWNLOAD_PAGE);
       return { ...d, error: e.message };
@@ -216,9 +217,9 @@ function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null,
     }
     log(`update ${d.latest} downloaded`);
     const { response: restart } = await dialog.showMessageBox(parent(), {
-      type: 'info', title: 'StarkLLM update', message: `StarkLLM ${d.latest} is ready to install.`,
-      detail: 'Restart now to install it, or it is installed when you quit StarkLLM. The first start after the update prepares the new engine (a few minutes).',
-      buttons: ['Restart now', 'When I quit'], defaultId: 0, cancelId: 1
+      type: 'info', title: t('StarkLLM update'), message: t('StarkLLM {version} is ready to install.', { version: d.latest }),
+      detail: t('Restart now to install it, or it is installed when you quit StarkLLM. The first start after the update prepares the new engine (a few minutes).'),
+      buttons: [t('Restart now'), t('When I quit')], defaultId: 0, cancelId: 1
     });
     backupDatabase(app.getPath('userData'), current, log);
     pending = { latest: d.latest, current };
@@ -247,10 +248,10 @@ function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null,
   async function showBlocked(latest, current) {
     const { response } = await dialog.showMessageBox(parent(), {
       type: 'warning',
-      title: 'StarkLLM update',
-      message: `Windows has not started the StarkLLM ${latest} installer yet.`,
-      detail: `Windows checks a program it does not know yet before it lets it run (Smart App Control). StarkLLM is not signed yet, so a new version can be held back for a few hours after its release.\n\nStarkLLM keeps running with version ${current}; nothing was changed. StarkLLM tries again when you quit it, or try it later with "Check for updates" (the update is already downloaded).`,
-      buttons: ['OK', 'Open download page'],
+      title: t('StarkLLM update'),
+      message: t('Windows has not started the StarkLLM {version} installer yet.', { version: latest }),
+      detail: t('Windows checks a program it does not know yet before it lets it run (Smart App Control). StarkLLM is not signed yet, so a new version can be held back for a few hours after its release.\n\nStarkLLM keeps running with version {current}; nothing was changed. StarkLLM tries again when you quit it, or try it later with "Check for updates" (the update is already downloaded).', { current }),
+      buttons: [t('OK'), t('Open download page')],
       defaultId: 0,
       cancelId: 0
     });
@@ -273,9 +274,9 @@ function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null,
       const { response } = await dialog.showMessageBox(parent(), {
         type: 'question',
         title: 'StarkLLM',
-        message: 'Check for new StarkLLM versions when the app starts?',
-        detail: 'StarkLLM then asks GitHub for the newest version number. No documents, chats or usage data are sent. You can change this in the tray menu.',
-        buttons: ['Check for updates', "Don't check"],
+        message: t('Check for new StarkLLM versions when the app starts?'),
+        detail: t('StarkLLM then asks GitHub for the newest version number. No documents, chats or usage data are sent. You can change this in the tray menu.'),
+        buttons: [t('Check for updates'), t("Don't check")],
         defaultId: 0,
         cancelId: 1
       });

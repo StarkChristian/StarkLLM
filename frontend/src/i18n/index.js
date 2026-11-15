@@ -56,6 +56,8 @@ export function t(text, values) {
 }
 
 if (typeof document !== 'undefined') {
+  // the desktop app (dialogs, tray menu) follows the interface language; the browser has no such bridge
+  try { window.starkllmDesktop?.setLanguage?.(current); } catch (_) { /* not in the desktop app */ }
   document.documentElement.lang = current;
   document.documentElement.dir = LANGUAGES.find((l) => l.code === current)?.dir || 'ltr';
 }

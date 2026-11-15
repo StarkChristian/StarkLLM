@@ -4,6 +4,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { t } = require('./i18n');
 const https = require('https');
 const { execFile } = require('child_process');
 
@@ -87,19 +88,19 @@ function runInstaller(file) {
 async function installOllama({ onStatus = () => {}, log = () => {}, deps = {} } = {}) {
   const d = { download, signature, runInstaller, tmpdir: os.tmpdir, ...deps };
   const target = path.join(d.tmpdir(), `OllamaSetup-${Date.now()}.exe`);
-  onStatus('Downloading Ollama from ollama.com...', null);
+  onStatus(t('Downloading Ollama from ollama.com...'), null);
   const { bytes } = await d.download(INSTALLER_URL, target, (done, total) => {
-    if (total) onStatus(`Downloading Ollama: ${Math.floor((done / total) * 100)} % (${Math.round(done / 1e6)} MB of ${Math.round(total / 1e6)} MB)`, done / total);
+    if (total) onStatus(t('Downloading Ollama: {percent} % ({done} MB of {total} MB)', { percent: Math.floor((done / total) * 100), done: Math.round(done / 1e6), total: Math.round(total / 1e6) }), done / total);
   });
   log(`Ollama installer downloaded (${Math.round(bytes / 1e6)} MB)`);
-  onStatus('Checking the Ollama installer...', null);
+  onStatus(t('Checking the Ollama installer...'), null);
   const sig = await d.signature(target);
   log(`Ollama installer signature: ${sig.status}, ${sig.subject}`);
   if (!trusted(sig)) {
     try { fs.rmSync(target, { force: true }); } catch (e) { /* temp file */ }
-    throw new Error(`The downloaded file is not validly signed by Ollama (${sig.status || 'no signature'}), so it was not run. Install Ollama from ollama.com instead.`);
+    throw new Error(t('The downloaded file is not validly signed by Ollama ({status}), so it was not run. Install Ollama from ollama.com instead.', { status: sig.status || 'no signature' }));
   }
-  onStatus('Installing Ollama (about a minute)...', null);
+  onStatus(t('Installing Ollama (about a minute)...'), null);
   try {
     await d.runInstaller(target);
   } finally {

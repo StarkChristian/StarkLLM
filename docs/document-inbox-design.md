@@ -78,6 +78,8 @@ without accents, `1.234,56` and `1,234.56` and `1 234,56` and `1'234.50`, the cu
 US routing and account number, UK sort code, Australian BSB, BIC/SWIFT), and the signs of a scam in each language.
 Photos and scans are read in the languages the user chose (English and German are bundled, other Tesseract languages
 are downloaded on request). A value always stands on a page of the document and is shown with its line.
+An ambiguous date (`03/04/2026` with nothing in the letter that says which comes first) is not guessed: both readings are
+shown, the user chooses, and it is used for no reminder or calendar entry before that.
 How to add a language: [adding-a-language.md](adding-a-language.md).
 
 ## 5. Out of scope here

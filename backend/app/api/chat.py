@@ -232,6 +232,11 @@ def _dates_section(db, user_id: int, workspace_id: int, include_kb: bool, messag
             dates = named
     lines = []
     for d in dates[:DATES_IN_PROMPT]:
+        if d.get("ambiguous"):  # never one reading as fact: the model says that the letter does not settle it
+            lines.append(f"- AMBIGUOUS date {d.get('literal')}: either {d['readings']['dmy']} (day first) or {d['readings']['mdy']} "
+                         f"(month first), the user has not chosen; do not pick one, tell the user to check the letter "
+                         f"| {d['filename']}: \"{d['text'][:170]}\"")
+            continue
         when = date.fromisoformat(d["date"])
         days = (when - today).days
         rel = "today" if days == 0 else ("tomorrow" if days == 1 else (f"in {days} days" if days > 0 else f"PASSED {-days} days ago"))

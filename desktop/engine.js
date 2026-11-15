@@ -10,6 +10,7 @@ const http = require('http');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { probe } = require('./diagnostics');
+const { t, format } = require('./i18n');
 const { chooseModels } = require('./models');
 const { createPullProgress, createModelProgress, throttle, formatBytes } = require('./progress');
 
@@ -206,7 +207,7 @@ async function buildWithoutBake(docker, dir, env, onStatus) {
       env,
       cwd: dir,
       timeoutMs: 45 * 60 * 1000,
-      onLine: (line) => onStatus(`Engine (${service}): ` + line.slice(0, 130))
+      onLine: (line) => onStatus(t('Engine ({service}): ', { service }) + line.slice(0, 130))
     });
     if (r.code !== 0) return r;
   }
@@ -403,7 +404,7 @@ async function pullWithRetry(name, onStatus, { pull = pullModel, wait = sleep, d
       write(`pull ${name} attempt ${i} of ${attempts} failed: ${e.message}`);
       if (permanent || i >= attempts) throw e;
       const secs = Math.round(delays[i - 1] / 1000);
-      onStatus(`Download of ${name} was interrupted (${e.message}). Trying again in ${secs} s (attempt ${i + 1} of ${attempts})...`);
+      onStatus(t('Download of {name} was interrupted ({error}). Trying again in {secs} s (attempt {attempt} of {attempts})...', { name, error: e.message, secs, attempt: i + 1, attempts }));
       await wait(delays[i - 1]);
     }
   }
@@ -436,10 +437,10 @@ async function ensureOllama(status, progress, warnings) {
   } catch (e) {
     log('could not save the model choice: ' + e.message);
   }
-  if (!choice.pull.length) status(`Using ${choice.text} (already installed)`);
+  if (!choice.pull.length) status('Using {model} (already installed)', { model: choice.text });
   for (const name of choice.pull) {
     if (hasModel(models, name)) continue;
-    status(`Downloading AI model ${name}...`);
+    status('Downloading AI model {model}...', { model: name });
     try {
       await pullWithRetry(name, progress);
       log(`pulled ${name}`);
@@ -515,9 +516,10 @@ async function rollbackEngine({ docker, compose, env, previous, answers, runCmd 
 
 // Returns { ok, ollama, warnings } or { ok: false, stage, detail, log }.
 async function startEngine(appUrl, onStatus) {
-  const status = (text) => {
-    log(text);
-    onStatus(text);
+  // the log keeps the English text, the start screen shows the user's language
+  const status = (text, values) => {
+    log(format(text, values));
+    onStatus(t(text, values));
   };
   const warnings = [];
   const paths = userPaths();
@@ -550,7 +552,7 @@ async function startEngine(appUrl, onStatus) {
   const ollama = await ensureOllama(status, onStatus, warnings);
 
   const compose = path.join(engineDir(), 'docker-compose.yml');
-  if (!fs.existsSync(compose)) return { ok: false, stage: 'engine', detail: `Engine files are missing: ${compose}` };
+  if (!fs.existsSync(compose)) return { ok: false, stage: 'engine', detail: t('Engine files are missing: {file}', { file: compose }) };
   // The chosen models are part of the build: another model needs a recreated backend (its settings change).
   const fingerprint = crypto.createHash('sha256').update(engineFingerprint(engineDir()) + JSON.stringify(chosen)).digest('hex').slice(0, 16);
 
@@ -565,7 +567,7 @@ async function startEngine(appUrl, onStatus) {
     }
     if (skipFailedUpdate(readRollback(), fingerprint, running && running.build)) {
       log(`the update to engine build ${fingerprint} failed less than a day ago; using the previous engine`);
-      warnings.push({ title: 'Still using the previous engine', detail: `The engine of StarkLLM ${app.getVersion()} did not start on this PC, so StarkLLM uses the previous engine. It tries the new engine again tomorrow. The details are in ${paths.log}.` });
+      warnings.push({ title: t('Still using the previous engine'), detail: t('The engine of StarkLLM {version} did not start on this PC, so StarkLLM uses the previous engine. It tries the new engine again tomorrow. The details are in {log}.', { version: app.getVersion(), log: paths.log }) });
       return { ok: true, ollama, warnings };
     }
     log(`running engine ${(running && running.version) || 'unknown'} (build ${(running && running.build) || 'none'}), app ${app.getVersion()} (build ${fingerprint}): updating the engine`);
@@ -590,8 +592,8 @@ async function startEngine(appUrl, onStatus) {
     const images = engineImages(app.getVersion());
     env.STARKLLM_BACKEND_IMAGE = images.backend;
     env.STARKLLM_FRONTEND_IMAGE = images.frontend;
-    const label = updating ? `Downloading the StarkLLM engine ${app.getVersion()}` : 'Downloading the StarkLLM engine';
-    status(label + '...');
+    const label = updating ? t('Downloading the StarkLLM engine {version}', { version: app.getVersion() }) : t('Downloading the StarkLLM engine');
+    status(updating ? 'Downloading the StarkLLM engine {version}...' : 'Downloading the StarkLLM engine...', { version: app.getVersion() });
     const sizes = new Map([...(await imageLayerSizes(images.backend)), ...(await imageLayerSizes(images.frontend))]);
     const progress = createPullProgress(sizes);
     if (sizes.size) log(`engine download: ${sizes.size} layers, ${formatBytes(progress.total())}`);
@@ -612,13 +614,13 @@ async function startEngine(appUrl, onStatus) {
   }
   if (!up) {
     status(updating
-      ? `Updating the StarkLLM engine to version ${app.getVersion()} (a few minutes)...`
-      : 'Starting the StarkLLM engine. The first start downloads and builds its components (10-20 minutes, needs internet)...');
+      ? 'Updating the StarkLLM engine to version {version} (a few minutes)...'
+      : 'Starting the StarkLLM engine. The first start downloads and builds its components (10-20 minutes, needs internet)...', { version: app.getVersion() });
     up = await run(docker, ['compose', '-p', PROJECT, '-f', compose, 'up', '-d', '--build'], {
       env,
       cwd: engineDir(),
       timeoutMs: 60 * 60 * 1000,
-      onLine: (line) => onStatus('Engine: ' + line.slice(0, 140))
+      onLine: (line) => onStatus(t('Engine: ') + line.slice(0, 140))
     });
   }
   if (up.code !== 0 && up.lines.some((l) => BAKE_FAILED.test(l))) {
@@ -650,7 +652,7 @@ async function startEngine(appUrl, onStatus) {
     } catch (e) {
       log('could not write ' + rollbackFile() + ': ' + e.message);
     }
-    warnings.push({ title: 'Went back to the previous engine', detail: `The engine of StarkLLM ${app.getVersion()} did not start (${reason}), so StarkLLM started the previous engine again. Your chats and documents are unchanged. It tries the new engine again tomorrow. The details are in ${paths.log}.` });
+    warnings.push({ title: t('Went back to the previous engine'), detail: t('The engine of StarkLLM {version} did not start ({reason}), so StarkLLM started the previous engine again. Your chats and documents are unchanged. It tries the new engine again tomorrow. The details are in {log}.', { version: app.getVersion(), reason, log: paths.log }) });
     return true;
   };
   if (up.code !== 0 && !up.lines.some((l) => /address already in use|port is already allocated|ports are not available/i.test(l)) && (await goBack('it could not be started'))) {
@@ -659,8 +661,8 @@ async function startEngine(appUrl, onStatus) {
   if (up.code !== 0) {
     const portBusy = up.lines.some((l) => /address already in use|port is already allocated|ports are not available/i.test(l));
     const detail = portBusy
-      ? `Another program on this PC already uses port ${process.env.STARKLLM_UI_PORT || 5173} or ${process.env.STARKLLM_API_PORT || 8000}. Close it and press Retry.`
-      : 'The engine could not be started.';
+      ? t('Another program on this PC already uses port {ui} or {api}. Close it and press Retry.', { ui: process.env.STARKLLM_UI_PORT || 5173, api: process.env.STARKLLM_API_PORT || 8000 })
+      : t('The engine could not be started.');
     return { ok: false, stage: 'engine', detail, log: up.lines.slice(-8) };
   }
 
@@ -671,7 +673,7 @@ async function startEngine(appUrl, onStatus) {
     const logs = await run(docker, ['compose', '-p', PROJECT, '-f', compose, 'logs', '--tail', '20'], { env, timeoutMs: 30000 });
     logs.lines.forEach((l) => log('engine: ' + l));
     if (await goBack(`it did not answer within ${Math.round(ENGINE_ANSWER_MS / 60000)} minutes`)) return { ok: true, ollama, warnings };
-    return { ok: false, stage: 'engine', detail: 'The engine started but the web UI does not answer.', log: logs.lines.slice(-20) };
+    return { ok: false, stage: 'engine', detail: t('The engine started but the web UI does not answer.'), log: logs.lines.slice(-20) };
   }
   if (updating) forgetFailedUpdate();
   status('Ready.');

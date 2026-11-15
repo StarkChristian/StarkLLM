@@ -108,7 +108,7 @@ RULES: Dict[str, Dict[str, str]] = {
         "de": r"frist|fristen|bis zum|bis spätestens|spätestens|fällig|fälligkeit|zahlungsziel|zahlbar|kündigungsfrist|kündig|"
               r"einspruch|widerspruch|widersprechen|ablauf|endet|gültig bis",
         "en": r"due|deadline|no later than|by|until|expires|expiry|cancel|objection|payable|overdue|expiration|valid until",
-        "fr": rf"échéance|date limite|délai|avant le|au plus tard|jusqu{_A}au|d{_A}ici le|payable|exigible|expire\w*|"
+        "fr": rf"[ée]ch[ée]ance|date limite|d[ée]lai|avant le|au plus tard|jusqu{_A}au|d{_A}ici le|payable|exigible|expire\w*|"
               r"valable jusqu\w*|dernier délai|contestation|recours|opposition",
         "es": r"vencimiento|vence|fecha límite|plazo|antes del|hasta el|a más tardar|como máximo|pagadero|abonar antes|"
               r"válido hasta|caduca|recurso|alegaciones|reclamación",

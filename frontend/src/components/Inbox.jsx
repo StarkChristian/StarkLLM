@@ -5,6 +5,7 @@ import EmptyState from './EmptyState';
 import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
 import { accountLabel } from '../utils/accounts';
+import AmbiguousDate, { ChosenDate } from './AmbiguousDate';
 import styles from './Inbox.module.css';
 
 // The document inbox (docs/document-inbox-design.md, B4): what StarkLLM read in each new letter, to check and mark
@@ -94,6 +95,15 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
     });
     load();
   };
+  // an ambiguous date ("03/04/2026"): the user says how to read it (or takes the choice back with null)
+  const chooseDate = async (doc, d, reading) => {
+    await fetch(`/api/v1/dashboard/inbox/${doc.scope}/${doc.id}/date`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ literal: d.literal, reading }),
+    });
+    load();
+  };
   const allDone = async () => {
     await fetch('/api/v1/dashboard/inbox/done', { method: 'POST', headers });
     load();
@@ -133,7 +143,7 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
     const key = `${doc.scope}-${doc.id}`;
     const isEditing = editing?.key === key;
     const due = (f.amounts || []).filter((a) => !a.role).slice(0, 3);
-    const datesShown = (f.dates || []).filter((d) => d.value >= data.today).sort((a, b) => a.value.localeCompare(b.value)).slice(0, 3);
+    const datesShown = (f.dates || []).filter((d) => d.value >= data.today || (d.ambiguous && Object.values(d.readings).some((v) => v >= data.today))).sort((a, b) => a.value.localeCompare(b.value)).slice(0, 3);
     return (
       <li key={key} className={`${styles.doc} ${doc.status === 'done' ? styles.docDone : ''}`}>
         <div className={styles.docHead}>
@@ -206,7 +216,9 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
           <ul className={styles.dates}>
             {datesShown.map((d, i) => (
               <li key={i}>
-                {factLink(doc, d, (
+                {d.ambiguous ? (
+                  <AmbiguousDate date={d} onChoose={(reading) => chooseDate(doc, d, reading)} onOpen={() => open(doc, d)} />
+                ) : factLink(doc, d, (
                   <>
                     <span className={styles[`kind_${d.kind}`] || styles.kind_payment}>{DATE_LABEL[d.kind] || d.kind}</span>
                     <strong>{fmtDate(d.value)}</strong>
@@ -214,6 +226,7 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
                     {d.amount && <span>{d.amount}</span>}
                   </>
                 ))}
+                {d.chosen && <ChosenDate date={d} onUndo={() => chooseDate(doc, d, null)} />}
               </li>
             ))}
           </ul>

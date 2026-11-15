@@ -10,7 +10,8 @@ import re
 from typing import Dict, List, Optional
 
 from app.services.dates_service import (
-    AMOUNT, OLD_BEFORE, PLACE_DATE, amount_parts, _amount_text, _is_fee, find_dates, letter_date, letter_date_line,
+    AMOUNT, OLD_BEFORE, PLACE_DATE, amount_parts, _amount_text, _is_fee, date_order_evidence, find_dates, letter_date,
+    letter_date_line,
 )
 from app.services.document_checks import bank_accounts, findings, ibans
 from app.services import locale_rules
@@ -216,9 +217,11 @@ def dates(pages: Dict[int, str]) -> List[Dict]:
     written = letter_date(full)
     from datetime import date
     reference = date.fromisoformat(written) if written else None
+    hint = date_order_evidence(full)  # a date on another page can show how slash dates are written
     for page in sorted(pages):
-        for f in find_dates(pages[page] or "", reference):
-            out.append(_fact(f.date, page, f.text, kind=f.kind, amount=f.amount, time=f.time))
+        for f in find_dates(pages[page] or "", reference, hint):
+            out.append(_fact(f.date, page, f.text, kind=f.kind, amount=f.amount, time=f.time,
+                             **({"ambiguous": True, "readings": f.readings, "literal": f.literal} if f.ambiguous else {})))
     return out
 
 

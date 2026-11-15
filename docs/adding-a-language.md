@@ -1,7 +1,7 @@
 # Adding a language
 
 StarkLLM is not tied to one country. English is the source language and the fallback everywhere; German and French are
-the other interface languages. A language has up to five separate parts, and each one can be added alone. Nothing needs to
+the other interface languages. A language has up to six separate parts, and each one can be added alone. Nothing needs to
 be wired together by hand.
 
 | Part | What it does | What to add |
@@ -11,8 +11,14 @@ be wired together by hand.
 | 3. Photos and scans (OCR) | the Tesseract language | nothing in the code; the user downloads it in Settings (see below) |
 | 4. Speech | voice for reading answers aloud; speech recognition | a Piper voice file; recognition already knows about 100 languages |
 | 5. Studio | headings of generated documents in the language | optional: a block in `HEADINGS` in `backend/app/api/studio.py` |
+| 6. Desktop app | dialogs, tray menu, start screen and start-up problems of the Windows app | one file `desktop/locales/<code>.json` and the code in `LANGUAGES` in `desktop/i18n.js` |
 
-The owner decides which interface languages are offered (docs/RULES.md, R2). Parts 2 to 5 do not change the
+The owner decides which interface languages are offered (docs/RULES.md, R2): today English, German, Spanish, French, Italian and Turkish.
+
+**Native-speaker review is wanted.** The Spanish, French, Italian and Turkish interface texts were drafted by an AI
+assistant and have not been read by native speakers. Wrong or stiff wording is a bug: please open a pull request that
+changes the value in `frontend/src/i18n/<code>.json`. The same holds for the Studio headings and the texts of the
+desktop dialogs (`desktop/i18n.js`). Parts 2 to 5 do not change the
 interface; they make the app useful with letters and documents from other countries.
 
 ## 1. Interface language
@@ -74,8 +80,13 @@ Run the tests as for every change:
 docker run --rm -v $PWD:/repo -w /repo/backend <backend image> sh -c "pip install -q pytest; python -m pytest -q tests --ignore=tests/run_rigorous_e2e.py"
 ```
 
-Known limits: a slash date such as `03/04/2026` is read day first unless the letter itself shows month first (another
-date such as `12/15/2026`, or a dollar sign without euro or pound); the currency symbol `$` means US dollars; a
+A slash date such as `03/04/2026` is never guessed. When another date in the letter shows the order (`15/12/2026` is day
+first, `12/15/2026` month first) it is read that way; otherwise the fact is marked `ambiguous`, carries both readings
+and its text as written (`literal`), and the inbox asks the user to choose (stored in the `date_choices` table). An
+ambiguous date is used for no reminder, no calendar entry and no "next date" until the user has chosen; the chat gets
+both readings and is told not to pick one.
+
+Known limits: the currency symbol `$` means US dollars; a
 two-digit year is read as 20xx; the Turkish "replaces the letter of ..." has no rule yet.
 
 ## 3. Photos and scans (OCR languages)
@@ -115,3 +126,16 @@ To make the language detector know another language add its word list to `WORDS`
 * Studio texts are written in the interface language. Any ISO code works (`LANGUAGE_NAMES`). Headings the prompts
   name are translated by the model; for a language where the model keeps English headings, add a block to `HEADINGS`
   in `backend/app/api/studio.py` as for `de`.
+
+## 6. Desktop app and installer
+
+The Windows app (`desktop/`) shows dialogs (updates, Ollama install), the tray menu, the start screen and the page that
+says what is missing in the language of the interface. Same idea as the web UI: the English text is the key
+(`t('Quit StarkLLM')` in `desktop/main.js`), the translations are in `desktop/locales/<code>.json`, and a missing one
+shows English. The language is the one chosen in Settings (the page tells the app through `window.starkllmDesktop.setLanguage`,
+kept in `language.json` in the user-data folder), before that the language of Windows. The log file stays English.
+`cd desktop && npm test` fails when a text asked for with `t('...')` or `status('...')` misses a translation.
+
+The installer (NSIS) is built as a multi-language installer for the same languages (`nsis.installerLanguages` in
+`desktop/package.json`); it starts in the language of Windows. The two log lines added in `desktop/build/installer.nsh`
+stay English. A change to the installer is class **R**: test a fresh install and an update on a Windows PC.

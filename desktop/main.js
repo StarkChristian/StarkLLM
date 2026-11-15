@@ -9,6 +9,8 @@ const { DataKeyManager, DataKeyError, createSafeStorageKeyStore, deliverKey } = 
 const { createUpdater } = require('./updates');
 const { installOllama } = require('./ollama-install');
 const { autoUpdater } = require('electron-updater');
+const i18n = require('./i18n');
+const { t } = i18n;
 
 let mainWindow = null;
 let tray = null;
@@ -42,8 +44,17 @@ if (!gotTheLock) {
 }
 
 function initApp() {
+  i18n.init(app.getPath('userData'), app.getLocale());  // the language the user chose in Settings, else Windows's
   updater = createUpdater({ app, dialog, shell, net, autoUpdater, getWindow: () => mainWindow, log: logLine, onChange: () => refreshTrayMenu(),
     onStatus: (s) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('updates:status', s); } });
+  // The web UI tells the desktop app which language the user chose (Settings > Language), for dialogs and the tray menu
+  ipcMain.on('desktop:set-language', (event, code) => {
+    if (!fromAppPage(event) || !i18n.supported(code) || i18n.supported(code) === i18n.language()) return;
+    i18n.save(app.getPath('userData'), code);
+    i18n.setLanguage(code);
+    if (tray) tray.setToolTip(t('StarkLLM — Local AI Desktop'));
+    refreshTrayMenu();
+  });
   // Settings > About in the web UI (only the app's own page may ask)
   ipcMain.on('desktop:local-token', (event) => {
     event.returnValue = event.senderFrame && sameOrigin(event.senderFrame.url, APP_URL) ? localToken : null;
@@ -163,7 +174,8 @@ function setSplashStatus(text, fraction) {
   mainWindow.webContents
     .executeJavaScript(`(function (t, v, f) {
       var s = document.getElementById('statusMsg'); if (s) s.textContent = t;
-      var b = document.getElementById('versionBadge'); if (b) b.textContent = 'Desktop v' + v;
+      var b = document.getElementById('versionBadge'); if (b) b.textContent = ${JSON.stringify(t('Desktop'))} + ' v' + v;
+      var g = document.querySelector('.tagline'); if (g) g.textContent = ${JSON.stringify(t('Private, local-first AI for your documents'))};
       if (window.setProgress) window.setProgress(f);
     })(${JSON.stringify(text)}, ${JSON.stringify(app.getVersion())}, ${JSON.stringify(f)})`)
     .catch(() => {});
@@ -178,7 +190,7 @@ async function startAndLoad() {
   try {
     result = await startEngine(APP_URL, setSplashStatus);
   } catch (e) {
-    result = { ok: false, stage: 'engine', detail: 'Unexpected error: ' + e.message };
+    result = { ok: false, stage: 'engine', detail: t('Unexpected error: {error}', { error: e.message }) };
   }
   starting = false;
   if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -326,7 +338,7 @@ async function installOllamaThenStart() {
     await installOllama({ onStatus: setSplashStatus, log: logLine });
   } catch (e) {
     logLine(`Ollama install failed: ${e.message}`);
-    await dialog.showMessageBox(mainWindow, { type: 'warning', title: 'StarkLLM', message: 'Ollama could not be installed.', detail: e.message });
+    await dialog.showMessageBox(mainWindow, { type: 'warning', title: 'StarkLLM', message: t('Ollama could not be installed.'), detail: e.message });
   }
   startAndLoad();
 }
@@ -347,7 +359,7 @@ function createTray() {
     }
     tray = new Tray(trayIcon);
 
-    tray.setToolTip('StarkLLM — Local AI Desktop');
+    tray.setToolTip(t('StarkLLM — Local AI Desktop'));
     refreshTrayMenu();
 
     tray.on('double-click', () => {
@@ -366,7 +378,7 @@ function refreshTrayMenu() {
   if (!tray) return;
   tray.setContextMenu(Menu.buildFromTemplate([
     {
-      label: 'Open StarkLLM',
+      label: t('Open StarkLLM'),
       click: () => {
         if (mainWindow) {
           mainWindow.show();
@@ -377,18 +389,18 @@ function refreshTrayMenu() {
       }
     },
     {
-      label: 'Reload Application',
+      label: t('Reload Application'),
       click: () => {
         retryConnection();
       }
     },
     { type: 'separator' },
     {
-      label: 'Check for Updates...',
+      label: t('Check for Updates...'),
       click: () => updater.check({ manual: true }).catch((e) => logLine(`update check: ${e.message}`))
     },
     {
-      label: 'Check for Updates on Start',
+      label: t('Check for Updates on Start'),
       type: 'checkbox',
       checked: updater.isEnabled(),
       click: (item) => {
@@ -398,7 +410,7 @@ function refreshTrayMenu() {
     },
     { type: 'separator' },
     {
-      label: 'Quit StarkLLM',
+      label: t('Quit StarkLLM'),
       click: () => {
         isQuitting = true;
         app.quit();
