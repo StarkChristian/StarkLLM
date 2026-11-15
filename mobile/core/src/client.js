@@ -8,6 +8,7 @@ import { generateKeyPair, HandshakeInitiator, confirmationCode } from './noise.j
 import { decodeFrame, encodeFrame } from './wire.js';
 import { decodeMessage, encodeMessage, parseRequest, parseResponse } from './protocol.js';
 import { parsePairingUri } from './qr.js';
+import { fileHash, UPLOAD_CHUNK_BYTES } from './files.js';
 
 /**
  * What the phone stores after pairing (keep it in Keychain / Keystore / non-extractable storage).
@@ -56,6 +57,8 @@ export class PhoneClient {
     /** @type {Map<string, { resolve: Function, reject: Function, onChunk?: Function }>} */
     this.pendingRequests = new Map();
     /** @type {((code: string) => void) | null} */
+    /** @type {Map<string, (r: any) => void>} */
+    this.uploadWaiters = new Map();
     this.onPairingCode = null;
     /** @type {{ resolve: Function, reject: Function } | null} */
     this.pairingDone = null;
@@ -135,6 +138,67 @@ export class PhoneClient {
   }
 
   /**
+   * Sends a document to the PC. The file travels in 32 KiB chunks with a hash check; the user
+   * must press Allow on the PC before it is added. Resolves with the final status
+   * ("accepted", "denied", "failed", "expired") once the user has decided.
+   * @param {{ name: string, bytes: Uint8Array, workspaceId?: string, onProgress?: (sent: number, total: number) => void,
+   *   onPending?: () => void, pollMs?: number, timeoutMs?: number }} file
+   * @returns {Promise<{ status: string, document_id?: string }>}
+   */
+  async uploadDocument(file) {
+    const uploadId = toBase64Url(randomBytesCompat(12));
+    const chunks = Math.ceil(file.bytes.length / UPLOAD_CHUNK_BYTES);
+    const result = new Promise((resolve) => this.uploadWaiters.set(uploadId, resolve));
+    try {
+      await this.request('documents.upload.begin', {
+        upload_id: uploadId, name: file.name, size: file.bytes.length, chunks, hash: fileHash(file.bytes),
+        ...(file.workspaceId ? { workspace_id: file.workspaceId } : {}),
+      });
+      let next = 0;
+      let sent = 0;
+      const worker = async () => {
+        while (next < chunks) {
+          const i = next++;
+          const part = file.bytes.subarray(i * UPLOAD_CHUNK_BYTES, (i + 1) * UPLOAD_CHUNK_BYTES);
+          await this.request('documents.upload.chunk', { upload_id: uploadId, index: i, data: toBase64Url(part) });
+          file.onProgress?.(++sent, chunks);
+        }
+      };
+      await Promise.all([worker(), worker(), worker(), worker()]); // a window of four requests in flight
+      await this.request('documents.upload.finish', { upload_id: uploadId });
+    } catch (e) {
+      this.uploadWaiters.delete(uploadId);
+      this.request('documents.upload.cancel', { upload_id: uploadId }).catch(() => {});
+      throw e;
+    }
+    file.onPending?.();
+    // The result arrives as an event; polling covers a missed event or a reconnect.
+    const poll = setInterval(async () => {
+      try {
+        const s = await this.request('documents.upload.status', { upload_id: uploadId });
+        if (['accepted', 'denied', 'failed', 'cancelled', 'expired'].includes(s.status)) this.#uploadDone(uploadId, s);
+      } catch { /* the session may be closed: the caller sees the timeout */ }
+    }, file.pollMs ?? 3000);
+    poll.unref?.();
+    const timer = setTimeout(() => this.#uploadDone(uploadId, { status: 'expired' }), file.timeoutMs ?? 11 * 60_000);
+    timer.unref?.();
+    try {
+      return await result;
+    } finally {
+      clearInterval(poll);
+      clearTimeout(timer);
+    }
+  }
+
+  #uploadDone(uploadId, data) {
+    const resolve = this.uploadWaiters.get(uploadId);
+    if (resolve) {
+      this.uploadWaiters.delete(uploadId);
+      resolve({ status: data.status, ...(data.document_id ? { document_id: data.document_id } : {}) });
+    }
+  }
+
+  /**
    * Replaces this phone's key pair: announces a new public key to the PC inside the session.
    * The PC accepts both keys until the first session with the new one; persist the returned
    * record and use it for the next session.
@@ -189,6 +253,8 @@ export class PhoneClient {
   }
 
   close(reason = 'closed') {
+    for (const resolve of this.uploadWaiters.values()) resolve({ status: 'failed' });
+    this.uploadWaiters.clear();
     const err = new ProtocolError('closed', reason);
     this.state = 'closed';
     for (const p of this.pendingRequests.values()) p.reject(err);
@@ -297,6 +363,9 @@ export class PhoneClient {
         this.record = { ...this.record, pcPublicKey: r.data.public_key };
         this.onRecordChange(this.record);
       }
+    }
+    if (r.event === 'upload.result' && typeof r.data?.upload_id === 'string' && typeof r.data.status === 'string') {
+      this.#uploadDone(r.data.upload_id, r.data);
     }
     this.onEvent({ event: r.event, data: r.data });
   }

@@ -20,6 +20,8 @@ const OPAQUE_RE = /^[\x21-\x7e]{1,128}$/; // printable ASCII, no spaces, ids han
 /** @typedef {{ kind: 'enum', values: readonly string[], optional?: boolean }} EnumSpec */
 /** @typedef {StringSpec | IntSpec | BoolSpec | EnumSpec} FieldSpec */
 
+const hex64 = { kind: 'string', min: 64, max: 64, pattern: /^[0-9a-f]{64}$/ };
+const uploadId = { kind: 'string', min: 1, max: 64, pattern: ID_RE };
 const opaque = (optional = true) => ({ kind: 'string', min: 1, max: 128, pattern: OPAQUE_RE, optional });
 const limit = (max = 100) => ({ kind: 'int', min: 1, max, optional: true });
 
@@ -59,6 +61,52 @@ export const REQUEST_TYPES = Object.freeze({
       status: { kind: 'enum', values: ['open', 'closed', 'all'], optional: true },
     },
   }),
+  'workspaces.list': Object.freeze({
+    permission: 'read',
+    method: 'workspacesList',
+    stream: false,
+    params: { limit: limit() },
+  }),
+  'chats.list': Object.freeze({
+    permission: 'read',
+    method: 'chatsList',
+    stream: false,
+    params: { workspace_id: opaque(), limit: limit(), cursor: opaque() },
+  }),
+  'kb.search': Object.freeze({
+    permission: 'read',
+    method: 'kbSearch',
+    stream: false,
+    params: { query: { kind: 'string', min: 1, max: 500 }, workspace_id: opaque(), limit: limit(20) },
+  }),
+  // Document upload (permission "upload"; answered by the host's UploadManager, not by the engine;
+  // the engine only receives the file after the user pressed Allow on the PC).
+  'documents.upload.begin': Object.freeze({
+    permission: 'upload',
+    method: null,
+    stream: false,
+    params: {
+      upload_id: uploadId,
+      name: { kind: 'string', min: 3, max: 120 },
+      size: { kind: 'int', min: 1, max: 25 * 1024 * 1024 },
+      chunks: { kind: 'int', min: 1, max: 800 },
+      hash: hex64,
+      workspace_id: opaque(),
+    },
+  }),
+  'documents.upload.chunk': Object.freeze({
+    permission: 'upload',
+    method: null,
+    stream: false,
+    params: {
+      upload_id: uploadId,
+      index: { kind: 'int', min: 0, max: 799 },
+      data: { kind: 'string', min: 1, max: 43_700, pattern: /^[A-Za-z0-9_-]+$/ },
+    },
+  }),
+  'documents.upload.finish': Object.freeze({ permission: 'upload', method: null, stream: false, params: { upload_id: uploadId } }),
+  'documents.upload.status': Object.freeze({ permission: 'upload', method: null, stream: false, params: { upload_id: uploadId } }),
+  'documents.upload.cancel': Object.freeze({ permission: 'upload', method: null, stream: false, params: { upload_id: uploadId } }),
   'chat.ask': Object.freeze({
     permission: 'chat',
     method: 'chatAsk',
@@ -80,10 +128,17 @@ export const REQUEST_TYPES = Object.freeze({
   }),
 });
 
+/**
+ * The file ingestion method: called by the host only after the user confirmed an upload on the PC,
+ * never directly by a request.
+ */
+export const INGEST_METHOD = 'documentIngest';
+
 /** The only engine adapter methods the host will ever call. */
-export const ENGINE_METHODS = Object.freeze(
-  Object.values(REQUEST_TYPES).map((t) => t.method).filter((m) => m !== null),
-);
+export const ENGINE_METHODS = Object.freeze([
+  ...Object.values(REQUEST_TYPES).map((t) => t.method).filter((m) => m !== null),
+  INGEST_METHOD,
+]);
 
 export const ERROR_CODES = Object.freeze([
   'bad_request',
@@ -92,6 +147,7 @@ export const ERROR_CODES = Object.freeze([
   'duplicate_id',
   'rate_limited',
   'too_large',
+  'not_found',
   'engine_error',
   'session_expired',
 ]);

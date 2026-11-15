@@ -69,10 +69,41 @@ Request: `{"id": "<1-64 chars [A-Za-z0-9_-]>", "type": "<allow-listed type>", "p
 | `inbox.list` | read | `limit` 1-100, `cursor` opaque string, `unread_only` bool | `inboxList` |
 | `deadlines.list` | read | `within_days` 1-365, `limit` 1-100 | `deadlinesList` |
 | `cases.list` | read | `limit`, `cursor`, `status` = `open` / `closed` / `all` | `casesList` |
+| `workspaces.list` | read | `limit` 1-100 | `workspacesList` |
+| `chats.list` | read | `workspace_id`, `limit` 1-100, `cursor` | `chatsList` |
+| `kb.search` | read | `query` (1-500 characters, required), `workspace_id`, `limit` 1-20 | `kbSearch` |
 | `chat.ask` | chat | `question` (1-4000 characters, required), `workspace_id`, `conversation_id` | `chatAsk` (async iterable) |
-| `source.open` | read | `source_id` (opaque id from a citation, required), `max_chars` 100-20000 | `sourceOpen` |
+| `source.open` | read | `source_id` (opaque id from a citation or search hit, required), `max_chars` 100-20000 | `sourceOpen` |
+| `documents.upload.begin` | upload | `upload_id`, `name`, `size`, `chunks`, `hash`, `workspace_id` | answered by the host |
+| `documents.upload.chunk` | upload | `upload_id`, `index` 0-799, `data` (base64url, at most 43 700 characters) | answered by the host |
+| `documents.upload.finish` / `.status` / `.cancel` | upload | `upload_id` | answered by the host |
 | `device.info` | read | none | answered by the host |
 | `device.rotate_key` | read | `public_key` (base64url of 32 bytes) | answered by the host |
+
+Permissions: `read`, `chat` (implies `read`), `upload` (separate, off by default). Plus the engine's one **ingest** method
+`documentIngest`, which the host calls only after the user confirmed an upload on the PC; no request can trigger it.
+
+### Document upload
+
+```
+begin   {upload_id, name, size, chunks, hash, workspace_id?}  -> {upload_id, chunk_bytes: 32768, chunks}
+chunk   {upload_id, index, data}                              -> {received}          (in order, exact size)
+finish  {upload_id}                                           -> {upload_id, status: "pending_confirmation"}
+status  {upload_id}                                           -> {status: receiving|pending_confirmation|accepted|denied|failed|cancelled|expired, ...}
+cancel  {upload_id}                                           -> {status: "cancelled"}
+event   {"event":"upload.result","data":{"upload_id","status","document_id"?}}   after the user decided
+```
+
+- `size` at most 25 MiB; `chunks` must equal `ceil(size / 32768)`; every chunk except the last has exactly 32 768 bytes.
+- `hash` is the BLAKE2s-256 of the whole file as 64 lower-case hex characters.
+- `name`: a single file name (letters and digits of any script, space, `._()+-`; at most 120 characters; no path parts, no `..`,
+  no reserved Windows names, no executable-looking stem). Extension (case-insensitive): `pdf`, `txt`, `md`, `docx`, `png`, `jpg`, `jpeg`.
+- At `finish` the host checks hash and content (magic bytes; text must be UTF-8 without control characters and not look like a
+  script). The file is never opened, unpacked or executed by the remote code.
+- The file then waits for the user's Allow or Deny on the PC for 10 minutes; Deny, timeout, a failed check or removal of the
+  phone deletes it. Only after Allow does `documentIngest({name, bytes, size, hash, workspace_id, origin: "phone-upload",
+  untrusted: true}, ctx)` run.
+- One open upload per phone; an upload with no new chunk for 10 minutes expires.
 
 Opaque ids are printable ASCII without spaces, 1-128 characters. They are looked up by the engine adapter; they are
 never used as paths.
@@ -89,7 +120,7 @@ Responses:
 ```
 
 Error codes: `bad_request`, `unknown_type`, `forbidden`, `duplicate_id`, `rate_limited`, `too_large`,
-`engine_error` (always a generic message; internal details are never sent), `session_expired`.
+`not_found` (unknown upload), `engine_error` (always a generic message; internal details are never sent), `session_expired`.
 
 Anything that is not an allow-listed type gets `unknown_type` and nothing else happens. Per device: 10 requests per
 second (burst 30), 4 requests in flight, streamed answers at most 4 MiB.
@@ -103,6 +134,10 @@ second (burst 30), 4 requests in flight, streamed answers at most 4 MiB.
   casesList(params, ctx) -> Promise<object>
   sourceOpen(params, ctx) -> Promise<object>      // { source_id, title, page, text }
   chatAsk(params, ctx) -> AsyncIterable<{ delta?: string, citations?: object[] }>
+  kbSearch(params, ctx) -> Promise<object>        // { hits: [{ source_id, title, page, snippet, score }] }
+  workspacesList(params, ctx) -> Promise<object>  // { items: [{ id, name }] }
+  chatsList(params, ctx) -> Promise<object>       // { items: [{ id, title, workspace_id }] }
+  documentIngest(file, ctx) -> Promise<{ document_id?: string }>   // only after the user confirmed an upload
 }
 ```
 

@@ -1,7 +1,8 @@
 # StarkLLM Remote Access — Design
 
-Status: **approved on 2026-11-15** by the owner (all five decisions in section 13). Steps 2 and 3 of the order of work
-(protocol core and relay) are implemented in this branch; see section 12 for what is done and what is next.
+Status: **approved on 2026-11-15** by the owner (all five decisions in section 13, plus the follow-up decisions of the same
+day: Noise library kept, wider allow-list including document upload, relay metadata, relay address). Steps 2 and 3 of the
+order of work (protocol core and relay) are implemented in this branch; see section 12.
 Date of the proposal: 9 November 2026. Roadmap phases 4 and 5: access from the phone, iOS and Android apps.
 
 ## 1. Goal
@@ -20,7 +21,7 @@ Requirements, in order of priority:
 6. Simple for the user: scan a QR code once, then it works everywhere.
 
 Non-goals for version 1: sharing with other people, several PCs behind one phone account, push
-notifications with content, access without the PC running, uploading documents from the phone.
+notifications with content, access without the PC running.
 
 ## 2. Overview
 
@@ -42,7 +43,7 @@ notifications with content, access without the PC running, uploading documents f
   Specification: `mobile/core/PROTOCOL.md`.
 - The **PC side** is the `RemoteHost` class of the core plus a small integration in the desktop app (relay connection,
   *Settings > Phones*, adapter to the engine's HTTP API). The engine itself (Python) never sees the phone and has no
-  new endpoint; the adapter calls the five existing read/ask functions on `127.0.0.1`.
+  new endpoint; the adapter calls the existing read/ask/search functions (and, after the user confirms, the document ingestion) on `127.0.0.1`.
 - The **relay** is a small, separate service: `relay/` in this repository (Node, one dependency, own Dockerfile).
 - The **phone client** is the same core: first a web app (PWA), then the iOS and Android app (React Native with Expo).
 
@@ -144,8 +145,12 @@ streams are `{ "id", "chunk" }` messages ending with `{ "id", "done", "result" }
 | `inbox.list` | read | the latest inbox summaries, paged (`limit`, `cursor`, `unread_only`) |
 | `deadlines.list` | read | upcoming deadlines (`within_days`, `limit`) |
 | `cases.list` | read | cases with status (`status`, `limit`, `cursor`) |
+| `workspaces.list` | read | the workspaces |
+| `chats.list` | read | the chats, optionally of one workspace (`workspace_id`, `limit`, `cursor`) |
+| `kb.search` | read | search the knowledge base (`query` up to 500 characters, `workspace_id`, `limit` up to 20); returns snippets with `source_id` |
 | `chat.ask` | chat | ask a question; the answer streams in chunks and ends with the **citations** (`source_id`, title, page, snippet) |
-| `source.open` | read | open one source passage by the opaque `source_id` returned in a citation |
+| `source.open` | read | open one source passage by the opaque `source_id` returned in a citation or a search hit |
+| `documents.upload.begin` / `.chunk` / `.finish` / `.status` / `.cancel` | upload | send a document to the PC; see "Document upload" below |
 | `device.info` | read | the phone's own name and permissions |
 | `device.rotate_key` | read | the phone announces a new device key (section 7) |
 
@@ -153,10 +158,12 @@ The phone keeps the latest summaries (inbox, deadlines, cases) in encrypted stor
 them offline.
 
 Never available remotely: settings, model management, backup and restore, local tools (MCP), code execution, account
-management, Telegram settings, document upload. Other read requests (workspaces, chats, knowledge-base search) can be
-added later by an explicit decision; adding a type means adding one entry to the allow-list table, one engine adapter
-method and tests. Every request runs as the StarkLLM user who approved the phone. Each device has permissions set on the
-PC (`read`, or `read` + `chat`).
+management, Telegram settings, deleting or changing documents, reading the full text of a chat (`chats.messages` is not in the
+list), anything else. More types can be added later by an explicit decision; adding one means one entry in the allow-list
+table, one engine adapter method and tests. Every request runs as the StarkLLM user who approved the phone. Each device has
+permissions set on the PC: `read`, `chat` (implies `read`) and `upload`. A new phone gets `read` and `chat`; **`upload` is off
+until the user switches it on** in the pairing dialog or later in *Settings > Phones*, and there is a master switch that turns
+uploads off for all phones.
 
 How "anything outside the allow-list is refused" is enforced (`mobile/core/src/protocol.js`, `host.js`):
 
@@ -164,10 +171,44 @@ How "anything outside the allow-list is refused" is enforced (`mobile/core/src/p
    schemas: unknown fields, wrong types, out-of-range numbers, control characters and oversized strings are refused.
    The engine receives the validated copy, never the received object.
 2. The permission of the device is checked per request type.
-3. The host calls exactly five engine adapter methods, selected from its own table (never by a name from the
-   message). Refused requests get an error response and nothing else happens.
+3. The host calls exactly nine engine adapter methods (eight read/ask methods selected from its own table, plus the one
+   ingest method that only runs after the user confirmed an upload), never a name taken from the message. Refused requests
+   get an error response and nothing else happens.
 4. Tests: property-based and fuzz tests on the parser, 400 random messages inside a live session and 300 random frames
-   on the link, with an engine object that fails the test if anything outside the five methods is touched.
+   on the link, with an engine object that fails the test if anything outside the adapter methods is touched.
+
+### Document upload
+
+Adding a document from the phone is the one request family that writes to the PC, so it is designed as a quarantine with
+a human in the loop (code: `mobile/core/src/uploads.js`, `files.js`; tests: `test/uploads.test.js`):
+
+1. **Permission and switches.** Needs the device permission `upload` (off by default) and the PC-wide switch
+   (`uploads.enabled`). If either is off, every upload request is refused and nothing is stored.
+2. **`begin`** announces `upload_id`, file name, exact `size`, `chunks`, the BLAKE2s-256 hash of the whole file and an
+   optional `workspace_id`. Limits: at most **25 MiB** per file, **32 KiB** per chunk (so at most 800 chunks), **one open
+   upload per phone**, 100 MiB held in quarantine in total, upload ids are never reused. The file name must be a single
+   name of letters, digits (any script), space and `._()+-`, at most 120 characters, no path parts, no `..`, no reserved
+   Windows names, and the extension must be one of **pdf, txt, md, docx, png, jpg, jpeg**. Executable-looking names
+   (`x.exe.pdf`) are refused.
+3. **`chunk`** carries one chunk (base64url). Chunks must arrive in order, with the exact expected size; any violation ends
+   the upload and deletes what was received. Chunks have their own request budget (40 per second) so a big file does not
+   starve other requests, and the phone keeps up to four chunk requests in flight.
+4. **`finish`** reassembles the file in memory and checks: the hash matches, and the **content matches the extension**
+   (PDF, PNG, JPEG and Word magic bytes; text files must be valid UTF-8 without control characters and must not look like
+   a script). The file is **never opened, unpacked, parsed or executed** by the host. A failing check deletes it.
+5. **Quarantine and confirmation.** A file that passes waits as `pending_confirmation`. The PC shows *"Add Bescheid.pdf
+   (PDF, 1.2 MB) from iPhone of Christian to your documents?"* with Allow and Deny (`pendingUploads()`, event
+   `upload-pending`, `confirmUpload(ref, approve)`). The user has 10 minutes; after that, or on Deny, or when the phone is
+   removed, the bytes are deleted. There is **no request that confirms an upload**: only the PC's own interface does.
+6. **Ingestion.** Only after Allow, the host calls the engine's single ingest method with the bytes and the flags
+   `origin: "phone-upload"` and `untrusted: true`. The engine adapter must pass these on so that the existing
+   prompt-injection defences treat the document as untrusted input, like any other document, and so the document is
+   marked as coming from a phone. The host never interprets the content. The phone is told the result by an
+   `upload.result` event and can read it with `documents.upload.status`; internal error details are never sent.
+7. **Nothing is executed:** no plug-ins, no macros, no thumbnails, no previews are produced by the remote protocol code.
+   The engine's normal text extraction is the only consumer, after confirmation.
+
+Residual risks are in section 9.6 (malicious document content, resource use).
 
 ## 7. Key rotation and revocation
 
@@ -242,6 +283,36 @@ the identity of the paired phones.
 Traffic analysis (for example guessing that a long streamed answer followed a question) remains possible. Version 1
 accepts this and documents it; constant-rate cover traffic is not planned because of battery cost on phones.
 
+### 9.2a Cloudflare in front of the relay
+
+The official relay runs on the Contabo server in Germany behind a **Cloudflare tunnel** (`relay.starkllm.com`). The owner
+decided (2026-11-15) that this is acceptable, because **all content is end-to-end encrypted with Noise between the phone and
+the PC**; the tunnel provider is, for our purposes, one more untrusted network hop. Cloudflare terminates TLS, so what it
+can see is exactly what any observer of the relay link can see, and no more:
+
+| Cloudflare **can** see | Cloudflare **cannot** see |
+|---|---|
+| The domain name, TLS metadata, the IP addresses of PCs and phones, connection times and durations | Questions, answers, documents, file names, summaries, deadlines, cases, citations |
+| The URL path and query of the WebSocket upgrade: `/v1/pc` or `/v1/phone` and the **routing id** | The PC's Noise key, any phone's key, the pairing secret, any session key |
+| The relay's JSON control messages (PC authentication: challenge, the Ed25519 **public** key, a signature) and the 8-byte connection ids | Which request type was sent (padded ciphertext; request names are inside the encryption) |
+| Frame sizes in 256-byte steps and timing | The exact length of a message |
+| Whether a PC is online and how many phones connect | Which person owns which phone |
+
+What a malicious or compelled Cloudflare could **do**: drop, delay, replay or reorder frames, refuse service, or connect as
+an unknown client. All of that is covered by the cases in 9.3 (it can disturb, it cannot read or impersonate). It cannot
+serve modified app code to the phone, because the PWA is loaded from the PC and the native apps come from the app stores
+(section 10). The relay itself still treats its own hostname as trusted infrastructure only for availability.
+
+Consequences accepted: Cloudflare (a US company) holds connection metadata under its own terms and can be compelled to
+hand it over; it holds no content. The privacy policy of the app must say this in one sentence. If the metadata exposure
+ever becomes unacceptable, the relay URL is a setting: self-hosting, a different tunnel, or a different domain needs no
+protocol change (paired phones follow the PC, because the relay URL is in the QR code).
+
+A second domain (the owner has others, for example `homomorphicprivacy.com`) is not needed for the relay. It could be useful
+for things that should live **outside** the product domain and outside the tunnel: a public status page for the relay,
+the published audit notes and the security contact (`security.txt`), the signed hash list of releases, or a standby relay
+hostname that apps can fall back to. Nothing of this is deployed or configured by this change.
+
 ### 9.3 Malicious or compromised relay (active attacks)
 
 | Attack | Result |
@@ -289,12 +360,16 @@ accepts this and documents it; constant-rate cover traffic is not planned becaus
 
 | Threat | Answer |
 |---|---|
-| A bug lets the phone call internal functions | Allow-list protocol, closed schemas, five engine methods, no HTTP tunnel; fuzzing in CI |
+| A bug lets the phone call internal functions | Allow-list protocol, closed schemas, a fixed list of engine methods, no HTTP tunnel; fuzzing in CI |
 | Flooding or oversized messages from an approved phone | Per-device token bucket, in-flight limit, message and stream size limits |
 | Compromise of the phone's key later | Forward secrecy: recorded sessions stay unreadable. Remove the phone and pair again |
 | Compromise of the PC's static key | A thief could pose as the PC to phones that still trust it; rotate the PC key (section 7), phones learn the new key from the next session. Recorded past sessions stay unreadable |
 | Small-order Curve25519 points, malformed handshakes | Refused before use; every malformed input is a `ProtocolError`, tested with mutation fuzzing |
 | Library flaw in Noise | Official vectors and independent interop in CI; replaceable behind one file; external audit before the public release |
+| Malicious file uploaded from an approved (or stolen) phone | Quarantine until the user presses Allow, name/type/size limits, magic-byte check, never opened or executed by the remote code, `untrusted: true` into the engine; a thief needs an unlocked phone with the `upload` permission **and** someone to press Allow on the PC |
+| Prompt injection inside an uploaded document | The file is only data. It is ingested like any document the user adds, flagged as untrusted phone input; the host never feeds its content to a model; the existing prompt-injection defences of the engine apply |
+| Filling the PC's disk or memory through uploads | One upload at a time per phone, 25 MiB per file, 100 MiB quarantine in total, 10-minute limits, deletion on every failure |
+| A phone confirms its own upload | No request type can confirm; only the PC's interface |
 | Metadata at Apple and Google | Push notifications (later) carry no content ("an answer is ready"); everything else goes through our own relay |
 | The relay's logs or backups leak | Nothing to leak: no content, no ids, no IPs, nothing on disk |
 
@@ -302,6 +377,8 @@ accepts this and documents it; constant-rate cover traffic is not planned becaus
 
 - Traffic analysis as described in 9.2.
 - The first PWA keeps keys in browser storage (weaker than Keychain / Keystore).
+- A document that passes the content checks can still contain hostile content for the PDF/Word text extraction of the engine
+  (a parser bug). The user's confirmation and the engine's own hardening are the defences; the audit scope below includes it.
 - One PC per phone record; no sharing between people.
 - The `rc` status of the Noise library (audit planned).
 - The pairing code is 6 digits; it protects against *accidental* wrong pairings and a confused user, while the
@@ -328,6 +405,7 @@ accepts this and documents it; constant-rate cover traffic is not planned becaus
 | `docs/relay-deployment-contabo.md` | deployment notes for the official relay (document only) |
 | `mobile/core/` | protocol core: `src/`, `PROTOCOL.md`, tests, vectors, interop fixture |
 | `relay/` | the relay: `src/`, `Dockerfile`, `README.md`, tests |
+| `docs/mobile-feature-ideas.md` | prioritised feature ideas for the phone app, with privacy impact and needed allow-list entries |
 | `.github/workflows/mobile-core.yml` | CI: vectors, property/fuzz tests, Python interop, relay tests, Docker build |
 
 ## 12. Order of work (each a pull request with its own tests)
@@ -340,10 +418,10 @@ accepts this and documents it; constant-rate cover traffic is not planned becaus
    plaintext-leak check, deployment notes. Not deployed. Load testing at larger scale is left for the first
    deployment.
 4. **PC side** — relay connection in the desktop app, pairing page with QR code and confirmation, approved devices
-   storage, engine adapter for the five requests, *Settings > Phones*. *Next.*
+   storage, engine adapter for the requests (including upload quarantine and the confirmation dialog), *Settings > Phones*. *Next.*
 5. **Web app (PWA)** — end-to-end test in CI: engine + relay + headless browser.
 6. **iOS and Android app** — Expo app, internal test builds (TestFlight, Google Play internal testing).
-7. **Hardening** — security review of the whole path, an external audit before the public store release.
+7. **Hardening** — security review of the whole path, an external audit before the public store release. **Audit scope (decided 2026-11-15):** the Noise library `salty-crypto` and its use in `mobile/core/src/noise.js` (explicitly named, because it is a release candidate from one maintainer), the pairing and session state machines, the allow-list and parsers, the document upload path including the engine's ingestion of phone uploads, the relay (authentication, limits, logging), the PWA's key storage and the Expo app's key handling.
 
 ## 13. Decisions (approved 2026-11-15)
 
@@ -356,6 +434,18 @@ accepts this and documents it; constant-rate cover traffic is not planned becaus
 5. PWA first (loaded from the PC), then the React Native (Expo) app for iOS and Android built in the cloud with EAS.
    **Approved.**
 
+### Follow-up decisions of 2026-11-15 (owner, after the questions on the first version)
+
+1. **Noise library:** keep `salty-crypto`; the external audit names it explicitly (section 12, step 7).
+2. **Allow-list extended:** knowledge-base search, the lists of workspaces and chats, and **document upload from the phone**
+   (design in section 6, "Document upload": size and type limits, chunking over the relay, hash check, confirmation on the PC
+   before ingestion, nothing executed, treated as untrusted input, can be switched off in the pairing settings).
+3. **Relay metadata:** padded sizes and timing as now; **no cover traffic** in version 1.
+4. **Relay address:** `relay.starkllm.com` behind the Cloudflare tunnel is fine because the content is end-to-end encrypted;
+   the reasoning and what Cloudflare can see are in 9.2a. A second domain may be used later for a status page and public audit
+   notes; nothing is deployed.
+5. **Feature ideas for the phone app** are collected in `docs/mobile-feature-ideas.md`.
+
 ### Concrete choices made while implementing (for review)
 
 | Topic | Choice | Why |
@@ -367,8 +457,10 @@ accepts this and documents it; constant-rate cover traffic is not planned becaus
 | Check code | 6 digits | safer against accidents, same effort |
 | Padding | 256-byte steps from version 1 | cheap, hides exact lengths |
 | Rekey | every 1 000 messages per direction, session maximum 1 hour | deterministic, no extra message |
-| Allow-list | `inbox.list`, `deadlines.list`, `cases.list`, `chat.ask`, `source.open`, `device.info`, `device.rotate_key` | matches the phone's first use cases; the older list in the proposal (workspaces, chats, `kb.search`, documents) can be added later |
-| Uploads | not in version 1 | smaller attack surface for the first release |
+| Allow-list | read: `inbox.list`, `deadlines.list`, `cases.list`, `workspaces.list`, `chats.list`, `kb.search`, `source.open`; chat: `chat.ask`; upload: `documents.upload.*`; `device.info`, `device.rotate_key` | the phone's use cases plus the owner's additions; `chats.messages` (full chat text) is deliberately not included |
+| Uploads | in version 1, permission `upload` off by default, user confirms every file on the PC | owner decision; the default keeps a stolen phone from adding files |
+| Upload limits | 25 MiB, 32 KiB chunks, pdf/txt/md/docx/png/jpg/jpeg, one open upload per phone | covers documents and camera scans, small attack surface |
+| File hash | BLAKE2s-256 (from the Noise library) | no second crypto dependency; detects damage on reassembly |
 | Relay language | Node with `ws` (one dependency) | same language as the core, tests can run the real core against the real relay |
 | Mailbox model | in memory, exists while the PC is connected | nothing to store, nothing to leak |
 | Logging | fixed vocabulary, no ids or IPs | a test enforces it |

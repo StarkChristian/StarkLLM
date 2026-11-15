@@ -14,6 +14,7 @@ Wire format and message reference: [`PROTOCOL.md`](PROTOCOL.md).
 | `src/noise.js` | the only file that touches the Noise library (`salty-crypto`): IKpsk2 / IK handshakes, transport with padding and rekey, confirmation code |
 | `src/wire.js` | frame format and strict frame parser |
 | `src/protocol.js` | the allow-list, closed parameter schemas, strict request/response parsing |
+| `src/uploads.js`, `src/files.js` | document upload: limits, chunking, hash and content checks, quarantine until the user confirms |
 | `src/qr.js` | the pairing QR payload (`starkllm://pair?...`) |
 | `src/devices.js` | approved devices: approval, permissions, revocation, key rotation |
 | `src/host.js` | `RemoteHost`: the PC side (pairing, sessions, allow-listed dispatch to an engine adapter) |
@@ -34,7 +35,7 @@ const devices = new DeviceRegistry(new FileDeviceStore(dataDir + '/remote/device
 const host = new RemoteHost({
   identity: id.noise,
   devices,
-  engine,                                   // the five adapter methods, see PROTOCOL.md
+  engine,                                   // the adapter methods, see PROTOCOL.md
   send: (peer, frame) => link.send(peer, frame),
   closePeer: (peer) => link.kick(peer),
   onEvent: (e) => ui.show(e),               // 'pairing-pending' etc.
@@ -84,6 +85,8 @@ npm run typecheck   # tsc over the JSDoc types
 | `test/framing.test.js` | property and fuzz tests: frame parser, padding, replay / reorder / drop / tamper, rekey boundaries, mutated handshakes, QR parser |
 | `test/allowlist.test.js` | allow-list property and fuzz tests; random messages never reach the engine unless valid |
 | `test/host-security.test.js` | handshake replay, stale timestamps, idle and age limits, pairing limits, device registry |
+| `test/requests-new.test.js` | knowledge-base search, workspaces and chats: success and refusals |
+| `test/uploads.test.js` | document upload: every limit and refusal, quarantine, confirmation, untrusted flag, revocation, expiry, name and content fuzzing |
 | `test/e2e-simulated.test.js` | simulated end-to-end: QR payload and code, pairing, session, answered request, refused requests, revocation, stolen QR, key rotation |
 
 The Python interop check (needs Python 3 and `pip install noiseprotocol==0.3.1`):

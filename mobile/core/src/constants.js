@@ -27,8 +27,13 @@ export const HANDSHAKE_MAX_SKEW_MS = 2 * 60_000;
 export const SESSION_IDLE_MS = 10 * 60_000;
 export const SESSION_MAX_AGE_MS = 60 * 60_000;
 
-/** Permissions a paired phone can have. "chat" includes everything "read" allows. */
-export const PERMISSIONS = Object.freeze(['read', 'chat']);
+/**
+ * Permissions a paired phone can have: "read" (lists, search, open sources), "chat" (ask questions;
+ * implies "read") and "upload" (send documents to the PC; the user still confirms every file).
+ * New phones get read + chat; "upload" is off until the user switches it on.
+ */
+export const PERMISSIONS = Object.freeze(['read', 'chat', 'upload']);
+export const DEFAULT_PERMISSIONS = Object.freeze(['read', 'chat']);
 
 /** Wire frame kinds. */
 export const KIND = Object.freeze({

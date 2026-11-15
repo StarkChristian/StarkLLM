@@ -161,3 +161,54 @@ test('control: the tap would notice plaintext (a deliberately unencrypted frame 
     await t.relay.close();
   }
 });
+
+test('document upload through the relay: chunked, confirmed on the PC, and the relay never sees the file or its name', async () => {
+  const t = await startRelay();
+  const pcId = newPcIdentity();
+  const ingested = [];
+  const eng = { ...engine(), async documentIngest(file) { ingested.push(file); return { document_id: 'doc-1' }; } };
+  const devices = new DeviceRegistry(new MemoryDeviceStore());
+  let pcLink;
+  const host = new RemoteHost({
+    identity: { current: generateKeyPair() }, devices, engine: eng,
+    send: (peer, frame) => pcLink.link.send(peer, frame), closePeer: (peer) => pcLink.link.kick(peer),
+  });
+  pcLink = await connectPc(t, pcId, { onFrame: (p, f) => host.handleFrame(p, f), onPeer: (p, up) => { if (!up) host.peerClosed(p); } });
+  try {
+    const { uri } = host.createPairingOffer({ relay: t.url, routingId: pcId.routingId });
+    let l1;
+    const c1 = new PhoneClient({ qr: { allowInsecure: true }, send: (f) => l1.link.send(f) });
+    l1 = await connectPhone(t, pcId.routingId, { onFrame: (f) => c1.handleFrame(f) });
+    const paired = c1.startPairing(uri, 'Test phone', () => {});
+    await until(() => host.pendingPairings().length === 1);
+    host.confirmPairing(host.pendingPairings()[0].pairingId, true, { permissions: ['read', 'chat', 'upload'] });
+    const record = await paired;
+    l1.link.close();
+
+    let l2;
+    const c2 = new PhoneClient({ send: (f) => l2.link.send(f) });
+    l2 = await connectPhone(t, pcId.routingId, { onFrame: (f) => c2.handleFrame(f) });
+    await c2.startSession(record);
+
+    const secretText = 'Kuendigung des Mietvertrags Gartenstrasse 12, streng vertraulich. '.repeat(1500); // ~100 KB, 4 chunks
+    const bytes = new TextEncoder().encode(secretText);
+    const fileName = 'Kuendigung-Gartenstrasse-geheim.txt';
+    const done = c2.uploadDocument({ name: fileName, bytes, pollMs: 50 });
+    await until(() => host.pendingUploads().length === 1, 5000);
+    assert.equal(ingested.length, 0, 'nothing is ingested before the user decides');
+    assert.equal(await host.confirmUpload(host.pendingUploads()[0].ref, true), 'accepted');
+    assert.equal((await done).status, 'accepted');
+    assert.equal(ingested.length, 1);
+    assert.deepEqual(Buffer.from(ingested[0].bytes), Buffer.from(bytes));
+    assert.equal(ingested[0].untrusted, true);
+
+    const everything = Buffer.concat(t.taps.map((x) => x.bytes));
+    for (const needle of [fileName, 'Gartenstrasse', 'Kuendigung', 'documents.upload', 'vertraulich', 'Test phone']) {
+      for (const form of haystacks(everything)) assert.ok(!form.includes(needle), `"${needle}" visible to the relay`);
+    }
+    assert.ok(t.relay.stats.bytesForwarded > bytes.length, 'the file really went through the relay');
+  } finally {
+    host.close();
+    await t.relay.close();
+  }
+});

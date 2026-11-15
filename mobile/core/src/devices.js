@@ -2,7 +2,7 @@
 // key rotation. Pure logic over an injected store, so it runs in tests without disk access.
 import { ProtocolError } from './errors.js';
 import { toBase64Url } from './bytes.js';
-import { PERMISSIONS } from './constants.js';
+import { DEFAULT_PERMISSIONS, PERMISSIONS } from './constants.js';
 import { randomSecret } from './noise.js';
 
 /**
@@ -40,7 +40,7 @@ function cleanName(name) {
 }
 
 function cleanPermissions(p) {
-  const list = Array.isArray(p) ? p : ['read', 'chat'];
+  const list = Array.isArray(p) ? p : DEFAULT_PERMISSIONS;
   const out = PERMISSIONS.filter((x) => list.includes(x));
   // "chat" implies "read"
   if (out.includes('chat') && !out.includes('read')) out.unshift('read');

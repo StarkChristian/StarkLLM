@@ -26,7 +26,8 @@ import {
 } from './constants.js';
 import { confirmationCode, HandshakeResponder, isLowOrderPoint, randomSecret } from './noise.js';
 import { decodeFrame, encodeFrame } from './wire.js';
-import { decodeMessage, encodeMessage, ENGINE_METHODS, parseRequest, REQUEST_TYPES } from './protocol.js';
+import { decodeMessage, encodeMessage, ENGINE_METHODS, INGEST_METHOD, parseRequest, REQUEST_TYPES } from './protocol.js';
+import { UploadManager } from './uploads.js';
 import { buildPairingUri, parsePairingUri } from './qr.js';
 import { isRoutingId } from './routing.js';
 
@@ -78,6 +79,10 @@ class Bucket {
  * @property {(params: object, ctx: object) => Promise<object>} deadlinesList
  * @property {(params: object, ctx: object) => Promise<object>} casesList
  * @property {(params: object, ctx: object) => Promise<object>} sourceOpen
+ * @property {(params: object, ctx: object) => Promise<object>} kbSearch
+ * @property {(params: object, ctx: object) => Promise<object>} workspacesList
+ * @property {(params: object, ctx: object) => Promise<object>} chatsList
+ * @property {(file: { name: string, bytes: Uint8Array, size: number, hash: string, workspace_id?: string, origin: 'phone-upload', untrusted: true }, ctx: object) => Promise<{ document_id?: string }>} documentIngest called only after the user confirmed on the PC
  * @property {(params: object, ctx: object) => AsyncIterable<{ delta?: string, citations?: object[] }>} chatAsk
  */
 
@@ -91,6 +96,7 @@ class Bucket {
  * @property {() => number} [now]
  * @property {string} [pcName]
  * @property {(event: object) => void} [onEvent] for the UI: pairing-pending, session-opened, ...
+ * @property {import('./uploads.js').UploadOptions} [uploads] document upload settings; `enabled: false` switches uploads off for every phone
  * @property {{ requestsPerSecond?: number, burst?: number, maxInflight?: number, maxStreamBytes?: number, maxPeers?: number }} [limits]
  */
 
@@ -119,9 +125,13 @@ export class RemoteHost {
     this.offer = null;
     /** @type {Map<string, any>} */
     this.pending = new Map();
+    this.uploads = new UploadManager({ now: this.now, ...o.uploads });
     this.replay = new ReplayCache(2 * HANDSHAKE_MAX_SKEW_MS);
     this.devices.onChange((e) => {
-      if (e.type === 'revoked') this.#dropDevice(e.device.id);
+      if (e.type === 'revoked') {
+        this.uploads.dropDevice(e.device.id); // quarantined files of a removed phone are deleted
+        this.#dropDevice(e.device.id);
+      }
     });
   }
 
@@ -239,6 +249,7 @@ export class RemoteHost {
   /** Call about once a second (or before inspecting state in tests). */
   tick() {
     this.#expire();
+    for (const u of this.uploads.expire()) this.#notifyUpload(u, 'expired');
     const now = this.now();
     for (const [id, peer] of this.peers) {
       if (peer.state === 'session') {
@@ -308,6 +319,7 @@ export class RemoteHost {
           openedAt: this.now(),
           lastActive: this.now(),
           bucket: new Bucket(this.limits.requestsPerSecond, this.limits.burst, this.now()),
+          uploadBucket: new Bucket(40, 80, this.now()),
           inflight: 0,
           seenIds: new Set(),
           seenOrder: [],
@@ -452,10 +464,12 @@ export class RemoteHost {
     if (!device || device.status !== 'approved') throw new ProtocolError('revoked');
     peer.device = device;
 
-    if (!peer.bucket.take(now)) {
-      return this.#error(peer, typeof msg.id === 'string' ? msg.id.slice(0, 64) : null, 'rate_limited', 'Too many requests.');
-    }
     const parsed = parseRequest(msg);
+    // Upload chunks have their own, larger budget; everything else shares the normal one.
+    const bucket = parsed.ok && parsed.request.type === 'documents.upload.chunk' ? peer.uploadBucket : peer.bucket;
+    if (!bucket.take(now)) {
+      return this.#error(peer, parsed.ok ? parsed.request.id : parsed.id, 'rate_limited', 'Too many requests.');
+    }
     if (!parsed.ok) return this.#error(peer, parsed.id, parsed.code, parsed.message);
     const { id, type, params } = parsed.request;
 
@@ -499,7 +513,102 @@ export class RemoteHost {
       }
       return this.#sendData(peer, { id, ok: true, result: { accepted: true } });
     }
+    if (type.startsWith('documents.upload.')) return this.#uploadRequest(peer, device, type, id, params);
     return this.#error(peer, id, 'unknown_type', 'This request type is not available on the phone.');
+  }
+
+  #uploadRequest(peer, device, type, id, params) {
+    try {
+      let result;
+      switch (type) {
+        case 'documents.upload.begin':
+          result = this.uploads.begin(device, /** @type {any} */ (params));
+          break;
+        case 'documents.upload.chunk':
+          result = this.uploads.chunk(device, /** @type {any} */ (params));
+          break;
+        case 'documents.upload.finish': {
+          result = this.uploads.finish(device, /** @type {any} */ (params));
+          const item = this.uploads.items.get(`${device.id}/${params.upload_id}`);
+          // The user sees: which phone, which file, how big, which type: and decides.
+          this.onEvent({
+            type: 'upload-pending',
+            ref: item.key,
+            deviceId: device.id,
+            deviceName: device.name,
+            name: item.name,
+            size: item.size,
+            kind: item.kind,
+            hash: item.hash,
+          });
+          break;
+        }
+        case 'documents.upload.status':
+          result = this.uploads.status(device, /** @type {any} */ (params));
+          break;
+        case 'documents.upload.cancel':
+          result = this.uploads.cancel(device, /** @type {any} */ (params));
+          break;
+        default:
+          return this.#error(peer, id, 'unknown_type', 'This request type is not available on the phone.');
+      }
+      return this.#sendData(peer, { id, ok: true, result });
+    } catch (e) {
+      if (e instanceof ProtocolError) return this.#error(peer, id, e.code, e.message);
+      throw e;
+    }
+  }
+
+  /** Files waiting for the user's decision: show name, size, type and phone, then call confirmUpload. */
+  pendingUploads() {
+    return this.uploads.pending();
+  }
+
+  /**
+   * The user's answer to "Add *Bescheid.pdf* from iPhone of Christian to your documents?".
+   * Only an approved upload is handed to the engine, and only through the one ingest method,
+   * flagged as untrusted phone input so the prompt-injection defences apply.
+   * @param {string} ref value of `ref` in the 'upload-pending' event
+   * @param {boolean} approve
+   */
+  async confirmUpload(ref, approve) {
+    const { item, bytes } = this.uploads.decide(ref, approve);
+    let status = 'denied';
+    let documentId;
+    if (approve && bytes) {
+      const device = this.devices.get(item.deviceId);
+      if (!device || device.status !== 'approved') {
+        this.uploads.finishIngest(item, { ok: false, reason: 'The phone was removed.' });
+        status = 'failed';
+      } else {
+        const ctx = Object.freeze({ deviceId: device.id, deviceName: device.name, permissions: Object.freeze([...device.permissions]) });
+        try {
+          if (!ENGINE_METHODS.includes(INGEST_METHOD) || typeof this.engine[INGEST_METHOD] !== 'function') throw new Error('no ingest');
+          const r = await this.engine[INGEST_METHOD](
+            { name: item.name, bytes, size: item.size, hash: item.hash, workspace_id: item.workspaceId, origin: 'phone-upload', untrusted: true },
+            ctx,
+          );
+          documentId = typeof r?.document_id === 'string' ? r.document_id.slice(0, 128) : undefined;
+          this.uploads.finishIngest(item, { ok: true, documentId });
+          status = 'accepted';
+        } catch (e) {
+          this.onEvent({ type: 'engine-error', method: INGEST_METHOD, message: String(e?.message ?? e).slice(0, 200) });
+          this.uploads.finishIngest(item, { ok: false, reason: 'The PC could not add the file.' });
+          status = 'failed';
+        }
+      }
+    }
+    this.#notifyUpload(item, status, documentId);
+    this.onEvent({ type: `upload-${status}`, ref });
+    return status;
+  }
+
+  #notifyUpload(item, status, documentId) {
+    for (const peer of this.peers.values()) {
+      if (peer.state === 'session' && peer.device?.id === item.deviceId && !peer.transport.dead) {
+        this.#sendData(peer, { event: 'upload.result', data: { upload_id: item.uploadId, status, ...(documentId ? { document_id: documentId } : {}) } });
+      }
+    }
   }
 
   async #callEngine(peer, device, spec, id, params) {

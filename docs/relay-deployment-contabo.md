@@ -112,7 +112,20 @@ Then pair a phone with a test PC build (the PC side is the next step of the plan
 - **Incident (suspected abuse):** `docker compose stop` is safe: PCs and phones simply reconnect when it is back. No user
   data is lost because none is stored. Tighten the limits before opening it again.
 
-## 7. Privacy and legal notes for the operator
+## 7. What Cloudflare sees, and a second domain
+
+Cloudflare terminates TLS for `relay.starkllm.com`. It can see connection metadata (IP addresses, times, the path with the
+routing id, frame sizes in 256-byte steps, the relay's JSON control messages that contain the PC's *public* key and a
+signature) but never content: all questions, answers, documents and file names are end-to-end encrypted with Noise between
+the phone and the PC. The full table and the reasoning are in section 9.2a of `docs/remote-access-design.md`; the owner
+decided on 2026-11-15 that this is acceptable.
+
+The owner has other domains (for example `homomorphicprivacy.com`). The relay does not need one. A second domain could be
+useful for things that should live outside the product domain and outside the tunnel, if and when wanted: a public status
+page for the relay, the published audit notes and `security.txt`, the signed list of release hashes, or a standby relay
+host name for the apps to fall back to. None of this is configured here.
+
+## 8. Privacy and legal notes for the operator
 
 - The relay processes IP addresses in memory while connections are open (needed to apply limits) and does not write them
   anywhere. Cloudflare, as the tunnel provider, sees connection metadata under its own terms; mention it in the
@@ -120,7 +133,7 @@ Then pair a phone with a test PC build (the PC side is the next step of the plan
 - No message content is available to the operator. The privacy policy and imprint for the store listings are a separate
   task of the owner (see the design document, section 11 of the proposal).
 
-## 8. Self-hosting
+## 9. Self-hosting
 
 Anyone can run the same image; in the PC app the relay URL is a setting, and a QR code carries the relay URL, so paired
 phones follow the PC's choice. For a home network, a `ws://` relay on `localhost` is accepted for development only.

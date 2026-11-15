@@ -13,9 +13,16 @@ const ALLOWED = Object.keys(REQUEST_TYPES);
 test('the allow-list is exactly the documented set', () => {
   assert.deepEqual(
     [...ALLOWED].sort(),
-    ['chat.ask', 'cases.list', 'deadlines.list', 'device.info', 'device.rotate_key', 'inbox.list', 'source.open'].sort(),
+    [
+      'cases.list', 'chat.ask', 'chats.list', 'deadlines.list', 'device.info', 'device.rotate_key',
+      'documents.upload.begin', 'documents.upload.cancel', 'documents.upload.chunk', 'documents.upload.finish', 'documents.upload.status',
+      'inbox.list', 'kb.search', 'source.open', 'workspaces.list',
+    ].sort(),
   );
-  assert.deepEqual([...ENGINE_METHODS].sort(), ['casesList', 'chatAsk', 'deadlinesList', 'inboxList', 'sourceOpen']);
+  assert.deepEqual(
+    [...ENGINE_METHODS].sort(),
+    ['casesList', 'chatAsk', 'chatsList', 'deadlinesList', 'documentIngest', 'inboxList', 'kbSearch', 'sourceOpen', 'workspacesList'],
+  );
   assert.ok(Object.isFrozen(REQUEST_TYPES));
 });
 
@@ -42,7 +49,7 @@ const nearValid = fc.record(
     params: fc.oneof(
       fc.constant(undefined),
       fc.dictionary(
-        fc.constantFrom('limit', 'cursor', 'unread_only', 'within_days', 'status', 'question', 'workspace_id', 'conversation_id', 'source_id', 'max_chars', 'public_key', '__proto__', 'constructor', 'x'),
+        fc.constantFrom('limit', 'cursor', 'unread_only', 'within_days', 'status', 'question', 'query', 'workspace_id', 'conversation_id', 'source_id', 'max_chars', 'public_key', 'upload_id', 'name', 'size', 'chunks', 'hash', 'index', 'data', '__proto__', 'constructor', 'x'),
         jsonValue,
         { maxKeys: 6 },
       ),
@@ -60,6 +67,9 @@ const validRequest = fc.oneof(
   fc.record({ type: fc.constant('cases.list'), params: fc.record({ status: fc.constantFrom('open', 'closed', 'all'), cursor: opaqueId }, { requiredKeys: [] }) }),
   fc.record({ type: fc.constant('chat.ask'), params: fc.record({ question: fc.string({ minLength: 1, maxLength: 200 }).filter((q) => !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(q)) }) }),
   fc.record({ type: fc.constant('source.open'), params: fc.record({ source_id: opaqueId }) }),
+  fc.record({ type: fc.constant('kb.search'), params: fc.record({ query: fc.string({ minLength: 1, maxLength: 100 }).filter((q) => !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(q)), limit: fc.integer({ min: 1, max: 20 }) }, { requiredKeys: ['query'] }) }),
+  fc.record({ type: fc.constant('workspaces.list'), params: fc.record({ limit: fc.integer({ min: 1, max: 100 }) }, { requiredKeys: [] }) }),
+  fc.record({ type: fc.constant('chats.list'), params: fc.record({ workspace_id: opaqueId, limit: fc.integer({ min: 1, max: 100 }) }, { requiredKeys: [] }) }),
 ).map((r) => ({ id: 'v', ...r }));
 // a valid request with one random mutation: extra field, wrong type, out-of-range value, ...
 const mutated = fc.tuple(validRequest, fc.constantFrom('extra', 'dropParams', 'typeCase', 'badId', 'bigString', 'nullParam')).map(([r, how]) => {

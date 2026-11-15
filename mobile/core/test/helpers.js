@@ -25,6 +25,23 @@ export function fakeEngine() {
       calls.push(['sourceOpen', params, ctx]);
       return { source_id: params.source_id, title: 'Bescheid.pdf', page: 2, text: 'Die Frist endet am 1. Dezember.' };
     },
+    async kbSearch(params, ctx) {
+      calls.push(['kbSearch', params, ctx]);
+      return { hits: [{ source_id: 'src-1', title: 'Bescheid.pdf', page: 2, snippet: 'Einspruch bis 1. Dezember', score: 0.91 }] };
+    },
+    async workspacesList(params, ctx) {
+      calls.push(['workspacesList', params, ctx]);
+      return { items: [{ id: 'w1', name: 'Steuer' }] };
+    },
+    async chatsList(params, ctx) {
+      calls.push(['chatsList', params, ctx]);
+      return { items: [{ id: 'ch1', title: 'Frist Einspruch', workspace_id: 'w1' }] };
+    },
+    async documentIngest(file, ctx) {
+      calls.push(['documentIngest', file, ctx]);
+      if (engine.failIngest) throw new Error('C:\\\\secret\\\\path exploded');
+      return { document_id: 'doc-' + file.hash.slice(0, 8) };
+    },
     async *chatAsk(params, ctx) {
       calls.push(['chatAsk', params, ctx]);
       yield { delta: 'Die Frist ' };
@@ -40,7 +57,7 @@ export function fakeEngine() {
  * Used to prove that a refused request never touches anything else.
  */
 export function strictEngine(inner = fakeEngine()) {
-  const allowed = new Set(['inboxList', 'deadlinesList', 'casesList', 'sourceOpen', 'chatAsk', 'calls']);
+  const allowed = new Set(['inboxList', 'deadlinesList', 'casesList', 'sourceOpen', 'chatAsk', 'kbSearch', 'workspacesList', 'chatsList', 'documentIngest', 'calls', 'failIngest']);
   return new Proxy(inner, {
     get(target, prop) {
       if (typeof prop === 'symbol' || allowed.has(prop) || prop === 'then') return target[prop];
@@ -80,6 +97,7 @@ export function createWorld(opts = {}) {
     },
     onEvent: (e) => events.push(e),
     limits: opts.limits,
+    uploads: opts.uploads,
   });
 
   let n = 0;
