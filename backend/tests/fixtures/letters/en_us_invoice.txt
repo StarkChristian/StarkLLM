@@ -1,0 +1,19 @@
+Maple Utilities Inc.
+Customer Service
+400 Main Street, Springfield, IL 62701
+
+Anna Beispiel
+12 Oak Avenue
+Springfield, IL 62704
+
+Date: 11/03/2026
+Account number: 4400-118-27
+Invoice number: INV-2026-4471
+
+Invoice for October
+
+Dear Ms. Beispiel,
+your electricity bill for October is $1,234.56.
+A late fee of $25.00 applies after the due date.
+Please pay by 12/15/2026.
+You can pay by bank transfer: Routing number 021000021, Account number 123456789.

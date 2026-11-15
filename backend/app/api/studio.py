@@ -10,6 +10,7 @@ from app.db import models
 from app.core.config import settings
 from app.api.auth import get_current_user
 from app.services.llm_service import llm_service
+from app.services.locale_rules import language_name
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -24,23 +25,23 @@ class SynthesizeStudioRequest(BaseModel):
 # StarkLLM extracted when it indexed the file: reading an image as text gave the model JPEG bytes.
 TEXT_FILES = {"txt", "md", "markdown", "csv", "tsv", "json", "xml", "log", "html", "htm", "yaml", "yml",
               "ini", "cfg", "toml"}
-LANGUAGE_NAMES = {"de": "German", "en": "English"}
-# Headings the prompts name, in German: told to "translate the headings", a 27B model still kept them English.
-GERMAN_HEADINGS = {
-    "# Executive Summary": "# Zusammenfassung",
-    "## Strategic Highlights & Core Discoveries": "## Wichtigste Punkte",
-    "## Risk Assessment & Critical Assumptions": "## Risiken und Annahmen",
-    "## Recommended Decisions & Action Items": "## Empfohlene Entscheidungen und nächste Schritte",
-    "an Executive Synthesis": "a summary headed 'Zusammenfassung'",
-    "Key Divergences / Synergies": "a section headed 'Unterschiede und Gemeinsamkeiten'",
+# Headings the prompts name, per language: told to "translate the headings", a 27B model still kept them English.
+# A language without an entry here still gets the instruction to translate them. To add one, add a block like "de".
+HEADINGS = {
+    "de": {
+        "# Executive Summary": "# Zusammenfassung",
+        "## Strategic Highlights & Core Discoveries": "## Wichtigste Punkte",
+        "## Risk Assessment & Critical Assumptions": "## Risiken und Annahmen",
+        "## Recommended Decisions & Action Items": "## Empfohlene Entscheidungen und nächste Schritte",
+        "an Executive Synthesis": "a summary headed 'Zusammenfassung'",
+        "Key Divergences / Synergies": "a section headed 'Unterschiede und Gemeinsamkeiten'",
+    },
 }
 
 
 def _localized(prompt: str, language: Optional[str]) -> str:
-    if (language or "").lower()[:2] != "de":
-        return prompt
-    for english, german in GERMAN_HEADINGS.items():
-        prompt = prompt.replace(english, german)
+    for english, translated in HEADINGS.get((language or "").lower()[:2], {}).items():
+        prompt = prompt.replace(english, translated)
     return prompt
 
 
@@ -121,7 +122,7 @@ def _extract_workspace_context(db: Session, workspace_id: int, user_id: int, max
 def _ground_rules(language: Optional[str]) -> str:
     """Appended to every studio prompt: the answer language, today's date, no invented facts."""
     from datetime import date
-    lang = LANGUAGE_NAMES.get((language or "").lower()[:2])
+    lang = language_name(language)
     write_in = (f"Write all text for the reader in {lang}, also when the documents are in another language; "
                 "translate the section headings given above too (keep JSON keys as given)."
                 if lang else "Write in the language of the documents.")

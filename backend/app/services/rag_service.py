@@ -84,6 +84,28 @@ GERMAN_STOP_WORDS ={
 "müssen","muessen","soll","sollen","gibt","mir","mich","uns","dir","ihre","ihren","ihrem","seine","seinen"
 }
 
+# The same for the other languages letters come in (French, Spanish, Italian, Turkish, Portuguese, Dutch).
+OTHER_STOP_WORDS ={
+# French
+"le","la","les","un","une","des","du","de","et","ou","mais","ne","pas","est","sont","était","ont","avoir","être","que","qui",
+"quoi","quand","comment","pourquoi","où","combien","quel","quelle","quels","quelles","dans","sur","avec","pour","par","chez",
+"au","aux","ce","cette","ces","mon","ma","mes","votre","vos","je","tu","il","elle","nous","vous","ils","elles","se","sa","ses",
+# Spanish
+"el","los","las","unos","unas","y","o","pero","no","es","fue","han","ha","haber","ser","qué","quién","cuándo","cómo","por",
+"dónde","cuánto","cuál","cuáles","en","con","para","del","al","este","esta","estos","estas","mi","mis","su","sus","yo","tú","él",
+"ella","nosotros","usted","ustedes","se","lo","le",
+# Italian
+"il","lo","gli","uno","una","dei","delle","della","dello","di","da","e","ma","non","è","sono","era","hanno","avere","essere","che",
+"chi","cosa","quando","come","perché","dove","quanto","quale","quali","nel","nella","con","per","tra","fra","questo","questa","mio",
+"mia","miei","suo","sua","io","tu","lui","lei","noi","voi","loro","si","ci",
+# Turkish
+"ve","bir","bu","şu","o","için","ile","ama","veya","de","da","ki","mi","mı","mu","mü","ne","nasıl","neden","nerede","kaç","hangi",
+"kim","ben","sen","biz","siz","onlar","benim","senin","bizim","sizin","çok","daha","en","gibi","kadar",
+# Portuguese and Dutch
+"os","as","um","uma","uns","umas","do","da","dos","das","em","no","na","nos","nas","com","para","por","meu","minha","não","é",
+"een","het","de","en","of","maar","niet","is","zijn","was","hebben","dat","wie","wat","wanneer","hoe","waarom","waar","mijn","ik","je",
+}
+
 # Asked of the vision model for a scanned page OCR could not read (forms, certificates, handwriting).
 SCANNED_FORM_PROMPT = (
     "This is a scanned page from a PDF document. "
@@ -1036,7 +1058,7 @@ class RAGService :
 
             # Tokenize query, filter stop words
         raw_words =re .findall (r'\b\w+\b',_fold (query_text ))
-        query_terms =[w for w in raw_words if len (w )>1 and w not in ENGLISH_STOP_WORDS and w not in GERMAN_STOP_WORDS ]
+        query_terms =[w for w in raw_words if len (w )>1 and w not in ENGLISH_STOP_WORDS and w not in GERMAN_STOP_WORDS and w not in OTHER_STOP_WORDS ]
         if not query_terms :
         # Safeguard fallback: if all query terms are stop words, retain them
             query_terms =[w for w in raw_words if len (w )>1 ]

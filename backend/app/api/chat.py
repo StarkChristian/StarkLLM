@@ -14,6 +14,7 @@ from app.db import models
 from app.services.llm_service import llm_service, ModelNotFoundError, LLMBackendError, cloud_host
 from app.services.rag_service import rag_service
 from app.services.document_checks import findings, note, ibans, sender_key
+from app.services.locale_rules import language_name
 from app.services.memory_service import memory_service
 from app.services.mcp_service import mcp_service
 from app.core.config import settings
@@ -202,7 +203,11 @@ DATE_QUESTION = re.compile(
     r"\b(frist\w*|termin\w*|fällig\w*|bis wann|wann|deadline\w*|zahlen|bezahlen|zahlung\w*|überweis\w*|kost\w*|"
     r"beitr(a|ä)g\w*|woche\w*|monat\w*|jahresende|ende des jahres|heute|morgen|demnächst|bald|anstehend\w*|offen\w*|"
     r"due|upcoming|pay\w*|appointment\w*|when|week\w*|month\w*|today|tomorrow|ne zaman|randevu\w*|ödeme\w*|"
-    r"son gün|hafta\w*)\b",
+    r"son gün|hafta\w*|"
+    r"échéance\w*|date limite|quand|payer|facture\w*|rendez-vous|délai\w*|semaine\w*|mois|aujourd.hui|demain|"
+    r"cuándo|vencimiento\w*|plazo\w*|pagar|cita\w*|semana\w*|hoy|mañana|"
+    r"quando|scadenz\w*|pagare|appuntamento|settimana|mese|oggi|domani|"
+    r"vade\w*|fatura\w*|bugün|yarın)\b",
     re.IGNORECASE,
 )
 DATES_IN_PROMPT = 25
@@ -230,7 +235,7 @@ def _dates_section(db, user_id: int, workspace_id: int, include_kb: bool, messag
         days = (when - today).days
         rel = "today" if days == 0 else ("tomorrow" if days == 1 else (f"in {days} days" if days > 0 else f"PASSED {-days} days ago"))
         what = d["kind"] + (f" {d['time']}" if d.get("time") else "") + (f", {d['amount']}" if d.get("amount") else "")
-        lines.append(f"- {when:%d.%m.%Y} ({when:%a}, {rel}) {what} | {d['filename']}: \"{d['text'][:170]}\"")
+        lines.append(f"- {when.isoformat()} ({when:%a}, {rel}) {what} | {d['filename']}: \"{d['text'][:170]}\"")
     return (
         "\n═══════════════════════════════════════\n"
         "DATES IN THE USER'S LETTERS (found by StarkLLM's rules, word for word; letters replaced by a correction are left out)\n"
@@ -252,6 +257,8 @@ _LANGUAGE_HINTS = {
     "Italian": (r"\b(io|il|lo|gli|è|e|mio|mia|quando|come|che|una|per|ho|posso)\b", None),
     "Dutch": (r"\b(ik|het|een|en|is|mijn|wanneer|hoe|wat|niet|moet|kan)\b", None),
     "Polish": (r"\b(ja|jest|i|mój|moja|kiedy|jak|co|nie|czy|muszę)\b", r"[ąęłńśźż]"),
+    "Portuguese": (r"\b(eu|os|as|meu|minha|quando|como|uma|para|tenho|posso|não|você|está)\b", r"[ãõ]"),
+    "Russian": (r"\b(я|что|как|когда|мой|моя|это|не|есть|надо|нужно|сколько)\b", r"[а-яё]"),
 }
 
 
@@ -448,6 +455,7 @@ class ChatRequest(BaseModel):
     top_p: Optional[float] = None
     max_tokens: Optional[int] = None
     provider: Optional[str] = "ollama"
+    language: Optional[str] = None  # the interface language ("de", "en", ...): the answer language when the message is too short to tell
 
     @field_validator("message")
     @classmethod
@@ -998,9 +1006,14 @@ WEB SEARCH RESULTS (LIVE DATA)
 
 """ if web_section else ""
         _lang = language_of(req.message)
+        _ui_lang = language_name(req.language)
         language_rule = (f"\nLANGUAGE: The user's message is in {_lang}. Write your whole answer in {_lang}, even when "
-                         f"these instructions or the documents are in another language.\n" if _lang else
-                         "\nLANGUAGE: Answer in the language of the user's message.\n")
+                         f"these instructions or the documents are in another language. Names, amounts, dates and "
+                         f"reference numbers from a document stay exactly as written in it.\n" if _lang else
+                         "\nLANGUAGE: Answer in the language of the user's message"
+                         + (f"; when the message is too short to tell (one word, a number), answer in {_ui_lang}" if _ui_lang else
+                            "; when the message is too short to tell, answer in the language of the documents")
+                         + ". Names, amounts, dates and reference numbers from a document stay exactly as written in it.\n")
         # small models weigh the end of the prompt most: with a likely scam, the answer starts with the warning
         scam_first = ("\nSTART YOUR ANSWER with a plain warning that this letter or message is very likely a scam and "
                       "that the user should not pay, click links or send codes. Then explain why.\n"
@@ -1019,7 +1032,7 @@ WEB SEARCH RESULTS (LIVE DATA)
 CORE IDENTITY & BEHAVIOR
 ═══════════════════════════════════════
 - You are knowledgeable, precise, and articulate.
-- Today is {_today:%A}, {_today:%d.%m.%Y} ({_today.isoformat()}). Use this date for everything relative to now: "today",
+- Today is {_today:%A}, {_today:%d %B %Y} ({_today.isoformat()}). Use this date for everything relative to now: "today",
   "this week", "in the next 14 days", "overdue", "how many days are left". A date before today has passed.
 - Always detect the language of the user's message and respond in that SAME language.
 - Never mix languages unless the user explicitly writes in a mixed style.
@@ -1031,7 +1044,7 @@ LANGUAGE & WRITING QUALITY
 - Use well-formed paragraphs with logical flow. Avoid one-sentence dumps.
 - Do not repeat the question or pad the answer with filler phrases.
 - Respond natively in the user's language.
-- For German, use correct Hochdeutsch.
+- Use correct, natural standard language (for German: Hochdeutsch; for Spanish, French, Portuguese or English: the standard written form, whichever country the user lives in).
 - Technical terms (e.g. React, API, Python, Docker) may appear in their Latin script naturally within non-English sentences — this is acceptable and expected.
 
 {web_block}{mode_instructions}{dates_section}{missing_section}{safety_section}{language_rule}{scam_first}
