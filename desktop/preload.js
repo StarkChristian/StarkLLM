@@ -29,6 +29,14 @@ contextBridge.exposeInMainWorld('starkllmDesktop', {
   localToken,
   // Settings > Protection: the key is created, wrapped and handed to the engine by the desktop app; the page only
   // gets the recovery key (once, to show it) and answers.
+  // Settings > Backup: automatic weekly backup into a folder the user chooses (backup-schedule.js)
+  backup: {
+    status: () => ipcRenderer.invoke('backup:status'),
+    chooseFolder: () => ipcRenderer.invoke('backup:choose-folder'),
+    configure: (settings) => ipcRenderer.invoke('backup:configure', settings),
+    runNow: () => ipcRenderer.invoke('backup:run-now'),
+    disable: () => ipcRenderer.invoke('backup:disable'),
+  },
   protection: {
     status: () => ipcRenderer.invoke('protection:status'),
     createKey: () => ipcRenderer.invoke('protection:create-key'),
@@ -40,3 +48,11 @@ contextBridge.exposeInMainWorld('starkllmDesktop', {
     forgetKey: () => ipcRenderer.invoke('protection:forget-key'),
   },
 });
+
+// The start-up passphrase page (unlock.html) is a local file, not the app: it gets its own two calls and nothing else.
+if (window.location.protocol === 'file:' && /unlock\.html$/.test(window.location.pathname)) {
+  contextBridge.exposeInMainWorld('starkllmUnlock', {
+    submit: (passphrase) => ipcRenderer.invoke('unlock:submit', passphrase),
+    recover: (recoveryKey) => ipcRenderer.invoke('unlock:recover', recoveryKey),
+  });
+}

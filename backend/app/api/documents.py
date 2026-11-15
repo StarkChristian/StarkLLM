@@ -1064,7 +1064,7 @@ async def get_document_facts(
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     return {"id": doc.id, "filename": doc.filename,
-            "facts": document_facts_cached(_indexed_pages(workspace_id, current_user.id, doc.filepath))}
+            "facts": document_facts_cached(_indexed_pages(workspace_id, current_user.id, doc.filepath), doc.filename)}
 
 
 @router.get("/{workspace_id}/documents/{document_id}/content")
