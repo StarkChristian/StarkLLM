@@ -54,8 +54,8 @@ comes first.
 | B3 | **Understanding.** Document facts (type, sender, date, references, amounts, IBAN, deadlines) from German and English rules, plus the local model for type and summary; every value checked against the page text. Stored per document; API. |
 | B4 | **Inbox and cases.** Inbox view of new documents with suggested title, folder and deadlines to confirm; case view per reference number or sender; duplicate detection. |
 | B5 | **Deadlines.** Deadline list, reminders in the app, calendar export (.ics) on request. |
-| B6 | **Protection at rest.** Encrypted document store and database, key in the operating system's key store. |
-| B7 | **Encrypted backup** to a folder, USB drive or NAS, with a restore test. |
+| B6 | **Protection at rest.** Encrypted document store and database, key in the operating system's key store. Design: [encryption-design.md](encryption-design.md). |
+| B7 | **Encrypted backup** to a folder, USB drive or NAS, with a restore test. Design: [encryption-design.md](encryption-design.md). |
 
 Each PR has its own tests. B4 and later UI work builds on the German UI (#55).
 
@@ -74,6 +74,10 @@ Calendar export: `GET /api/v1/dashboard/deadlines.ics` for one, several (`key=`)
 all-day events, one alarm per reminder, else 3 days before; German or English text with `lang=`), made on this PC.
 Not yet: the local model for type and summary when the rules find nothing, moving a document to another case from
 the UI (the API takes `case`), a reminder as a system notification when StarkLLM is closed (reminders are shown in the app only, by decision).
+
+B6 and B7 (draft, needs the manual test in `encryption-design.md` on a Windows PC): uploaded documents, message text, profile text,
+inbox titles and the text of the search index are stored encrypted (AES-256-GCM) with a key that the desktop app keeps in the
+Windows key store; migration with dry run and rollback; one-file encrypted backup (Argon2id passphrase) with an automatic restore test.
 
 ## 5. Out of scope here
 

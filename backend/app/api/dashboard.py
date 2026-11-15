@@ -12,6 +12,7 @@ from app.db.session import get_db
 from app.db import models
 from app.api.auth import get_current_user
 from app.services.deadlines_service import ics_text as _ics_text, ics_fold as _ics_fold
+from app.core.protection import protection
 
 router = APIRouter()
 
@@ -156,6 +157,8 @@ async def get_system_status(
             "error": None
         },
         "available_models": [],
+        # protection at rest: locked = the key has not reached the engine, protected data cannot be read
+        "protection": {"enabled": protection.enabled, "locked": protection.locked},
     }
 
     # Probe Ollama
