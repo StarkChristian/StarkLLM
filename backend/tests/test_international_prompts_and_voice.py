@@ -38,8 +38,9 @@ def test_studio_writes_in_the_language_of_the_interface_whatever_it_is():
     assert "language of the documents" in _ground_rules("xx")
     prompt = "# Executive Summary\n## Risk Assessment & Critical Assumptions"
     assert _localized(prompt, "de") == "# Zusammenfassung\n## Risiken und Annahmen"
-    assert _localized(prompt, "fr") == prompt and _localized(prompt, None) == prompt  # the model translates the headings
-    assert "de" in HEADINGS
+    assert _localized(prompt, "fr") == "# Synthèse\n## Risques et hypothèses"
+    assert _localized(prompt, "tr") == prompt and _localized(prompt, None) == prompt  # the model translates the headings
+    assert {"de", "fr"} <= set(HEADINGS)
 
 
 def test_more_voices_are_offered_for_their_language(tmp_path, monkeypatch):

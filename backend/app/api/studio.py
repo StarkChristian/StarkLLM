@@ -36,6 +36,14 @@ HEADINGS = {
         "an Executive Synthesis": "a summary headed 'Zusammenfassung'",
         "Key Divergences / Synergies": "a section headed 'Unterschiede und Gemeinsamkeiten'",
     },
+    "fr": {
+        "# Executive Summary": "# Synthèse",
+        "## Strategic Highlights & Core Discoveries": "## Points essentiels",
+        "## Risk Assessment & Critical Assumptions": "## Risques et hypothèses",
+        "## Recommended Decisions & Action Items": "## Décisions recommandées et prochaines étapes",
+        "an Executive Synthesis": "a summary headed 'Synthèse'",
+        "Key Divergences / Synergies": "a section headed 'Différences et points communs'",
+    },
 }
 
 

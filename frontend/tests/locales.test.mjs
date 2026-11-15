@@ -18,7 +18,7 @@ test('English is first and the other languages are named by the browser, in Engl
 });
 
 test('every file in src/i18n is a language the list can name, and English needs no file', () => {
-  assert.ok(FILES.includes('de'));
+  assert.ok(FILES.includes('de') && FILES.includes('fr'));
   assert.ok(!FILES.includes(SOURCE_LANGUAGE));
   for (const l of languageList(FILES)) assert.notEqual(l.name, l.code, `${l.code} has no name: is the file name a language code?`);
 });
@@ -71,4 +71,10 @@ test('money is written with the separators of the locale and the symbol of its c
   assert.equal(flat(formatMoney(1234.56, 'TRY', 'tr-TR')), '₺1.234,56');
   assert.equal(flat(formatMoney(5, 'USD', 'en-US', 0)), '$5');
   assert.equal(formatMoney(5, 'not a currency', 'en-US'), '5.00 not a currency');
+});
+
+test('French is offered and named in French', () => {
+  const fr = languageList(FILES).find((l) => l.code === 'fr');
+  assert.equal(fr.name, 'French');
+  assert.equal(fr.nativeName, 'français');
 });

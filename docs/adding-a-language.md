@@ -1,7 +1,7 @@
 # Adding a language
 
-StarkLLM is not tied to one country. English is the source language and the fallback everywhere; German is the
-second interface language. A language has up to five separate parts, and each one can be added alone. Nothing needs to
+StarkLLM is not tied to one country. English is the source language and the fallback everywhere; German and French are
+the other interface languages. A language has up to five separate parts, and each one can be added alone. Nothing needs to
 be wired together by hand.
 
 | Part | What it does | What to add |
@@ -20,7 +20,7 @@ interface; they make the app useful with letters and documents from other countr
 The English text is the key: `t('Knowledge Base')` returns the translation when the interface language has one, and
 the English text otherwise. So a missing translation shows English, never a key.
 
-1. Copy `frontend/src/i18n/de.json` to `frontend/src/i18n/<code>.json` (the code is the ISO 639-1 letter code: `fr`,
+1. Copy `frontend/src/i18n/fr.json` (or `de.json`) to `frontend/src/i18n/<code>.json` (the code is the ISO 639-1 letter code: `fr`,
    `es`, `it`, `tr`, ...). The key stays English, the value is the translation. `{name}` placeholders must stay the same.
 2. Run `cd frontend && npm run i18n:check`. It checks every file in `src/i18n` against every `t('...')` in the code:
    missing translations, texts that are not used any more, placeholders that differ.
