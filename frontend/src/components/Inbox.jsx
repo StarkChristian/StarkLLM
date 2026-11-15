@@ -4,6 +4,7 @@ import DocumentViewerModal from './DocumentViewerModal';
 import EmptyState from './EmptyState';
 import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
+import { accountLabel } from '../utils/accounts';
 import styles from './Inbox.module.css';
 
 // The document inbox (docs/document-inbox-design.md, B4): what StarkLLM read in each new letter, to check and mark
@@ -198,7 +199,7 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
             <React.Fragment key={`r${i}`}><dt>{REFERENCE_LABEL[r.kind] || t('Reference')}</dt><dd>{factLink(doc, r, r.value)}</dd></React.Fragment>
           ))}
           {due.length > 0 && (<><dt>{t('Amounts')}</dt><dd className={styles.factList}>{due.map((a, i) => factLink(doc, a, a.value, i))}</dd></>)}
-          {(f.accounts || []).length > 0 && (<><dt>{t('Bank account')}</dt><dd className={styles.factList}>{f.accounts.map((a, i) => factLink(doc, a, <span className={styles.mono}>{a.value}</span>, i))}</dd></>)}
+          {(f.accounts || []).length > 0 && (<><dt>{t('Bank account')}</dt><dd className={styles.factList}>{f.accounts.map((a, i) => factLink(doc, a, <span className={styles.mono}>{accountLabel(a.kind) ? `${accountLabel(a.kind)} ${a.value}` : a.value}</span>, i))}</dd></>)}
         </dl>
 
         {datesShown.length > 0 && !doc.suspicious && !doc.replaced && (

@@ -7,7 +7,9 @@ from app.services.facts_service import case_key, document_facts
 KIND_TYPE = {"invoice": "invoice", "invoice_label": "invoice", "reminder": "reminder", "change": "price_change",
              "appointment": "invitation", "cancel_confirm": "termination", "notice": "notice",
              "debit": "payment_notice", "english_invoice": "invoice", "english_appointment": "invitation",
-             "no_year": "reminder", "birthday_noise": "insurance"}
+             "no_year": "reminder", "birthday_noise": "insurance",
+             "fr_invoice": "invoice", "es_invoice": "invoice", "it_invoice": "invoice", "tr_invoice": "invoice",
+             "us_invoice": "invoice", "gb_reminder": "reminder"}
 
 
 def test_300_generated_letters_type_sender_and_customer_number():

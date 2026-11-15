@@ -1,4 +1,5 @@
 import os
+import re
 import logging
 from faster_whisper import WhisperModel
 import subprocess
@@ -16,6 +17,37 @@ VOICE_MODELS = {
     "de_DE-thorsten-medium": "app/de_DE-thorsten-medium.onnx",
 }
 DEFAULT_VOICE = "en_US-lessac-medium"
+# More voices: put a Piper voice (<name>.onnx and <name>.onnx.json, named like "fr_FR-siwis-medium") into the folder
+# STARKLLM_VOICES_DIR; it is offered for texts in its language (docs/adding-a-language.md).
+VOICES_DIR = os.getenv("STARKLLM_VOICES_DIR", "")
+
+
+def _voice_language(voice_id: str) -> str:
+    """"fr_FR-siwis-medium" -> "fr"."""
+    return voice_id.split("_", 1)[0].lower()
+
+
+def voice_models() -> dict:
+    """Voice id -> model path: the built-in voices and the ones found in VOICES_DIR."""
+    models = dict(VOICE_MODELS)
+    if VOICES_DIR and os.path.isdir(VOICES_DIR):
+        for name in sorted(os.listdir(VOICES_DIR)):
+            stem = name[:-5] if name.endswith(".onnx") else None
+            if stem and re.fullmatch(r"[a-z]{2,3}_[A-Z]{2}-[\w]+-\w+", stem) and os.path.exists(os.path.join(VOICES_DIR, name + ".json")):
+                models.setdefault(stem, os.path.join(VOICES_DIR, name))
+    return models
+
+
+def available_voices() -> list:
+    """[{"id", "language"}] of the voices whose files are here, the default voice first."""
+    found = [{"id": vid, "language": _voice_language(vid)} for vid, path in voice_models().items() if os.path.exists(path)]
+    return sorted(found, key=lambda v: (v["id"] != DEFAULT_VOICE, v["id"]))
+
+
+def voice_for_language(language: Optional[str]) -> str:
+    """The voice for a language code ("de", "fr-FR"); the default voice when there is none."""
+    code = (language or "").lower().split("-")[0].split("_")[0]
+    return next((v["id"] for v in available_voices() if v["language"] == code), DEFAULT_VOICE)
 
 
 class VoiceService:
@@ -36,8 +68,11 @@ class VoiceService:
                 raise
         return self._model
 
-    def transcribe(self, audio_path: str) -> str:
-        segments, info = self.model.transcribe(audio_path, beam_size=5)
+    def transcribe(self, audio_path: str, language: Optional[str] = None) -> str:
+        """Speech to text. The language is found by the model itself (the "base" model knows about 100 languages);
+        a code like "de" (a hint from the user) makes short recordings safer."""
+        code = (language or "").lower().split("-")[0] or None
+        segments, info = self.model.transcribe(audio_path, beam_size=5, language=code)
         text = " ".join([segment.text for segment in segments])
         return text.strip()
 
@@ -51,10 +86,11 @@ class VoiceService:
                             Defaults to DEFAULT_VOICE if None or unrecognised.
         """
         # Resolve model path – fall back to default if voice is unknown
-        model_path = VOICE_MODELS.get(voice or DEFAULT_VOICE)
+        models = voice_models()
+        model_path = models.get(voice or DEFAULT_VOICE)
         if model_path is None:
             logger.warning(f"Warning: unknown voice '{voice}', falling back to default.")
-            model_path = VOICE_MODELS[DEFAULT_VOICE]
+            model_path = models[DEFAULT_VOICE]
 
         logger.info(f"TTS: voice={voice or DEFAULT_VOICE}, model={model_path}")
 

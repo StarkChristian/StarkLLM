@@ -24,7 +24,7 @@ import { exportChat } from './utils/chatExport';
 import { currentCloudHost } from './utils/cloud';
 import { isUploadable } from './utils/uploadTypes';
 import { serverDate } from './utils/time';
-import { t } from './i18n';
+import { t, language } from './i18n';
 
 const NO_ANSWER_TEXT = '*[The model returned no answer. Try again, raise the token limit, or choose another model.]*';
 
@@ -555,6 +555,7 @@ export default function App() {
             base_url: savedBaseUrl,
             api_key: savedApiKey,
             stream: true,
+            language: language(),
             use_knowledge_base: useKb,
             use_web_search: useWebSearch,
             use_hybrid_search: localStorage.getItem('rag_hybrid_search') !== 'false',

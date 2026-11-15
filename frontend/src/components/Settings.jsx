@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal, BrainCircuit, Server, Play, Loader, Key, Globe, Keyboard } from 'lucide-react';
+import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal, BrainCircuit, Server, Play, Loader, Key, Globe, Keyboard, ScanText } from 'lucide-react';
 import styles from './Settings.module.css';
 import BackupRestoreSettings from './BackupRestoreSettings';
+import OcrSettings from './OcrSettings';
 import { AVAILABLE_THEMES, applyTheme } from '../utils/themes';
 import OtherAppsPanel from './OtherAppsPanel';
 import { t, language, setLanguage } from '../i18n';
@@ -19,6 +20,7 @@ const SECTIONS = [
   { id: 'dev-api',  label: t('Other apps'), icon: Server },
   { id: 'ui',       label: t('Appearance'),    icon: Palette },
   { id: 'language', label: t('Language & Locale'), icon: Globe },
+  { id: 'ocr',      label: t('Reading photos and scans'), icon: ScanText },
   { id: 'shortcuts', label: t('Keyboard Shortcuts'), icon: Keyboard },
   { id: 'system',   label: t('Backup & Restore'), icon: Archive },
   { id: 'about',    label: t('About StarkLLM'),icon: Info },
@@ -1112,7 +1114,7 @@ print(response.choices[0].message.content)`;
                     >
                       <div className={styles.languageHeaderRow}>
                         <div className={styles.languageTitleGroup}>
-                          <span className={styles.languageFlag}>{lang.flag}</span>
+                          <span className={styles.languageFlag}>{lang.code.toUpperCase()}</span>
                           <div className={styles.languageNames}>
                             <span className={styles.languageNative}>{lang.nativeName}</span>
                             <span className={styles.languageEnglish}>{lang.name}</span>
@@ -1125,9 +1127,6 @@ print(response.choices[0].message.content)`;
                         )}
                       </div>
 
-                      <div className={styles.languageFooterRow}>
-                        <span>{lang.region}</span>
-                      </div>
                     </div>
                   );
                 })}
@@ -1141,6 +1140,9 @@ print(response.choices[0].message.content)`;
               </div>
             </div>
           )}
+
+          {/* ───── Reading photos and scans (OCR languages) ───── */}
+          {activeSection === 'ocr' && <OcrSettings token={token} />}
 
           {/* ───── Keyboard Shortcuts ───── */}
           {activeSection === 'shortcuts' && (

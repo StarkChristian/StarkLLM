@@ -1,11 +1,13 @@
-// Checks the German UI: every text passed to t() in a translated file has a German translation, and the dictionary
-// has no entries that are not used any more. Run with: npm run i18n:check
+// Checks every UI translation (src/i18n/<code>.json, German today): every text passed to t() in a translated file has
+// a translation, the file has no entries that are not used any more, and placeholders match. A new language is checked
+// as soon as its file exists. Run with: npm run i18n:check
 // A file counts as translated once it imports t from the i18n module.
 import fs from 'node:fs';
 import path from 'node:path';
 
 const SRC = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'src');
-const de = JSON.parse(fs.readFileSync(path.join(SRC, 'i18n', 'de.json'), 'utf8'));
+const dictionaries = fs.readdirSync(path.join(SRC, 'i18n')).filter((f) => /^[a-z]{2,3}(-[A-Za-z]+)?\.json$/.test(f) && f !== 'en.json')
+  .map((f) => [f.replace('.json', ''), JSON.parse(fs.readFileSync(path.join(SRC, 'i18n', f), 'utf8'))]);
 
 const files = [];
 const walk = (d) => {
@@ -40,13 +42,17 @@ for (const f of files) {
 }
 for (const s of shadowed) console.log(`the name t is the translator, rename this parameter: ${s}`);
 
-const missing = [...used].filter(([k]) => !(k in de));
-const unused = Object.keys(de).filter((k) => !used.has(k));
 const placeholders = (s) => (s.match(/\{\w+\}/g) || []).sort().join();
-const badPlaceholders = [...used.keys()].filter((k) => k in de && placeholders(k) !== placeholders(de[k]));
-
-for (const [k, f] of missing) console.log(`missing German text (${f}): ${k}`);
-for (const k of unused) console.log(`not used any more: ${k}`);
-for (const k of badPlaceholders) console.log(`placeholders differ: ${k}`);
-console.log(`${used.size} texts, ${missing.length} without German, ${unused.length} unused, ${badPlaceholders.length} with other placeholders`);
-process.exit(missing.length || badPlaceholders.length || shadowed.length ? 1 : 0);
+let failed = shadowed.length > 0;
+for (const [code, dict] of dictionaries) {
+  const missing = [...used].filter(([k]) => !(k in dict));
+  const unused = Object.keys(dict).filter((k) => !used.has(k));
+  const badPlaceholders = [...used.keys()].filter((k) => k in dict && placeholders(k) !== placeholders(dict[k]));
+  for (const [k, f] of missing) console.log(`[${code}] missing translation (${f}): ${k}`);
+  for (const k of unused) console.log(`[${code}] not used any more: ${k}`);
+  for (const k of badPlaceholders) console.log(`[${code}] placeholders differ: ${k}`);
+  console.log(`[${code}] ${used.size} texts, ${missing.length} without translation, ${unused.length} unused, ${badPlaceholders.length} with other placeholders`);
+  if (missing.length || badPlaceholders.length) failed = true;
+}
+if (!dictionaries.length) console.log('no translation files found');
+process.exit(failed ? 1 : 0);

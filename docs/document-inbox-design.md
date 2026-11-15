@@ -64,6 +64,18 @@ type, sender, letter date, reference numbers, amounts, IBANs and dates with page
 title, cases per sender, same letter as photo and PDF. Not yet: the local model for type and summary when the rules
 find nothing, moving a document to another case from the UI (the API takes `case`), reminders (B5).
 
+## 4b. Languages and countries
+
+The inbox does not assume one country. The rules of B3 (`facts_service.py`, `dates_service.py`, `document_checks.py`)
+take their words and formats from `locale_rules.py` for English (US and UK), German (also Austria, Switzerland),
+French, Spanish, Italian and Turkish: day-first and month-first dates (`15/12/2026`, `12/15/2026`), month names with or
+without accents, `1.234,56` and `1,234.56` and `1 234,56` and `1'234.50`, the currency written next to the amount
+(EUR, USD, GBP, CHF, TRY and others; the fact carries the number as written and the ISO code), bank accounts (IBAN,
+US routing and account number, UK sort code, Australian BSB, BIC/SWIFT), and the signs of a scam in each language.
+Photos and scans are read in the languages the user chose (English and German are bundled, other Tesseract languages
+are downloaded on request). A value always stands on a page of the document and is shown with its line.
+How to add a language: [adding-a-language.md](adding-a-language.md).
+
 ## 5. Out of scope here
 
 Phone capture and transfer (remote access design, #59), handwriting recognition, legal advice. StarkLLM explains
