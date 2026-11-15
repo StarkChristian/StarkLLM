@@ -57,8 +57,7 @@ not started; the code has no analytics library.
 | E11 | Code runner | none | "Run" on a code block | run a snippet on the PC | - | the child process cannot open a socket (`_NO_NETWORK`) | same | - |
 | E12 | Tools (MCP), Studio, memory, search | none | - | all of them read the PC's own data and use the model of E5/E10; a tool runs only after the user's click | - | - | - | - |
 
-Not in this code: a Telegram bot (`SECURITY.md` and `docs/RULES.md` mention it as a user-chosen online feature; no code
-for it exists in this branch). When it is added it must use `app/core/netguard.py` (the backend test then covers it).
+Any new online feature must use `app/core/netguard.py` (the backend test then covers it) and be added to this table.
 
 ### Programs StarkLLM starts or needs, which are not StarkLLM
 
@@ -81,7 +80,7 @@ for it exists in this branch). When it is added it must use `app/core/netguard.p
    not to this PC; the spell-check dictionary download is off.
 3. **UI**: a banner on the chat page, the switch in Settings > Privacy & network, the tray menu shows the state, web
    search is disabled.
-4. The switch is saved (`privacy.json`) and survives restarts. The desktop app starts the engine with
+4. At the first start the app asks once (stay online, the default, or go fully offline). The switch is saved (`privacy.json`) and survives restarts. The desktop app starts the engine with
    `STARKLLM_OFFLINE=1`. If the two ever differ, offline wins: the settings page makes both offline.
 5. Turning it off lets the engine reach the internet again, so in an installation with accounts only the administrator
    (the first account) may do that; any user may turn it on.

@@ -20,7 +20,7 @@ Only the latest release gets security fixes. StarkLLM updates itself; please kee
 - The engine listens on `127.0.0.1` only; other computers cannot connect.
 - Other programs on the same PC can use StarkLLM only after the user turns this on and creates a key
   (Settings > Other apps); keys are stored as hashes.
-- No internet connection is made without the user's choice (model downloads, update check, web search, Telegram).
+- No internet connection is made without the user's choice (model downloads, update check, web search).
 - Every connection the app and its engine make is listed in Settings > Privacy & network, and the "Fully offline"
   switch there refuses all of them (see [docs/privacy-network.md](docs/privacy-network.md); how to check it yourself:
   [docs/verify-privacy.md](docs/verify-privacy.md)).

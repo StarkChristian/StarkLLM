@@ -76,7 +76,7 @@ test('the switch and the log are kept in the profile folder and survive a restar
   const g = createGuard({ dir });
   g.begin('update_check', 'https://api.github.com/x').finish({ status: 200 });
   g.setOffline(true);
-  assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(dir, 'privacy.json'), 'utf8')), { offline: true });
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(dir, 'privacy.json'), 'utf8')), { offline: true, asked: false });
   const again = createGuard({ dir });
   assert.strictEqual(again.isOffline(), true);
   assert.strictEqual(again.list().length, 1);

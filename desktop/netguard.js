@@ -62,6 +62,7 @@ const csvCell = (v) => {
  */
 function createGuard({ dir = null, now = () => new Date(), maxBytes = 2 * 1024 * 1024, maxKeep = 3000 } = {}) {
   let offline = false;
+  let asked = false; // the user has been asked once (first start) whether to go fully offline
   let memory = []; // used when there is no folder
   const localCounts = {};
   let nextId = 1;
@@ -70,7 +71,9 @@ function createGuard({ dir = null, now = () => new Date(), maxBytes = 2 * 1024 *
 
   if (statePath) {
     try {
-      offline = JSON.parse(fs.readFileSync(statePath, 'utf8')).offline === true;
+      const saved = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+      offline = saved.offline === true;
+      asked = saved.asked === true;
     } catch (e) {
       // first start: online, as before
     }
@@ -112,19 +115,27 @@ function createGuard({ dir = null, now = () => new Date(), maxBytes = 2 * 1024 *
     }
   }
 
+  function saveState() {
+    if (!statePath) return;
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(statePath, JSON.stringify({ offline, asked }));
+    } catch (e) {
+      // kept in memory for this run
+    }
+  }
+
   const guard = {
     isOffline: () => offline,
     setOffline(value) {
       offline = Boolean(value);
-      if (statePath) {
-        try {
-          fs.mkdirSync(dir, { recursive: true });
-          fs.writeFileSync(statePath, JSON.stringify({ offline }));
-        } catch (e) {
-          // kept in memory for this run
-        }
-      }
+      saveState();
       return offline;
+    },
+    hasAsked: () => asked,
+    markAsked() {
+      asked = true;
+      saveState();
     },
     classify,
     localCounts: () => ({ ...localCounts }),

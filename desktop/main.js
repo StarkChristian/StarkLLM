@@ -9,6 +9,7 @@ const { createUpdater } = require('./updates');
 const { installOllama } = require('./ollama-install');
 const { autoUpdater } = require('electron-updater');
 const { initShared } = require('./netguard');
+const { askOfflineChoice } = require('./offline-choice');
 
 let mainWindow = null;
 let tray = null;
@@ -148,8 +149,17 @@ function createMainWindow() {
   splashShownAt = Date.now();
   mainWindow.loadFile(path.join(__dirname, 'splash.html'));
 
-  mainWindow.once('ready-to-show', () => {
+  mainWindow.once('ready-to-show', async () => {
     mainWindow.show();
+    // once, at the first start: stay online (default) or go fully offline; the engine starts with the answer
+    try {
+      if (await askOfflineChoice({ dialog, guard, parent: mainWindow, locale: app.getLocale(), log: logLine })) {
+        applyOffline();
+        refreshTrayMenu();
+      }
+    } catch (e) {
+      logLine(`offline question: ${e.message}`);
+    }
     startAndLoad();
   });
 
