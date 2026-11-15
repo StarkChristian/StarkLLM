@@ -50,7 +50,7 @@ EXTENSION = ".starkbackup"
 MIN_PASSPHRASE = 12
 HEADER_STRUCT = struct.Struct(">BIIB16s")                     # kdf id, time cost, memory KiB, lanes, salt
 HEADER_LEN = len(crypto.BACKUP_MAGIC) + HEADER_STRUCT.size
-ALLOWED_TOP = ("db/", "uploads/", "chroma/", "protection/")
+ALLOWED_TOP = ("db/", "uploads/", "chroma/", "secure/", "protection/")
 
 
 class BackupError(Exception):
@@ -70,6 +70,7 @@ class Paths:
     chroma: str
     protection_dir: str
     root: str                        # parent of the above: restore-staging and restore-undo live here
+    secure_index: str = ""           # the encrypted search index (a folder with index.db), if the engine uses it
 
     @property
     def staging(self) -> str:
@@ -85,7 +86,8 @@ def default_paths() -> Paths:
     db = os.path.abspath(url.split("///", 1)[1]) if url.startswith("sqlite:///") else ""
     chroma = os.path.abspath(settings.CHROMA_PERSIST_DIRECTORY)
     return Paths(database=db, uploads=os.path.abspath(settings.UPLOAD_DIR), chroma=chroma,
-                 protection_dir=os.path.abspath(settings.PROTECTION_DIR), root=os.path.dirname(chroma))
+                 protection_dir=os.path.abspath(settings.PROTECTION_DIR), root=os.path.dirname(chroma),
+                 secure_index=os.path.abspath(settings.SECURE_INDEX_DIR))
 
 
 # --- Passphrase and container ----------------------------------------------------------------------------------------
@@ -193,8 +195,15 @@ def _collection_counts(chroma_client) -> dict:
             for c in chroma_client.list_collections()}
 
 
+def _secure_counts(secure_client) -> dict:
+    if secure_client is None:
+        return {}
+    return {n: secure_client.get_collection(n).count() for n in secure_client.store.list_names()}
+
+
 def create_backup(out_path: str, passphrase: str, paths: Paths = None, chroma_client=None, state: ProtectionState = None,
-                  app_version: str = "", kdf: Optional[dict] = None, busy_check: Optional[Callable[[], int]] = None) -> dict:
+                  app_version: str = "", kdf: Optional[dict] = None, busy_check: Optional[Callable[[], int]] = None,
+                  secure_client=None) -> dict:
     """Write an encrypted backup to out_path. Returns the manifest. Does not run the restore test (see create_and_test)."""
     check_passphrase(passphrase)
     paths, state, kdf = paths or default_paths(), state or default_protection, kdf or crypto.DEFAULT_KDF
@@ -206,6 +215,7 @@ def create_backup(out_path: str, passphrase: str, paths: Paths = None, chroma_cl
     key = crypto.passphrase_key(passphrase, salt, **kdf)
     manifest = {"format": FORMAT, "app_version": app_version, "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 "files": {}, "documents": {}, "tables": {}, "collections": _collection_counts(chroma_client),
+                "secure_collections": _secure_counts(secure_client),
                 "protection": {"enabled": state.enabled, "key_id": state.state().get("key_id")}}
     scratch = tempfile.mkdtemp(dir=vault.temp_dir())
     tmp_out = out_path + ".part"
@@ -243,6 +253,14 @@ def create_backup(out_path: str, passphrase: str, paths: Paths = None, chroma_cl
                         add(snap, "chroma/" + rel)
                     else:
                         add(full, "chroma/" + rel)
+            if paths.secure_index and os.path.isdir(paths.secure_index):
+                for full, rel in _walk(paths.secure_index):
+                    if rel == "index.db":
+                        snap = os.path.join(scratch, "index.db")
+                        _sqlite_snapshot(full, snap)             # a consistent copy of the encrypted file, still encrypted
+                        add(snap, "secure/" + rel)
+                    else:
+                        add(full, "secure/" + rel)
             if state.enabled and os.path.exists(state.state_path):
                 add_bytes(json.dumps(state.state(), indent=2).encode(), "protection/state.json")
                 add_bytes(base64.b64encode(state.key), "protection/data-key.b64")
@@ -375,7 +393,36 @@ def _check_against_manifest(dest: str, manifest: dict) -> dict:
     chroma_dir = os.path.join(dest, "chroma")
     if manifest["collections"] and os.path.isdir(chroma_dir):
         report["collections"] = _check_vector_store(chroma_dir, manifest["collections"])
+    # encrypted search index: every row authenticates with the key from the backup, and the counts are the same
+    if manifest.get("secure_collections") is not None and os.path.exists(os.path.join(dest, "secure", "index.db")):
+        report["collections"] += _check_secure_index(os.path.join(dest, "secure", "index.db"), key, manifest["secure_collections"])
     return report
+
+
+class _KeyOnly:
+    def __init__(self, key):
+        self.key = key
+
+
+def _check_secure_index(db_path: str, key: Optional[bytes], expected: dict) -> int:
+    from app.services.secure_index import SecureStore
+    if key is None:
+        raise BackupError("mismatch", "The backup has an encrypted search index but no key.")
+    copy = tempfile.mkdtemp(dir=vault.temp_dir(), prefix="secure-")          # opening a store may write to it: open a copy
+    try:
+        shutil.copyfile(db_path, os.path.join(copy, "index.db"))
+        store = SecureStore(os.path.join(copy, "index.db"), state=_KeyOnly(key))
+        try:
+            got = store.verify_all()
+        finally:
+            store.close()
+    except crypto.CryptoError:
+        raise BackupError("mismatch", "The encrypted search index in the backup cannot be decrypted.")
+    finally:
+        shutil.rmtree(copy, ignore_errors=True)
+    if got != expected:
+        raise BackupError("mismatch", "The encrypted search index in the backup has different content than when it was saved.")
+    return len(got)
 
 
 def _content_blocks(path: str, key: Optional[bytes]):
@@ -444,17 +491,18 @@ def create_and_test(out_path: str, passphrase: str, **kwargs) -> dict:
 
 # --- Restore ---------------------------------------------------------------------------------------------------------
 
-COMPONENTS = ("database", "uploads", "chroma", "protection")
+COMPONENTS = ("database", "uploads", "chroma", "secure", "protection")
 
 
 def _component_paths(paths: Paths) -> dict:
     return {"database": paths.database, "uploads": paths.uploads, "chroma": paths.chroma,
-            "protection": paths.protection_dir}
+            "secure": paths.secure_index, "protection": paths.protection_dir}
 
 
 def _staged_component_paths(stage: str) -> dict:
     return {"database": os.path.join(stage, "db", "starkllm.db"), "uploads": os.path.join(stage, "uploads"),
-            "chroma": os.path.join(stage, "chroma"), "protection": os.path.join(stage, "protection")}
+            "chroma": os.path.join(stage, "chroma"), "secure": os.path.join(stage, "secure"),
+            "protection": os.path.join(stage, "protection")}
 
 
 def stage_restore(path: str, passphrase: str, paths: Paths = None) -> dict:
@@ -504,7 +552,7 @@ def apply_pending_restore(paths: Paths = None) -> Optional[dict]:
         os.makedirs(undo, exist_ok=True)
         for comp in COMPONENTS:
             dst, src = current[comp], staged[comp]
-            if comp == "database" and not dst:
+            if not dst:                                            # not configured (no SQLite file, no encrypted index)
                 continue
             away = os.path.join(undo, comp)
             had = os.path.exists(dst)

@@ -66,4 +66,7 @@ class ProtectedCollection:
 
 
 def wrap(collection):
-    return collection if isinstance(collection, ProtectedCollection) else ProtectedCollection(collection)
+    from app.services.secure_index import SecureCollection
+    if isinstance(collection, (ProtectedCollection, SecureCollection)):
+        return collection           # the encrypted index stores everything encrypted already
+    return ProtectedCollection(collection)

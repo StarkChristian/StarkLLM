@@ -241,7 +241,7 @@ def test_enable_protects_everything_and_data_still_reads(env):
     originals = _populate_plain(env)
     protection.set_key(crypto.new_key())
     result = mig.run(env.targets, "enable")
-    assert {k: result["counts"][k] for k in ("database", "files", "vectors")} == {"database": 2, "files": 2, "vectors": 2}
+    assert {k: result["counts"][k] for k in ("database", "files", "vectors")} == {"database": 4, "files": 2, "vectors": 2}  # content, sources, workspace name, chat title
     assert result["counts"]["cleaned"] == {"database": True, "vectors": True}   # no plain traces left in the files
     assert protection.enabled
     for name, data in originals.items():
@@ -352,3 +352,53 @@ def test_migration_does_not_overwrite_a_row_changed_meanwhile(env):
         n = c.execute(text('UPDATE "messages" SET "content" = :new WHERE id = 1 AND "content" = :old'),
                       {"new": "TOKEN", "old": "old text"}).rowcount
     assert n == 0
+
+
+LABELS = ("Mueller Steuern 2025", "Vermieter Post", "Kuendigung Wohnung", "Bescheid_AENDERUNG.pdf", "Mahnung beantworten")
+
+
+def _add_labels(env):
+    s = env.Session()
+    u = models.User(username="l" + os.urandom(4).hex(), hashed_password="x"); s.add(u); s.flush()
+    ws = models.Workspace(user_id=u.id, name=LABELS[0]); s.add(ws); s.flush()
+    folder = models.ChatFolder(workspace_id=ws.id, name=LABELS[1]); s.add(folder); s.flush()
+    s.add(models.Chat(workspace_id=ws.id, title=LABELS[2], folder_id=folder.id))
+    s.add(models.Document(workspace_id=ws.id, filename=LABELS[3], filepath="p", file_type="pdf", status="indexed"))
+    s.add(models.PromptTemplate(user_id=u.id, title=LABELS[4], content="x"))
+    s.commit(); s.close()
+
+
+def test_migration_protects_names_and_titles_and_leaves_no_plain_trace(env):
+    _add_labels(env)
+    protection.set_key(crypto.new_key())
+    plan = mig.plan(env.targets, "enable")
+    for column in ("workspaces.name", "chat_folders.name", "chats.title", "documents.filename", "prompt_templates.title"):
+        assert plan["database"][column]["todo"] == 1, column
+    result = mig.run(env.targets, "enable")
+    assert result["counts"]["cleaned"]["database"] is True
+    data = open(env.tmp / "test.db", "rb").read()
+    assert not [label for label in LABELS if label.encode() in data]
+    s = env.Session()
+    assert s.query(models.Workspace).first().name == LABELS[0] and s.query(models.Document).first().filename == LABELS[3]
+    s.close()
+    mig.run(env.targets, "disable")
+    assert [r[0] for r in _raw(env.engine, "select name from workspaces")] == [LABELS[0]]
+    assert [r[0] for r in _raw(env.engine, "select title from chats")] == [LABELS[2]]
+
+
+def test_failed_enable_rolls_back_the_labels_too(env, monkeypatch):
+    _add_labels(env)
+    protection.set_key(crypto.new_key())
+    real, calls = mig._migrate_files, {"n": 0}
+
+    def fail_once(*a, **k):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise OSError("disk full")
+        return real(*a, **k)
+    monkeypatch.setattr(mig, "_migrate_files", fail_once)
+    with pytest.raises(mig.MigrationError):
+        mig.run(env.targets, "enable")
+    monkeypatch.undo()
+    assert [r[0] for r in _raw(env.engine, "select name from workspaces")] == [LABELS[0]]
+    assert [r[0] for r in _raw(env.engine, "select filename from documents")] == [LABELS[3]]
