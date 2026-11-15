@@ -20,6 +20,7 @@ from app.core import netguard
 from app.services import untrusted
 from app.core.config import settings
 from app.core.protection import protection
+from app.services import label_search
 from app.api.auth import get_current_user
 from app.api.deps import get_workspace_or_404, get_chat_or_404, get_message_or_404
 from pydantic import BaseModel, Field, field_validator
@@ -1373,13 +1374,11 @@ def list_chats(
                 .filter(models.Chat.workspace_id == workspace_id)
                 if needle in (content or "").lower()
             }
-            found = (
-                db.query(models.Chat)
-                .filter(models.Chat.workspace_id == workspace_id)
-                .filter(or_(models.Chat.title.ilike(search_pattern), models.Chat.id.in_(matched_chat_ids)))
-                .order_by(models.Chat.is_pinned.desc(), models.Chat.created_at.desc())
-                .all()
-            )
+            ordered = (db.query(models.Chat.id, models.Chat.title)
+                       .filter(models.Chat.workspace_id == workspace_id)
+                       .order_by(models.Chat.is_pinned.desc(), models.Chat.created_at.desc()))
+            hit_ids = [i for i, title in ordered if i in matched_chat_ids or label_search.contains(title, q)]   # titles are protected too
+            found = label_search.load_in_order(db.query(models.Chat), models.Chat, hit_ids)
             chats_with_match = [
                 type("Hit", (), {"Chat": c, "content_match": c.id in matched_chat_ids}) for c in found
             ]

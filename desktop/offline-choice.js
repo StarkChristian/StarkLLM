@@ -24,8 +24,10 @@ const TEXTS = {
 };
 
 // Returns true when the user was asked now, false when they had been asked before. Closing the dialog means "online".
-async function askOfflineChoice({ dialog, guard, parent, locale = 'en', log = () => {} }) {
-  if (guard.hasAsked()) return false;
+// STARKLLM_ASK_OFFLINE=0 skips the question (administrators, tests and the smoke test of the installer, where nobody
+// is there to answer): StarkLLM then stays online, as before, and asks at the next start without the variable.
+async function askOfflineChoice({ dialog, guard, parent, locale = 'en', log = () => {}, env = process.env }) {
+  if (guard.hasAsked() || env.STARKLLM_ASK_OFFLINE === '0') return false;
   const t = TEXTS[String(locale).toLowerCase().startsWith('de') ? 'de' : 'en'];
   const { response } = await dialog.showMessageBox(parent, {
     type: 'question',

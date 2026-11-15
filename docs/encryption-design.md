@@ -32,6 +32,8 @@ that StarkLLM sends nowhere by design but that the user exports (downloads, copy
 | Chat messages and their source chips | database `messages.content`, `messages.sources` | column value, AES-256-GCM, `ProtectedText` column type |
 | Profile text, custom instructions, workspace instructions, prompt templates | `users`, `workspaces`, `prompt_templates` | same |
 | Inbox decisions (own title, case) — they contain sender names | `document_reviews` | same |
+| **Names and titles:** workspace names, chat folder names, chat titles, document file names, prompt template titles and tags, indexing error messages (they quote file names) | `workspaces.name`, `chat_folders.name`, `chats.title`, `documents.filename`, `documents.error_message`, `prompt_templates.title`, `prompt_templates.tags`, `knowledge_base_documents.error_message` | same column type. Searching them is done after reading (section 2.1) |
+| Name of a **new** upload on disk | `data/uploads/` | while protection is on, a new upload is stored as `<random>.<extension>` (the name the user sees is in the protected `documents.filename`); with protection off it is `<hash>_<name>` as before |
 | Text of every indexed chunk and every memory (this is the document content again) | ChromaDB (`documents` field) | value encrypted by `ProtectedCollection` before it reaches ChromaDB |
 | Extracted facts (sender, amounts, IBANs, deadlines) | computed on demand from the chunk text above and kept in memory only; the user's corrections are in `document_reviews` | protected through the two lines above; nothing else is stored |
 | Logs | the engine does not log document text or message text (checked: it logs file names and counts). The desktop `engine.log` has no document text. | nothing to encrypt; a test (`test_protection_at_rest.py`) searches the data folder for leaked plain text |
@@ -39,13 +41,45 @@ that StarkLLM sends nowhere by design but that the user exports (downloads, copy
 
 **Not encrypted, on purpose, and said so in the Settings page:**
 
-* file names, chat titles, workspace names, Knowledge Base file names: lists and search use SQL `LIKE` on them;
-* the embeddings (the numbers used for similarity search). They are needed for search and cannot be encrypted
-  without losing it. They are not text, but they reveal topics and, with effort, can be partly inverted into
-  words. This is the largest remaining exposure; the honest answer is "BitLocker plus keeping the disk safe";
-* the metadata next to each chunk (file name, page, chunk number, source path);
+* **Knowledge Base file names, folder names and paths** (`knowledge_base_documents.file_name/file_path`,
+  `knowledge_base_folders.folder_name/folder_path`): these are the user's own files in a visible folder; the same names
+  stand in clear in Windows Explorer and in `file_path`, which must stay readable because the folder watcher compares it with
+  the disk. Encrypting the copy in the database would protect nothing;
+* **names of uploads made before protection was turned on** (`data/uploads/<hash>_<name>`, `documents.filepath`) and the
+  `source` / `file_name` fields in the search index: renaming the files needs the index to change as well, which belongs to the
+  encrypted-index work; only new uploads get opaque names;
+* user names (the login) and numbers, dates, statuses, ids, file types and sizes (needed to sort and join; they carry no text);
+* **in the default search index (ChromaDB)**: the embeddings (the numbers used for similarity search) and the metadata next to each
+  chunk (file name, page, chunk number, source path). They reveal topics and, with effort, can be partly inverted into
+  words. This exposure is removed by switching on the **encrypted search index** (section 10), which is optional because it
+  costs memory and start-up time; the page in Settings says so;
 * the SQLite structure (table and column names, row counts, dates);
 * the user's Knowledge Base folder (their own files).
+
+### 2.1 Searching names and titles that are encrypted
+
+SQL `LIKE` cannot search an encrypted column. Two ways were built and measured (`backend/tools/bench_label_search.py`; chat
+titles of 3-7 words, one search term that matches about 12 % of the rows, Linux container, median of 5 runs):
+
+| rows | plain SQL (protection off) | **decrypt in memory, first search** | **decrypt in memory, repeated** | blind index (prototype) query | blind index build | blind index size |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1,000 | 0.5 ms | 7 ms | 2 ms | 2 ms | 0.2 s | 1.5 MB |
+| 10,000 | 2 ms | 66 ms | 19 ms | 36 ms | 1.9 s | 16 MB |
+| 50,000 | 7 ms | 162 ms | 72 ms | 238 ms | 8.4 s | 81 MB |
+
+*(Reading whole rows as objects instead of id and title only was 2-5 times slower, 508 ms at 50,000 rows; the engine reads
+only id and title.)*
+
+**Chosen: decrypt in memory.** The rows of the signed-in user are read, the short texts are decrypted (and kept in memory
+until the engine is locked, never on disk), and compared with a case-insensitive "contains" (also for Ä/ä, which SQL
+`ILIKE` does not do). It needs no extra table and no extra key, stays under 100 ms for 10,000 names or titles, and a user
+has far fewer than that. The blind index was **not** built into the product: it is not faster than the repeated in-memory
+search, it needs 16-80 MB and seconds to build, and it would leak to anyone with the database file which rows share a
+three-letter piece (the frequency pattern of the language: "ein", "ung", ...), which is exactly what encrypting titles is
+meant to hide.
+
+What stays visible in the database for these rows: that the row exists, its id, its dates and its relations (which chat is
+in which workspace), and the *length* of each name or title (AES-GCM does not hide length).
 
 ### Why column and file encryption instead of an encrypted database
 
@@ -174,13 +208,117 @@ The restore code moves directories inside the data folder, which works in both c
 ## 9. Open points
 
 * Start-up passphrase prompt in the app window (the module and IPC exist; no screen yet).
-* The vector store's embeddings are not encrypted (section 2).
-* Backup of the vector store copies its files while the engine runs; documents still being processed block a backup, but a
+* In the default (ChromaDB) mode the embeddings and chunk metadata are not encrypted; the encrypted search index (section 10) removes this.
+* Backup of the ChromaDB files copies them while the engine runs (the encrypted index is copied with SQLite's online backup, consistent); documents still being processed block a backup, but a
   chat memory written at that very moment may or may not be in the copy. The restore test would catch a store that cannot be opened.
-* File names, chat titles and workspace names stay readable. Encrypting them needs search to move from SQL to in-memory filtering
-  (done for message text already, see `api/search.py`).
+* Old uploads keep their readable names on disk, and the search index still carries file names and source paths in its metadata
+  (see the list in section 2).
 
-## 10. Manual test on a real Windows PC
+## 10. Encrypted search index
+
+After section 2 the vector store was the largest readable part: ChromaDB keeps, in plain files, one list of 768 numbers per
+piece of text (the *embedding*), and next to it the file name, page and source path. The numbers show which pieces of text are
+about the same thing, and embeddings can be partly turned back into words. The owner's rule is that nothing is stored unencrypted
+if it can be avoided, so StarkLLM has a second search index with nothing readable in it. It is a switch
+(`state.json` `vector_mode`: `"chroma"` default, `"secure"`), so the plain mode stays available (Settings > Protection >
+"Lock the search index" / "Go back to the normal search index").
+
+### Options considered
+
+| Option | Result |
+|---|---|
+| **A. ChromaDB, text encrypted** (the default since the first protection PR) | fast; vectors and metadata readable. Kept as the switchable plain mode. |
+| **B. Secret rotation of every vector** (multiply by a random orthogonal matrix derived from the key, store in ChromaDB) | Distances do not change, so search is exact and as fast as A. **Rejected**: distance-preserving encryption is broken by a known-plaintext attack. The embedding model is public (`nomic-embed-text`), so an attacker embeds a few hundred known phrases ("Mit freundlichen Grüßen", a standard bank letter), pairs them with the stored vectors and solves for the rotation (orthogonal Procrustes: one SVD). After that every vector is readable again. Even without the key, the similarity structure (which letters are about the same thing) stays visible, and the metadata stays plain. It would look like protection and not be. |
+| **C. Encrypted-search schemes** (searchable encryption, order-preserving, homomorphic nearest neighbour) | Orders of magnitude slower or immature for 768 dimensions; not "well-reviewed library, simple, testable". Rejected. |
+| **D. Encrypt every row, search in memory** (chosen) | Row = AES-256-GCM blob; the collection is decrypted into RAM when the engine is unlocked and searched exactly with a matrix product. Nothing readable on disk. Costs memory and a load at start. |
+| **E. Encrypted HNSW graph files, decrypted into RAM** | Faster search for more than about 1 million pieces of text; more code, approximate answers. Not needed at the size of a household archive (see the numbers); the route to take if an archive ever outgrows D. |
+
+### Design of D (`services/secure_index.py`)
+
+* **One SQLite file**, `data/secure_index/index.db`. Tables `collections` and `rows` only. Every value is a blob: nonce (12 bytes) +
+  AES-256-GCM(ciphertext) with a key from HKDF(data key, "vectors"). The payload of a row is the id, the text, the metadata and the vector
+  (float32); the **authenticated data** of the blob is the collection key plus the row key, so a row cannot be edited, copied into another
+  row or moved to another collection without detection (test: swapped rows and flipped bytes raise `CorruptData`).
+* **Keys in the file are HMAC-SHA256** (key from HKDF(data key, "vectors-index")) of the collection name and of the row id. The file
+  shows neither "user_3_workspace_12" nor "chunk-77".
+* **Write-through, crash safe.** Every `add`, `upsert`, `update`, `delete` is one SQLite transaction with `synchronous=FULL`; the
+  in-memory copy changes only after the commit; if a write fails halfway the collection is reloaded from the file (test: a simulated
+  power loss in the middle of a three-row upsert leaves the old state, in the file and in memory). Deleted rows are overwritten
+  (`secure_delete`), and the file is rewritten (`VACUUM`) after 5,000 deletes, when a collection is deleted, and after a migration.
+* **Same API as the ChromaDB code uses** (`add`, `upsert`, `update`, `get`, `query`, `delete`, `count`, `modify`, `where` with `$eq $ne $in $nin
+  $gt $gte $lt $lte $and $or`, `where_document` with `$contains $not_contains $and $or`, `limit`/`offset`, `include`), checked against a real
+  ChromaDB with the same inputs in `tests/test_secure_index.py` (ids, order, texts, metadata and distances equal; cosine, L2 and inner
+  product; equal distances may come in another order). Filters on one field (`source`, `document_id`, `workspace_id`) use an in-memory
+  hash index, built on first use.
+* **Search** is exact brute force with numpy: distance = 1 − cosine (or squared L2, as ChromaDB reports it), best *k* by `argpartition`.
+* **Memory.** The matrix is float32 (exact). Above 1,000,000 vectors in one collection it is kept as float16 (half the memory, search about
+  14 times slower because the matrix is converted back to float32); this is a safety valve and is not meant to be used (see the numbers).
+* **Locked engine.** Without the key every access raises `ProtectionLocked` (HTTP 423), as for the other protected data; nothing is written in plain.
+* **Switching** (`protection_migration.run_vectors`): dry run first (collections, pieces of text, key, documents busy); every ChromaDB
+  collection is copied (text decrypted, vectors and metadata as they are), counts are compared, rows written during the copy are
+  copied in a second pass; then the **switch** (`vector_mode = "secure"`, written atomically); then the ChromaDB collections are deleted
+  and its SQLite file is rewritten, so the vectors and metadata are gone from the disk (test: no file name, path or float bytes
+  of a known vector remain in the ChromaDB folder). Stopping at any point is safe: before the switch the old index is in use and a new
+  run starts the copy again; after the switch a new run only finishes the clean-up and never copies over the encrypted index.
+  The way back is the same in reverse (text sealed again). **Turning protection off moves the index back first**, because the
+  encrypted index only exists while protection is on.
+* **Backup and restore.** The backup contains `secure/index.db` (a consistent copy made with SQLite's online backup, still
+  encrypted) and the number of rows of every collection. The restore test decrypts and authenticates **every row** with the key from the
+  backup and compares the counts. A restored backup brings its own `vector_mode`.
+
+### Measured speed, recall and memory
+
+Linux container, 16 cores, 768-dimensional vectors (the size of `nomic-embed-text`), cosine, texts of about 270 characters and four metadata fields per piece
+of text, single query at a time, top 10. "Clustered" data is a mixture of 60 Gaussians (like topics), "random" is Gaussian noise (the
+worst case for approximate search). Recall is measured against an independent exact search in numpy. Script: `backend/tools/bench_secure_index.py`.
+Loading and searching are measured in a fresh process, as after a restart of the engine.
+
+| Pieces of text | Data | Search p50 / p95, ChromaDB | Search p50 / p95, encrypted index | Recall@10 ChromaDB (HNSW) | Recall@10 encrypted (exact) | With a filter (1/5 of the documents), encrypted | Insert per second, ChromaDB / encrypted | Load at start, encrypted | Memory, encrypted (whole process delta) | File size, ChromaDB / encrypted |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 10,000 | clustered | 0.7 / 1.0 ms | 0.5 / 0.7 ms | 0.9995 | 1.0 | 1.0 ms | 3,400 / 29,700 | 0.15 s | 44 MB | 54 / 40 MB |
+| 10,000 | random | 1.4 / 1.7 ms | 0.5 / 0.7 ms | 0.68 | 1.0 | 1.1 ms | 2,900 / 29,100 | 0.14 s | 44 MB | 54 / 40 MB |
+| 100,000 | clustered | 1.2 / 1.4 ms | 7.0 / 13.7 ms | 0.99 | 1.0 | 15 ms | 2,400 / 22,700 | 1.5 s | 410 MB | 507 / 400 MB |
+| 100,000 | random | 1.9 / 2.3 ms | 7.1 / 20.3 ms | 0.23 | 1.0 | 15 ms | 1,700 / 23,000 | 1.5 s | 410 MB | 506 / 400 MB |
+| 500,000 | clustered | not measured | 35 / 53 ms | not measured | 1.0 | 87 ms | not measured / 18,300 | 8.9 s | 2.0 GB | not measured / 2.0 GB |
+
+Also measured: reading all pieces of text of one document (`get` by source path) takes 0.07 ms at 10,000, 0.7 ms at 100,000 and 4.9 ms at
+500,000 pieces of text. With float16 memory at 500,000 pieces of text (the safety valve) a search took about 500 ms (recall 0.998), roughly
+14 times slower than float32, which is why float32 is used up to 1,000,000.
+
+Conclusions: the encrypted index is **exact** (recall 1.0), **9 to 10 times slower per search** than ChromaDB at 100,000 pieces of text
+(7 ms instead of 1 ms: invisible next to the language model, which needs seconds), **faster to write** (the encrypted blob is a single row), and
+needs **about 4 MB of memory per 1,000 pieces of text**. At 500,000 pieces of text, far beyond a household archive, a search takes 35 ms.
+ChromaDB's recall on clustered data is high; on unstructured data at 100,000 pieces it finds only a quarter of the true neighbours, so exactness is
+also a quality gain. (Synthetic numbers: real documents lie between "clustered" and "random".)
+
+How to read this: a household with a few thousand letters has 10,000 to 50,000 pieces of text; searching takes a few milliseconds
+either way, and the encrypted index is always exact. ChromaDB's approximate search finds fewer of the true nearest neighbours as the
+archive grows (a quality loss that users never see, because the reranker and the other retrieval steps follow). The cost
+of the encrypted index is memory (about 410 MB per 100,000 pieces of text in total, of which the vectors are 307 MB) and a load of
+about 1.5 seconds per 100,000 pieces of text when the engine starts or the first question comes in after unlocking.
+
+### What still leaks
+
+With the encrypted index on, a person who copies the data folder can see:
+
+* that the file `index.db` exists, its size, and when it last changed (so roughly when documents were added);
+* how many rows each collection has (not the names: they are hashed), and the size of each row (roughly the length of the text and the number of
+  metadata fields), because blobs are not padded;
+* nothing about content, names, paths, pages or topics.
+
+A running, unlocked StarkLLM holds everything in memory in plain form (the matrix, the texts, the metadata); a program running as the same
+Windows user, or a memory dump while the app runs, sees it. An attacker who can **write** to the file can delete rows or put back an older
+copy of the whole file (each row is authenticated, the file as a whole is not versioned); they cannot forge or edit rows. The temporary decrypted
+copy of a document that is being read (`data/tmp`) and the operating system's swap file are outside this design (BitLocker covers them).
+Access patterns (which collection is opened when) are visible to anyone watching the running process.
+
+### BitLocker and device encryption
+
+Settings > Protection shows a short recommendation, in plain language, to also turn on Windows drive encryption (BitLocker, or "Device
+encryption" on many PCs). It covers what StarkLLM cannot: file names and chat titles, the programs and models, the swap and hibernation files,
+and traces of plain files deleted before protection was turned on.
+
+## 11. Manual test on a real Windows PC
 
 DPAPI and the in-app flow cannot be tested on Linux CI. Before a release that contains this:
 
@@ -198,3 +336,13 @@ DPAPI and the in-app flow cannot be tested on Linux CI. Before a release that co
 11. Windows account password change / reset: the app still starts (DPAPI follows password changes; after an *admin reset* use the recovery key).
 12. Turn off protection: documents open in Notepad again (plain), chats still work.
 13. Kill StarkLLM from the Task Manager in the middle of "Turn on", start it again: everything opens; run "Turn on" again: it finishes.
+
+Encrypted search index (section 10), additionally:
+
+14. Settings > Protection > "Lock the search index": the confirmation shows the numbers, the page ends with "The search index is locked." Ask a question about a letter: the answer still cites the right page, and the time to answer is not noticeably longer.
+15. Open `%APPDATA%\StarkLLM\data\chroma\chroma.sqlite3` and `data\secure_index\index.db` in a hex viewer / `strings`: no file names, paths, words from letters, or collection names.
+16. Quit and start again: the first search after the start is a little slower (the index is loaded into memory); Task Manager shows the engine using about 400 MB more per 100,000 pieces of text.
+17. "Go back to the normal search index" and lock again: documents and answers are unchanged.
+18. Make an encrypted backup while the index is locked, restore it on another PC: the restore test passes and the search works after the restore.
+19. Windows file locking: lock the index on a PC with an antivirus that scans new files; the index file must not be reported as locked or quarantined (SQLite file in WAL mode with `-wal` and `-shm` next to it).
+20. Settings shows the BitLocker / device-encryption recommendation; the link target text matches the Windows version (Windows 11 Home: "Device encryption"; Pro: "BitLocker").

@@ -80,7 +80,7 @@ Any new online feature must use `app/core/netguard.py` (the backend test then co
    not to this PC; the spell-check dictionary download is off.
 3. **UI**: a banner on the chat page, the switch in Settings > Privacy & network, the tray menu shows the state, web
    search is disabled.
-4. At the first start the app asks once (stay online, the default, or go fully offline). The switch is saved (`privacy.json`) and survives restarts. The desktop app starts the engine with
+4. At the first start the app asks once (stay online, the default, or go fully offline; administrators can skip the question with the environment variable `STARKLLM_ASK_OFFLINE=0`). The switch is saved (`privacy.json`) and survives restarts. The desktop app starts the engine with
    `STARKLLM_OFFLINE=1`. If the two ever differ, offline wins: the settings page makes both offline.
 5. Turning it off lets the engine reach the internet again, so in an installation with accounts only the administrator
    (the first account) may do that; any user may turn it on.

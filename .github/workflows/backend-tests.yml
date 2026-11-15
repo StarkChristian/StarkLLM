@@ -54,5 +54,5 @@ jobs:
       - name: Tests without any network (docker run --network none)
         run: |
           docker run --rm -v "$PWD/.pytest-lib:/pt" starkllm-backend:test pip install -q --target /pt pytest
-          docker run --rm --network none -e PYTHONPATH=/pt -e STARKLLM_REQUIRE_OCR=1 -v "$PWD:/repo" -w /repo/backend starkllm-backend:test \
+          docker run --rm --network none -v "$PWD/.pytest-lib:/pt" -e PYTHONPATH=/pt -e STARKLLM_REQUIRE_OCR=1 -v "$PWD:/repo" -w /repo/backend starkllm-backend:test \
             python -m pytest -q -rs tests --ignore=tests/run_rigorous_e2e.py -p no:cacheprovider

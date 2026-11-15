@@ -64,6 +64,15 @@ test('the question is in English or German, by the language of the system', asyn
   assert.match(TEXTS.en.detail, /Privacy & network/);
 });
 
+test('STARKLLM_ASK_OFFLINE=0 skips the question (installer smoke test, administrators) and asks nothing later by itself', async () => {
+  const dir = tmp();
+  const seen = [];
+  assert.strictEqual(await askOfflineChoice({ dialog: dialogAnswering(1, seen), guard: createGuard({ dir }), env: { STARKLLM_ASK_OFFLINE: '0' } }), false);
+  assert.deepStrictEqual(seen, []);
+  assert.strictEqual(createGuard({ dir }).isOffline(), false);
+  assert.strictEqual(createGuard({ dir }).hasAsked(), false, 'the user is still asked once when the variable is not set');
+});
+
 test('the engine of the first start is started with the answer', () => {
   // main.js asks before it starts the engine; the engine gets STARKLLM_OFFLINE from the same switch
   const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');

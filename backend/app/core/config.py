@@ -54,6 +54,7 @@ class Settings(BaseSettings):
 
     # Protection at rest (B6) and encrypted backups (B7): state of the protection, scratch space for decrypted copies
     PROTECTION_DIR: str = "data/protection"
+    SECURE_INDEX_DIR: str = "data/secure_index"   # the encrypted search index (vector_mode "secure")
     TEMP_DIR: str = "data/tmp"
     
     # RAG Chunking configuration
