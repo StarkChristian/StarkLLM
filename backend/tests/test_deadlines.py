@@ -110,12 +110,12 @@ def test_the_same_letter_twice_is_listed_once(tmp_path):
 
 def test_a_replaced_letter_has_no_deadline():
     inbox = {"documents": [{"scope": "ws", "id": 1, "filename": "a.pdf", "replaced": True, "status": "new",
-                            "facts": {"dates": [{"value": "2026-12-01", "kind": "deadline", "page": 1}]}}]}
+                            "facts": {"letter": True, "dates": [{"value": "2026-12-01", "kind": "deadline", "page": 1}]}}]}
     assert build_deadlines(inbox, "2026-11-15") == []
 
 
 def test_changes_are_not_deadlines():
-    inbox = {"documents": [{"scope": "ws", "id": 1, "filename": "a.pdf", "status": "new", "facts": {"dates": [
+    inbox = {"documents": [{"scope": "ws", "id": 1, "filename": "a.pdf", "status": "new", "facts": {"letter": True, "dates": [
         {"value": "2027-01-01", "kind": "change", "page": 1}, {"value": "2026-12-01", "kind": "appointment", "page": 2, "time": "10:30"}]}}]}
     got = build_deadlines(inbox, "2026-11-15")
     assert [(d["kind"], d["time"], d["page"]) for d in got] == [("appointment", "10:30", 2)]
@@ -390,3 +390,123 @@ def test_add_done_marks_by_key():
           {"key": deadline_key("ws", 1, "2026-12-15", "payment"), "reminder_active": True}]
     out = add_done(ds, [NS(scope="ws", document_id=1, due_date="2026-12-15", kind="deadline")])
     assert [(d["done"], d["reminder_active"]) for d in out] == [(True, False), (False, True)]
+
+
+# ---------------------------------------------------------------- copies, photos and non-letters
+
+COPY_NOISE = BILL + "\nGescannt mit dem Handy"  # a photo: an extra line, so another fingerprint than the PDF
+
+
+def _doc(i, filename, due, *, added, letter=True, file_type="pdf", case="stadtwerke rheinstadt", amount="96,00 EUR",
+         refs=("4400-118-27",), status="new", dup=None, sender="Stadtwerke Rheinstadt"):
+    return {"scope": "ws", "id": i, "workspace_id": 1, "filename": filename, "file_type": file_type, "added": added,
+            "status": status, "title": None, "duplicate_of": dup,
+            "facts": {"letter": letter, "case": case, "sender": {"value": sender}, "type": {"value": "invoice"},
+                      "references": [{"value": r, "kind": "customer_number"} for r in refs],
+                      "dates": [{"value": due, "kind": "deadline", "page": 1, "line": 5, "text": "pay", "amount": amount}]}}
+
+
+def test_letter_copy_and_photo_are_one_deadline_with_three_sources(tmp_path):
+    ids, headers, doc_ids = _user(tmp_path, [("en-invoice.pdf", BILL), ("en-invoice-copy.pdf", BILL), ("photo-letter.png", BILL)])
+    try:
+        body = _deadlines(headers)
+        ics = client.get(f"{API}/deadlines.ics", headers=headers).text
+        home = client.get(f"{API}/home", headers=headers).json()["dates"]
+    finally:
+        _drop(ids)
+    assert len(body["deadlines"]) == 1 and body["counts"]["upcoming"] == 1
+    d = body["deadlines"][0]
+    assert sorted(s["filename"] for s in d["sources"]) == ["en-invoice-copy.pdf", "en-invoice.pdf", "photo-letter.png"]
+    assert len(d["keys"]) == 3 and d["key"] in d["keys"]
+    assert ics.count("BEGIN:VEVENT") == 1, "one event, not three"
+    assert len(home) == 1, "the start page card and the list agree"
+    assert (home[0]["date"], home[0]["amount"]) == (d["date"], d["amount"])
+
+
+def test_done_reminders_and_ack_apply_to_the_whole_group(tmp_path):
+    ids, headers, _ = _user(tmp_path, [("a.pdf", BILL), ("b.pdf", BILL), ("c.png", BILL)])
+    try:
+        d = _deadlines(headers)["deadlines"][0]
+        other = next(k for k in d["keys"] if k != d["key"])
+        client.put(f"{API}/deadlines/reminders", json={"key": other, "days_before": [14, 1]}, headers=headers)
+        assert _deadlines(headers)["deadlines"][0]["reminders"] == [14, 1]
+        assert client.post(f"{API}/deadlines/reminders/ack", json={"key": d["key"]}, headers=headers).json()["acknowledged"] == 1
+        assert _deadlines(headers)["reminders_due"] == 0
+        client.put(f"{API}/deadlines/done", json={"key": other}, headers=headers)
+        done = _deadlines(headers)
+        assert done["deadlines"][0]["done"] and done["counts"]["done"] == 1 and len(done["deadlines"]) == 1
+        assert client.get(f"{API}/deadlines.ics", headers=headers).status_code == 200
+        assert client.get(f"{API}/deadlines.ics", headers=headers).text.count("BEGIN:VEVENT") == 0
+        client.put(f"{API}/deadlines/done", json={"key": d["key"], "done": False}, headers=headers)
+        assert _deadlines(headers)["deadlines"][0]["done"] is False, "undo works from any document of the group"
+    finally:
+        _drop(ids)
+
+
+def test_a_photo_read_a_little_differently_is_still_the_same_deadline(tmp_path):
+    ids, headers, _ = _user(tmp_path, [("Rechnung.pdf", BILL), ("Foto.jpg", COPY_NOISE)])
+    try:
+        body = _deadlines(headers)
+        home = client.get(f"{API}/home", headers=headers).json()["dates"]
+    finally:
+        _drop(ids)
+    assert len(body["deadlines"]) == 1 and len(body["deadlines"][0]["sources"]) == 2 and len(home) == 1
+
+
+def test_different_invoices_with_the_same_date_stay_separate():
+    inbox = {"documents": [_doc(1, "a.pdf", "2026-12-12", added="1", refs=("R-100",)),
+                           _doc(2, "b.pdf", "2026-12-12", added="2", refs=("R-200",)),
+                           _doc(3, "c.pdf", "2026-12-12", added="3", refs=("R-100",), amount="10,00 EUR"),
+                           _doc(4, "d.pdf", "2026-12-12", added="4", case="other", refs=("R-100",))]}
+    assert [d["filename"] for d in build_deadlines(inbox, "2026-11-15")] == ["a.pdf", "b.pdf", "c.pdf", "d.pdf"]
+
+
+def test_same_invoice_merges_even_when_the_copy_lost_its_reference_number():
+    inbox = {"documents": [_doc(1, "a.pdf", "2026-12-12", added="1"), _doc(2, "foto.jpg", "2026-12-12", added="2", refs=())]}
+    got = build_deadlines(inbox, "2026-11-15")
+    assert len(got) == 1 and got[0]["filename"] == "a.pdf", "the oldest document names the deadline"
+    assert [s["filename"] for s in got[0]["sources"]] == ["a.pdf", "foto.jpg"]
+
+
+def test_exact_copies_without_a_sender_merge_by_their_duplicate_group():
+    inbox = {"documents": [_doc(1, "a.pdf", "2026-12-12", added="1", case=None),
+                           _doc(2, "b.pdf", "2026-12-12", added="2", case=None, dup={"scope": "ws", "id": 1})]}
+    assert len(build_deadlines(inbox, "2026-11-15")) == 1
+    inbox["documents"][1]["duplicate_of"] = None  # not copies: nothing ties them together
+    assert len(build_deadlines(inbox, "2026-11-15")) == 2
+
+
+def test_non_letters_never_have_deadlines():
+    log_line = {"value": "2026-12-01", "kind": "deadline", "page": 1}
+    inbox = {"documents": [
+        _doc(1, "app.log", "2026-12-01", added="1", letter=False),
+        _doc(2, "export.csv", "2026-12-02", added="2", file_type="csv"),
+        _doc(3, "data.json", "2026-12-03", added="3", file_type="json"),
+        _doc(4, "events.JSONL", "2026-12-04", added="4", file_type=".JSONL"),
+        _doc(5, "Brief.pdf", "2026-12-05", added="5")]}
+    assert [d["filename"] for d in build_deadlines(inbox, "2026-11-15")] == ["Brief.pdf"]
+    assert log_line  # (a bare timestamp in a log is only a date; see the facts rules)
+
+
+def test_an_overdue_group_stays_while_any_copy_is_new_and_goes_when_all_are_done():
+    docs = lambda a, b: {"documents": [_doc(1, "a.pdf", "2026-11-01", added="1", status=a),
+                                       _doc(2, "b.png", "2026-11-01", added="2", status=b, dup={"scope": "ws", "id": 1})]}
+    assert len(build_deadlines(docs("done", "new"), "2026-11-15")) == 1
+    assert build_deadlines(docs("done", "done"), "2026-11-15") == []
+
+
+def test_a_log_file_in_the_inbox_has_no_deadline_and_no_home_date(tmp_path):
+    log = "2026-12-20T10:15:00 INFO job finished\n2026-12-21T10:15:00 INFO next run due by 2026-12-22\n"
+    ids, headers, doc_ids = _user(tmp_path, [("server.log", log), ("Stadtwerke.pdf", BILL)])
+    db = SessionLocal()
+    try:
+        db.query(models.Document).filter(models.Document.id == doc_ids[0]).update({"file_type": "log"})
+        db.commit()
+    finally:
+        db.close()
+    try:
+        names = [d["filename"] for d in _deadlines(headers)["deadlines"]]
+        home = [d["filename"] for d in client.get(f"{API}/home", headers=headers).json()["dates"]]
+    finally:
+        _drop(ids)
+    assert names == ["Stadtwerke.pdf"] and home == ["Stadtwerke.pdf"]

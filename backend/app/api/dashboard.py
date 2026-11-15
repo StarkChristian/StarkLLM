@@ -365,22 +365,44 @@ def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool 
 
     # a corrected letter ("ersetzt die Abrechnung vom 20.10.2026") replaces the earlier one from the same sender: the
     # earlier letter's dates and amounts are no longer valid and are not shown
-    dates = []
-    for item, pages, is_replaced in zip(items, pages_of, replaced_documents(pages_of)):
-        if is_replaced:
+    # The same rules as the deadlines list (deadlines_service): only letters have dates (a log file's timestamps are
+    # none), and a letter, its copy and the photo of it are one date, read from the oldest of them.
+    from app.services.deadlines_service import counts_as_letter, same_deadline, _norm_ref
+    from app.services.facts_service import document_facts_cached
+    order = sorted(range(len(items)), key=lambda i: (items[i]["added"] or "", items[i]["scope"], items[i]["id"]))
+    replaced = replaced_documents(pages_of)
+    dates, seen_fp = [], {}
+    for i in order:
+        item, pages = items[i], pages_of[i]
+        if replaced[i]:
             item["replaced"] = True
             continue
         full = "\n".join(text for _, text in sorted(pages.items()))
         if any(f["kind"] in ("scam_signs", "ai_instructions") for f in findings([{"file": item["filename"], "text": full}])):
             item["suspicious"] = True  # a scam's "deadline" is not something to do
             continue
+        facts = document_facts_cached(pages)
+        if not counts_as_letter({"facts": facts, "file_type": item.get("file_type")}):
+            continue
+        fp = facts.get("fingerprint")
+        if fp and fp in seen_fp:
+            continue  # the same text as an earlier document: its dates are already there
+        if fp:
+            seen_fp[fp] = i
+        refs = {_norm_ref(r["value"]) for r in facts.get("references", [])}
         for page, text in sorted(pages.items()):
             for f in _dates_cached(text):
                 if f.date < first.isoformat():
                     continue
-                dates.append({**f.__dict__, "page": page, "passed": f.date < today.isoformat(),
-                              "scope": item["scope"], "document_id": item["id"], "workspace_id": item["workspace_id"],
-                              "filename": item["filename"]})
+                entry = {**f.__dict__, "page": page, "passed": f.date < today.isoformat(),
+                         "scope": item["scope"], "document_id": item["id"], "workspace_id": item["workspace_id"],
+                         "filename": item["filename"]}
+                reading = {"kind": f.kind, "date": f.date, "amount": f.amount, "case": facts.get("case"), "refs": refs}
+                if any(same_deadline(reading, d["_reading"]) for d in dates):
+                    continue  # the photo of a letter, read slightly differently
+                dates.append({**entry, "_reading": reading})
+    for d in dates:
+        d.pop("_reading")
     dates.sort(key=lambda d: (d["date"], d["filename"]))
     return today, items, dates
 
@@ -663,6 +685,24 @@ def _checked_key(db, user_id: int, key: str) -> dict:
     return parts
 
 
+def _group(db, user_id: int, key: str):
+    """(the deadline's own key parts, the parts of every key in its duplicate group). A letter, its copy and the photo
+    of it are one deadline: reminders and the done mark belong to the whole group, whichever document's key is sent."""
+    from app.services.deadlines_service import parse_key
+    _checked_key(db, user_id, key)
+    _, deadlines = _deadlines(db, user_id)
+    found = next((d for d in deadlines if key in d["keys"]), None)
+    keys = found["keys"] if found else [key]
+    return parse_key(found["key"] if found else key), [parse_key(k) for k in keys]
+
+
+def _group_rows(db, model, user_id: int, group: list):
+    from sqlalchemy import and_, or_
+    return db.query(model).filter(model.user_id == user_id, or_(*[
+        and_(model.scope == g["scope"], model.document_id == g["document_id"], model.due_date == g["due"], model.kind == g["kind"])
+        for g in group])).all()
+
+
 @router.put("/deadlines/reminders")
 def set_deadline_reminders(
     body: RemindersIn,
@@ -672,21 +712,20 @@ def set_deadline_reminders(
     """Set the reminders of one deadline: remind me N days before (0 = on the day). The list replaces the earlier
     one; an empty list removes the reminders. Stored on this PC; the dashboard shows a reminder from its day."""
     from app.services.deadlines_service import MAX_REMINDER_DAYS, MAX_REMINDERS, clean_offsets
-    parts = _checked_key(db, current_user.id, body.key)
     offsets = clean_offsets(body.days_before)
     if offsets is None:
         raise HTTPException(status_code=422, detail=f"Reminders: up to {MAX_REMINDERS}, each 0 to {MAX_REMINDER_DAYS} days before")
-    mine = db.query(models.DeadlineReminder).filter_by(
-        user_id=current_user.id, scope=parts["scope"], document_id=parts["document_id"],
-        due_date=parts["due"], kind=parts["kind"])
-    kept = {r.days_before: r for r in mine.all()}
-    for days, row in kept.items():
-        if days not in offsets:
+    own, group = _group(db, current_user.id, body.key)
+    kept = {}
+    for row in _group_rows(db, models.DeadlineReminder, current_user.id, group):
+        if row.days_before in offsets and row.days_before not in kept:
+            kept[row.days_before] = row
+        else:
             db.delete(row)
     for days in offsets:
         if days not in kept:
-            db.add(models.DeadlineReminder(user_id=current_user.id, scope=parts["scope"], document_id=parts["document_id"],
-                                           due_date=parts["due"], kind=parts["kind"], days_before=days))
+            db.add(models.DeadlineReminder(user_id=current_user.id, scope=own["scope"], document_id=own["document_id"],
+                                           due_date=own["due"], kind=own["kind"], days_before=days))
     db.commit()
     return {"key": body.key, "reminders": offsets}
 
@@ -699,12 +738,10 @@ def acknowledge_deadline_reminders(
 ):
     """The user saw the reminder: it leaves the dashboard. Reminders for later days of the same deadline stay."""
     from datetime import date, timedelta
-    parts = _checked_key(db, current_user.id, body.key)
-    today, due = date.today(), date.fromisoformat(parts["due"])
+    own, group = _group(db, current_user.id, body.key)
+    today, due = date.today(), date.fromisoformat(own["due"])
     changed = 0
-    for r in db.query(models.DeadlineReminder).filter_by(
-            user_id=current_user.id, scope=parts["scope"], document_id=parts["document_id"],
-            due_date=parts["due"], kind=parts["kind"]).all():
+    for r in _group_rows(db, models.DeadlineReminder, current_user.id, group):
         if due - timedelta(days=r.days_before) <= today and not r.acknowledged:
             r.acknowledged = 1
             changed += 1
@@ -720,15 +757,14 @@ def set_deadline_done(
 ):
     """Mark one deadline done (a paid invoice) or take the mark back. Independent of the letter, which stays in the
     inbox; a done deadline leaves the dashboard and the calendar file. Stored on this PC."""
-    parts = _checked_key(db, current_user.id, body.key)
-    row = db.query(models.DeadlineDone).filter_by(
-        user_id=current_user.id, scope=parts["scope"], document_id=parts["document_id"],
-        due_date=parts["due"], kind=parts["kind"]).first()
-    if body.done and not row:
-        db.add(models.DeadlineDone(user_id=current_user.id, scope=parts["scope"], document_id=parts["document_id"],
-                                   due_date=parts["due"], kind=parts["kind"]))
-    elif not body.done and row:
-        db.delete(row)
+    own, group = _group(db, current_user.id, body.key)
+    rows = _group_rows(db, models.DeadlineDone, current_user.id, group)
+    if body.done and not rows:
+        db.add(models.DeadlineDone(user_id=current_user.id, scope=own["scope"], document_id=own["document_id"],
+                                   due_date=own["due"], kind=own["kind"]))
+    elif not body.done:
+        for row in rows:
+            db.delete(row)
     db.commit()
     return {"key": body.key, "done": body.done}
 

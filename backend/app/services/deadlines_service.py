@@ -70,39 +70,89 @@ def _state(days: int) -> str:
     return "soon" if days <= SOON_DAYS else "upcoming"
 
 
-def build_deadlines(inbox: Dict, today: str) -> List[Dict]:
-    """The deadlines, payments and appointments of the inbox letters, oldest date first.
+NOT_LETTER_TYPES = ("log", "csv", "tsv", "json", "jsonl", "xml")  # timestamps in these are data, never deadlines
 
-    Left out: letters a newer letter replaced, letters with scam signs (a scam's "deadline" is nothing to do), the
-    second copy of a letter (the same text as photo and PDF), and, for a date that has passed, letters the user marked
-    done (that is how a paid bill leaves the overdue list)."""
+
+def _norm_ref(value: str) -> str:
+    return "".join(ch for ch in (value or "").lower() if ch.isalnum())
+
+
+def same_deadline(a: Dict, b: Dict) -> bool:
+    """Two readings of one deadline: the same kind, due date and amount, from the same sender (case), and no
+    reference number that contradicts the other (a copy or a photo may have lost one). Without a sender nothing is
+    merged here; identical copies are merged by their document group instead."""
+    return (a["kind"] == b["kind"] and a["date"] == b["date"] and (a.get("amount") or "") == (b.get("amount") or "")
+            and bool(a.get("case")) and a.get("case") == b.get("case")
+            and (not a["refs"] or not b["refs"] or bool(a["refs"] & b["refs"])))
+
+
+def counts_as_letter(doc: Dict) -> bool:
+    """Only letters have deadlines: not a note, a log file, a spreadsheet or a data file."""
+    facts = doc.get("facts") or {}
+    return (bool(facts.get("letter")) and (doc.get("file_type") or "").lower().lstrip(".") not in NOT_LETTER_TYPES
+            and not doc.get("replaced") and not doc.get("suspicious"))
+
+
+def _group_of(doc: Dict):
+    """The document a copy belongs to: the first one of its duplicate group (same text as PDF, copy or photo)."""
+    dup = doc.get("duplicate_of")
+    return (dup["scope"], dup["id"]) if dup else (doc["scope"], doc["id"])
+
+
+def build_deadlines(inbox: Dict, today: str) -> List[Dict]:
+    """The deadlines, payments and appointments of the inbox letters, oldest date first. One deadline stands for a
+    letter and all its copies: the PDF, a second copy and the photo of it are one entry that lists the documents it
+    comes from (`sources`) and all their keys (`keys`).
+
+    Left out: documents that are not letters (notes, log and data files), letters a newer letter replaced, letters with
+    scam signs (a scam's "deadline" is nothing to do), and, for a date that has passed, deadlines whose letters were all
+    marked done (that is how a paid bill leaves the overdue list)."""
     now = date.fromisoformat(today)
-    out, seen = [], set()
-    for doc in inbox.get("documents", []):
-        if doc.get("replaced") or doc.get("suspicious") or doc.get("duplicate_of"):
+    out = []
+    for doc in sorted(inbox.get("documents", []), key=lambda d: (d.get("added") or "", d["scope"], d["id"])):
+        if not counts_as_letter(doc):
             continue
         facts = doc.get("facts") or {}
         sender = (facts.get("sender") or {}).get("value")
         kind_of_letter = (facts.get("type") or {}).get("value")
+        refs = {_norm_ref(r["value"]) for r in facts.get("references", [])}
+        group = _group_of(doc)
         for f in facts.get("dates", []):
             if f.get("kind") not in DEADLINE_KINDS:
                 continue
             days = (date.fromisoformat(f["value"]) - now).days
-            if days < 0 and doc.get("status") != "new":
-                continue
             key = deadline_key(doc["scope"], doc["id"], f["value"], f["kind"])
-            if key in seen:
+            source = {"key": key, "scope": doc["scope"], "document_id": doc["id"], "workspace_id": doc.get("workspace_id"),
+                      "filename": doc["filename"], "page": f.get("page"), "line": f.get("line")}
+            reading = {"kind": f["kind"], "date": f["value"], "amount": f.get("amount"), "case": facts.get("case"),
+                       "refs": refs}
+            mine = next((d for d in out if d["kind"] == f["kind"] and d["date"] == f["value"]
+                         and (group in d["_groups"] or same_deadline(reading, d["_reading"]))), None)
+            if mine:
+                if key not in mine["keys"]:
+                    mine["keys"].append(key)
+                    mine["sources"].append(source)
+                mine["_groups"].add(group)
+                mine["_new"] = mine["_new"] or doc.get("status") == "new"
                 continue
-            seen.add(key)
             out.append({
-                "key": key, "scope": doc["scope"], "document_id": doc["id"], "workspace_id": doc.get("workspace_id"),
+                "key": key, "keys": [key], "sources": [source],
+                "scope": doc["scope"], "document_id": doc["id"], "workspace_id": doc.get("workspace_id"),
                 "filename": doc["filename"], "title": doc.get("title"), "sender": sender, "type": kind_of_letter,
                 "kind": f["kind"], "date": f["value"], "time": f.get("time"), "amount": f.get("amount"),
                 "text": f.get("text"), "page": f.get("page"), "line": f.get("line"),
                 "days": days, "state": _state(days), "reminders": [], "reminder_active": False, "done": False,
+                "_groups": {group}, "_reading": reading, "_new": doc.get("status") == "new",
             })
-    out.sort(key=lambda d: (d["date"], d.get("time") or "", d["filename"]))
-    return out
+    kept = []
+    for d in out:
+        if d["days"] < 0 and not d["_new"]:
+            continue
+        for private in ("_groups", "_reading", "_new"):
+            d.pop(private)
+        kept.append(d)
+    kept.sort(key=lambda d: (d["date"], d.get("time") or "", d["filename"]))
+    return kept
 
 
 def add_reminders(deadlines: List[Dict], rows: Iterable, today: str) -> List[Dict]:
@@ -113,7 +163,7 @@ def add_reminders(deadlines: List[Dict], rows: Iterable, today: str) -> List[Dic
     for r in rows:
         by_key.setdefault(deadline_key(r.scope, r.document_id, r.due_date, r.kind), []).append(r)
     for d in deadlines:
-        mine = by_key.get(d["key"], [])
+        mine = [r for k in d.get("keys", [d["key"]]) for r in by_key.get(k, [])]
         d["reminders"] = sorted({r.days_before for r in mine}, reverse=True)
         d["reminder_active"] = any(
             not r.acknowledged and date.fromisoformat(r.due_date) - timedelta(days=r.days_before) <= now for r in mine)
@@ -125,7 +175,7 @@ def add_done(deadlines: List[Dict], rows: Iterable) -> List[Dict]:
     active reminder."""
     finished = {deadline_key(r.scope, r.document_id, r.due_date, r.kind) for r in rows}
     for d in deadlines:
-        d["done"] = d["key"] in finished
+        d["done"] = any(k in finished for k in d.get("keys", [d["key"]]))
         if d["done"]:
             d["reminder_active"] = False
     return deadlines

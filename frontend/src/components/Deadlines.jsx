@@ -153,6 +153,16 @@ export default function Deadlines({ token, onOpen }) {
               <button className={styles.source} onClick={() => onOpen(d)}>
                 {d.filename} · {t('Page {page}', { page: d.page })}{d.line ? `, ${t('line {line}', { line: d.line })}` : ''}
               </button>
+              {(d.sources || []).length > 1 && (
+                <div className={styles.copies}>
+                  <span>{t('Same letter also in:')}</span>
+                  {d.sources.slice(1).map((c) => (
+                    <button key={c.key} className={styles.source} onClick={() => onOpen({ ...d, scope: c.scope, document_id: c.document_id, workspace_id: c.workspace_id, page: c.page })}>
+                      {c.filename}
+                    </button>
+                  ))}
+                </div>
+              )}
               {!d.done && (
               <div className={styles.reminders} role="group" aria-label={t('Remind me')}>
                 <Bell size={13} />

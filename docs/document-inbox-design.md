@@ -65,7 +65,10 @@ title, cases per sender, same letter as photo and PDF.
 
 B5 (deadlines): the Deadlines tab of the inbox lists every deadline, payment date and appointment of all letters,
 oldest first, with the sentence it was read from, page and line, sender and amount, and the state (overdue, today,
-within a week, later). Letters with scam signs, replaced letters and second copies are left out; a date that has
+within a week, later). Only letters count (not notes, log or data files); letters with scam signs and replaced letters are left out; a letter, its
+copy and the photo of it are one deadline (same kind, due date, amount and sender, no contradicting reference number),
+which lists the documents it comes from, and reminders and the done mark apply to the whole group. The start page card
+and the calendar file use the same rules; a date that has
 passed stays in the list until the letter is marked done. Each deadline can also be marked done on its own (a paid
 invoice leaves the list, the dashboard and the calendar file, the letter stays in the inbox; "Show done" lists them and
 the mark can be undone; stored locally). Reminders: per deadline "7 / 3 / 1 days before" or "on the

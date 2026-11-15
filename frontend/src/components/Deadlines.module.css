@@ -92,3 +92,5 @@
 .undoBtn { background: transparent; color: var(--text-secondary); border: 1px solid var(--border-color); }
 .undoBtn:hover { color: var(--text-primary); background: var(--bg-hover); }
 .itemActions .calBtn { align-self: flex-end; }
+
+.copies { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.8rem; color: var(--text-muted); }
