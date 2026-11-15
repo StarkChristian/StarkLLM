@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal, BrainCircuit, Server, Play, Loader, Key, Globe, Keyboard } from 'lucide-react';
+import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal, BrainCircuit, Server, Play, Loader, Key, Globe, Keyboard, ShieldCheck } from 'lucide-react';
 import styles from './Settings.module.css';
 import BackupRestoreSettings from './BackupRestoreSettings';
 import { AVAILABLE_THEMES, applyTheme } from '../utils/themes';
 import OtherAppsPanel from './OtherAppsPanel';
+import PrivacyPanel from './PrivacyPanel';
 import { t, language, setLanguage } from '../i18n';
 import { SUPPORTED_LANGUAGES } from '../utils/languages';
 import { cloudHostFor } from '../utils/cloud';
@@ -17,6 +18,7 @@ const SECTIONS = [
   { id: 'kb',       label: t('Knowledge Base'), icon: Shield },
   { id: 'mcp',      label: t('Local Tools'),   icon: Terminal },
   { id: 'dev-api',  label: t('Other apps'), icon: Server },
+  { id: 'privacy',  label: t('Privacy & network'), icon: ShieldCheck },
   { id: 'ui',       label: t('Appearance'),    icon: Palette },
   { id: 'language', label: t('Language & Locale'), icon: Globe },
   { id: 'shortcuts', label: t('Keyboard Shortcuts'), icon: Keyboard },
@@ -992,6 +994,9 @@ print(response.choices[0].message.content)`;
 
           {/* ───── Local API Server (OpenAI-Compatible) ───── */}
           {activeSection === 'dev-api' && <OtherAppsPanel token={token} />}
+
+          {/* ───── Privacy: fully offline switch and the list of connections ───── */}
+          {activeSection === 'privacy' && <PrivacyPanel token={token} />}
 
           {/* ───── UI ───── */}
           {activeSection === 'ui' && (

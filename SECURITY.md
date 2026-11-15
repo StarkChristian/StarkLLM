@@ -21,7 +21,11 @@ Only the latest release gets security fixes. StarkLLM updates itself; please kee
 - Other programs on the same PC can use StarkLLM only after the user turns this on and creates a key
   (Settings > Other apps); keys are stored as hashes.
 - No internet connection is made without the user's choice (model downloads, update check, web search, Telegram).
+- Every connection the app and its engine make is listed in Settings > Privacy & network, and the "Fully offline"
+  switch there refuses all of them (see [docs/privacy-network.md](docs/privacy-network.md); how to check it yourself:
+  [docs/verify-privacy.md](docs/verify-privacy.md)).
 - Text inside documents is treated as data, never as instructions; letters that try to instruct an AI assistant are
-  flagged.
+  flagged, text hidden in a file is left out, and a tool runs only after the user's click. A public set of 73 documents
+  in 14 languages (`tests/injection/`) is part of the tests.
 
 A way around any of these is a vulnerability.

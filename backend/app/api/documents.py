@@ -15,10 +15,19 @@ from pydantic import BaseModel
 from app.services.rag_service import rag_service, HTMLTextExtractor
 from app.services.llm_service import describe_indexing_error
 from app.core.config import settings
+from app.core import netguard
+import requests
 from app.api.auth import get_current_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def _github_get(url: str, headers: dict, timeout: int):
+    """One request to GitHub through the network layer (recorded; refused while the app is fully offline)."""
+    resp = netguard.get(url, feature="github_import", headers=headers, timeout=timeout)
+    resp.raise_for_status()
+    return resp
 
 
 def _set_doc_status(doc_id: int, status: str, error_message: str = None):
@@ -238,21 +247,18 @@ async def ingest_url(
         raise HTTPException(status_code=400, detail="Invalid URL. Must begin with http:// or https://")
 
     # Fetch webpage content
-    import urllib.request
     import hashlib
     import time
     from urllib.parse import urlparse
 
     try:
-        http_req = urllib.request.Request(
-            target_url,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) StarkLLM-Scraper/1.0"
-            }
+        resp = netguard.get(
+            target_url, feature="web_import",
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) StarkLLM-Scraper/1.0"},
+            timeout=20,
         )
-        with urllib.request.urlopen(http_req, timeout=20) as resp:
-            content_bytes = resp.read()
-            html_raw = content_bytes.decode("utf-8", errors="replace")
+        resp.raise_for_status()
+        html_raw = resp.content.decode("utf-8", errors="replace")
     except Exception as e:
         logger.error(f"Failed to fetch URL {target_url}: {e}")
         raise HTTPException(status_code=400, detail=f"Could not fetch URL: {str(e)[:200]}")
@@ -265,6 +271,10 @@ async def ingest_url(
     extractor = HTMLTextExtractor()
     extractor.feed(html_raw)
     clean_text = extractor.get_data().strip()
+    if extractor.hidden and clean_text:
+        # text the page hides from its readers (display:none, white, zero size) is not imported; the user is told
+        from app.services import untrusted
+        clean_text += "\n\n" + untrusted.hidden_marker(extractor.hidden)
 
     if not clean_text or len(clean_text) < 30:
         raise HTTPException(status_code=400, detail="Webpage contains no indexable text content.")
@@ -351,7 +361,6 @@ async def ingest_youtube(
     if not video_id:
         raise HTTPException(status_code=400, detail="Invalid YouTube URL. Please provide a valid video link or video ID.")
 
-    import urllib.request
     import json
     import hashlib
     import time
@@ -361,34 +370,37 @@ async def ingest_youtube(
     channel_title = "YouTube"
     try:
         oembed_url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
-        http_req = urllib.request.Request(
-            oembed_url,
-            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) StarkLLM-Scraper/1.0"}
+        resp = netguard.get(
+            oembed_url, feature="youtube_import",
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) StarkLLM-Scraper/1.0"},
+            timeout=10,
         )
-        with urllib.request.urlopen(http_req, timeout=10) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            video_title = data.get("title", video_title)
-            channel_title = data.get("author_name", channel_title)
+        resp.raise_for_status()
+        data = resp.json()
+        video_title = data.get("title", video_title)
+        channel_title = data.get("author_name", channel_title)
     except Exception as e:
         logger.warning(f"Could not fetch YouTube oEmbed title for {video_id}: {e}")
 
     # Fetch transcript using youtube_transcript_api
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
-        yt_api = YouTubeTranscriptApi()
-        transcript_list = yt_api.list(video_id)
-        transcript = None
-        try:
-            transcript = transcript_list.find_transcript(['en', 'de'])
-        except Exception:
-            for t in transcript_list:
-                transcript = t
-                break
+        # the library brings its own HTTP client: the network layer records it and refuses it while offline
+        with netguard.external("youtube_import", "www.youtube.com", purpose="Transcript of the video the user entered"):
+            yt_api = YouTubeTranscriptApi()
+            transcript_list = yt_api.list(video_id)
+            transcript = None
+            try:
+                transcript = transcript_list.find_transcript(['en', 'de'])
+            except Exception:
+                for t in transcript_list:
+                    transcript = t
+                    break
 
-        if not transcript:
-            raise HTTPException(status_code=400, detail="No transcript or subtitles available for this YouTube video.")
+            if not transcript:
+                raise HTTPException(status_code=400, detail="No transcript or subtitles available for this YouTube video.")
 
-        fetched = transcript.fetch()
+            fetched = transcript.fetch()
     except HTTPException:
         raise
     except Exception as e:
@@ -509,7 +521,6 @@ async def ingest_github(
             detail="Invalid GitHub repository. Format: https://github.com/owner/repo or owner/repo"
         )
 
-    import urllib.request
     import json
     import hashlib
     import time
@@ -522,16 +533,15 @@ async def ingest_github(
     # 1. Fetch repo metadata
     repo_meta_url = f"https://api.github.com/repos/{owner}/{repo_name}"
     try:
-        http_req = urllib.request.Request(repo_meta_url, headers=headers)
-        with urllib.request.urlopen(http_req, timeout=12) as resp:
-            meta = json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as he:
-        if he.code == 404:
+        meta = _github_get(repo_meta_url, headers, 12).json()
+    except requests.exceptions.HTTPError as he:
+        code = he.response.status_code if he.response is not None else 0
+        if code == 404:
             raise HTTPException(status_code=404, detail=f"GitHub repository '{owner}/{repo_name}' not found or is private.")
-        elif he.code == 403:
+        elif code == 403:
             raise HTTPException(status_code=429, detail="GitHub API rate limit exceeded. Please wait a moment and try again.")
         else:
-            raise HTTPException(status_code=400, detail=f"GitHub API error: {he.reason}")
+            raise HTTPException(status_code=400, detail=f"GitHub API error: HTTP {code}")
     except Exception as e:
         logger.error(f"Failed to query GitHub API for {owner}/{repo_name}: {e}")
         raise HTTPException(status_code=400, detail=f"Could not connect to GitHub: {str(e)[:200]}")
@@ -545,9 +555,7 @@ async def ingest_github(
     # 2. Fetch git tree recursively
     tree_url = f"https://api.github.com/repos/{owner}/{repo_name}/git/trees/{default_branch}?recursive=1"
     try:
-        http_req = urllib.request.Request(tree_url, headers=headers)
-        with urllib.request.urlopen(http_req, timeout=15) as resp:
-            tree_data = json.loads(resp.read().decode("utf-8"))
+        tree_data = _github_get(tree_url, headers, 15).json()
     except Exception as e:
         logger.error(f"Failed to fetch git tree for {owner}/{repo_name} ({default_branch}): {e}")
         raise HTTPException(status_code=400, detail=f"Could not fetch file tree for branch '{default_branch}': {str(e)[:200]}")
@@ -614,11 +622,9 @@ async def ingest_github(
     for path, _ in selected_files:
         raw_url = f"https://raw.githubusercontent.com/{owner}/{repo_name}/{default_branch}/{path}"
         try:
-            raw_req = urllib.request.Request(raw_url, headers={"User-Agent": "StarkLLM-Scraper/1.0"})
-            with urllib.request.urlopen(raw_req, timeout=10) as raw_resp:
-                content = raw_resp.read().decode("utf-8", errors="replace")
-                ext = path.rsplit(".", 1)[-1] if "." in path else ""
-                file_sections.append(f"### File: `{path}`\n```{ext}\n{content}\n```")
+            content = _github_get(raw_url, {"User-Agent": "StarkLLM-Scraper/1.0"}, 10).content.decode("utf-8", errors="replace")
+            ext = path.rsplit(".", 1)[-1] if "." in path else ""
+            file_sections.append(f"### File: `{path}`\n```{ext}\n{content}\n```")
         except Exception as err:
             logger.warning(f"Could not fetch file {path}: {err}")
 

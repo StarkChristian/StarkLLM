@@ -10,6 +10,7 @@ const http = require('http');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { probe } = require('./diagnostics');
+const { getShared, FEATURES: NET_FEATURES } = require('./netguard');
 const { chooseModels } = require('./models');
 const { createPullProgress, createModelProgress, throttle, formatBytes } = require('./progress');
 
@@ -221,7 +222,7 @@ function engineImages(version, registry = process.env.STARKLLM_REGISTRY || 'ghcr
 }
 // Compressed layer sizes of a published image, keyed by the short layer id that `docker compose pull` prints,
 // so the start screen can show real overall progress. Returns an empty map if the registry cannot be asked.
-async function imageLayerSizes(image, { fetchImpl = fetch } = {}) {
+async function imageLayerSizes(image, { fetchImpl = (u, o) => getShared().wrapFetch(fetch, 'engine_download', NET_FEATURES.engine_download)(u, o) } = {}) {
   const sizes = new Map();
   try {
     const m = image.match(/^([^/]+)\/(.+):([^:]+)$/);
@@ -345,6 +346,20 @@ function size(bytes) {
 
 // Streams Ollama's /api/pull and reports the download progress.
 function pullModel(name, onStatus) {
+  // The local Ollama downloads the model from its registry: announced to the network layer (recorded, refused offline)
+  let announced;
+  try {
+    announced = getShared().begin('model_download', OLLAMA_URL + '/api/pull', `Download of the AI model ${name}`, { method: 'POST', via: 'https://registry.ollama.ai' });
+  } catch (e) {
+    return Promise.reject(e);
+  }
+  return pullModelNow(name, onStatus).then(
+    (r) => { announced.finish({ status: 200 }); return r; },
+    (e) => { announced.fail(e); throw e; }
+  );
+}
+
+function pullModelNow(name, onStatus) {
   const progress = createModelProgress();
   const show = throttle((text, f) => onStatus(text, f), 250);
   return new Promise((resolve, reject) => {
@@ -399,7 +414,7 @@ async function pullWithRetry(name, onStatus, { pull = pullModel, wait = sleep, d
       await pull(name, onStatus);
       return;
     } catch (e) {
-      const permanent = /does not exist|not found|manifest unknown|invalid model name/i.test(e.message);
+      const permanent = /does not exist|not found|manifest unknown|invalid model name|fully offline/i.test(e.message);
       write(`pull ${name} attempt ${i} of ${attempts} failed: ${e.message}`);
       if (permanent || i >= attempts) throw e;
       const secs = Math.round(delays[i - 1] / 1000);
@@ -439,6 +454,11 @@ async function ensureOllama(status, progress, warnings) {
   if (!choice.pull.length) status(`Using ${choice.text} (already installed)`);
   for (const name of choice.pull) {
     if (hasModel(models, name)) continue;
+    if (getShared().isOffline()) {
+      log(`pull ${name} skipped: the app is fully offline`);
+      warnings.push(`The AI model ${name} is not on this PC, and StarkLLM is fully offline, so it was not downloaded. Turn off "Fully offline" in Settings > Privacy to download it.`);
+      continue;
+    }
     status(`Downloading AI model ${name}...`);
     try {
       await pullWithRetry(name, progress);
@@ -520,6 +540,7 @@ async function startEngine(appUrl, onStatus) {
     onStatus(text);
   };
   const warnings = [];
+  const guard = getShared();
   const paths = userPaths();
   log(`--- start, app ${app.getVersion()}, engine ${engineDir()}`);
 
@@ -583,25 +604,44 @@ async function startEngine(appUrl, onStatus) {
     // without it the container runs on UTC, and around midnight "today" in answers and on the home page is a day off
     STARKLLM_TZ: process.env.STARKLLM_TZ || localTimeZone(),
     // the knowledge base folder is in OneDrive (or another synced folder): the knowledge base page says so
-    STARKLLM_KB_SYNC: cloudSync(paths.kb) || ''
+    STARKLLM_KB_SYNC: cloudSync(paths.kb) || '',
+    // the "fully offline" switch: the engine starts with it on and refuses every connection except to this PC
+    STARKLLM_OFFLINE: guard.isOffline() ? '1' : ''
   };
   let up = null;
+  let builds = [];
   if (usePrebuilt()) {
     const images = engineImages(app.getVersion());
     env.STARKLLM_BACKEND_IMAGE = images.backend;
     env.STARKLLM_FRONTEND_IMAGE = images.frontend;
+  }
+  const noBuildUp = () => run(docker, ['compose', '-p', PROJECT, '-f', compose, 'up', '-d', '--no-build'], { env, cwd: engineDir(), timeoutMs: 10 * 60 * 1000 });
+  if (guard.isOffline()) {
+    // no download, no build: only the engine files that are already on this PC
+    status('StarkLLM is fully offline: starting the engine from the files on this PC...');
+    up = await noBuildUp();
+    if (up.code !== 0) {
+      up.lines.slice(-8).forEach((l) => log('compose (offline): ' + l));
+      return { ok: false, stage: 'engine', detail: 'StarkLLM is fully offline, and the engine files are not on this PC yet (they are downloaded once). Turn off "Fully offline" in Settings > Privacy, start StarkLLM once online, then turn it on again.', log: up.lines.slice(-8) };
+    }
+  } else if (usePrebuilt()) {
+    const images = engineImages(app.getVersion());
     const label = updating ? `Downloading the StarkLLM engine ${app.getVersion()}` : 'Downloading the StarkLLM engine';
     status(label + '...');
     const sizes = new Map([...(await imageLayerSizes(images.backend)), ...(await imageLayerSizes(images.frontend))]);
     const progress = createPullProgress(sizes);
     if (sizes.size) log(`engine download: ${sizes.size} layers, ${formatBytes(progress.total())}`);
     const show = throttle(() => onStatus(progress.text(label), progress.fraction()), 250);
+    // Docker downloads the images: announced to the network layer (recorded as a download from the registry)
+    const dl = guard.begin('engine_download', 'https://ghcr.io', `Download of the StarkLLM engine ${app.getVersion()} (Docker images)`);
     const pulled = await run(docker, ['compose', '-p', PROJECT, '-f', compose, 'pull'], {
       env,
       cwd: engineDir(),
       timeoutMs: 45 * 60 * 1000,
       onLine: (line) => { if (progress.feed(line)) show(); }
     });
+    if (pulled.code === 0) dl.finish({ status: 200, bytesIn: progress.total() || null });
+    else dl.fail(new Error(`docker compose pull exited with ${pulled.code}`));
     if (pulled.code === 0) {
       log(`pulled ${images.backend} and ${images.frontend}`);
       up = await run(docker, ['compose', '-p', PROJECT, '-f', compose, 'up', '-d', '--no-build'], { env, cwd: engineDir(), timeoutMs: 10 * 60 * 1000 });
@@ -611,6 +651,8 @@ async function startEngine(appUrl, onStatus) {
     }
   }
   if (!up) {
+    // building on this PC: Docker downloads the base image and packages
+    builds = ['registry-1.docker.io', 'pypi.org', 'deb.debian.org'].map((h) => guard.begin('engine_build', `https://${h}`, 'Build of the engine on this PC: Docker downloads the base image and packages'));
     status(updating
       ? `Updating the StarkLLM engine to version ${app.getVersion()} (a few minutes)...`
       : 'Starting the StarkLLM engine. The first start downloads and builds its components (10-20 minutes, needs internet)...');
@@ -620,6 +662,7 @@ async function startEngine(appUrl, onStatus) {
       timeoutMs: 60 * 60 * 1000,
       onLine: (line) => onStatus('Engine: ' + line.slice(0, 140))
     });
+    builds.forEach((b) => (up.code === 0 ? b.finish({ status: 200 }) : b.fail(new Error(`docker compose up --build exited with ${up.code}`))));
   }
   if (up.code !== 0 && up.lines.some((l) => BAKE_FAILED.test(l))) {
     up.lines.slice(-20).forEach((l) => log('compose (bake): ' + l));

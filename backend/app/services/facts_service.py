@@ -282,7 +282,7 @@ def document_facts(pages: Dict[int, str]) -> Dict:
         "accounts": accounts(pages),
         "dates": dates(pages),
         "warnings": sorted({f["kind"] for f in findings([{"file": "-", "text": full}])
-                            if f["kind"] in ("scam_signs", "ai_instructions")}),
+                            if f["kind"] in ("scam_signs", "ai_instructions", "hidden_text")}),
         # the same letter as a photo and as a PDF has the same text after OCR noise is removed
         "fingerprint": hashlib.sha1(_norm(full)[:4000].encode()).hexdigest() if full else None,
     }

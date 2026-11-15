@@ -11,6 +11,10 @@ from sqlalchemy import func
 from app.db.session import get_db
 from app.db import models
 from app.api.auth import get_current_user
+from app.core import netguard
+import asyncio
+import re
+import requests
 
 router = APIRouter()
 
@@ -82,8 +86,14 @@ def get_dashboard_stats(
         "kb_documents": kb_doc_count or 0,
     }
 
-import httpx
 from fastapi import HTTPException
+
+
+def _fetch_market_json(feature: str, url: str, headers: dict = None) -> dict:
+    resp = netguard.get(url, feature=feature, headers=headers or {}, timeout=5.0)
+    resp.raise_for_status()
+    return resp.json()
+
 
 @router.get("/market-prices")
 async def get_market_prices(symbol: str, consent: int = 0, current_user: models.User = Depends(get_current_user)):
@@ -95,17 +105,32 @@ async def get_market_prices(symbol: str, consent: int = 0, current_user: models.
         raise HTTPException(status_code=403, detail="Live market prices are off. Turn them on in the dashboard widget to allow this external request.")
     if symbol not in ["GC=F", "BZ=F"]:
         raise HTTPException(status_code=400, detail="Invalid symbol")
-    
+
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(url, headers=headers, timeout=5.0)
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            raise HTTPException(status_code=502, detail=f"Failed to fetch market data: {str(e)}")
+    try:
+        return await asyncio.to_thread(_fetch_market_json, "market_prices", url, {"User-Agent": "Mozilla/5.0"})
+    except netguard.OfflineBlocked as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch market data: {str(e)}")
+
+
+@router.get("/crypto-prices")
+async def get_crypto_prices(ids: str, consent: int = 0, current_user: models.User = Depends(get_current_user)):
+    """CoinGecko prices for the dashboard widget, fetched by the engine so that the request is recorded in the network
+    activity list and refused in fully offline mode (the browser used to ask CoinGecko directly)."""
+    if consent != 1:
+        raise HTTPException(status_code=403, detail="Live market prices are off. Turn them on in the dashboard widget to allow this external request.")
+    wanted = [i for i in ids.split(",") if re.fullmatch(r"[a-z0-9-]{1,40}", i)]
+    if not wanted or len(wanted) > 30:
+        raise HTTPException(status_code=400, detail="Invalid ids")
+    url = f"https://api.coingecko.com/api/v3/simple/price?ids={','.join(wanted)}&vs_currencies=usd&include_24hr_change=true"
+    try:
+        return await asyncio.to_thread(_fetch_market_json, "market_prices", url)
+    except netguard.OfflineBlocked as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch market data: {str(e)}")
 
 
 import time as _time
@@ -161,45 +186,48 @@ async def get_system_status(
     ollama_url = app_settings.OLLAMA_BASE_URL
     t0 = _time.monotonic()
     try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
-            tags_resp = await client.get(f"{ollama_url}/api/tags")
-            tags_resp.raise_for_status()
-            latency = round((_time.monotonic() - t0) * 1000)
-            result["ollama"]["status"] = "online"
-            result["ollama"]["latency_ms"] = latency
-            result["ollama"]["error"] = None
+        def probe_ollama():
+            tags = netguard.get(f"{ollama_url}/api/tags", feature="ollama", timeout=4.0)
+            tags.raise_for_status()
+            latency_ms = round((_time.monotonic() - t0) * 1000)
             try:
-                version = (await client.get(f"{ollama_url}/api/version")).json().get("version", "")
+                version = netguard.get(f"{ollama_url}/api/version", feature="ollama", timeout=4.0).json().get("version", "")
             except Exception:
                 version = ""
-            result["ollama"]["version"] = version or None
-            result["ollama"]["min_version"] = MIN_OLLAMA
-            result["ollama"]["outdated"] = ollama_outdated(version)
+            return tags, latency_ms, version
 
-            models_raw = tags_resp.json().get("models", [])
-            available = [m.get("name", "") for m in models_raw]
-            result["available_models"] = available
+        tags_resp, latency, version = await asyncio.to_thread(probe_ollama)
+        result["ollama"]["status"] = "online"
+        result["ollama"]["latency_ms"] = latency
+        result["ollama"]["error"] = None
+        result["ollama"]["version"] = version or None
+        result["ollama"]["min_version"] = MIN_OLLAMA
+        result["ollama"]["outdated"] = ollama_outdated(version)
 
-            # Check if configured models are present
-            text_model = app_settings.DEFAULT_TEXT_MODEL
-            embed_model = app_settings.DEFAULT_EMBEDDING_MODEL
+        models_raw = tags_resp.json().get("models", [])
+        available = [m.get("name", "") for m in models_raw]
+        result["available_models"] = available
 
-            def _model_present(name: str, available: list[str]) -> bool:
-                """Exact match; a name without a tag means ':latest' (Ollama's own rule).
-                'qwen2.5:7b' must NOT be satisfied by 'qwen2.5vl:7b'."""
-                norm = lambda n: n if ":" in n else n + ":latest"
-                return norm(name) in {norm(a) for a in available}
+        # Check if configured models are present
+        text_model = app_settings.DEFAULT_TEXT_MODEL
+        embed_model = app_settings.DEFAULT_EMBEDDING_MODEL
 
-            text_model_present = _model_present(text_model, available)
-            embed_model_present = _model_present(embed_model, available)
+        def _model_present(name: str, available: list[str]) -> bool:
+            """Exact match; a name without a tag means ':latest' (Ollama's own rule).
+            'qwen2.5:7b' must NOT be satisfied by 'qwen2.5vl:7b'."""
+            norm = lambda n: n if ":" in n else n + ":latest"
+            return norm(name) in {norm(a) for a in available}
 
-            result["text_model"]["status"] = "online" if text_model_present else "missing"
-            result["text_model"]["error"] = None if text_model_present else f"Model '{text_model}' is missing. Run 'ollama pull {text_model}' in your terminal."
+        text_model_present = _model_present(text_model, available)
+        embed_model_present = _model_present(embed_model, available)
 
-            result["embedding_model"]["status"] = "online" if embed_model_present else "missing"
-            result["embedding_model"]["error"] = None if embed_model_present else f"Model '{embed_model}' is missing. Run 'ollama pull {embed_model}' in your terminal."
+        result["text_model"]["status"] = "online" if text_model_present else "missing"
+        result["text_model"]["error"] = None if text_model_present else f"Model '{text_model}' is missing. Run 'ollama pull {text_model}' in your terminal."
 
-    except httpx.ConnectError:
+        result["embedding_model"]["status"] = "online" if embed_model_present else "missing"
+        result["embedding_model"]["error"] = None if embed_model_present else f"Model '{embed_model}' is missing. Run 'ollama pull {embed_model}' in your terminal."
+
+    except requests.exceptions.ConnectionError:
         result["ollama"]["status"] = "offline"
         result["ollama"]["error"] = "Ollama is unreachable. Ensure Ollama is installed and running (e.g. 'ollama serve')."
         result["text_model"]["status"] = "offline"
@@ -367,7 +395,7 @@ def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool 
             item["replaced"] = True
             continue
         full = "\n".join(text for _, text in sorted(pages.items()))
-        if any(f["kind"] in ("scam_signs", "ai_instructions") for f in findings([{"file": item["filename"], "text": full}])):
+        if any(f["kind"] in ("scam_signs", "ai_instructions", "hidden_text") for f in findings([{"file": item["filename"], "text": full}])):
             item["suspicious"] = True  # a scam's "deadline" is not something to do
             continue
         for page, text in sorted(pages.items()):

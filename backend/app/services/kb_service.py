@@ -36,6 +36,7 @@ from app.services.rag_service import rag_service
 from app.services.llm_service import llm_service, describe_indexing_error
 from app.services.vision_service import vision_service
 from app.services.ocr_service import ocr_service, PICTURE_EXTENSIONS
+from app.services import untrusted
 
 logger = logging.getLogger(__name__)
 
@@ -529,7 +530,10 @@ class KBService:
                 pdf_chunk_count = 0
                 for page_num in range(len(pdf_doc)):
                     page = pdf_doc.load_page(page_num)
-                    text = page.get_text("text")
+                    # hidden text (white, tiny, off the page) is left out; a marker tells the user (untrusted.py)
+                    text, hidden_parts = untrusted.pdf_page_text(page)
+                    if hidden_parts and text.strip():
+                        text = text + "\n" + untrusted.hidden_marker(hidden_parts)
                     if text and text.strip():
                         page_chunks = rag_service._semantic_chunk_text(text)
                         for idx, chunk in enumerate(page_chunks):
@@ -570,8 +574,11 @@ class KBService:
                 sections = []
                 current_heading = "General"
                 current_texts = []
+                hidden_parts = 0
                 for p in docx_doc.paragraphs:
-                    p_text = p.text.strip()
+                    p_text, hid = untrusted.docx_paragraph_text(p)
+                    hidden_parts += hid
+                    p_text = p_text.strip()
                     if not p_text:
                         continue
                     style_name = getattr(getattr(p, 'style', None), 'name', '') or ''
@@ -587,6 +594,9 @@ class KBService:
                 if not sections:
                     full_text = "\n".join([p.text for p in docx_doc.paragraphs if p.text.strip()])
                     sections = [("General", full_text)]
+                if hidden_parts:
+                    marker = untrusted.hidden_marker(hidden_parts)
+                    sections = [(title, body + "\n" + marker) for title, body in sections]
 
                 docx_chunk_count = 0
                 for sec_title, sec_text in sections:

@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const { createUpdater } = require('./updates');
 const { installOllama } = require('./ollama-install');
 const { autoUpdater } = require('electron-updater');
+const { initShared } = require('./netguard');
 
 let mainWindow = null;
 let tray = null;
@@ -40,7 +41,25 @@ if (!gotTheLock) {
   app.whenReady().then(initApp);
 }
 
+// The network layer (netguard.js): records every connection of the main process and of the window, and holds the
+// "fully offline" switch. Created first, so that nothing below can connect before it exists.
+let guard = null;
+
+// What the switch changes besides the rules of the network layer: Chromium downloads spell-check dictionaries from
+// Google's servers on Windows, which is a connection the page's request hook does not see, so spell check is off while
+// the app is fully offline.
+function applyOffline() {
+  try {
+    session.defaultSession.setSpellCheckerEnabled(!guard.isOffline());
+  } catch (e) {
+    logLine(`spell check setting: ${e.message}`);
+  }
+}
+
 function initApp() {
+  guard = initShared(app.getPath('userData'));
+  guard.attachSession(session.defaultSession);
+  applyOffline();
   updater = createUpdater({ app, dialog, shell, net, autoUpdater, getWindow: () => mainWindow, log: logLine, onChange: () => refreshTrayMenu(),
     onStatus: (s) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('updates:status', s); } });
   // Settings > About in the web UI (only the app's own page may ask)
@@ -58,6 +77,24 @@ function initApp() {
     }
     const err = await shell.openPath(dir);
     return err ? { error: err } : { ok: true };
+  });
+  // Settings > Privacy: the fully offline switch and the list of connections of the app (only the app's own page may ask)
+  const fromApp = (event) => Boolean(event.senderFrame && sameOrigin(event.senderFrame.url, APP_URL));
+  const privacyState = () => ({ offline: guard.isOffline(), localCounts: guard.localCounts() });
+  ipcMain.handle('privacy:get', (event) => (fromApp(event) ? privacyState() : { error: 'not allowed' }));
+  ipcMain.handle('privacy:set-offline', (event, on) => {
+    if (!fromApp(event)) return { error: 'not allowed' };
+    guard.setOffline(Boolean(on));
+    logLine(`fully offline: ${guard.isOffline() ? 'on' : 'off'}`);
+    applyOffline();
+    refreshTrayMenu();
+    return privacyState();
+  });
+  ipcMain.handle('privacy:log', (event, limit) => (fromApp(event) ? guard.list(Math.min(Number(limit) || 500, 5000)) : { error: 'not allowed' }));
+  ipcMain.handle('privacy:clear-log', (event) => {
+    if (!fromApp(event)) return { error: 'not allowed' };
+    guard.clear();
+    return { ok: true };
   });
   ipcMain.handle('updates:check', async (event) => {
     if (!event.senderFrame || !sameOrigin(event.senderFrame.url, APP_URL)) return { error: 'not allowed' };
@@ -210,7 +247,7 @@ async function fetchLocalSession() {
   try {
     const secret = process.env.SECRET_KEY || secretKey(userPaths().secret);
     const key = crypto.createHmac('sha256', secret).update('starkllm-desktop-session').digest('hex');
-    const res = await net.fetch(`${API_URL}/api/v1/auth/desktop-session`, { method: 'POST', headers: { 'X-Desktop-Key': key }, signal: AbortSignal.timeout(8000) });
+    const res = await guard.wrapFetch((u, o) => net.fetch(u, o), 'local_engine', 'Sign-in of the local user at the engine on this PC')(`${API_URL}/api/v1/auth/desktop-session`, { method: 'POST', headers: { 'X-Desktop-Key': key }, signal: AbortSignal.timeout(8000) });
     if (res.ok) {
       localToken = (await res.json()).access_token || null;
       logLine('signed in as the local user');
@@ -277,6 +314,17 @@ function createTray() {
   }
 }
 
+// The switch lives in the app and in the engine; the tray menu changes the app's, so the engine is told (best effort:
+// the page in the window also reconciles the two when it opens, and "offline" always wins).
+async function syncEngineOffline(on) {
+  if (!localToken) return;
+  try {
+    await net.fetch(`${API_URL}/api/v1/privacy/offline`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localToken}` }, body: JSON.stringify({ enabled: Boolean(on) }), signal: AbortSignal.timeout(5000) });
+  } catch (e) {
+    logLine(`could not tell the engine about the offline switch: ${e.message}`);
+  }
+}
+
 // Rebuilt when a setting shown in it changes.
 function refreshTrayMenu() {
   if (!tray) return;
@@ -300,7 +348,20 @@ function refreshTrayMenu() {
     },
     { type: 'separator' },
     {
+      label: guard && guard.isOffline() ? 'Fully offline: on (no connections)' : 'Fully offline: off',
+      type: 'checkbox',
+      checked: Boolean(guard && guard.isOffline()),
+      click: (item) => {
+        guard.setOffline(item.checked);
+        logLine(`fully offline: ${item.checked ? 'on' : 'off'} (tray menu)`);
+        applyOffline();
+        syncEngineOffline(item.checked);
+        refreshTrayMenu();
+      }
+    },
+    {
       label: 'Check for Updates...',
+      enabled: !(guard && guard.isOffline()),
       click: () => updater.check({ manual: true }).catch((e) => logLine(`update check: ${e.message}`))
     },
     {

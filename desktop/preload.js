@@ -21,5 +21,10 @@ contextBridge.exposeInMainWorld('starkllmDesktop', {
     ipcRenderer.on('updates:status', handler);
     return () => ipcRenderer.removeListener('updates:status', handler);
   },
+  // Settings > Privacy: the fully offline switch of the app and the list of its outgoing connections
+  getPrivacy: () => ipcRenderer.invoke('privacy:get'),
+  setOffline: (on) => ipcRenderer.invoke('privacy:set-offline', Boolean(on)),
+  getNetworkLog: (limit) => ipcRenderer.invoke('privacy:log', limit),
+  clearNetworkLog: () => ipcRenderer.invoke('privacy:clear-log'),
   localToken,
 });
