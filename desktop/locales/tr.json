@@ -114,5 +114,9 @@
   "The StarkLLM engine could not be downloaded: {error}. Check the internet connection and press Retry.": "StarkLLM motoru indirilemedi: {error}. İnternet bağlantısını kontrol edin ve Yeniden dene düğmesine basın.",
   "The StarkLLM engine did not start. Its log is in {log}.": "StarkLLM motoru başlamadı. Günlüğü şurada: {log}.",
   "Downloading the StarkLLM engine: {percent} % ({done} of {total})": "StarkLLM motoru indiriliyor: %{percent} ({done} / {total})",
-  "Unpacking the StarkLLM engine (about a minute)...": "StarkLLM motoru açılıyor (yaklaşık bir dakika)..."
+  "Unpacking the StarkLLM engine (about a minute)...": "StarkLLM motoru açılıyor (yaklaşık bir dakika)...",
+  "Use Docker Desktop for the engine (advanced)": "Motor için Docker Desktop kullan (ileri düzey)",
+  "Restart StarkLLM to change the engine?": "Motoru değiştirmek için StarkLLM yeniden başlatılsın mı?",
+  "The engine without Docker is the default and needs nothing else. Docker Desktop is for advanced users who already run it. Your chats and documents stay the same: both engines use the same data folder.": "Docker’sız motor varsayılandır ve başka hiçbir şeye ihtiyaç duymaz. Docker Desktop, onu zaten kullanan ileri düzey kullanıcılar içindir. Sohbetleriniz ve belgeleriniz aynı kalır: iki motor da aynı veri klasörünü kullanır.",
+  "Stopping the StarkLLM engine in Docker Desktop (StarkLLM now runs without Docker)...": "Docker Desktop’taki StarkLLM motoru durduruluyor (StarkLLM artık Docker olmadan çalışıyor)..."
 }

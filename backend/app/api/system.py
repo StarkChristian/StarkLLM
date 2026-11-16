@@ -238,6 +238,16 @@ def _limit_resources(cpu_seconds: int):
     return apply
 
 
+CODE_RUNNER_OFF = ("Running code is off in StarkLLM without Docker: the runner needs the isolation of the Docker "
+                   "container. It comes back when StarkLLM has its own sandbox.")
+
+
+def code_runner_enabled() -> bool:
+    """Off in the engine without Docker (the desktop app sets STARKLLM_CODE_RUNNER=off, owner decision 2026-11-16):
+    there the runner would run with the user's rights on the PC itself, and the memory/time limits are POSIX only."""
+    return os.getenv("STARKLLM_CODE_RUNNER", "").strip().lower() not in ("off", "0", "false", "no")
+
+
 class ExecuteCodeRequest(BaseModel):
     code: str
     language: Optional[str] = "python"
@@ -253,6 +263,8 @@ def execute_code(
     Run a Python snippet in a restricted child process (see the note above).
     Returns stdout, stderr, execution_time_ms, and exit_code (126 = blocked before start, 124 = timeout).
     """
+    if not code_runner_enabled():
+        raise HTTPException(status_code=403, detail=CODE_RUNNER_OFF)
     timeout = min(max(req.timeout_seconds or 5, 1), 10)
     if (req.language or "python").lower().strip() not in ("python", "py", "python3"):
         raise HTTPException(status_code=400, detail="Only Python is supported.")

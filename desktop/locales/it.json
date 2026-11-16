@@ -114,5 +114,9 @@
   "The StarkLLM engine could not be downloaded: {error}. Check the internet connection and press Retry.": "Non è stato possibile scaricare il motore di StarkLLM: {error}. Controlli la connessione a internet e prema Riprova.",
   "The StarkLLM engine did not start. Its log is in {log}.": "Il motore di StarkLLM non si è avviato. Il suo registro si trova in {log}.",
   "Downloading the StarkLLM engine: {percent} % ({done} of {total})": "Download del motore di StarkLLM: {percent} % ({done} di {total})",
-  "Unpacking the StarkLLM engine (about a minute)...": "Estrazione del motore di StarkLLM (circa un minuto)..."
+  "Unpacking the StarkLLM engine (about a minute)...": "Estrazione del motore di StarkLLM (circa un minuto)...",
+  "Use Docker Desktop for the engine (advanced)": "Usa Docker Desktop per il motore (avanzato)",
+  "Restart StarkLLM to change the engine?": "Riavviare StarkLLM per cambiare motore?",
+  "The engine without Docker is the default and needs nothing else. Docker Desktop is for advanced users who already run it. Your chats and documents stay the same: both engines use the same data folder.": "Il motore senza Docker è quello predefinito e non richiede altro. Docker Desktop è per utenti esperti che lo usano già. Le chat e i documenti restano gli stessi: entrambi i motori usano la stessa cartella dei dati.",
+  "Stopping the StarkLLM engine in Docker Desktop (StarkLLM now runs without Docker)...": "Arresto del motore di StarkLLM in Docker Desktop (StarkLLM ora funziona senza Docker)..."
 }

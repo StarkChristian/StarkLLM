@@ -35,3 +35,12 @@ def test_built_in_voices_do_not_depend_on_the_working_directory(tmp_path):
 def test_piper_runs_through_the_engine_python():
     # no `piper` program on PATH in the Windows package: the module of the same Python is used
     assert V.piper_command() == [sys.executable, "-m", "piper"]
+
+
+def test_python_cache_goes_to_the_users_folder():
+    """The installer carries the engine (resources\\engine-native); Python must not write its cache there."""
+    import types
+    fake = types.SimpleNamespace(pycache_prefix=None)
+    assert serve_native.use_pycache_folder({}, fake) is False and fake.pycache_prefix is None
+    assert serve_native.use_pycache_folder({"STARKLLM_PYCACHE": r"C:\\Users\\u\\AppData\\Local\\StarkLLM\\engine\\pycache"}, fake) is True
+    assert fake.pycache_prefix.endswith("pycache")

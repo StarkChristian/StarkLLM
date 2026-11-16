@@ -49,25 +49,30 @@ jobs:
           New-Item -ItemType Directory -Force "$env:APPDATA\StarkLLM" | Out-Null
           '{"text":"qwen2.5:0.5b","embedding":"nomic-embed-text","vision":"qwen2.5:0.5b"}' | Set-Content "$env:APPDATA\StarkLLM\models.json"
 
-      - name: Build and install the app
+      - name: Build and install the app (the installer carries the engine package, like a release)
         shell: pwsh
         working-directory: desktop
         run: |
           npm ci --no-audit --no-fund
+          $zip = Get-ChildItem ../engine-package/*.zip | Select-Object -First 1
+          New-Item -ItemType Directory -Force build/engine-native | Out-Null
+          tar.exe -xf $zip.FullName -C build/engine-native
+          if ($LASTEXITCODE -ne 0) { throw "tar could not unpack the engine package ($LASTEXITCODE)" }
           npx electron-builder --win nsis --x64 --publish never
           $setup = Get-ChildItem dist/*-Setup.exe | Select-Object -First 1
+          "installer: $([math]::Round($setup.Length / 1MB)) MB"
           Start-Process $setup.FullName -ArgumentList '/S', '/currentuser' -Wait
           $exe = Join-Path $env:LOCALAPPDATA 'Programs\StarkLLM\StarkLLM.exe'
           $deadline = (Get-Date).AddMinutes(6)
           while (-not (Test-Path $exe) -and (Get-Date) -lt $deadline) { Start-Sleep 3 }
           if (-not (Test-Path $exe)) { throw 'the app was not installed' }
+          if (-not (Test-Path (Join-Path (Split-Path $exe) 'resources\engine-native\runtime\python.exe'))) { throw 'the installed app has no engine package' }
           if (Get-Command docker -ErrorAction SilentlyContinue) { 'note: docker is on PATH' } else { 'no Docker on this machine' }
 
       - name: StarkLLM starts without Docker
         shell: pwsh
         run: |
-          $zip = Get-ChildItem engine-package/*.zip | Select-Object -First 1
-          $env:STARKLLM_ENGINE_PACKAGE = $zip.FullName
+          # no STARKLLM_ENGINE_PACKAGE: the app must use the engine the installer brought, without a download
           $env:STARKLLM_UPDATE_CHECK = '0'
           # nobody is there to answer the first-start question (stay online / fully offline)
           $env:STARKLLM_ASK_OFFLINE = '0'
@@ -98,6 +103,15 @@ jobs:
           $h = Invoke-RestMethod http://127.0.0.1:5173/health
           "health: $($h | ConvertTo-Json -Compress)"
           if ($h.build -notlike 'native-*') { throw 'the engine answering is not the engine without Docker' }
+          if (Select-String -Path $log -Pattern 'downloading the engine package' -Quiet) { throw 'the app downloaded the engine although the installer carries it' }
+          $copies = Get-ChildItem "$env:LOCALAPPDATA\StarkLLM\engine" -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^\d+\.\d+\.\d+' }
+          if ($copies) { throw "an unpacked engine copy was made: $($copies.FullName -join ', ')" }
+          $v = Invoke-RestMethod http://127.0.0.1:5173/api/v1/version
+          "version: $($v | ConvertTo-Json -Compress)"
+          if ($v.code_runner -ne $false) { throw 'the code runner must be off without Docker' }
+          $installDir = Split-Path (Join-Path $env:LOCALAPPDATA 'Programs\StarkLLM\StarkLLM.exe')
+          $pyc = Get-ChildItem "$installDir\resources\engine-native" -Recurse -Filter *.pyc -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt $started }
+          if ($pyc) { throw "Python wrote its cache into the program folder ($($pyc.Count) files), expected under %LOCALAPPDATA%\StarkLLM\engine\pycache" }
           "ENGINE_PID=$((Get-Process python -ErrorAction SilentlyContinue | Select-Object -First 1).Id)" | Out-File -Append $env:GITHUB_ENV
 
       - name: Signed in as the local user, and the local model answers through the engine

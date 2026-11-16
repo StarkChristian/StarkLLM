@@ -52,6 +52,14 @@ const STARTER_PROMPTS = [
   }
 ];
 
+// The engine without Docker has no code runner (owner decision 2026-11-16): /api/v1/version says so, and the "Run"
+// button is not shown. Until the answer is in, the button is shown; the engine refuses then with a clear message.
+let codeRunnerAvailable = true;
+fetch('/api/v1/version')
+  .then((r) => (r.ok ? r.json() : null))
+  .then((j) => { if (j && j.code_runner === false) codeRunnerAvailable = false; })
+  .catch(() => {});
+
 const md = new MarkdownIt({
   html: false,
   linkify: true,
@@ -72,7 +80,7 @@ const md = new MarkdownIt({
     }
 
     const encoded = encodeURIComponent(str);
-    const isRunnable = ['python', 'py', 'python3'].includes((validLang || '').toLowerCase());
+    const isRunnable = codeRunnerAvailable && ['python', 'py', 'python3'].includes((validLang || '').toLowerCase());
     const runBtn = isRunnable ? `<button class="run-code-btn" data-lang="${validLang}" data-code="${encoded}" title="${escapeHtml(t('Run code in local Python sandbox'))}"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>${escapeHtml(t('Run'))}</span></button>` : '';
 
     return `<div class="code-block-wrapper"><div class="code-block-header"><span class="code-block-lang">${displayLang}</span><div class="code-block-actions">${runBtn}<button class="copy-code-btn" data-code="${encoded}" title="${escapeHtml(t('Copy code'))}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span>${escapeHtml(t('Copy'))}</span></button></div></div><pre><code class="hljs ${validLang}">${highlightedCode}</code></pre></div>`;
@@ -525,8 +533,8 @@ export default function ChatArea({
         });
         const data = await res.json();
         
-        const isSuccess = data.exit_code === 0;
-        const outputText = (data.stdout || data.stderr || '(No output returned)').replace(/\s+$/, '');
+        const isSuccess = res.ok && data.exit_code === 0;
+        const outputText = (data.stdout || data.stderr || (typeof data.detail === 'string' ? data.detail : '') || '(No output returned)').replace(/\s+$/, '');
         const execTime = data.execution_time_ms ? `${data.execution_time_ms}ms` : '0ms';
 
         const outputEl = document.createElement('div');

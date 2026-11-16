@@ -158,4 +158,5 @@ def test_the_about_page_can_read_the_version_through_the_api_prefix():
     from app.main import app
     from app.core.config import settings
     r = TestClient(app).get("/api/v1/version")
-    assert r.status_code == 200 and r.json() == {"version": settings.VERSION}
+    assert r.status_code == 200 and r.json()["version"] == settings.VERSION
+    assert isinstance(r.json()["code_runner"], bool)   # the web UI hides "Run" without Docker

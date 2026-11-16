@@ -85,6 +85,11 @@
           "public/**/*",
           "src/**/*"
         ]
+      },
+      {
+        "from": "build/engine-native",
+        "to": "engine-native",
+        "filter": ["**/*"]
       }
     ],
     "publish": [

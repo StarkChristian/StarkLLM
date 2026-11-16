@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { packageName, packageUrl, engineMode, parseSha256, ensurePackage, nativeEnv } = require('../native-engine');
+const { packageName, packageUrl, engineMode, readEngineChoice, writeEngineChoice, bundledPackage, removeDownloadedPackages, parseSha256, ensurePackage, nativeEnv } = require('../native-engine');
 const { createGuard } = require('../netguard');
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'native-engine-'));
@@ -40,11 +40,86 @@ test('package name and URL follow the release', () => {
 });
 
 test('without Docker on Windows the engine runs without Docker', () => {
-  assert.strictEqual(engineMode({ env: {}, platform: 'win32', dockerFound: false }), 'native');
-  assert.strictEqual(engineMode({ env: {}, platform: 'win32', dockerFound: true }), 'docker', 'Docker users keep Docker');
-  assert.strictEqual(engineMode({ env: {}, platform: 'linux', dockerFound: false }), 'docker', 'the package is for Windows');
-  assert.strictEqual(engineMode({ env: { STARKLLM_ENGINE: 'native' }, platform: 'win32', dockerFound: true }), 'native');
-  assert.strictEqual(engineMode({ env: { STARKLLM_ENGINE: 'docker' }, platform: 'win32', dockerFound: false }), 'docker');
+  // owner decision 2026-11-16: the engine without Docker is the default for everyone on Windows, Docker users too
+  assert.strictEqual(engineMode({ env: {}, platform: 'win32' }), 'native');
+  assert.strictEqual(engineMode({ env: {}, platform: 'win32', choice: null }), 'native', 'existing Docker installs switch too');
+  assert.strictEqual(engineMode({ env: {}, platform: 'win32', choice: 'docker' }), 'docker', 'Docker is the advanced choice');
+  assert.strictEqual(engineMode({ env: {}, platform: 'win32', choice: 'native' }), 'native');
+  assert.strictEqual(engineMode({ env: {}, platform: 'linux' }), 'docker', 'the package is for Windows');
+  assert.strictEqual(engineMode({ env: { STARKLLM_ENGINE: 'native' }, platform: 'win32', choice: 'docker' }), 'native');
+  assert.strictEqual(engineMode({ env: { STARKLLM_ENGINE: 'docker' }, platform: 'win32', choice: 'native' }), 'docker');
+});
+
+test('the engine choice is kept in settings.json next to the other settings', () => {
+  const dir = tmp();
+  const file = path.join(dir, 'settings.json');
+  assert.strictEqual(readEngineChoice(file), null, 'no file: no choice');
+  fs.writeFileSync(file, JSON.stringify({ updateCheck: true }));
+  assert.strictEqual(readEngineChoice(file), null);
+  assert.strictEqual(writeEngineChoice(file, 'docker'), 'docker');
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { updateCheck: true, engine: 'docker' }, 'other settings stay');
+  assert.strictEqual(readEngineChoice(file), 'docker');
+  writeEngineChoice(file, 'native');
+  assert.strictEqual(readEngineChoice(file), 'native');
+  fs.writeFileSync(file, JSON.stringify({ engine: 'kubernetes' }));
+  assert.strictEqual(readEngineChoice(file), null, 'unknown values are ignored');
+  fs.writeFileSync(file, '{broken');
+  assert.strictEqual(readEngineChoice(file), null);
+});
+
+function fakeBundle(resources, version = '9.9.9') {
+  const dir = path.join(resources, 'engine-native');
+  fs.mkdirSync(path.join(dir, 'runtime'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'runtime', 'python.exe'), 'exe');
+  fs.writeFileSync(path.join(dir, 'engine.json'), JSON.stringify({ version }));
+  return dir;
+}
+
+test('the engine package inside the installer is found, an incomplete one is not', () => {
+  const resources = tmp();
+  assert.strictEqual(bundledPackage(resources), null);
+  assert.strictEqual(bundledPackage(null), null);
+  const dir = fakeBundle(resources);
+  assert.strictEqual(bundledPackage(resources), dir);
+  fs.rmSync(path.join(dir, 'runtime', 'python.exe'));
+  assert.strictEqual(bundledPackage(resources), null, 'no python.exe: not usable');
+});
+
+test('with the package in the installer nothing is downloaded, and old downloaded copies are removed', async () => {
+  const resources = tmp();
+  const bundled = fakeBundle(resources, '9.9.9');
+  const base = tmp();
+  fs.mkdirSync(path.join(base, '2.1.2', 'runtime'), { recursive: true });
+  fs.writeFileSync(path.join(base, 'StarkLLM-engine-v2.1.2-win-x64.zip.part'), 'half');
+  fs.mkdirSync(path.join(base, 'pycache'));
+  const f = fakeDeps();
+  const logs = [];
+  const dir = await ensurePackage('9.9.9', base, { deps: f.deps, env: {}, bundled, log: (l) => logs.push(l) });
+  assert.strictEqual(dir, bundled);
+  assert.deepStrictEqual(f.calls, [], 'no download, no unpacking');
+  assert.ok(!fs.existsSync(path.join(base, '2.1.2')), 'the old unpacked copy is gone');
+  assert.ok(!fs.existsSync(path.join(base, 'StarkLLM-engine-v2.1.2-win-x64.zip.part')), 'the unfinished download is gone');
+  assert.ok(fs.existsSync(path.join(base, 'pycache')), 'the Python cache stays');
+  assert.ok(logs.some((l) => /removed the downloaded engine copy/.test(l)));
+});
+
+test('a test package (STARKLLM_ENGINE_PACKAGE) still wins over the bundled one', async () => {
+  const resources = tmp();
+  const bundled = fakeBundle(resources, '9.9.9');
+  const base = tmp();
+  const f = fakeDeps();
+  fs.writeFileSync(path.join(base, 'local.zip'), 'zip');
+  const dir = await ensurePackage('9.9.9', base, { deps: f.deps, env: { STARKLLM_ENGINE_PACKAGE: path.join(base, 'local.zip') }, bundled });
+  assert.notStrictEqual(dir, bundled);
+});
+
+test('removing downloaded copies leaves other things alone and copes with a missing folder', () => {
+  removeDownloadedPackages(path.join(tmp(), 'does-not-exist'));
+  const base = tmp();
+  fs.mkdirSync(path.join(base, '2.0.16'));
+  fs.writeFileSync(path.join(base, 'notes.txt'), 'x');
+  removeDownloadedPackages(base);
+  assert.deepStrictEqual(fs.readdirSync(base), ['notes.txt']);
 });
 
 test('the checksum file is read in sha256sum format', () => {
@@ -165,4 +240,9 @@ test('the engine without Docker gets the offline switch and the cloud-sync note 
   const off = nativeEnv('C:\\pkg', { kbDir: 'C:\\kb', secret: 's', build: 'native-1', ollamaUrl: 'http://127.0.0.1:11434', env: {} });
   assert.strictEqual(off.STARKLLM_OFFLINE, '');
   assert.ok(!('TZ' in off), 'Python on Windows uses the PC time zone itself');
+  // owner decision 2026-11-16: no code runner without Docker's isolation
+  assert.strictEqual(off.STARKLLM_CODE_RUNNER, 'off');
+  assert.strictEqual(nativeEnv('C:\\pkg', { kbDir: 'C:\\kb', secret: 's', build: 'b', env: { STARKLLM_CODE_RUNNER: 'on' } }).STARKLLM_CODE_RUNNER, 'off', 'not even when set outside');
+  assert.ok(!('STARKLLM_PYCACHE' in off));
+  assert.strictEqual(nativeEnv('C:\\pkg', { kbDir: 'C:\\kb', secret: 's', build: 'b', pycache: 'C:\\cache', env: {} }).STARKLLM_PYCACHE, 'C:\\cache');
 });

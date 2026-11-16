@@ -3,7 +3,8 @@ const { sameOrigin, isWebLink, permissionAllowed } = require('./window-security'
 const fs = require('fs');
 const path = require('path');
 const { diagnose, buildErrorPage } = require('./diagnostics');
-const { startEngine, userPaths, secretKey, forgetFailedUpdate, apiUrl, stopNativeEngine } = require('./engine');
+const { startEngine, userPaths, secretKey, forgetFailedUpdate, apiUrl, stopNativeEngine, engineSettingsFile } = require('./engine');
+const nativeEngine = require('./native-engine');
 const { DataKeyManager, DataKeyError, createSafeStorageKeyStore, deliverKey, lockEngine } = require('./data-key');
 const { createUnlockFlow } = require('./unlock-flow');
 const { pathToFileURL } = require('url');
@@ -519,6 +520,29 @@ async function switchAppAndEngineOffline(on, from) {
   return r;
 }
 
+// Changing the engine needs a restart: the running engine is stopped and the other one started. Chats and documents
+// stay the same (both use the same data folder).
+async function chooseEngine(choice) {
+  const { response } = await dialog.showMessageBox(mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined, {
+    type: 'question',
+    title: 'StarkLLM',
+    message: t('Restart StarkLLM to change the engine?'),
+    detail: t('The engine without Docker is the default and needs nothing else. Docker Desktop is for advanced users who already run it. Your chats and documents stay the same: both engines use the same data folder.'),
+    buttons: [t('Restart now'), t('Later')],
+    defaultId: 0,
+    cancelId: 1
+  });
+  if (response !== 0) {
+    refreshTrayMenu();
+    return;
+  }
+  nativeEngine.writeEngineChoice(engineSettingsFile(), choice);
+  logLine(`engine choice: ${choice} (tray menu), restarting`);
+  isQuitting = true;
+  app.relaunch();
+  app.quit();
+}
+
 // Rebuilt when a setting shown in it changes.
 function refreshTrayMenu() {
   if (!tray) return;
@@ -549,6 +573,14 @@ function refreshTrayMenu() {
         switchAppAndEngineOffline(item.checked, 'tray menu').catch((e) => logLine(`fully offline (tray menu): ${e.message}`));
       }
     },
+    ...(process.platform === 'win32' ? [{
+      // the engine without Docker is the default; Docker Desktop is for people who already run it (advanced)
+      label: t('Use Docker Desktop for the engine (advanced)'),
+      type: 'checkbox',
+      checked: nativeEngine.engineMode({ choice: nativeEngine.readEngineChoice(engineSettingsFile()) }) === 'docker',
+      enabled: !process.env.STARKLLM_ENGINE,
+      click: (item) => chooseEngine(item.checked ? 'docker' : 'native').catch((e) => logLine(`engine choice: ${e.message}`))
+    }] : []),
     {
       label: t('Check for Updates...'),
       enabled: !(guard && guard.isOffline()),
