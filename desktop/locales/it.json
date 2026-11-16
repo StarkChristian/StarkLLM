@@ -107,5 +107,12 @@
   "It does not look for updates. Turn off \"Fully offline\" in Settings > Privacy to check for a new version.": "Non cerca aggiornamenti. Disattivi \"Completamente offline\" in Impostazioni > Privacy per verificare la presenza di una nuova versione.",
   "The AI model {model} is not on this PC, and StarkLLM is fully offline, so it was not downloaded. Turn off \"Fully offline\" in Settings > Privacy to download it.": "Il modello di IA {model} non è su questo PC e StarkLLM è completamente offline, perciò non è stato scaricato. Disattivi \"Completamente offline\" in Impostazioni > Privacy per scaricarlo.",
   "StarkLLM is fully offline, and the engine files are not on this PC yet (they are downloaded once). Turn off \"Fully offline\" in Settings > Privacy, start StarkLLM once online, then turn it on again.": "StarkLLM è completamente offline e i file del motore non sono ancora su questo PC (vengono scaricati una sola volta). Disattivi \"Completamente offline\" in Impostazioni > Privacy, avvii StarkLLM una volta online, poi lo riattivi.",
-  "StarkLLM is fully offline: starting the engine from the files on this PC...": "StarkLLM è completamente offline: avvio del motore dai file presenti su questo PC..."
+  "StarkLLM is fully offline: starting the engine from the files on this PC...": "StarkLLM è completamente offline: avvio del motore dai file presenti su questo PC...",
+  "StarkLLM runs without Docker on this PC": "StarkLLM funziona senza Docker su questo PC",
+  "Starting the StarkLLM engine...": "Avvio del motore di StarkLLM...",
+  "Another StarkLLM engine already uses port {port}. Quit it (or the StarkLLM containers of Docker Desktop) and press Retry.": "Un altro motore di StarkLLM usa già la porta {port}. Lo chiuda (o i container di StarkLLM in Docker Desktop) e prema Riprova.",
+  "The StarkLLM engine could not be downloaded: {error}. Check the internet connection and press Retry.": "Non è stato possibile scaricare il motore di StarkLLM: {error}. Controlli la connessione a internet e prema Riprova.",
+  "The StarkLLM engine did not start. Its log is in {log}.": "Il motore di StarkLLM non si è avviato. Il suo registro si trova in {log}.",
+  "Downloading the StarkLLM engine: {percent} % ({done} of {total})": "Download del motore di StarkLLM: {percent} % ({done} di {total})",
+  "Unpacking the StarkLLM engine (about a minute)...": "Estrazione del motore di StarkLLM (circa un minuto)..."
 }
