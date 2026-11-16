@@ -2,7 +2,8 @@
 // The engine package (StarkLLM-engine-v<version>-win-x64.zip, built by .github/workflows/native-engine-package.yml and
 // attached to every release) holds its own Python, the backend and the built web UI. When Docker Desktop is not
 // installed, the app downloads the package of its version once, checks its SHA-256, unpacks it with tar.exe (part of
-// Windows) and starts the engine from it. The engine serves the web UI and the API on one port and keeps its data in
+// Windows) and starts the engine from it. The download is announced to the network layer (netguard.js, feature
+// engine_download) like the Docker image pull: listed in Settings > Privacy, and refused while "fully offline" is on. The engine serves the web UI and the API on one port and keeps its data in
 // %APPDATA%\StarkLLM\data, the same folder the Docker engine uses, so chats and documents are the same in both.
 // No Electron here, so the tests can use it directly.
 const fs = require('fs');
@@ -11,6 +12,8 @@ const crypto = require('crypto');
 const { spawn, execFile } = require('child_process');
 const { download } = require('./ollama-install');
 const { formatBytes } = require('./progress');
+const { getShared } = require('./netguard');
+const { t } = require('./i18n');
 
 const RELEASES = process.env.STARKLLM_RELEASES_URL || 'https://github.com/StarkChristian/StarkLLM/releases/download';
 
@@ -41,9 +44,9 @@ function parseSha256(text) {
   return m ? m[1].toLowerCase() : null;
 }
 
-function readText(url, deps) {
+function readText(url, deps, onHop) {
   const tmp = path.join(deps.tmpdir(), `starkllm-${process.pid}-${Date.now()}.sha256`);
-  return deps.download(url, tmp).then(() => {
+  return deps.download(url, tmp, undefined, 5, onHop).then(() => {
     const text = fs.readFileSync(tmp, 'utf8');
     fs.rmSync(tmp, { force: true });
     return text;
@@ -66,6 +69,7 @@ function unzip(zip, dir) {
  */
 async function ensurePackage(version, baseDir, { onStatus = () => {}, log = () => {}, env = process.env, deps = {} } = {}) {
   const d = { download, unzip, sha256File, tmpdir: require('os').tmpdir, ...deps };
+  const guard = d.guard || getShared();
   const dir = path.join(baseDir, version);
   if (fs.existsSync(path.join(dir, 'engine.json')) && fs.existsSync(path.join(dir, 'runtime', 'python.exe'))) return dir;
 
@@ -76,12 +80,36 @@ async function ensurePackage(version, baseDir, { onStatus = () => {}, log = () =
     zip = path.join(baseDir, packageName(version) + '.part');
     const url = packageUrl(version);
     log(`downloading the engine package ${url}`);
-    const expected = parseSha256(await readText(url + '.sha256', d));
+    // recorded in the network list, and refused (OfflineError, before anything is sent) while fully offline
+    const purpose = `Download of the StarkLLM engine ${version} (engine package without Docker)`;
+    const onHop = (next) => {
+      try {
+        guard.begin('engine_download', next, purpose + ' (redirect)').finish({});
+      } catch (e) {
+        // the switch was turned on during the download: the next start refuses; this callback must not throw
+      }
+    };
+    const sum = guard.begin('engine_download', url + '.sha256', purpose);
+    let expected;
+    try {
+      expected = parseSha256(await readText(url + '.sha256', d, onHop));
+      sum.finish({ status: 200 });
+    } catch (e) {
+      sum.fail(e);
+      throw e;
+    }
     if (!expected) throw new Error('the checksum of the engine package could not be read');
-    onStatus('Downloading the StarkLLM engine...', null);
-    await d.download(url, zip, (done, total) => {
-      if (total) onStatus(`Downloading the StarkLLM engine: ${Math.floor((done / total) * 100)} % (${formatBytes(done)} of ${formatBytes(total)})`, done / total);
-    });
+    onStatus(t('Downloading the StarkLLM engine...'), null);
+    const dl = guard.begin('engine_download', url, purpose);
+    try {
+      const got = await d.download(url, zip, (done, total) => {
+        if (total) onStatus(t('Downloading the StarkLLM engine: {percent} % ({done} of {total})', { percent: Math.floor((done / total) * 100), done: formatBytes(done), total: formatBytes(total) }), done / total);
+      }, 5, onHop);
+      dl.finish({ status: 200, bytesIn: (got && got.bytes) || null });
+    } catch (e) {
+      dl.fail(e);
+      throw e;
+    }
     const actual = await d.sha256File(zip);
     if (actual !== expected) {
       fs.rmSync(zip, { force: true });
@@ -90,7 +118,7 @@ async function ensurePackage(version, baseDir, { onStatus = () => {}, log = () =
     fromDownload = true;
   }
 
-  onStatus('Unpacking the StarkLLM engine (about a minute)...', null);
+  onStatus(t('Unpacking the StarkLLM engine (about a minute)...'), null);
   const tmp = dir + '.unpacking';
   fs.rmSync(tmp, { recursive: true, force: true });
   fs.mkdirSync(tmp, { recursive: true });
@@ -107,7 +135,8 @@ async function ensurePackage(version, baseDir, { onStatus = () => {}, log = () =
   return dir;
 }
 
-function nativeEnv(dir, { kbDir, secret, build, models = {}, ollamaUrl, env = process.env }) {
+// The same settings docker-compose.yml gives the Docker engine (except TZ: see engine.js startNativeEngine).
+function nativeEnv(dir, { kbDir, secret, build, models = {}, ollamaUrl, offline = false, kbSync = '', env = process.env }) {
   return {
     ...env,
     STARKLLM_STATIC_DIR: path.join(dir, 'ui'),
@@ -116,12 +145,16 @@ function nativeEnv(dir, { kbDir, secret, build, models = {}, ollamaUrl, env = pr
     OLLAMA_BASE_URL: ollamaUrl,
     SECRET_KEY: secret,
     STARKLLM_ENGINE_BUILD: build,
+    // the "fully offline" switch: the engine starts with it on and refuses every connection except to this PC
+    STARKLLM_OFFLINE: offline ? '1' : '',
+    STARKLLM_KB_SYNC: kbSync || '',
     DEFAULT_TEXT_MODEL: models.text || env.DEFAULT_TEXT_MODEL || 'qwen2.5:7b',
     DEFAULT_VISION_MODEL: models.vision || env.DEFAULT_VISION_MODEL || 'llava',
     DEFAULT_EMBEDDING_MODEL: models.embedding || env.DEFAULT_EMBEDDING_MODEL || 'nomic-embed-text',
     HF_HUB_DISABLE_TELEMETRY: '1',
     DO_NOT_TRACK: '1',
     ANONYMIZED_TELEMETRY: 'False',
+    RAGAS_DO_NOT_TRACK: 'true',
     PYTHONUNBUFFERED: '1',
     PYTHONIOENCODING: 'utf-8'
   };

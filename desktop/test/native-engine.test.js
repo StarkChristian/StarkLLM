@@ -6,19 +6,21 @@ const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { packageName, packageUrl, engineMode, parseSha256, ensurePackage, nativeEnv } = require('../native-engine');
+const { createGuard } = require('../netguard');
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'native-engine-'));
 const sha = (text) => crypto.createHash('sha256').update(text).digest('hex');
 
 // stand-ins: "download" writes a known zip text (or the checksum file), "unzip" lays out a package
-function fakeDeps({ zipText = 'zip-bytes', shaText, unzipOk = true } = {}) {
+function fakeDeps({ zipText = 'zip-bytes', shaText, unzipOk = true, hop = null } = {}) {
   const calls = [];
   return {
     calls,
     deps: {
       tmpdir: os.tmpdir,
-      download: async (url, target, onProgress = () => {}) => {
+      download: async (url, target, onProgress = () => {}, redirects = 5, onHop = () => {}) => {
         calls.push(url);
+        if (hop) onHop(hop);
         fs.writeFileSync(target, url.endsWith('.sha256') ? (shaText ?? `${sha(zipText)}  pkg.zip\n`) : zipText);
         onProgress(zipText.length, zipText.length);
       },
@@ -116,4 +118,51 @@ test('the engine gets the UI, the knowledge base folder, Ollama and the chosen m
   assert.strictEqual(env.DEFAULT_TEXT_MODEL, 'qwen3.8:27b');
   assert.strictEqual(env.SECRET_KEY, 's');
   assert.strictEqual(env.DO_NOT_TRACK, '1');
+});
+
+test('the engine package download is announced to the network layer and listed', async () => {
+  const base = tmp();
+  const guard = createGuard({ dir: null });
+  const { deps } = fakeDeps({ hop: 'https://release-assets.githubusercontent.com/x' });
+  await ensurePackage('2.1.0', base, { env: {}, deps: { ...deps, guard } });
+  const rows = guard.list();
+  assert.ok(rows.length >= 2);
+  assert.ok(rows.every((r) => r.feature === 'engine_download' && r.outcome === 'ok'), JSON.stringify(rows));
+  assert.ok(rows.some((r) => r.host === 'github.com'));
+  assert.ok(rows.some((r) => r.host === 'release-assets.githubusercontent.com'), 'the host GitHub redirects to is listed too');
+});
+
+test('fully offline: the engine package is not downloaded, and the refusal is listed', async () => {
+  const base = tmp();
+  const guard = createGuard({ dir: null });
+  guard.setOffline(true);
+  const { deps, calls } = fakeDeps();
+  await assert.rejects(ensurePackage('2.1.0', base, { env: {}, deps: { ...deps, guard } }), (e) => e.code === 'STARKLLM_OFFLINE');
+  assert.deepStrictEqual(calls, [], 'nothing was sent');
+  const rows = guard.list();
+  assert.strictEqual(rows.length, 1);
+  assert.strictEqual(rows[0].outcome, 'blocked');
+  assert.strictEqual(rows[0].feature, 'engine_download');
+  assert.ok(!fs.existsSync(path.join(base, '2.1.0')));
+});
+
+test('fully offline: an engine package already on this PC starts without any connection', async () => {
+  const base = tmp();
+  await ensurePackage('2.1.0', base, { env: {}, deps: fakeDeps().deps });
+  const guard = createGuard({ dir: null });
+  guard.setOffline(true);
+  const second = fakeDeps();
+  const dir = await ensurePackage('2.1.0', base, { env: {}, deps: { ...second.deps, guard } });
+  assert.strictEqual(dir, path.join(base, '2.1.0'));
+  assert.deepStrictEqual(second.calls, []);
+  assert.deepStrictEqual(guard.list(), []);
+});
+
+test('the engine without Docker gets the offline switch and the cloud-sync note like the Docker engine', () => {
+  const on = nativeEnv('C:\\pkg', { kbDir: 'C:\\kb', secret: 's', build: 'native-1', ollamaUrl: 'http://127.0.0.1:11434', offline: true, kbSync: 'OneDrive', env: {} });
+  assert.strictEqual(on.STARKLLM_OFFLINE, '1');
+  assert.strictEqual(on.STARKLLM_KB_SYNC, 'OneDrive');
+  const off = nativeEnv('C:\\pkg', { kbDir: 'C:\\kb', secret: 's', build: 'native-1', ollamaUrl: 'http://127.0.0.1:11434', env: {} });
+  assert.strictEqual(off.STARKLLM_OFFLINE, '');
+  assert.ok(!('TZ' in off), 'Python on Windows uses the PC time zone itself');
 });
