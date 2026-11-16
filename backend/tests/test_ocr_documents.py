@@ -272,7 +272,7 @@ def test_health_reports_whether_ocr_works():
 def test_the_self_test_reads_its_german_sample_exactly():
     report = O.self_test()
     assert report["ok"], report
-    assert report["status"]["languages"][:1] == ["deu"]
+    assert "deu" in report["status"]["languages"]          # with main's language choice English comes first
 
 
 def test_the_engine_package_uses_its_own_tesseract(tmp_path):
