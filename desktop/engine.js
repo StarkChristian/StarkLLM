@@ -617,7 +617,7 @@ async function startEngine(appUrl, onStatus) {
     env.STARKLLM_BACKEND_IMAGE = images.backend;
     env.STARKLLM_FRONTEND_IMAGE = images.frontend;
   }
-  const noBuildUp = () => run(docker, ['compose', '-p', PROJECT, '-f', compose, 'up', '-d', '--no-build'], { env, cwd: engineDir(), timeoutMs: 10 * 60 * 1000 });
+  const noBuildUp = () => run(docker, offlineUpArgs(PROJECT, compose), { env, cwd: engineDir(), timeoutMs: 10 * 60 * 1000 });
   if (guard.isOffline()) {
     // no download, no build: only the engine files that are already on this PC
     status('StarkLLM is fully offline: starting the engine from the files on this PC...');
@@ -723,4 +723,11 @@ async function startEngine(appUrl, onStatus) {
   return { ok: true, ollama, warnings };
 }
 
-module.exports = { forgetFailedUpdate, skipFailedUpdate, keepRollbackImages, rollbackEngine, imageLayerSizes, engineImages, secretKey, startEngine, userPaths, pullWithRetry, buildWithoutBake, run, engineIsCurrent, engineFingerprint, TEXT_MODEL, EMBEDDING_MODEL };
+// Fully offline: start only from the engine images already on this PC. Without --pull never, `compose up` downloads
+// missing images by itself (found on the MSI test PC, 16 Nov 2026: 2.1.1 pulled its new engine while "fully
+// offline" was on, and the download did not appear in the network list).
+function offlineUpArgs(project, composeFile) {
+  return ['compose', '-p', project, '-f', composeFile, 'up', '-d', '--no-build', '--pull', 'never'];
+}
+
+module.exports = { offlineUpArgs, forgetFailedUpdate, skipFailedUpdate, keepRollbackImages, rollbackEngine, imageLayerSizes, engineImages, secretKey, startEngine, userPaths, pullWithRetry, buildWithoutBake, run, engineIsCurrent, engineFingerprint, TEXT_MODEL, EMBEDDING_MODEL };
