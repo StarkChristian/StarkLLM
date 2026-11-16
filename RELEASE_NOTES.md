@@ -1,8 +1,8 @@
 # StarkLLM Release Notes
 
-## Version 2.1.1 — Signed by its publisher, protected data, deadlines, more languages
+## Version 2.1.2 — Signed by its publisher, protected data, deadlines, more languages
 
-2.1.0 was built and tested but not published; 2.1.1 is the first signed release and contains everything below.
+2.1.0 and 2.1.1 were built and tested but not published; 2.1.2 is the first signed release and contains everything below.
 
 - **Signed installer and app.** StarkLLM is now signed with a code-signing certificate ("Open Source Developer Christian Stark", issued by Certum). Windows shows the publisher's name instead of "unknown publisher" and can tell who made every file. Updates are checked against this name: an update signed by anyone else is refused.
 - **Protection at rest (optional).** Settings → Protection encrypts your documents, chats, names and titles on disk, and can lock the search index too. An optional start-up passphrase with a recovery key; the passphrase is never stored.
@@ -13,7 +13,7 @@
 - **International.** English first, German second; the app also speaks Spanish, French, Italian and Turkish, reads letters from other countries and recognises text in more languages.
 - **Lucy, the helper robot.** A short first-start guide and help on empty pages. Settings → Appearance switches her off.
 - **Updates wait one day.** The automatic update check offers a new version when it is at least 24 hours old. "Check for updates" in Settings → About offers it at once.
-- **Fixed in 2.1.1.** "Fully offline" can be turned off again by the account that turned it on (before, only the administrator could, so other accounts stayed offline); the desktop app on this PC can always switch it. A year right before a currency ("October 2026 GBP 129.40") is no longer read as the amount. The automatic model choice no longer picks community copies whose safety training was removed ("abliterated", "uncensored"); you can still choose one yourself.
+- **Fixed before release.** "Fully offline" never downloads anything, also not a new engine after an update (before, the engine could be downloaded while the switch was on). "Fully offline" can be turned off again by the account that turned it on (before, only the administrator could, so other accounts stayed offline); the desktop app on this PC can always switch it. A year right before a currency ("October 2026 GBP 129.40") is no longer read as the amount. The automatic model choice no longer picks community copies whose safety training was removed ("abliterated", "uncensored"); you can still choose one yourself.
 - **Translations reviewed** in German, Spanish, French, Italian and Turkish.
 
 **From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install".
