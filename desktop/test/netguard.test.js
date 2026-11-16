@@ -176,6 +176,7 @@ const NETWORK_USERS = {
   'updates.js': /guard\.wrapFetch\(.*net\.fetch|guard\.wrapFetch/s,
   'ollama-install.js': /guard\.begin\(/,
   'engine.js': /getShared\(\)\.wrapFetch|guard\.begin\(/,
+  'native-engine.js': /guard\.begin\('engine_download'/,
   'main.js': /guard\.wrapFetch/
 };
 

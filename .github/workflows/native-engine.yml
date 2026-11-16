@@ -50,6 +50,7 @@ jobs:
           $py = "$env:RUNNER_TEMP\runtime\Scripts\python.exe"
           & $py -c "import importlib, pkgutil, app; bad = []
           for m in pkgutil.walk_packages(app.__path__, 'app.'):
+              if m.name == 'app.services.eval_service': continue  # evaluation only, requirements-eval.txt
               try: importlib.import_module(m.name)
               except Exception as e: bad.append(f'{m.name}: {type(e).__name__}: {e}')
           print('\n'.join(bad) or 'all modules import')"
