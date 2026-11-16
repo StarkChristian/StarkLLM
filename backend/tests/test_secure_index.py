@@ -4,10 +4,10 @@ import os
 import random
 import sqlite3
 
-import chromadb
 import numpy as np
 import pytest
 
+from app.core.chroma_store import open_chroma
 from app.core import crypto
 from app.core.protection import ProtectionLocked, protection
 from app.services import secure_index as si
@@ -36,7 +36,7 @@ def keyed(tmp_path):
 
 
 def pair(tmp_path, metadata=None, name="coll_probe"):
-    chroma = chromadb.PersistentClient(path=str(tmp_path / "chroma"), settings=chromadb.config.Settings(anonymized_telemetry=False))
+    chroma = open_chroma(str(tmp_path / "chroma"))
     store = si.SecureStore(str(tmp_path / "idx" / "index.db"))
     c = chroma.get_or_create_collection(name, metadata=metadata)
     s = si.SecureClient(store).get_or_create_collection(name, metadata=metadata)
@@ -143,7 +143,7 @@ def test_writes_behave_like_chromadb(keyed):
 def test_random_data_matches_chromadb_exact_search(keyed):
     rng = np.random.default_rng(3)
     data = rng.normal(size=(300, 16)).astype(np.float32)
-    chroma = chromadb.PersistentClient(path=str(keyed / "chroma"), settings=chromadb.config.Settings(anonymized_telemetry=False))
+    chroma = open_chroma(str(keyed / "chroma"))
     store = si.SecureStore(str(keyed / "idx" / "index.db"))
     for space in ("l2", "cosine"):
         c = chroma.get_or_create_collection("rnd_" + space, metadata={"hnsw:space": space})

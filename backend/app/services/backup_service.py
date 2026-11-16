@@ -445,12 +445,11 @@ def _protected_columns():
 
 
 def _check_vector_store(chroma_dir: str, expected: dict) -> int:
-    import chromadb
+    from app.core.chroma_store import open_chroma
     copy = tempfile.mkdtemp(dir=vault.temp_dir(), prefix="vectors-")   # opening a store writes to it: open a copy
     try:
         shutil.copytree(chroma_dir, os.path.join(copy, "c"))
-        client = chromadb.PersistentClient(path=os.path.join(copy, "c"),
-                                           settings=chromadb.config.Settings(anonymized_telemetry=False))
+        client = open_chroma(os.path.join(copy, "c"))
         got = _collection_counts(client)
     except Exception as e:
         raise BackupError("mismatch", f"The vector store in the backup cannot be opened: {e}")

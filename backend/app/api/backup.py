@@ -114,15 +114,14 @@ def _release_live_state():
 
 def _reopen_live_state(data_key_b64: Optional[str]):
     import base64
-    import chromadb
+    from app.core.chroma_store import open_chroma
     from app.services.memory_service import memory_service
     from app.services.rag_service import rag_service
     protection._state_cache = None
     protection.clear_key()
     if data_key_b64:
         protection.set_key(base64.b64decode(data_key_b64))
-    client = chromadb.PersistentClient(path=settings.CHROMA_PERSIST_DIRECTORY,
-                                       settings=chromadb.config.Settings(anonymized_telemetry=False))
+    client = open_chroma(settings.CHROMA_PERSIST_DIRECTORY)
     rag_service.chroma_client = memory_service.chroma_client = client
     memory_service.refresh()
 

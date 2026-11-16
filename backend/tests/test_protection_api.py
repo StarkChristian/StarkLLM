@@ -4,10 +4,10 @@ import base64
 import os
 import time
 
-import chromadb
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.chroma_store import open_chroma
 from app.api import backup as backup_api
 from app.api import protection as protection_api
 from app.api.auth import get_current_user
@@ -227,7 +227,7 @@ def test_upload_index_preview_and_duplicate_with_protection_on(tmp_path, monkeyp
     monkeypatch.setattr(settings, "TEMP_DIR", str(tmp_path / "tmp"))
     protection.set_directory(str(tmp_path / "protection"))
     protection.set_key(crypto.new_key()); protection.mark_enabled(True)
-    client_db = chromadb.PersistentClient(path=str(tmp_path / "chroma"), settings=chromadb.config.Settings(anonymized_telemetry=False))
+    client_db = open_chroma(str(tmp_path / "chroma"))
     monkeypatch.setattr(rag_service, "chroma_client", client_db)
     monkeypatch.setattr(llm_service, "generate_embeddings_batch", lambda model, chunks: [[0.1, 0.2, 0.3] for _ in chunks])
     monkeypatch.setattr(llm_service, "generate_embeddings", lambda model, text: [0.1, 0.2, 0.3])
