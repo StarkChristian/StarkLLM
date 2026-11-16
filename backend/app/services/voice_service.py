@@ -4,18 +4,21 @@ import logging
 from faster_whisper import WhisperModel
 from app.core import netguard
 import subprocess
+import sys
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Voice model registry
-# Maps a voice identifier (sent by the frontend) → relative ONNX model path
-# inside the container (/app/<path>).
+# Maps a voice identifier (sent by the frontend) → ONNX model path. The built-in voices sit next to this code
+# (backend/app/); they are found from here, not from the working directory: the engine without Docker runs in the
+# user's StarkLLM folder, the container in /app.
 # ---------------------------------------------------------------------------
+_APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VOICE_MODELS = {
-    "en_US-lessac-medium":   "app/en_US-lessac-medium.onnx",
-    "de_DE-thorsten-medium": "app/de_DE-thorsten-medium.onnx",
+    "en_US-lessac-medium":   os.path.join(_APP_DIR, "en_US-lessac-medium.onnx"),
+    "de_DE-thorsten-medium": os.path.join(_APP_DIR, "de_DE-thorsten-medium.onnx"),
 }
 DEFAULT_VOICE = "en_US-lessac-medium"
 # More voices: put a Piper voice (<name>.onnx and <name>.onnx.json, named like "fr_FR-siwis-medium") into the folder
@@ -49,6 +52,12 @@ def voice_for_language(language: Optional[str]) -> str:
     """The voice for a language code ("de", "fr-FR"); the default voice when there is none."""
     code = (language or "").lower().split("-")[0].split("_")[0]
     return next((v["id"] for v in available_voices() if v["language"] == code), DEFAULT_VOICE)
+
+
+def piper_command() -> list:
+    """Piper through the Python that runs the engine. The `piper` program of the Docker image is the same module, but
+    the engine without Docker has no Scripts folder and its Python is not on PATH."""
+    return [sys.executable, "-m", "piper"]
 
 
 class VoiceService:
@@ -103,8 +112,7 @@ class VoiceService:
         logger.info(f"TTS: voice={voice or DEFAULT_VOICE}, model={model_path}")
 
         # Pass text via stdin to avoid shell escaping issues (apostrophes, etc.)
-        cmd = [
-            "piper",
+        cmd = piper_command() + [
             "--model", model_path,
             "--output_file", output_path,
         ]
@@ -136,3 +144,30 @@ def mark_ai_generated(path: str) -> None:
 
 voice_service = VoiceService()
 
+
+def _self_test() -> int:
+    """`python -m app.services.voice_service`: speaks a German sentence with Piper and reads it back with Whisper. CI
+    runs it from the engine package for Windows (no Docker), started in another folder than the code."""
+    import tempfile
+
+    sentence = "Guten Tag, hier spricht StarkLLM."
+    voices = [v["id"] for v in available_voices()]
+    print("voices:", ", ".join(voices))
+    if "de_DE-thorsten-medium" not in voices:
+        print("the German voice is missing")
+        return 1
+    with tempfile.TemporaryDirectory() as tmp:
+        wav = os.path.join(tmp, "sample.wav")
+        voice_service.synthesize(sentence, wav, voice_for_language("de"))
+        mark_ai_generated(wav)
+        print("speech:", os.path.getsize(wav), "bytes")
+        heard = voice_service.transcribe(wav, "de")
+    print("heard:", heard)
+    # the small Whisper model mishears a word now and then ("Udentag hier spricht ..."): most words must come back
+    words = [w for w in ("guten", "tag", "hier", "spricht") if w in heard.lower()]
+    return 0 if len(words) >= 3 else 1
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    raise SystemExit(_self_test())

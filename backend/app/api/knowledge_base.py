@@ -214,11 +214,13 @@ def register_folder(
     """
     folder_path_cleaned = body.folder_path.strip()
 
-    # Reject Windows host paths — they are not accessible from the container.
+    # Reject Windows host paths when the backend runs in its (Linux) container — they are not accessible there.
     # The launcher (start.exe) handles the mirror: it copies the Windows folder
     # into ./knowledge_base_data/<slug>/ and then registers /kb_data/<slug>.
+    # Without Docker (roadmap phase 2) the backend runs on Windows itself and such paths are real; the check below
+    # still allows only folders inside the Knowledge Base directory.
     import re as _re
-    if _re.match(r'^[A-Za-z]:[/\\]', folder_path_cleaned) or folder_path_cleaned.startswith('\\\\'):
+    if os.name != "nt" and (_re.match(r'^[A-Za-z]:[/\\]', folder_path_cleaned) or folder_path_cleaned.startswith('\\\\')):
         raise HTTPException(
             status_code=422,
             detail=(

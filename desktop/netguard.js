@@ -17,7 +17,7 @@ const FEATURES = {
   update_check: 'Check for a newer StarkLLM version (GitHub)',
   update_download: 'Download of a StarkLLM update (GitHub)',
   ollama_install: 'Download of the Ollama installer the user asked for',
-  engine_download: 'Download of the StarkLLM engine (Docker images)',
+  engine_download: 'Download of the StarkLLM engine (Docker images, or the engine package without Docker)',
   engine_build: 'Build of the engine on this PC (Docker downloads packages)',
   model_download: 'Download of an AI model by the local Ollama',
   ui: 'A request of the app window to another host',

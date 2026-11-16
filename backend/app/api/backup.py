@@ -108,11 +108,8 @@ def _release_live_state():
     secure_index.release()
     rag_service.chroma_client = memory_service.chroma_client = memory_service.memory_collection = None
     gc.collect()
-    try:
-        from chromadb.api.shared_system_client import SharedSystemClient
-        SharedSystemClient.clear_system_cache()
-    except Exception:
-        pass
+    # the stores in the data folder: _reopen_live_state opens the restored one again (others are left alone)
+    backups.close_vector_stores(backups.default_paths().root)
 
 
 def _reopen_live_state(data_key_b64: Optional[str]):

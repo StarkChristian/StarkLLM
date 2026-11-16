@@ -107,5 +107,12 @@
   "It does not look for updates. Turn off \"Fully offline\" in Settings > Privacy to check for a new version.": "Es sucht nicht nach Updates. Schalten Sie unter Einstellungen > Datenschutz „Vollständig offline“ aus, um nach einer neuen Version zu suchen.",
   "The AI model {model} is not on this PC, and StarkLLM is fully offline, so it was not downloaded. Turn off \"Fully offline\" in Settings > Privacy to download it.": "Das KI-Modell {model} ist nicht auf diesem PC, und StarkLLM ist vollständig offline, deshalb wurde es nicht heruntergeladen. Schalten Sie unter Einstellungen > Datenschutz „Vollständig offline“ aus, um es herunterzuladen.",
   "StarkLLM is fully offline, and the engine files are not on this PC yet (they are downloaded once). Turn off \"Fully offline\" in Settings > Privacy, start StarkLLM once online, then turn it on again.": "StarkLLM ist vollständig offline, und die Engine-Dateien sind noch nicht auf diesem PC (sie werden einmal heruntergeladen). Schalten Sie unter Einstellungen > Datenschutz „Vollständig offline“ aus, starten Sie StarkLLM einmal online und schalten Sie es danach wieder ein.",
-  "StarkLLM is fully offline: starting the engine from the files on this PC...": "StarkLLM ist vollständig offline: Die Engine wird aus den Dateien auf diesem PC gestartet..."
+  "StarkLLM is fully offline: starting the engine from the files on this PC...": "StarkLLM ist vollständig offline: Die Engine wird aus den Dateien auf diesem PC gestartet...",
+  "StarkLLM runs without Docker on this PC": "StarkLLM läuft auf diesem PC ohne Docker",
+  "Starting the StarkLLM engine...": "StarkLLM-Engine wird gestartet...",
+  "Another StarkLLM engine already uses port {port}. Quit it (or the StarkLLM containers of Docker Desktop) and press Retry.": "Eine andere StarkLLM-Engine verwendet bereits Port {port}. Beenden Sie sie (oder die StarkLLM-Container von Docker Desktop) und klicken Sie auf „Erneut versuchen“.",
+  "The StarkLLM engine could not be downloaded: {error}. Check the internet connection and press Retry.": "Die StarkLLM-Engine konnte nicht heruntergeladen werden: {error}. Prüfen Sie die Internetverbindung und klicken Sie auf „Erneut versuchen“.",
+  "The StarkLLM engine did not start. Its log is in {log}.": "Die StarkLLM-Engine ist nicht gestartet. Ihr Protokoll liegt in {log}.",
+  "Downloading the StarkLLM engine: {percent} % ({done} of {total})": "StarkLLM-Engine wird heruntergeladen: {percent} % ({done} von {total})",
+  "Unpacking the StarkLLM engine (about a minute)...": "StarkLLM-Engine wird entpackt (etwa eine Minute)..."
 }
