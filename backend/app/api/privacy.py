@@ -2,12 +2,12 @@
 import csv
 import io
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from app.api.auth import get_current_user
-from app.api.system import require_admin
+from app.api.auth import desktop_key_valid, get_current_user
+from app.api.system import is_admin
 from app.core import netguard
 from app.db import models
 from app.db.session import get_db
@@ -27,12 +27,31 @@ def get_status(current_user: models.User = Depends(get_current_user)):
     return netguard.status()
 
 
+OFF_NOT_ALLOWED = ('Only the administrator of this StarkLLM, or the account that turned "Fully offline" on, '
+                   'can turn it off.')
+
+
 @router.put("/offline")
 def put_offline(body: OfflineSwitch, current_user: models.User = Depends(get_current_user), db=Depends(get_db)):
-    # Turning it on is always allowed; turning it off lets the engine reach the internet again, so only an admin may
-    if not body.enabled:
-        require_admin(current_user=current_user, db=db)
-    netguard.set_offline(body.enabled)
+    # Turning it on is always allowed, and who did it is kept. Turning it off lets the engine reach the internet again
+    # for every account: the administrator may, and so may the account that turned it on (nobody else is affected
+    # more than before it did). When it came from the desktop app or STARKLLM_OFFLINE (set_by None), only the
+    # administrator, or the desktop app through /offline/desktop.
+    if not body.enabled and netguard.is_offline():
+        set_by = netguard.offline_set_by()
+        if not (is_admin(current_user, db) or (set_by is not None and set_by == current_user.id)):
+            raise HTTPException(status_code=403, detail=OFF_NOT_ALLOWED)
+    netguard.set_offline(body.enabled, set_by=current_user.id)
+    return netguard.status()
+
+
+@router.put("/offline/desktop")
+def put_offline_desktop(body: OfflineSwitch, x_desktop_key: str = Header(default="")):
+    """The switch of the desktop app on this PC: the person at the app owns the PC (like the first-start question), so
+    it may turn it on and off. Authorised by the same key as /auth/desktop-session."""
+    if not desktop_key_valid(x_desktop_key):
+        raise HTTPException(status_code=403, detail="Not allowed")
+    netguard.set_offline(body.enabled, set_by=None)
     return netguard.status()
 
 

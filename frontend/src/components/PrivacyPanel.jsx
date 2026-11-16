@@ -68,12 +68,15 @@ export default function PrivacyPanel({ token }) {
   const toggle = async () => {
     setError('');
     try {
-      await setOffline(token, !offline);
-      setOfflineState(!offline);
-      load();
+      setOfflineState(await setOffline(token, !offline));
     } catch (e) {
-      setError(t('The switch could not be changed: {error}', { error: e.message }));
+      if (e.code === 'not_allowed') setError(t('Only the administrator of this StarkLLM, or the account that turned "Fully offline" on, can turn it off.'));
+      else if (e.code === 'engine_unreachable') setError(t('The engine on this PC could not be reached, so its switch was not changed. Try again when StarkLLM has started.'));
+      else setError(t('The switch could not be changed: {error}', { error: e.message }));
+      // the switch shows what really is set, not what was asked for
+      readOffline(token).then((s) => setOfflineState(s.offline)).catch(() => {});
     }
+    load();
   };
 
   const rows = useMemo(() => data.entries.filter((e) => (filter === 'blocked' ? e.outcome === 'blocked' : filter === 'left' ? e.outcome !== 'blocked' : true)), [data, filter]);

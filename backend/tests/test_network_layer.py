@@ -411,11 +411,14 @@ def test_api_needs_a_login_and_shows_status_and_log(two_users, monkeypatch):
     assert "web_search" in body["features"]
 
 
-def test_api_turning_offline_on_is_open_to_every_user_turning_it_off_is_for_the_admin(two_users):
-    client, (admin, other) = two_users
-    assert client.put("/api/v1/privacy/offline", json={"enabled": True}, headers=other).json()["offline"] is True
-    assert client.put("/api/v1/privacy/offline", json={"enabled": False}, headers=other).status_code == 403
+def test_api_turning_offline_on_is_open_to_every_user_turning_it_off_is_for_the_admin_or_who_turned_it_on(two_users):
+    # "other" is never the administrator (the first account); every case is in test_offline_switch.py
+    client, (first, other) = two_users
+    assert client.put("/api/v1/privacy/offline", json={"enabled": True}, headers=first).json()["offline"] is True
+    r = client.put("/api/v1/privacy/offline", json={"enabled": False}, headers=other)
+    assert r.status_code == 403 and "turned \"Fully offline\" on" in r.json()["detail"]
     assert netguard.is_offline() is True
+    assert client.put("/api/v1/privacy/offline", json={"enabled": False}, headers=first).json()["offline"] is False
 
 
 def test_api_export_as_csv_and_json_without_formula_injection(two_users, monkeypatch):

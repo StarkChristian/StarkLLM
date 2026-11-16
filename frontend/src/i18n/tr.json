@@ -1113,5 +1113,7 @@
   "All deadlines": "Tüm süreler",
   "Hide this reminder": "Bu hatırlatıcıyı gizle",
   "{count} more": "{count} tane daha",
-  "Deadlines": "Süreler"
+  "Deadlines": "Süreler",
+  "Only the administrator of this StarkLLM, or the account that turned \"Fully offline\" on, can turn it off.": "\"Tamamen çevrimdışı\" ayarını yalnızca bu StarkLLM'in yöneticisi ya da onu açan hesap kapatabilir.",
+  "The engine on this PC could not be reached, so its switch was not changed. Try again when StarkLLM has started.": "Bu bilgisayardaki motora ulaşılamadı, bu yüzden anahtarı değiştirilmedi. StarkLLM başladığında tekrar deneyin."
 }
