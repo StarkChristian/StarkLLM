@@ -152,7 +152,12 @@ jobs:
           $u = Invoke-RestMethod -Method Post "$api/api/v1/system/protection/unlock" -Headers @{ 'X-StarkLLM-Internal' = $internal } -ContentType 'application/json' -Body (@{ key = $key } | ConvertTo-Json)
           if (-not $u.key_available) { throw 'the engine did not take the key' }
           function WaitIdle { for ($i = 0; $i -lt 90; $i++) { $st = Invoke-RestMethod "$api/api/v1/system/protection/status" -Headers $auth; if (-not $st.running) { return $st }; Start-Sleep 2 }; throw 'the migration did not finish' }
-          $plan = Invoke-RestMethod -Method Post "$api/api/v1/system/protection/plan" -Headers $auth -ContentType 'application/json' -Body '{"direction":"enable"}'
+          # the note is indexed in the background (embedding by the local model): the plan waits until that is done
+          for ($i = 0; $i -lt 60; $i++) {
+            $plan = Invoke-RestMethod -Method Post "$api/api/v1/system/protection/plan" -Headers $auth -ContentType 'application/json' -Body '{"direction":"enable"}'
+            if ($plan.ok -or -not ($plan.problems -match 'still being processed')) { break }
+            Start-Sleep 5
+          }
           if (-not $plan.ok) { throw "protection cannot be turned on: $($plan | ConvertTo-Json -Depth 5 -Compress)" }
           Invoke-RestMethod -Method Post "$api/api/v1/system/protection/migrate" -Headers $auth -ContentType 'application/json' -Body '{"direction":"enable"}' | Out-Null
           Start-Sleep 2
