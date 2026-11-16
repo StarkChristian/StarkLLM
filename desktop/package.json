@@ -1,7 +1,7 @@
 {
   "name": "starkllm-desktop",
   "productName": "StarkLLM",
-  "version": "2.0.16",
+  "version": "2.1.0",
   "description": "StarkLLM Standalone Native Desktop Application",
   "main": "main.js",
   "author": "Christian Stark",
@@ -30,6 +30,9 @@
       "icon": "assets/icon.ico",
       "signtoolOptions": {
         "sign": "./build/sign.js",
+        "publisherName": [
+          "Open Source Developer Christian Stark"
+        ],
         "signingHashAlgorithms": [
           "sha256"
         ]
