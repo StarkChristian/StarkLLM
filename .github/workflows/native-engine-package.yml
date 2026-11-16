@@ -133,7 +133,11 @@ jobs:
           Stop-Process -Id $p.Id -Force
           # offline from the first start: the engine did not even try to reach the internet (the network layer records
           # every attempt, blocked ones too, in data\network_log.jsonl; connections to this PC are not listed)
-          if (-not (Get-Content "$home2\data\privacy.json" -Raw | ConvertFrom-Json).offline) { throw 'the engine did not take over the offline switch' }
+          Push-Location $home2
+          $offline = & "$dir
+          $offline = & "$dir\runtime\python.exe" -c "from app.core import netguard; print(netguard.is_offline())"
+          Pop-Location
+          if ($offline -ne 'True') { throw "the engine's network layer does not see the offline switch ($offline)" }
           $tried = if (Test-Path "$home2\data\network_log.jsonl") { Get-Content "$home2\data\network_log.jsonl" | Where-Object { $_.Trim() } } else { @() }
           if ($tried) { $tried; throw 'the engine tried to reach the internet while fully offline' }
           'fully offline: no connection attempt'
