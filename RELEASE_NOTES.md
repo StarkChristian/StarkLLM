@@ -1,13 +1,20 @@
 # StarkLLM Release Notes
 
-## Version 2.0.16 — Updates arrive a day later, the inbox ignores files that are not letters
+## Version 2.1.0 â€” Signed by its publisher, protected data, deadlines, more languages
 
-- **Updates wait one day.** The automatic update check now offers a new version only when it is at least 24 hours old. Windows holds back every new, unsigned program for some hours; waiting a day means the new installer is usually accepted when it arrives. "Check for updates" in Settings → About still offers a new version at once.
-- **Inbox: fewer false letters.** Notes, spreadsheets, XML, JSON and CSV files, logs and descriptions of photos are no longer treated as letters: they get no sender and no case, and they are not counted as new in the inbox.
+- **Signed installer and app.** StarkLLM is now signed with a code-signing certificate ("Open Source Developer Christian Stark", issued by Certum). Windows shows the publisher's name instead of "unknown publisher" and can tell who made every file. Updates are checked against this name: an update signed by anyone else is refused.
+- **Protection at rest (optional).** Settings â†’ Protection encrypts your documents, chats, names and titles on disk, and can lock the search index too. An optional start-up passphrase with a recovery key; the passphrase is never stored.
+- **Encrypted backup.** A backup file you can keep anywhere, also in a cloud folder, tested by restoring it. Optional automatic weekly backup into a folder you choose, with several copies kept.
+- **Inbox: deadlines.** A new Deadlines tab lists every deadline, payment date and appointment found in your letters, with page and line, reminders and calendar export (.ics). Unclear dates are asked, not guessed.
+- **Inbox quality.** Logs, notes, spreadsheets, XML, JSON and CSV files and descriptions of photos are no longer treated as letters; warnings of the app are not copied into answers; no invented deadlines.
+- **Privacy you can check.** A list of every network connection the app makes, a "Fully offline" switch, and defences against malicious documents.
+- **International.** English first, German second; the app also speaks Spanish, French, Italian and Turkish, reads letters from other countries and recognises text in more languages.
+- **Lucy, the helper robot.** A short first-start guide and help on empty pages. Settings â†’ Appearance switches her off.
+- **Updates wait one day.** The automatic update check offers a new version when it is at least 24 hours old. "Check for updates" in Settings â†’ About offers it at once.
 
-**From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install".
+**From 2.0.7 or later:** Settings â†’ About â†’ "Check for updates" â†’ "Download and install".
 
-Pull requests: #93, #94.
+Pull requests: #93, #94, #95, #97, #98, #99, #101, #102, #103, #104, #105, #106, #107.
 
 ---
 
