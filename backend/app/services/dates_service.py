@@ -68,7 +68,66 @@ def _numbers():
 
 
 NUMBER = _numbers()
-AMOUNT = re.compile(rf"(?:(?P<c1>{CURRENCY})\s?(?P<n1>{NUMBER}))|(?:(?P<n2>{NUMBER})\s?(?P<c2>{CURRENCY}))", re.IGNORECASE)
+_AMOUNT_PATTERN = re.compile(rf"(?:(?P<c1>{CURRENCY})\s?(?P<n1>{NUMBER}))|(?:(?P<n2>{NUMBER})\s?(?P<c2>{CURRENCY}))",
+                             re.IGNORECASE)
+
+# "Electricity October 2026 GBP 129.40", "Water Q3 2026 CHF 64.70", "Abschlag November 2026 EUR 58,10": the year of the
+# period stands right before the currency code, and the pattern above alone reads "2026 GBP" and loses the 129.40.
+# The rule: a plain year (1900-2099, four digits, no separator, no cents) directly before a currency is not the amount
+# when the currency itself starts an amount ("GBP 129.40") and either
+#   * that amount has cents ("129.40", "58,10"): a price is written with cents, a year never is, or
+#   * the year follows a month, a quarter or the word for year ("October 2026", "Q3 2026", "Jahr 2026"),
+# and the currency then belongs to the number after it. In every other case the year stays the amount, so a real
+# amount of 2026 still counts: "Total 2026 EUR" (no number follows), "Bitte zahlen Sie 1950 EUR 14 Tage nach Erhalt"
+# (no cents, and nothing before 1950 makes it a year).
+_PLAIN_YEAR = re.compile(r"(?:19|20)\d{2}")
+_CENTS = re.compile(r"[.,]\d{1,2}$")
+_YEAR_CONTEXT = re.compile(
+    rf"(?:\b(?:{MONTH_PATTERN}|jan|feb|mar|apr|jun|jul|aug|sep|oct|okt|nov|dec|dez)\.?"
+    r"|\b[QH][1-4]|\b[1-4]\.?\s?(?:quartal|quarter|trimestre|çeyrek)|\bFY"
+    r"|\b(?:year|jahr|año|ano|année|annee|anno|yıl|yil|ejercicio|exercice|geschäftsjahr|steuerjahr|tax year))"
+    r"\W{0,3}$", re.IGNORECASE)
+
+
+def _year_before_amount(text: str, m) -> bool:
+    """m is "<number> <currency>": True when the number is the year of a period and the currency starts the real
+    amount (the rule above)."""
+    if not m.group("n2") or not _PLAIN_YEAR.fullmatch(m.group("n2")):
+        return False
+    after = _AMOUNT_PATTERN.match(text, m.start("c2"))
+    if not after or not after.group("n1"):
+        return False
+    return bool(_CENTS.search(after.group("n1")) or _YEAR_CONTEXT.search(text[max(0, m.start() - 40):m.start()]))
+
+
+class _AmountPattern:
+    """The amount pattern plus the year rule above, which a regular expression alone cannot say: finditer and search
+    skip a year before a currency and find the amount that starts at the currency instead. Everything else is the
+    compiled pattern's."""
+
+    def __init__(self, pattern):
+        self._pattern = pattern
+
+    def finditer(self, text: str, pos: int = 0, endpos: Optional[int] = None):
+        end = len(text) if endpos is None else min(endpos, len(text))
+        while pos <= end:
+            m = self._pattern.search(text, pos, end)
+            if not m:
+                return
+            if _year_before_amount(text[:end], m):
+                pos = m.start("c2")  # the next match starts at the currency
+                continue
+            yield m
+            pos = max(m.end(), m.start() + 1)
+
+    def search(self, text: str, pos: int = 0, endpos: Optional[int] = None):
+        return next(self.finditer(text, pos, endpos), None)
+
+    def __getattr__(self, name):
+        return getattr(self._pattern, name)
+
+
+AMOUNT = _AmountPattern(_AMOUNT_PATTERN)
 # "eine Mahngebühr von 10,00 EUR. Bitte überweisen Sie den offenen Betrag bis …": the fee is not what is due
 FEE_BEFORE = re.compile(rf"(?:{rule('fee')})(?:\s+(?:de|d['’]|di|del|por)\s+\w+)?\W{{0,3}}(?:von|in höhe von|of|de|d['’]|di|por|:)?\s*$",
                         re.IGNORECASE)

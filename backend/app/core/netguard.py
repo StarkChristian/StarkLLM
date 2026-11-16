@@ -96,9 +96,12 @@ def _load_state() -> Dict:
                     data = json.load(f)
             except (OSError, ValueError):
                 pass
-            _state = {"offline": bool(isinstance(data, dict) and data.get("offline"))}
+            offline = bool(isinstance(data, dict) and data.get("offline"))
+            set_by = data.get("set_by") if offline and isinstance(data.get("set_by"), int) else None
+            _state = {"offline": offline, "set_by": set_by}
             if _env_offline() and not _state["offline"]:
-                # the desktop app starts the engine offline when the user left the switch on: that sticks
+                # the desktop app starts the engine offline when the user left the switch on: that sticks. Nobody
+                # signed in did it, so set_by stays None (only the administrator or the desktop app turn it off).
                 _state["offline"] = True
                 _save_state()
         return _state
@@ -108,8 +111,11 @@ def _save_state() -> None:
     try:
         os.makedirs(DATA_DIR or ".", exist_ok=True)
         tmp = _state_path() + ".tmp"
+        saved = {"offline": bool(_state["offline"])}
+        if _state["offline"] and _state.get("set_by") is not None:
+            saved["set_by"] = _state["set_by"]
         with open(tmp, "w", encoding="utf-8") as f:
-            json.dump({"offline": bool(_state["offline"])}, f)
+            json.dump(saved, f)
         os.replace(tmp, _state_path())
     except OSError as e:
         logger.warning("could not save the offline switch: %s", e)
@@ -119,10 +125,24 @@ def is_offline() -> bool:
     return _load_state()["offline"]
 
 
-def set_offline(value: bool) -> bool:
-    """Turns the fully offline switch on or off and returns the new state. STARKLLM_OFFLINE=1 at start turns it on."""
+def offline_set_by() -> Optional[int]:
+    """The id of the account that turned the switch on; None when it is off, or when it came from STARKLLM_OFFLINE or
+    the desktop app on this PC."""
+    state = _load_state()
+    return state.get("set_by") if state["offline"] else None
+
+
+def set_offline(value: bool, set_by: Optional[int] = None) -> bool:
+    """Turns the fully offline switch on or off and returns the new state. STARKLLM_OFFLINE=1 at start turns it on.
+    set_by is the account that turns it on (None: the desktop app or the environment). Turning on a switch that is
+    already on keeps who turned it on first, so a second account cannot take it over and then turn it off."""
     with _lock:
-        _load_state()["offline"] = bool(value)
+        state = _load_state()
+        if value and not state["offline"]:
+            state["set_by"] = set_by
+        elif not value:
+            state["set_by"] = None
+        state["offline"] = bool(value)
         _save_state()
     return is_offline()
 
@@ -286,7 +306,7 @@ def local_counts() -> Dict[str, int]:
 
 
 def status() -> Dict:
-    return {"offline": is_offline(), "local_requests": local_counts(),
+    return {"offline": is_offline(), "set_by": offline_set_by(), "local_requests": local_counts(),
             "log_entries": len(entries(100000))}
 
 

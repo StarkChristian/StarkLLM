@@ -1113,5 +1113,7 @@
   "All deadlines": "Todos los plazos",
   "Hide this reminder": "Ocultar este recordatorio",
   "{count} more": "{count} más",
-  "Deadlines": "Plazos"
+  "Deadlines": "Plazos",
+  "Only the administrator of this StarkLLM, or the account that turned \"Fully offline\" on, can turn it off.": "Solo el administrador de este StarkLLM, o la cuenta que activó «Totalmente sin conexión», puede desactivarlo.",
+  "The engine on this PC could not be reached, so its switch was not changed. Try again when StarkLLM has started.": "No se pudo contactar con el motor de este PC, por lo que su interruptor no se cambió. Inténtelo de nuevo cuando StarkLLM se haya iniciado."
 }

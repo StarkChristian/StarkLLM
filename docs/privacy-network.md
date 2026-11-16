@@ -83,8 +83,15 @@ Any new online feature must use `app/core/netguard.py` (the backend test then co
    search is disabled.
 4. At the first start the app asks once (stay online, the default, or go fully offline; administrators can skip the question with the environment variable `STARKLLM_ASK_OFFLINE=0`). The switch is saved (`privacy.json`) and survives restarts. The desktop app starts the engine with
    `STARKLLM_OFFLINE=1`. If the two ever differ, offline wins: the settings page makes both offline.
-5. Turning it off lets the engine reach the internet again, so in an installation with accounts only the administrator
-   (the first account) may do that; any user may turn it on.
+5. Who may switch it: any signed-in account may turn it on, and the engine keeps which account did (`set_by` in
+   `privacy.json`). Turning it off lets the engine reach the internet again for every account, so in a browser only
+   the administrator (the first account) and the account that turned it on may do that; anyone else gets "Only the
+   administrator of this StarkLLM, or the account that turned "Fully offline" on, can turn it off." When it came from
+   `STARKLLM_OFFLINE=1` or the desktop app (no account), only the administrator or the desktop app turn it off. The
+   switch of the desktop app (Settings in the app, tray menu) always sets both the app and the engine
+   (`PUT /api/v1/privacy/offline/desktop` with the same `X-Desktop-Key` as the desktop session): the person at the app
+   owns the PC. If the engine cannot be reached, the app says so; turning it on still takes effect in the app at once,
+   and turning it off is allowed in the app so that a first start that chose "offline" can still download the engine.
 
 Limits, honestly: the guard cannot stop a client that is written in another language and does not go through
 `socket` (the search library's own client is wrapped by `netguard.external()`, so it is stopped before it starts), and
