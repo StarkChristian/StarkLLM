@@ -1,0 +1,76 @@
+name: mobile-core
+
+# Protocol core and relay for remote access from the phone (docs/remote-access-design.md).
+on:
+  push:
+    paths:
+      - 'mobile/**'
+      - 'relay/**'
+      - 'docs/remote-access-design.md'
+      - '.github/workflows/mobile-core.yml'
+  pull_request:
+    paths:
+      - 'mobile/**'
+      - 'relay/**'
+      - 'docs/remote-access-design.md'
+      - '.github/workflows/mobile-core.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    name: Protocol core (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [20, 22]
+    defaults:
+      run:
+        working-directory: mobile/core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: mobile/core/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      # Official Noise test vectors, property and fuzz tests, allow-list tests, simulated end-to-end test
+      - run: npm test
+
+  interop:
+    name: Noise interoperability (JavaScript vs Python noiseprotocol)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install noiseprotocol==0.3.1
+      - run: python mobile/core/test/interop/verify_fixture.py
+
+  relay:
+    name: Relay (tests, end-to-end, Docker image)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+        working-directory: mobile/core
+      - run: npm ci
+        working-directory: relay
+      - run: npm test
+        working-directory: relay
+      - name: Build the image and check the health endpoint
+        run: |
+          docker build -t starkllm-relay:ci relay
+          docker run -d --name relay-ci --read-only --cap-drop ALL -p 127.0.0.1:18787:8787 starkllm-relay:ci
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            curl -fsS http://127.0.0.1:18787/healthz && break || sleep 1
+          done
+          curl -fsS http://127.0.0.1:18787/healthz | grep '"status":"ok"'
+          docker rm -f relay-ci

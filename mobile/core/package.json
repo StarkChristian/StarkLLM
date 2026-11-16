@@ -1,0 +1,42 @@
+{
+  "name": "@starkllm/remote-core",
+  "version": "0.1.0",
+  "description": "StarkLLM remote protocol core: Noise handshakes, framing, allow-listed requests. Shared by the PC side and the phone apps.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "private": true,
+  "main": "src/index.js",
+  "types": "src/index.js",
+  "exports": {
+    ".": {
+      "types": "./src/index.js",
+      "default": "./src/index.js"
+    },
+    "./node": {
+      "types": "./src/node.js",
+      "default": "./src/node.js"
+    }
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test",
+    "typecheck": "tsc -p tsconfig.json",
+    "vectors:fetch": "node scripts/fetch-vectors.mjs",
+    "interop:generate": "node scripts/generate-interop-fixture.mjs"
+  },
+  "dependencies": {
+    "salty-crypto": "1.0.0-rc.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "fast-check": "^3.23.2",
+    "typescript": "^5.6.3"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "PROTOCOL.md"
+  ]
+}

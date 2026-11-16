@@ -1,0 +1,19 @@
+{
+  "name": "starkllm-relay",
+  "version": "0.1.0",
+  "description": "Open-source relay for StarkLLM remote access: forwards opaque end-to-end encrypted frames between a PC and its paired phones. Sees no content, keeps no accounts.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "private": true,
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "ws": "8.18.3"
+  }
+}

@@ -1,0 +1,28 @@
+# Example only (documented in docs/relay-deployment-contabo.md). Nothing here is deployed by the repository.
+services:
+  relay:
+    image: starkllm-relay:local          # built from relay/ on the server
+    container_name: starkllm-relay
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    pids_limit: 128
+    environment:
+      PORT: "8787"
+      RELAY_TRUSTED_IP_HEADER: cf-connecting-ip   # only because the Cloudflare tunnel sits in front
+    # No published ports: the Cloudflare tunnel reaches the container over the shared Docker network.
+    networks: [tunnel]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "3" }
+
+networks:
+  tunnel:
+    external: true                        # the network the cloudflared container of this server uses
