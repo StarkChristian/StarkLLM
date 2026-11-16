@@ -1,8 +1,24 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse, Response
 from app.core.config import settings
+# A restore that could not be put in place while the engine ran (locked files) is finished now, before anything
+# opens the database or the vector store.
+try:
+    from app.services import backup_service as _backup_service
+    _restored = _backup_service.apply_pending_restore()
+    if _restored and _restored.get("data_key"):
+        from app.core.protection import protection as _protection
+        _protection.set_key(__import__("base64").b64decode(_restored["data_key"]))
+except Exception as _e:  # never stop the engine from starting
+    import logging as _logging
+    _logging.getLogger(__name__).error("Pending restore could not be applied: %s", _e)
+
 from app.db.session import engine, Base
 from app.api import api_router
+from app.core import netguard
+from app.core.protection import ProtectionLocked
+from sqlalchemy.exc import StatementError
+from app.services import vault
 import os
 
 # Create database tables
@@ -21,6 +37,9 @@ for _sql in _migrations:
             conn.execute(text(_sql))
     except Exception:
         pass  # Column already exists or table doesn't exist
+
+# Decrypted scratch copies of protected documents never survive a restart
+vault.wipe_temp()
 
 # Create upload directory if it doesn't exist
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
@@ -76,6 +95,59 @@ async def cors_middleware(request: Request, call_next):
     return response
 
 
+# ---------------------------------------------------------------------------
+# Local only. The engine listens on 127.0.0.1, but a web page can still reach it through the browser with "DNS
+# rebinding": a domain that first points to the attacker and then to 127.0.0.1, so the browser sends the page's
+# requests to StarkLLM with the attacker's host name. Requests must name a local host, and requests that change
+# something must not come from a foreign web page (Origin). Programs on the PC (curl, MCP clients) send no Origin.
+# Registered last, so it runs first.
+# ---------------------------------------------------------------------------
+LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "backend"}  # "backend": the web UI's proxy inside Docker
+
+
+def _host_name(value: str) -> str:
+    value = (value or "").strip().lower()
+    if "://" in value:
+        value = value.split("://", 1)[1]
+    value = value.split("/", 1)[0]
+    if value.startswith("["):
+        return value[1:value.find("]")] if "]" in value else value
+    return value.rsplit(":", 1)[0] if value.count(":") == 1 else value
+
+
+def _allowed_hosts() -> set:
+    extra = {h.strip().lower() for h in os.getenv("STARKLLM_ALLOWED_HOSTS", "").split(",") if h.strip()}
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        extra.add("testserver")  # FastAPI's test client
+    return LOCAL_HOSTS | extra
+
+
+@app.middleware("http")
+async def local_only(request: Request, call_next):
+    allowed = _allowed_hosts()
+    if _host_name(request.headers.get("host", "")) not in allowed:
+        return JSONResponse({"detail": "StarkLLM answers only on this PC (localhost)."}, status_code=403)
+    origin = request.headers.get("origin")
+    if origin and origin != "null" and request.method not in ("GET", "HEAD", "OPTIONS"):
+        if _host_name(origin) not in allowed:
+            return JSONResponse({"detail": "Requests from other web sites are not allowed."}, status_code=403)
+    return await call_next(request)
+
+
+@app.exception_handler(ProtectionLocked)
+async def protection_locked_handler(request: Request, exc: ProtectionLocked):
+    """Protection at rest is on but the key has not been handed to the engine: nothing protected can be read."""
+    return JSONResponse(status_code=423, content={"detail": str(exc), "code": "protection_locked"})
+
+
+@app.exception_handler(StatementError)
+async def statement_error_handler(request: Request, exc: StatementError):
+    """SQLAlchemy wraps what a column type raises; a locked key must still answer 423, not 500."""
+    if isinstance(exc.orig, ProtectionLocked):
+        return await protection_locked_handler(request, exc.orig)
+    raise exc
+
+
 # Custom HTTPException handler: returns JSON with CORS headers baked in.
 # This catches exceptions raised before/outside the middleware chain.
 @app.exception_handler(HTTPException)
@@ -108,14 +180,21 @@ async def generic_exception_handler(request: Request, exc: Exception):
 
 @app.get("/health")
 def health_check():
+    from app.services.ocr_service import ocr_service
+
     # build: fingerprint of the engine files, set by the desktop app; it rebuilds the engine when it differs
+    ocr = ocr_service.status()
     return {"status": "ok", "app": settings.PROJECT_NAME, "version": settings.VERSION,
-            "build": os.getenv("STARKLLM_ENGINE_BUILD", "")}
+            "build": os.getenv("STARKLLM_ENGINE_BUILD", ""),
+            "ocr": {"available": ocr["available"], "languages": ocr["languages"]}}
 
 @app.get(settings.API_V1_STR + "/version")
 def version():
     """The web UI only reaches /api/ through its proxy; the About page reads the version here."""
     return {"version": settings.VERSION}
+
+# Every outgoing connection of the engine is recorded, and refused while the app is fully offline (roadmap phase 3)
+netguard.install()
 
 # Include routers
 app.include_router(api_router, prefix=settings.API_V1_STR)
@@ -123,6 +202,10 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 # Mount OpenAI-compatible developer API endpoints directly at /v1
 from app.api.openai_compat import router as openai_compat_router
 app.include_router(openai_compat_router, prefix="/v1", tags=["OpenAI Compatible"])
+
+# StarkLLM as an MCP server for other programs on this PC (Settings > Other apps)
+from app.api.mcp_server import router as mcp_server_router
+app.include_router(mcp_server_router, tags=["MCP server"])
 
 from app.services.kb_service import kb_service
 

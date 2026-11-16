@@ -69,3 +69,20 @@ test('a tiny model (under 3B) is not used for chat; a 3B one is preferred, and w
   assert.ok(onlyTiny.pull.includes('qwen2.5:7b'));
   assert.strictEqual(chooseModels({ installed: [tiny, small, vl], hw: { ramBytes: 16 * GB } }).vision, 'qwen2.5vl:7b');
 });
+
+test('modified community models ("abliterated", "uncensored") are never chosen automatically, but a saved choice stays', () => {
+  const abl = { name: 'huihui_ai/Qwen3.8-abliterated:latest', size: 16.5 * GB, family: 'qwen35', parameterSize: '27.3B', capabilities: ['completion', 'vision', 'tools'] };
+  const unc = { name: 'llama3.1-uncensored:8b', size: 4.7 * GB, family: 'llama', parameterSize: '8.0B', capabilities: ['completion'] };
+  // the MSI test PC: the official qwen3.8:27b is installed next to an abliterated copy
+  const c = chooseModels({ installed: [abl, ...pc], hw: { ramBytes: 64 * GB, vramBytes: 24 * GB } });
+  assert.strictEqual(c.text, 'qwen3.8:27b');
+  assert.strictEqual(c.vision, 'qwen3.8:27b');
+  // only modified models installed: the default is downloaded instead
+  const only = chooseModels({ installed: [abl, unc], hw: { ramBytes: 64 * GB, vramBytes: 24 * GB } });
+  assert.strictEqual(only.text, 'qwen2.5:7b');
+  assert.ok(only.pull.includes('qwen2.5:7b'));
+  // the user picked it on purpose: kept
+  const kept = chooseModels({ installed: [abl, ...pc], hw: { ramBytes: 64 * GB, vramBytes: 24 * GB }, saved: { text: abl.name, embedding: 'nomic-embed-text:latest', vision: abl.name } });
+  assert.strictEqual(kept.text, abl.name);
+  assert.strictEqual(kept.vision, abl.name);
+});

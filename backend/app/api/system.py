@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from fastapi.background import BackgroundTasks
 from app.api.auth import get_current_user
+from app.core.protection import protection
 from app.db import models
 from sqlalchemy import func
 from app.db.session import engine, get_db
@@ -21,11 +22,15 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+def is_admin(user: models.User, db) -> bool:
+    """The instance owner (first registered account) is the only administrator."""
+    return user.id == db.query(func.min(models.User.id)).scalar()
+
+
 def require_admin(current_user: models.User = Depends(get_current_user), db=Depends(get_db)) -> models.User:
     """The instance owner (first registered account) is the only administrator.
     Backup/restore expose or replace the data of ALL users, so ordinary accounts must not reach them."""
-    first_id = db.query(func.min(models.User.id)).scalar()
-    if current_user.id != first_id:
+    if not is_admin(current_user, db):
         raise HTTPException(status_code=403, detail="Only the instance administrator may use backup/restore.")
     return current_user
 
@@ -56,6 +61,9 @@ def backup_system(current_user: models.User = Depends(require_admin)):
     """
     Creates a zip archive of the local data directory and returns it as a download.
     """
+    if protection.enabled:
+        raise HTTPException(status_code=409, detail="Protection is on: a plain .zip backup would not contain the key and "
+                            "could not be restored. Use the encrypted backup (Settings > Backup).")
     if not os.path.exists(DATA_DIR):
         raise HTTPException(status_code=404, detail="Data directory not found.")
         
@@ -96,6 +104,8 @@ async def restore_system(
     Restores the system from an uploaded zip backup.
     NOTE: On Windows, file locks on sqlite/chroma files may prevent overwrite.
     """
+    if protection.enabled:
+        raise HTTPException(status_code=409, detail="Protection is on: restore an encrypted backup (.starkbackup) instead.")
     if not file.filename.endswith('.zip'):
         raise HTTPException(status_code=400, detail="Must upload a .zip backup file.")
         
@@ -175,7 +185,19 @@ _BLOCKED_MODULES = {
     "os", "subprocess", "socket", "shutil", "ctypes", "importlib", "pathlib", "multiprocessing", "threading", "signal",
     "urllib", "http", "ftplib", "smtplib", "telnetlib", "requests", "httpx", "aiohttp", "sqlite3", "pickle", "marshal",
     "builtins", "sys", "inspect", "gc", "resource", "pty", "tempfile", "glob", "zipfile", "tarfile", "webbrowser", "asyncio",
+    "_socket", "ssl", "_ssl", "select", "selectors", "xmlrpc", "imaplib", "poplib", "nntplib", "socketserver",
 }
+
+# The child process never opens a network connection (roadmap phase 3: nothing leaves the PC because of a snippet, for
+# example pandas.read_csv("https://...")). Imports of the usual modules are refused above; this also makes the socket
+# calls of libraries that are allowed (pandas, numpy ...) fail. A convenience limit like the rest of the runner.
+_NO_NETWORK = (
+    "import socket as _s\n"
+    "def _deny(*a, **k):\n    raise OSError('The code runner has no network access.')\n"
+    "for _n in ('connect', 'connect_ex', 'bind', 'listen', 'sendto'):\n    setattr(_s.socket, _n, _deny)\n"
+    "for _n in ('getaddrinfo', 'gethostbyname', 'gethostbyname_ex', 'create_connection'):\n    setattr(_s, _n, _deny)\n"
+    "del _s, _deny, _n\n"
+)
 _BLOCKED_CALLS = {"open", "exec", "eval", "compile", "__import__", "input", "breakpoint", "globals", "locals", "vars", "getattr", "setattr", "delattr"}
 
 
@@ -251,7 +273,7 @@ def execute_code(
     with tempfile.TemporaryDirectory() as workdir:
         try:
             proc = subprocess.run(
-                [sys.executable, "-I", "-c", req.code],
+                [sys.executable, "-I", "-c", _NO_NETWORK + "exec(compile(" + repr(req.code) + ", '<string>', 'exec'))"],
                 capture_output=True, text=True, timeout=timeout, cwd=workdir, env=env,
                 preexec_fn=_limit_resources(timeout + 1) if os.name == "posix" else None,
             )

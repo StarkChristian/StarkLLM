@@ -1,0 +1,81 @@
+name: Signing dry run (self-signed test certificate)
+
+# Proves the whole signing chain without the real certificate (Certum, on the owner's PC):
+#   sign the app folder -> pack -> sign uninstaller and installer -> latest.yml and blockmap -> every file signed ->
+#   publisherName matches -> (Windows) install, check the installed files incl. the uninstaller, uninstall.
+# A self-signed certificate is made at run time (desktop/build/make-test-cert.js) and trusted on the runner only.
+#
+#   linux:   osslsigncode, stand-in for electron-builder's installer build (desktop/test/signing-chain.test.js)
+#   windows: signtool and the real electron-builder NSIS build, with publisherName set as in the first signed release
+#
+# What stays untested here: the Certum certificate, SimplySign, the timestamp from time.certum.pl (see
+# docs/signing-on-owner-pc.md, "What can only be tested with the real certificate").
+on:
+  pull_request:
+    paths: ['desktop/build/**', 'desktop/test/**', 'desktop/package.json', '.github/workflows/signing-dry-run.yml', 'docs/signing-on-owner-pc.md']
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: osslsigncode
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq osslsigncode
+      - name: Install
+        working-directory: desktop
+        run: npm ci --no-audit --no-fund
+      - name: Signing tests (the chain tests must run, not skip)
+        working-directory: desktop
+        run: |
+          node --test test/signing-chain.test.js test/signing-checks.test.js test/sign.test.js test/refresh-update-info.test.js | tee "$RUNNER_TEMP/out.txt"
+          if grep -q '^# skipped [1-9]' "$RUNNER_TEMP/out.txt"; then echo "the signing chain tests were skipped"; exit 1; fi
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install
+        working-directory: desktop
+        run: npm ci --no-audit --no-fund
+
+      - name: Set publisherName like the first signed release (test name)
+        working-directory: desktop
+        run: |
+          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.build.win.signtoolOptions.publisherName=[require('./build/make-test-cert').TEST_CN];fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
+          git diff --stat
+
+      - name: 1. Unsigned build (gives the app folder with app-update.yml)
+        working-directory: desktop
+        run: npx electron-builder --win nsis --x64 --publish never
+
+      - name: The check fails on the unsigned build (or it would be blind)
+        working-directory: desktop
+        run: |
+          node build/check-signed.js dist/win-unpacked
+          if ($LASTEXITCODE -eq 0) { throw 'check-signed accepted an unsigned app folder' }
+          "expected failure, exit code $LASTEXITCODE"
+          $global:LASTEXITCODE = 0
+
+      - name: 2. release-sign.js with a test certificate, install check
+        working-directory: desktop
+        env:
+          STARKLLM_SIGN: test
+        run: node build/release-sign.js --app dist/win-unpacked --work "$env:RUNNER_TEMP/release-work" --install-check
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: signing-dry-run-release
+          path: ${{ runner.temp }}/release-work/out/
+          retention-days: 3

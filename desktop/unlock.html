@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src file:; font-src file:">
+  <title>StarkLLM</title>
+  <style>
+    @font-face { font-family: 'Geist'; src: url('assets/fonts/geist-latin-wght-normal.woff2') format('woff2-variations'); font-weight: 100 900; }
+    :root { --bg: #07060b; --fg: #f2eefb; --muted: #9d96b6; --violet: #8c14fc; --violet-soft: #b777ff; --err: #ef6a6a; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body { background: radial-gradient(60% 50% at 50% 42%, rgba(140,20,252,.16), transparent 70%), var(--bg); color: var(--fg);
+           font-family: 'Geist', 'Segoe UI', system-ui, sans-serif; display: grid; place-items: center; }
+    main { width: min(420px, 88vw); display: flex; flex-direction: column; gap: 14px; }
+    h1 { font-size: 1.7rem; font-weight: 650; letter-spacing: -.03em; }
+    p { color: var(--muted); font-size: .95rem; line-height: 1.5; }
+    input { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.05); color: var(--fg); font-size: 1rem; }
+    input:focus { outline: 2px solid var(--violet-soft); }
+    button { padding: 12px 16px; border-radius: 10px; border: 0; background: linear-gradient(135deg, var(--violet), var(--violet-soft)); color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: default; }
+    button.link { background: none; color: var(--violet-soft); font-weight: 500; padding: 4px 0; text-align: left; font-size: .9rem; }
+    .error { color: var(--err); font-size: .92rem; min-height: 1.3em; }
+    .mono { font-family: 'Geist Mono', ui-monospace, Consolas, monospace; letter-spacing: .04em; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <section id="pass">
+      <h1 data-t="title"></h1>
+      <p data-t="intro"></p>
+      <form id="passForm" style="display:flex;flex-direction:column;gap:12px;margin-top:14px">
+        <input id="passInput" type="password" autocomplete="off" spellcheck="false" autofocus>
+        <div class="error" id="passError" role="alert"></div>
+        <button id="passButton" type="submit" data-t="unlock"></button>
+        <button class="link" id="forgot" type="button" data-t="forgot"></button>
+      </form>
+    </section>
+    <section id="recover" hidden>
+      <h1 data-t="recoverTitle"></h1>
+      <p data-t="recoverIntro"></p>
+      <form id="recoverForm" style="display:flex;flex-direction:column;gap:12px;margin-top:14px">
+        <input id="recoverInput" class="mono" type="text" autocomplete="off" spellcheck="false" placeholder="XXXXX-XXXXX-XXXXX-…">
+        <div class="error" id="recoverError" role="alert"></div>
+        <button id="recoverButton" type="submit" data-t="recoverButton"></button>
+        <button class="link" id="back" type="button" data-t="back"></button>
+      </form>
+    </section>
+  </main>
+  <script>
+    // The six interface languages, like the rest of the app. The messages that the app sends are English with a code; the text shown comes from here.
+    const TEXT = {
+      en: {
+        title: 'StarkLLM is locked', intro: 'Enter your passphrase to open your documents. It is never saved.', unlock: 'Unlock',
+        placeholder: 'Passphrase', working: 'Unlocking…', forgot: 'I forgot my passphrase',
+        recoverTitle: 'Use your recovery key', recoverIntro: 'The recovery key you wrote down when you turned protection on opens StarkLLM without the passphrase. This turns the start-up passphrase off; you can set a new one in Settings > Protection.',
+        recoverButton: 'Unlock with recovery key', back: 'Back',
+        errors: {
+          'passphrase-needed': 'Enter your passphrase.',
+          'wrong-passphrase': 'The passphrase is not right. Try again.',
+          'bad-recovery-key': 'The recovery key is not right. Check every character.',
+          'wrong-recovery-key': 'This recovery key does not belong to the data on this PC.',
+          'engine-refused': 'StarkLLM did not accept the key. Close it completely and start it again.',
+          'key-store-failed': 'The key cannot be opened with this Windows account. Use your recovery key.',
+          'no-key': 'There is no key on this PC. Use your recovery key.',
+          failed: 'Something went wrong. Close StarkLLM completely and start it again.'
+        },
+        hint: 'Several wrong attempts. If you forgot the passphrase, use your recovery key.'
+      },
+      de: {
+        title: 'StarkLLM ist gesperrt', intro: 'Geben Sie Ihre Passphrase ein, um Ihre Dokumente zu öffnen. Sie wird nie gespeichert.', unlock: 'Entsperren',
+        placeholder: 'Passphrase', working: 'Wird entsperrt…', forgot: 'Ich habe meine Passphrase vergessen',
+        recoverTitle: 'Wiederherstellungsschlüssel verwenden', recoverIntro: 'Der Wiederherstellungsschlüssel, den Sie beim Einschalten des Schutzes aufgeschrieben haben, öffnet StarkLLM ohne die Passphrase. Dabei wird die Start-Passphrase ausgeschaltet; unter Einstellungen > Schutz können Sie eine neue festlegen.',
+        recoverButton: 'Mit Wiederherstellungsschlüssel entsperren', back: 'Zurück',
+        errors: {
+          'passphrase-needed': 'Geben Sie Ihre Passphrase ein.',
+          'wrong-passphrase': 'Die Passphrase stimmt nicht. Versuchen Sie es erneut.',
+          'bad-recovery-key': 'Der Wiederherstellungsschlüssel stimmt nicht. Prüfen Sie jedes Zeichen.',
+          'wrong-recovery-key': 'Dieser Wiederherstellungsschlüssel gehört nicht zu den Daten auf diesem PC.',
+          'engine-refused': 'StarkLLM hat den Schlüssel nicht angenommen. Schließen Sie es vollständig und starten Sie es neu.',
+          'key-store-failed': 'Der Schlüssel lässt sich mit diesem Windows-Konto nicht öffnen. Verwenden Sie Ihren Wiederherstellungsschlüssel.',
+          'no-key': 'Auf diesem PC gibt es keinen Schlüssel. Verwenden Sie Ihren Wiederherstellungsschlüssel.',
+          failed: 'Etwas ist schiefgegangen. Schließen Sie StarkLLM vollständig und starten Sie es neu.'
+        },
+        hint: 'Mehrere falsche Versuche. Wenn Sie die Passphrase vergessen haben, verwenden Sie Ihren Wiederherstellungsschlüssel.'
+      },
+      es: {
+        title: 'StarkLLM está bloqueado', intro: 'Introduzca su frase de contraseña para abrir sus documentos. Nunca se guarda.', unlock: 'Desbloquear',
+        placeholder: 'Frase de contraseña', working: 'Desbloqueando…', forgot: 'He olvidado mi frase de contraseña',
+        recoverTitle: 'Usar la clave de recuperación', recoverIntro: 'La clave de recuperación que anotó al activar la protección abre StarkLLM sin la frase de contraseña. Esto desactiva la frase de contraseña de inicio; puede definir una nueva en Ajustes > Protección.',
+        recoverButton: 'Desbloquear con la clave de recuperación', back: 'Atrás',
+        errors: {
+          'passphrase-needed': 'Introduzca su frase de contraseña.',
+          'wrong-passphrase': 'La frase de contraseña no es correcta. Inténtelo de nuevo.',
+          'bad-recovery-key': 'La clave de recuperación no es correcta. Revise cada carácter.',
+          'wrong-recovery-key': 'Esta clave de recuperación no corresponde a los datos de este PC.',
+          'engine-refused': 'StarkLLM no aceptó la clave. Ciérrelo por completo y vuelva a iniciarlo.',
+          'key-store-failed': 'La clave no se puede abrir con esta cuenta de Windows. Use su clave de recuperación.',
+          'no-key': 'No hay ninguna clave en este PC. Use su clave de recuperación.',
+          failed: 'Algo salió mal. Cierre StarkLLM por completo y vuelva a iniciarlo.'
+        },
+        hint: 'Varios intentos fallidos. Si olvidó la frase de contraseña, use su clave de recuperación.'
+      },
+      fr: {
+        title: 'StarkLLM est verrouillé', intro: 'Saisissez votre phrase secrète pour ouvrir vos documents. Elle n\'est jamais enregistrée.', unlock: 'Déverrouiller',
+        placeholder: 'Phrase secrète', working: 'Déverrouillage…', forgot: 'J\'ai oublié ma phrase secrète',
+        recoverTitle: 'Utiliser la clé de récupération', recoverIntro: 'La clé de récupération que vous avez notée en activant la protection ouvre StarkLLM sans la phrase secrète. Cela désactive la phrase secrète de démarrage ; vous pouvez en définir une nouvelle dans Paramètres > Protection.',
+        recoverButton: 'Déverrouiller avec la clé de récupération', back: 'Retour',
+        errors: {
+          'passphrase-needed': 'Saisissez votre phrase secrète.',
+          'wrong-passphrase': 'La phrase secrète n\'est pas correcte. Réessayez.',
+          'bad-recovery-key': 'La clé de récupération n\'est pas correcte. Vérifiez chaque caractère.',
+          'wrong-recovery-key': 'Cette clé de récupération ne correspond pas aux données de ce PC.',
+          'engine-refused': 'StarkLLM n\'a pas accepté la clé. Fermez-le complètement et redémarrez-le.',
+          'key-store-failed': 'La clé ne peut pas être ouverte avec ce compte Windows. Utilisez votre clé de récupération.',
+          'no-key': 'Il n\'y a pas de clé sur ce PC. Utilisez votre clé de récupération.',
+          failed: 'Un problème est survenu. Fermez complètement StarkLLM et redémarrez-le.'
+        },
+        hint: 'Plusieurs tentatives incorrectes. Si vous avez oublié la phrase secrète, utilisez votre clé de récupération.'
+      },
+      it: {
+        title: 'StarkLLM è bloccato', intro: 'Inserisca la sua passphrase per aprire i suoi documenti. Non viene mai salvata.', unlock: 'Sblocca',
+        placeholder: 'Passphrase', working: 'Sblocco in corso…', forgot: 'Ho dimenticato la passphrase',
+        recoverTitle: 'Usa la chiave di ripristino', recoverIntro: 'La chiave di ripristino che ha annotato quando ha attivato la protezione apre StarkLLM senza la passphrase. Questo disattiva la passphrase di avvio; ne può impostare una nuova in Impostazioni > Protezione.',
+        recoverButton: 'Sblocca con la chiave di ripristino', back: 'Indietro',
+        errors: {
+          'passphrase-needed': 'Inserisca la sua passphrase.',
+          'wrong-passphrase': 'La passphrase non è corretta. Riprovi.',
+          'bad-recovery-key': 'La chiave di ripristino non è corretta. Controlli ogni carattere.',
+          'wrong-recovery-key': 'Questa chiave di ripristino non appartiene ai dati di questo PC.',
+          'engine-refused': 'StarkLLM non ha accettato la chiave. Lo chiuda completamente e lo riavvii.',
+          'key-store-failed': 'La chiave non si può aprire con questo account Windows. Usi la chiave di ripristino.',
+          'no-key': 'Su questo PC non c\'è nessuna chiave. Usi la chiave di ripristino.',
+          failed: 'Qualcosa è andato storto. Chiuda completamente StarkLLM e lo riavvii.'
+        },
+        hint: 'Diversi tentativi errati. Se ha dimenticato la passphrase, usi la chiave di ripristino.'
+      },
+      tr: {
+        title: 'StarkLLM kilitli', intro: 'Belgelerinizi açmak için parolanızı girin. Parola hiçbir zaman kaydedilmez.', unlock: 'Kilidi aç',
+        placeholder: 'Parola', working: 'Kilit açılıyor…', forgot: 'Parolamı unuttum',
+        recoverTitle: 'Kurtarma anahtarını kullan', recoverIntro: 'Korumayı açarken not ettiğiniz kurtarma anahtarı, StarkLLM\'i parola olmadan açar. Bu, başlangıç parolasını kapatır; Ayarlar > Koruma bölümünden yenisini belirleyebilirsiniz.',
+        recoverButton: 'Kurtarma anahtarıyla kilidi aç', back: 'Geri',
+        errors: {
+          'passphrase-needed': 'Parolanızı girin.',
+          'wrong-passphrase': 'Parola doğru değil. Yeniden deneyin.',
+          'bad-recovery-key': 'Kurtarma anahtarı doğru değil. Her karakteri kontrol edin.',
+          'wrong-recovery-key': 'Bu kurtarma anahtarı bu bilgisayardaki verilere ait değil.',
+          'engine-refused': 'StarkLLM anahtarı kabul etmedi. Programı tamamen kapatıp yeniden başlatın.',
+          'key-store-failed': 'Anahtar bu Windows hesabıyla açılamıyor. Kurtarma anahtarınızı kullanın.',
+          'no-key': 'Bu bilgisayarda anahtar yok. Kurtarma anahtarınızı kullanın.',
+          failed: 'Bir şeyler ters gitti. StarkLLM\'i tamamen kapatıp yeniden başlatın.'
+        },
+        hint: 'Birkaç yanlış deneme. Parolayı unuttuysanız kurtarma anahtarınızı kullanın.'
+      }
+    };
+    // the language of the interface comes with the page (?lang=de); else the language of the system; else English
+    const wanted = (new URLSearchParams(location.search).get('lang') || navigator.language || 'en').toLowerCase().split(/[-_]/)[0];
+    const lang = TEXT[wanted] ? wanted : 'en';
+    document.documentElement.lang = lang;
+    const T = TEXT[lang];
+    document.querySelectorAll('[data-t]').forEach((el) => { el.textContent = T[el.dataset.t]; });
+    const $ = (id) => document.getElementById(id);
+    $('passInput').placeholder = T.placeholder;
+    const say = (el, r, attempts) => {
+      el.textContent = T.errors[r.error] || T.errors.failed;
+      if (attempts >= 3 && r.error === 'wrong-passphrase') el.textContent += ' ' + T.hint;
+    };
+    const show = (which) => { $('pass').hidden = which !== 'pass'; $('recover').hidden = which !== 'recover'; (which === 'pass' ? $('passInput') : $('recoverInput')).focus(); };
+    $('forgot').onclick = () => show('recover');
+    $('back').onclick = () => show('pass');
+    async function attempt(button, errorEl, input, call) {
+      errorEl.textContent = '';
+      const label = button.textContent;
+      button.disabled = true; button.textContent = T.working;
+      try {
+        const r = await call(input.value);
+        if (r && r.ok) return;                       // the app now opens
+        say(errorEl, r || {}, r && r.attempts);
+        input.select();
+      } catch (e) {
+        say(errorEl, {});
+      } finally {
+        input.value = '';
+        button.disabled = false; button.textContent = label;
+      }
+    }
+    $('passForm').onsubmit = (e) => { e.preventDefault(); attempt($('passButton'), $('passError'), $('passInput'), (v) => window.starkllmUnlock.submit(v)); };
+    $('recoverForm').onsubmit = (e) => { e.preventDefault(); attempt($('recoverButton'), $('recoverError'), $('recoverInput'), (v) => window.starkllmUnlock.recover(v)); };
+  </script>
+</body>
+</html>

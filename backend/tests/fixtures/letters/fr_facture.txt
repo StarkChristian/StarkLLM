@@ -1,0 +1,19 @@
+Énergie Rivière SA
+12 rue de la Gare, 75010 Paris
+
+Madame Anna Exemple
+8 avenue des Lilas
+69003 Lyon
+
+Paris, le 3 novembre 2026
+Numéro de client : 4400-118-27
+Numéro de facture : FA-2026-4471
+
+Facture d'électricité
+
+Madame,
+le montant de votre facture d'octobre est de 1 234,56 €.
+Des frais de retard de 10,00 € s'appliquent après l'échéance.
+Veuillez régler cette somme avant le 15 décembre 2026.
+Virement sur IBAN FR76 3000 6000 0112 3456 7890 189, BIC AGRIFRPP.
+Votre rendez-vous avec un technicien est fixé au 24/11/2026 à 14h30.

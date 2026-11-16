@@ -1,9 +1,8 @@
-# StarkLLM Desktop (v2.0.8)
+# StarkLLM Desktop (v2.1.2)
 
-**Version:** StarkLLM Desktop v2.0.8  
+**Version:** StarkLLM Desktop v2.1.2  
 **License:** Apache 2.0 (Open Source)  
-**Package:** `StarkLLM-v2.0.8-Setup.exe` (SHA-256: `ff82565be40509686e3e61e1572c9da0191c3017dcba6d7d3d4d109e50152fba`)  
-**Portable:** `StarkLLM-v2.0.8-Portable.exe` (SHA-256: `4063b51a3a0c406f375b160abe93cc649b786b7b0cd0f439496721659c961f4a`)  
+**Package:** `StarkLLM-v2.1.2-Setup.exe` (SHA-256: published with the release)  
 **Official Website:** [https://www.starkllm.com](https://www.starkllm.com)  
 **Documentation & Manual:** [https://www.starkllm.com/manual.html](https://www.starkllm.com/manual.html)
 
@@ -21,7 +20,7 @@ By leveraging Docker Desktop and Ollama on localhost, StarkLLM is local-first: y
 - 📁 **Chat Folders & Organization**: Organize sessions into custom collapsible folders (e.g., "Research", "Legal Briefs", "Code Reviews").
 - 💾 **Universal 4-Format Export**: Export any conversation into Markdown (`.md`), clean JSON (`.json`), standalone styled HTML (`.html`), or plain text (`.txt`) with preserved citations and timestamps.
 - 🎨 **8 Curated Visual Themes**: Instant hot-swapping between Midnight Indigo, OLED Pitch Black, Liquid Glass, Cyberpunk Rose, Matrix Emerald, Sunset Amber, Arctic Frost, and Daylight Minimal.
-- 🌐 **Languages**: English interface; German is next. Answers follow the language of your question.
+- 🌐 **Languages**: English, German and French interface (a new language is one translation file, see [docs/adding-a-language.md](docs/adding-a-language.md)). Answers follow the language of your question. Letters in English, German, French, Spanish, Italian and Turkish are read for dates, amounts and numbers; photos and scans are read in the languages you choose.
 - 📊 **Hardware Telemetry & Live VRAM Dashboard**: Real-time GPU video memory tracking, container status monitor, indexed chunk counters, and recent chats quick jump list.
 - 🛡️ **Safe In-Process Local Tools (MCP Host)**: Read-only local tools (`list_workspace_files`, `search_local_kb`, `fetch_cited_chunk`) with human confirmation cards, single-use invocation tokens, and prompt injection defense.
 
@@ -68,15 +67,12 @@ ollama pull nomic-embed-text
 You do not need to open a terminal: StarkLLM starts both programs and downloads the AI models itself.
 
 ### Option A: Windows Installer (Recommended)
-1. Download `StarkLLM-v2.0.8-Setup.exe` from [starkllm.com/download](https://www.starkllm.com/download) or the GitHub release.
+1. Download `StarkLLM-v2.1.2-Setup.exe` from [starkllm.com/download](https://www.starkllm.com/download) or the GitHub release.
 2. Run the setup wizard and start StarkLLM from the desktop shortcut.
 3. **The first start takes 10-20 minutes** (about 5 GB of AI models plus the engine are downloaded and built; the splash screen shows the progress). Later starts take seconds.
 4. If something is missing (Docker Desktop not installed, a busy port, ...), the window says what and how to fix it; the log is in `%APPDATA%\StarkLLM\engine.log`.
 
-### Option B: Portable Executable
-1. Download `StarkLLM-v2.0.8-Portable.exe` and double-click it. It does the same as the installed app (same data folder).
-
-### Option C: Developer / Source Launch
+### Option B: Developer / Source Launch
 1. Ensure Docker Desktop and Ollama are running.
 2. In the repository folder, execute:
    ```cmd
@@ -92,9 +88,23 @@ You do not need to open a terminal: StarkLLM starts both programs and downloads 
 To verify file integrity before running, compare the SHA-256 hash in PowerShell:
 
 ```powershell
-Get-FileHash -Algorithm SHA256 StarkLLM-v2.0.8-Setup.exe
-# Target: ff82565be40509686e3e61e1572c9da0191c3017dcba6d7d3d4d109e50152fba
+Get-FileHash -Algorithm SHA256 StarkLLM-v2.1.2-Setup.exe
+# Target: 282dea788b1e44c13ed5a12af6131ba70e5fa6b02bc906c8c5dbc9f8fd96465a
 ```
+
+---
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+- **What is signed:** `StarkLLM.exe` and the Windows installer, built by GitHub Actions ([desktop-release.yml](.github/workflows/desktop-release.yml)) from the `main` branch of this repository. Files built on a developer's PC are never signed. Files of other open source projects that the app ships unchanged (Electron and Chromium libraries, NSIS installer plugins) keep their authors' signature, or none.
+- **Committers and reviewers:** [Christian Stark (StarkChristian)](https://github.com/StarkChristian). Changes from other contributors are reviewed by a committer before they are merged.
+- **Approvers:** [Christian Stark (StarkChristian)](https://github.com/StarkChristian). Every release is approved by hand before it is signed.
+- Everyone in these roles uses multi-factor authentication for GitHub and SignPath.
+- **Privacy:** This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. The optional online features and the one-time downloads on the first start are listed on the [privacy page](https://www.starkllm.com/tech-privacy). The program has no telemetry.
+
+Details: [www.starkllm.com/code-signing](https://www.starkllm.com/code-signing) and [docs/code-signing.md](docs/code-signing.md).
 
 ---
 

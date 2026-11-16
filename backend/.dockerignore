@@ -1,0 +1,13 @@
+# Only what the image needs goes to Docker: never the local data, caches or virtual environments
+data/
+knowledge_base_data/
+*.db
+*.sqlite
+.env
+.env.*
+**/__pycache__/
+*.pyc
+.pytest_cache/
+venv/
+.venv/
+tests/

@@ -1,12 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styles from './DocumentManager.module.css';
 import { 
   X, FileText, Trash2, Eye, Calendar, HardDrive, File, 
   CheckCircle2, AlertTriangle, RefreshCw, Loader, XCircle,
-  Globe, Link2, Plus, ArrowRight, Video, GitBranch, StickyNote, Search
+  Globe, Link2, Plus, ArrowRight, Video, GitBranch, StickyNote, Search, Upload, ExternalLink
 } from 'lucide-react';
+import DocumentViewerModal from './DocumentViewerModal';
+import { useEscape } from '../utils/useEscape';
+import { UPLOAD_ACCEPT } from '../utils/uploadTypes';
 import { useToast } from './Toast';
 import { serverDate } from '../utils/time';
+import { UI_LOCALE } from '../utils/locale';
+import { t } from '../i18n';
 
 /* --- Formatting Helpers --- */
 function formatBytes(bytes) {
@@ -18,32 +23,32 @@ function formatBytes(bytes) {
 }
 
 function formatRelativeDate(isoString) {
-  if (!isoString) return 'Unknown';
+  if (!isoString) return t('Unknown');
   const date = serverDate(isoString);
   const now = new Date();
   const diffHours = (now - date) / (1000 * 60 * 60);
   
-  if (diffHours < 24) return 'Today';
-  if (diffHours < 48) return 'Yesterday';
-  return Math.floor(diffHours / 24) + ' days ago';
+  if (diffHours < 24) return t('Today');
+  if (diffHours < 48) return t('Yesterday');
+  return t('{count} days ago', { count: Math.floor(diffHours / 24) });
 }
 
 function formatDateFull(isoString) {
-  if (!isoString) return 'Unknown';
-  return serverDate(isoString).toLocaleString(undefined, { 
+  if (!isoString) return t('Unknown');
+  return serverDate(isoString).toLocaleString(UI_LOCALE, { 
     dateStyle: 'medium', timeStyle: 'short' 
   });
 }
 
 /* --- Status Badge --- */
 const STATUS_CONFIG = {
-  uploading:  { label: 'Uploading',  color: 'var(--accent-color)',   spin: true  },
-  extracting: { label: 'Extracting', color: '#f59e0b',               spin: true  },
-  chunking:   { label: 'Chunking',   color: '#f59e0b',               spin: true  },
-  embedding:  { label: 'Embedding',  color: '#a855f7',               spin: true  },
-  indexed:    { label: 'Indexed',    color: 'var(--success)',         spin: false },
-  failed:     { label: 'Failed',     color: 'var(--error, #ef4444)', spin: false },
-  missing:    { label: 'Missing',    color: '#f97316',               spin: false },
+  uploading:  { label: t('Uploading'),  color: 'var(--accent-color)',   spin: true  },
+  extracting: { label: t('Extracting'), color: '#f59e0b',               spin: true  },
+  chunking:   { label: t('Chunking'),   color: '#f59e0b',               spin: true  },
+  embedding:  { label: t('Embedding'),  color: '#a855f7',               spin: true  },
+  indexed:    { label: t('Indexed'),    color: 'var(--success)',         spin: false },
+  failed:     { label: t('Failed'),     color: 'var(--error, #ef4444)', spin: false },
+  missing:    { label: t('Missing'),    color: '#f97316',               spin: false },
 };
 
 function StatusBadge({ status, className }) {
@@ -104,9 +109,13 @@ export default function DocumentManager({
   workspaceId, 
   documents, 
   onDeleteDocument,
+  onUpload,
   token 
 }) {
   const toast = useToast();
+  const fileInputRef = useRef(null);
+  const [viewing, setViewing] = useState(null);
+  useEscape(onClose, isOpen);
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [previewText, setPreviewText] = useState("");
   const [loadingPreview, setLoadingPreview] = useState(false);
@@ -143,16 +152,16 @@ export default function DocumentManager({
         body: JSON.stringify({ url: webUrl.trim() })
       });
       if (res.ok) {
-        toast.success("Webpage queued for indexing!");
+        toast.success(t('Webpage queued for indexing!'));
         setWebUrl('');
         setActiveConnector(null);
       } else {
         const err = await res.json();
-        toast.error(`Ingest failed: ${err.detail || 'Could not fetch URL'}`);
+        toast.error(t('Import failed: {error}', { error: err.detail || t('Could not fetch URL') }));
       }
     } catch (err) {
       console.error("Error ingesting URL:", err);
-      toast.error("Network error while connecting to URL.");
+      toast.error(t('Network error while connecting to URL.'));
     } finally {
       setIsIngesting(false);
     }
@@ -172,16 +181,16 @@ export default function DocumentManager({
         body: JSON.stringify({ url: youtubeUrl.trim() })
       });
       if (res.ok) {
-        toast.success("YouTube transcript queued for indexing!");
+        toast.success(t('YouTube transcript queued for indexing!'));
         setYoutubeUrl('');
         setActiveConnector(null);
       } else {
         const err = await res.json();
-        toast.error(`Ingest failed: ${err.detail || 'Could not fetch YouTube transcript'}`);
+        toast.error(t('Import failed: {error}', { error: err.detail || t('Could not fetch YouTube transcript') }));
       }
     } catch (err) {
       console.error("Error ingesting YouTube:", err);
-      toast.error("Network error while fetching YouTube video.");
+      toast.error(t('Network error while fetching YouTube video.'));
     } finally {
       setIsIngesting(false);
     }
@@ -201,16 +210,16 @@ export default function DocumentManager({
         body: JSON.stringify({ repo_url: githubUrl.trim() })
       });
       if (res.ok) {
-        toast.success("GitHub repository queued for indexing!");
+        toast.success(t('GitHub repository queued for indexing!'));
         setGithubUrl('');
         setActiveConnector(null);
       } else {
         const err = await res.json();
-        toast.error(`Ingest failed: ${err.detail || 'Could not fetch GitHub repo'}`);
+        toast.error(t('Import failed: {error}', { error: err.detail || t('Could not fetch GitHub repo') }));
       }
     } catch (err) {
       console.error("Error ingesting GitHub:", err);
-      toast.error("Network error while connecting to GitHub.");
+      toast.error(t('Network error while connecting to GitHub.'));
     } finally {
       setIsIngesting(false);
     }
@@ -228,22 +237,22 @@ export default function DocumentManager({
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
-          title: noteTitle.trim() || 'Quick Note',
+          title: noteTitle.trim() || t('Quick Note'),
           content: noteContent.trim()
         })
       });
       if (res.ok) {
-        toast.success("Note saved and queued for indexing!");
+        toast.success(t('Note saved and queued for indexing!'));
         setNoteTitle('');
         setNoteContent('');
         setActiveConnector(null);
       } else {
         const err = await res.json();
-        toast.error(`Ingest failed: ${err.detail || 'Could not save note'}`);
+        toast.error(t('Import failed: {error}', { error: err.detail || t('Could not save note') }));
       }
     } catch (err) {
       console.error("Error ingesting note:", err);
-      toast.error("Network error while saving note.");
+      toast.error(t('Network error while saving note.'));
     } finally {
       setIsIngesting(false);
     }
@@ -303,9 +312,9 @@ export default function DocumentManager({
       });
       if (!res.ok) throw new Error('Failed to load preview');
       const data = await res.json();
-      setPreviewText(data.preview || "No text preview available.");
+      setPreviewText(data.preview || t('No text preview available.'));
     } catch (err) {
-      setPreviewText("Error loading preview.");
+      setPreviewText(t('Error loading preview.'));
     } finally {
       setLoadingPreview(false);
     }
@@ -333,12 +342,12 @@ export default function DocumentManager({
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(typeof body.detail === 'string' ? body.detail : 'Re-index failed');
+        throw new Error(typeof body.detail === 'string' ? body.detail: t('Re-index failed'));
       }
       setReindexSuccessIds(prev => new Set([...prev, docId]));
       setTimeout(() => setReindexSuccessIds(prev => { const s = new Set(prev); s.delete(docId); return s; }), 3000);
     } catch (err) {
-      toast.error(`Failed to re-index document: ${err.message}`);
+      toast.error(t('Re-indexing failed: {error}', { error: err.message }));
     } finally {
       setReindexingIds(prev => { const s = new Set(prev); s.delete(docId); return s; });
     }
@@ -373,8 +382,31 @@ export default function DocumentManager({
         {/* ── Header ── */}
         <div className={styles.header}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <h2>Workspace Documents</h2>
-            
+            <h2>{t('Workspace Documents')}</h2>
+
+            {onUpload && (
+              <>
+                <button className={styles.uploadBtn} onClick={() => fileInputRef.current && fileInputRef.current.click()}>
+                  <Upload size={14} />
+                  <span>{t('Upload files')}</span>
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept={UPLOAD_ACCEPT}
+                  hidden
+                  onChange={async (e) => {
+                    const files = [...(e.target.files || [])];
+                    e.target.value = '';
+                    for (const f of files) {
+                      try { await onUpload(f); } catch (_) { /* the chat shows the error */ }
+                    }
+                  }}
+                />
+              </>
+            )}
+
             <button 
               className="badge badge-accent"
               style={{ 
@@ -389,7 +421,7 @@ export default function DocumentManager({
               onClick={() => setActiveConnector(activeConnector === 'web' ? null : 'web')}
             >
               <Globe size={13} />
-              <span>{activeConnector === 'web' ? 'Close Web' : '+ Web URL'}</span>
+              <span>{activeConnector === 'web' ? t('Close Web') : t('+ Web URL')}</span>
             </button>
 
             <button 
@@ -407,7 +439,7 @@ export default function DocumentManager({
               onClick={() => setActiveConnector(activeConnector === 'youtube' ? null : 'youtube')}
             >
               <Video size={13} />
-              <span>{activeConnector === 'youtube' ? 'Close YouTube' : '+ YouTube Video'}</span>
+              <span>{activeConnector === 'youtube' ? t('Close YouTube') : t('+ YouTube Video')}</span>
             </button>
 
             <button 
@@ -425,7 +457,7 @@ export default function DocumentManager({
               onClick={() => setActiveConnector(activeConnector === 'github' ? null : 'github')}
             >
               <GitBranch size={13} />
-              <span>{activeConnector === 'github' ? 'Close GitHub' : '+ GitHub Repo'}</span>
+              <span>{activeConnector === 'github' ? t('Close GitHub') : t('+ GitHub Repo')}</span>
             </button>
 
             <button 
@@ -443,10 +475,10 @@ export default function DocumentManager({
               onClick={() => setActiveConnector(activeConnector === 'note' ? null : 'note')}
             >
               <StickyNote size={13} />
-              <span>{activeConnector === 'note' ? 'Close Note' : '+ New Note'}</span>
+              <span>{activeConnector === 'note' ? t('Close Note') : t('+ New Note')}</span>
             </button>
           </div>
-          <button className={styles.closeBtn} onClick={onClose} title="Close">
+          <button className={styles.closeBtn} onClick={onClose} title={t('Close')}>
             <X size={20} />
           </button>
         </div>
@@ -479,7 +511,7 @@ export default function DocumentManager({
               style={{ padding: '8px 16px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
             >
               {isIngesting ? <Loader size={14} className="animate-spin" /> : <ArrowRight size={14} />}
-              <span>{isIngesting ? 'Crawling...' : 'Index Webpage'}</span>
+              <span>{isIngesting ? t('Crawling...') : t('Index Webpage')}</span>
             </button>
           </form>
         )}
@@ -520,7 +552,7 @@ export default function DocumentManager({
               }}
             >
               {isIngesting ? <Loader size={14} className="animate-spin" /> : <ArrowRight size={14} />}
-              <span>{isIngesting ? 'Fetching Transcript...' : 'Index Video'}</span>
+              <span>{isIngesting ? t('Fetching Transcript...') : t('Index Video')}</span>
             </button>
           </form>
         )}
@@ -561,7 +593,7 @@ export default function DocumentManager({
               }}
             >
               {isIngesting ? <Loader size={14} className="animate-spin" /> : <ArrowRight size={14} />}
-              <span>{isIngesting ? 'Analyzing Repo...' : 'Index Repository'}</span>
+              <span>{isIngesting ? t('Analyzing Repo...') : t('Index Repository')}</span>
             </button>
           </form>
         )}
@@ -581,7 +613,7 @@ export default function DocumentManager({
               <input 
                 type="text"
                 className="input-field"
-                placeholder="Note Title (e.g. API Architecture Notes, Meeting Summary)..."
+                placeholder={t('Note Title (e.g. API Architecture Notes, Meeting Summary)...')}
                 value={noteTitle}
                 onChange={e => setNoteTitle(e.target.value)}
                 disabled={isIngesting}
@@ -603,12 +635,12 @@ export default function DocumentManager({
                 }}
               >
                 {isIngesting ? <Loader size={14} className="animate-spin" /> : <ArrowRight size={14} />}
-                <span>{isIngesting ? 'Saving Note...' : 'Save & Index Note'}</span>
+                <span>{isIngesting ? t('Saving Note...') : t('Save & Index Note')}</span>
               </button>
             </div>
             <textarea
               className="input-field"
-              placeholder="Paste or write your raw text, code snippet, or markdown notes here..."
+              placeholder={t('Paste or write your raw text, code snippet, or markdown notes here...')}
               value={noteContent}
               onChange={e => setNoteContent(e.target.value)}
               disabled={isIngesting}
@@ -626,26 +658,26 @@ export default function DocumentManager({
             {/* ── Search & Filter Controls ── */}
             <div style={{
               padding: '10px 14px',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+              borderBottom: '1px solid var(--border-color)',
               display: 'flex',
               flexDirection: 'column',
               gap: '8px',
-              background: 'rgba(0, 0, 0, 0.2)'
+              background: 'var(--bg-hover)'
             }}>
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                <Search size={13} color="#8b949e" style={{ position: 'absolute', left: '10px' }} />
+                <Search size={13} color="var(--text-muted)" style={{ position: 'absolute', left: '10px' }} />
                 <input
                   type="text"
-                  placeholder="Search documents by name..."
+                  placeholder={t('Search documents by name...')}
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   style={{
                     width: '100%',
                     padding: '6px 10px 6px 30px',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    background: 'var(--bg-primary)',
+                    border: '1px solid var(--border-color)',
                     borderRadius: '6px',
-                    color: '#fff',
+                    color: 'var(--text-primary)',
                     fontSize: '0.78rem'
                   }}
                 />
@@ -669,12 +701,12 @@ export default function DocumentManager({
 
               <div style={{ display: 'flex', gap: '5px', overflowX: 'auto', paddingBottom: '2px' }}>
                 {[
-                  { id: 'all', label: `All (${documents.length})` },
-                  { id: 'files', label: 'Files' },
-                  { id: 'web', label: 'Web' },
-                  { id: 'youtube', label: 'YouTube' },
-                  { id: 'github', label: 'GitHub' },
-                  { id: 'note', label: 'Notes' }
+                  { id: 'all', label: t('All ({count})', { count: documents.length }) },
+                  { id: 'files', label: t('Files') },
+                  { id: 'web', label: t('Web') },
+                  { id: 'youtube', label: t('YouTube') },
+                  { id: 'github', label: t('GitHub') },
+                  { id: 'note', label: t('Notes') }
                 ].map(f => (
                   <button
                     key={f.id}
@@ -687,9 +719,9 @@ export default function DocumentManager({
                       cursor: 'pointer',
                       whiteSpace: 'nowrap',
                       border: '1px solid',
-                      borderColor: filterType === f.id ? 'var(--accent-bright)' : 'rgba(255, 255, 255, 0.08)',
-                      background: filterType === f.id ? 'rgba(99, 102, 241, 0.25)' : 'rgba(255, 255, 255, 0.03)',
-                      color: filterType === f.id ? '#fff' : '#9ca3af'
+                      borderColor: filterType === f.id ? 'var(--accent-bright)' : 'var(--border-color)',
+                      background: filterType === f.id ? 'var(--bg-active)' : 'transparent',
+                      color: filterType === f.id ? 'var(--accent-bright)' : 'var(--text-secondary)'
                     }}
                   >
                     {f.label}
@@ -701,7 +733,7 @@ export default function DocumentManager({
             {filteredDocuments.length === 0 ? (
               <div className={styles.emptyList}>
                 <FileText size={32} className={styles.emptyListIcon} />
-                <p>{searchQuery || filterType !== 'all' ? 'No matching documents found.' : 'No documents uploaded yet.'}</p>
+                <p>{searchQuery || filterType !== 'all' ? t('No matching documents found.') : t('No documents uploaded yet.')}</p>
               </div>
             ) : (
               filteredDocuments.map(doc => {
@@ -753,16 +785,22 @@ export default function DocumentManager({
                   </div>
 
                   <div className={styles.actionButtons}>
+                    {selectedDoc.status === 'indexed' && (
+                      <button className={styles.actionBtnSecondary} onClick={() => setViewing(selectedDoc.id)}>
+                        <ExternalLink size={14} />
+                        {t('Open')}
+                      </button>
+                    )}
                     <button 
                       className={styles.actionBtnSecondary}
                       onClick={() => handleReindex(selectedDoc.id)}
                       disabled={reindexingIds.has(selectedDoc.id) || isInProgress(selectedDoc) || selectedDoc.status === 'missing'}
-                      title="Re-parse and embed into vector database"
+                      title={t('Read the file again and update the search')}
                     >
                       {reindexingIds.has(selectedDoc.id) ? <Loader size={14} className={styles.spinner} /> : 
                        reindexSuccessIds.has(selectedDoc.id) ? <CheckCircle2 size={14} style={{ color: 'var(--success)' }} /> : 
                        <RefreshCw size={14} />}
-                      {reindexingIds.has(selectedDoc.id) ? 'Re-indexing...' : reindexSuccessIds.has(selectedDoc.id) ? 'Done' : 'Re-index'}
+                      {reindexingIds.has(selectedDoc.id) ? t('Re-indexing...') : reindexSuccessIds.has(selectedDoc.id) ? t('Done') : t('Re-index')}
                     </button>
 
                     <button 
@@ -771,7 +809,7 @@ export default function DocumentManager({
                       disabled={isInProgress(selectedDoc)}
                     >
                       <Trash2 size={14} /> 
-                      {deleteConfirmId === selectedDoc.id ? 'Confirm Delete?' : 'Delete'}
+                      {deleteConfirmId === selectedDoc.id ? t('Confirm Delete?') : t('Delete')}
                     </button>
                   </div>
                 </div>
@@ -787,7 +825,7 @@ export default function DocumentManager({
                     color: '#ef4444',
                     marginBottom: 12,
                   }}>
-                    <strong>Indexing error:</strong> {selectedDoc.error_message}
+                    <strong>{t('Indexing error:')}</strong> {selectedDoc.error_message}
                   </div>
                 )}
 
@@ -806,7 +844,7 @@ export default function DocumentManager({
                     gap: 8,
                   }}>
                     <Loader size={13} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
-                    Indexing in progress: <strong>{STATUS_CONFIG[selectedDoc.status]?.label}</strong>…
+                    {t('Indexing in progress:')} <strong>{STATUS_CONFIG[selectedDoc.status]?.label}</strong>…
                     Preview and RAG will be available once indexing completes.
                   </div>
                 )}
@@ -816,21 +854,21 @@ export default function DocumentManager({
                   <div className={styles.metaItem}>
                     <HardDrive size={14} className={styles.metaIcon} />
                     <div className={styles.metaData}>
-                      <span className={styles.metaLabel}>Size</span>
+                      <span className={styles.metaLabel}>{t('Size')}</span>
                       <span className={styles.metaValue}>{formatBytes(selectedDoc.file_size)}</span>
                     </div>
                   </div>
                   <div className={styles.metaItem}>
                     <File size={14} className={styles.metaIcon} />
                     <div className={styles.metaData}>
-                      <span className={styles.metaLabel}>Type</span>
+                      <span className={styles.metaLabel}>{t('Type')}</span>
                       <span className={styles.metaValue}>{selectedDoc.file_type ? selectedDoc.file_type.toUpperCase() : 'Unknown'}</span>
                     </div>
                   </div>
                   <div className={styles.metaItem}>
                     <Calendar size={14} className={styles.metaIcon} />
                     <div className={styles.metaData}>
-                      <span className={styles.metaLabel}>Added</span>
+                      <span className={styles.metaLabel}>{t('Added')}</span>
                       <span className={styles.metaValue}>{formatDateFull(selectedDoc.created_at)}</span>
                     </div>
                   </div>
@@ -841,13 +879,13 @@ export default function DocumentManager({
                   <div className={styles.previewCard}>
                     <div className={styles.previewCardHeader}>
                       <Eye size={14} />
-                      <span>Parsed Text Preview</span>
+                      <span>{t('Parsed Text Preview')}</span>
                     </div>
                     <div className={styles.previewCardBody}>
                       {loadingPreview ? (
                         <div className={styles.loadingState}>
                           <Loader size={20} className={styles.spinner} />
-                          <span>Loading preview...</span>
+                          <span>{t('Loading preview...')}</span>
                         </div>
                       ) : (
                         <pre className={styles.previewText}>{previewText}</pre>
@@ -860,14 +898,23 @@ export default function DocumentManager({
             ) : (
               <div className={styles.emptyPanel}>
                 <FileText size={48} className={styles.emptyPanelIcon} />
-                <p className={styles.emptyPanelTitle}>No document selected</p>
-                <p className={styles.emptyPanelHint}>Select a document from the list to view its details and parsed text.</p>
+                <p className={styles.emptyPanelTitle}>{t('No document selected')}</p>
+                <p className={styles.emptyPanelHint}>{t('Select a document from the list to view its details and parsed text.')}</p>
               </div>
             )}
           </div>
 
         </div>
       </div>
+      {viewing && (
+        <DocumentViewerModal
+          isOpen
+          onClose={() => setViewing(null)}
+          workspaceId={workspaceId}
+          documentId={viewing}
+          token={token}
+        />
+      )}
     </div>
   );
 }

@@ -76,7 +76,7 @@ def _purge_workspace_data(db: Session, ws: models.Workspace, user_id: int):
         db.query(models.Message).filter(models.Message.chat_id.in_(chat_ids)).delete(synchronize_session=False)
         db.query(models.Chat).filter(models.Chat.id.in_(chat_ids)).delete(synchronize_session=False)
     try:
-        rag_service.chroma_client.delete_collection(f"user_{user_id}_workspace_{ws.id}")
+        rag_service.vector_client().delete_collection(f"user_{user_id}_workspace_{ws.id}")
     except Exception as e:
         log.warning(f"No vector collection to delete for workspace {ws.id}: {e}")
     try:
