@@ -2,7 +2,7 @@ name: chroma diag (temporary)
 on:
   push:
     branches: [fix/chroma-hnsw-windows]
-    paths: ['.github/workflows/chroma-diag.yml']
+    paths: ['.github/workflows/chroma-diag.yml', '.github/diag/**']
 jobs:
   loop:
     runs-on: windows-latest
@@ -23,3 +23,22 @@ jobs:
           }
           "loop failures: $fails of 6"
           if ($fails) { exit 1 }
+  scrub:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - shell: pwsh
+        working-directory: backend
+        run: |
+          python -m pip install --quiet -r requirements.txt pytest
+          Copy-Item ../.github/diag/test_scrub_diag.py tests/
+          $fails = 0
+          for ($i = 1; $i -le 8; $i++) {
+            python -m pytest -q -s -p no:cacheprovider tests/test_scrub_diag.py 2>&1 | Select-String -Pattern 'DIAG|passed|failed'
+            if ($LASTEXITCODE -ne 0) { $fails++ }
+          }
+          "scrub failures: $fails of 8"
