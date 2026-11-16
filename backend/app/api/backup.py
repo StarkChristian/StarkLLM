@@ -108,7 +108,8 @@ def _release_live_state():
     secure_index.release()
     rag_service.chroma_client = memory_service.chroma_client = memory_service.memory_collection = None
     gc.collect()
-    backups.close_vector_stores()                 # every store: _reopen_live_state opens the restored one again
+    # the stores in the data folder: _reopen_live_state opens the restored one again (others are left alone)
+    backups.close_vector_stores(backups.default_paths().root)
 
 
 def _reopen_live_state(data_key_b64: Optional[str]):
