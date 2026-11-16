@@ -99,7 +99,17 @@ jobs:
           $hash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLower()
           if ($hash -ne $env:TESSERACT_SETUP_SHA256) { throw "Tesseract setup has hash $hash, expected $env:TESSERACT_SETUP_SHA256" }
           $sig = Get-AuthenticodeSignature $setup
-          if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'Mannheim') { throw "Tesseract setup signature: $($sig.Status) $($sig.SignerCertificate.Subject)" }
+          if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'Mannheim') {
+            # say why Windows does not accept the signature (the same verdict Smart App Control reaches on a user's PC)
+            if ($sig.SignerCertificate) {
+              $chain = New-Object System.Security.Cryptography.X509Certificates.X509Chain
+              $null = $chain.Build($sig.SignerCertificate)
+              "chain: $(($chain.ChainStatus | ForEach-Object { "$($_.Status): $($_.StatusInformation.Trim())" }) -join '; ')"
+              "certificate valid $($sig.SignerCertificate.NotBefore) to $($sig.SignerCertificate.NotAfter), issuer $($sig.SignerCertificate.Issuer)"
+              "timestamp: $($sig.TimeStamperCertificate.Subject)"
+            }
+            throw "Tesseract setup signature: $($sig.Status) ($($sig.StatusMessage)) $($sig.SignerCertificate.Subject)"
+          }
           $x = "$env:RUNNER_TEMP\tesseract-x"
           7z x -y "-o$x" $setup | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "7z could not unpack the Tesseract setup ($LASTEXITCODE)" }
