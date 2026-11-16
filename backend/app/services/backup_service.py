@@ -22,6 +22,7 @@ restore (a restore of a file that fails the test is refused).
 """
 import base64
 import contextlib
+import gc
 import gzip
 import hashlib
 import io
@@ -454,9 +455,8 @@ def _check_vector_store(chroma_dir: str, expected: dict) -> int:
     except Exception as e:
         raise BackupError("mismatch", f"The vector store in the backup cannot be opened: {e}")
     finally:
-        with contextlib.suppress(Exception):
-            from chromadb.api.shared_system_client import SharedSystemClient
-            SharedSystemClient.clear_system_cache()
+        client = None
+        close_vector_stores(copy)                                  # only the copy: the live store stays open
         shutil.rmtree(copy, ignore_errors=True)
     if got != expected:
         raise BackupError("mismatch", "The vector store in the backup has different content than when it was saved.")
@@ -538,6 +538,38 @@ def pending_restore(paths: Paths = None) -> bool:
     return os.path.exists(os.path.join((paths or default_paths()).staging, "READY"))
 
 
+def close_vector_stores(under: Optional[str] = None) -> int:
+    """Close the open ChromaDB stores of this process (all of them, or the ones in the folder `under`).
+
+    Windows does not let a folder be moved or deleted while a file in it is open (WinError 32); Linux does, so the
+    Docker engine never needed this. Dropping the reference to a store is not enough: ChromaDB keeps every store in
+    a process-wide cache and its index files stay open until the store's system is stopped. A store that is used
+    again later is simply opened again (PersistentClient)."""
+    gc.collect()
+    closed = 0
+    try:
+        from chromadb.api.shared_system_client import SharedSystemClient
+    except ImportError:
+        return 0
+    root = os.path.abspath(under) if under else None
+    for identifier, system in list(SharedSystemClient._identifier_to_system.items()):
+        if root:
+            where = os.path.abspath(identifier) if identifier and identifier != "ephemeral" else ""
+            try:
+                inside = bool(where) and os.path.commonpath([where, root]) == root
+            except ValueError:                                     # another drive
+                inside = False
+            if not inside:
+                continue
+        with contextlib.suppress(Exception):
+            system.stop()
+        SharedSystemClient._identifier_to_system.pop(identifier, None)
+        SharedSystemClient._identifier_to_refcount.pop(identifier, None)
+        closed += 1
+    gc.collect()
+    return closed
+
+
 def apply_pending_restore(paths: Paths = None) -> Optional[dict]:
     """Put a staged restore in place. The current data is moved to restore-undo/<time>, not deleted. If a move fails
     (a locked file on Windows) everything is moved back and the restore stays pending for the next start."""
@@ -547,6 +579,7 @@ def apply_pending_restore(paths: Paths = None) -> Optional[dict]:
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     undo = os.path.join(paths.undo, stamp)
     current, staged = _component_paths(paths), _staged_component_paths(paths.staging)
+    close_vector_stores(paths.root)                                # Windows: open index files cannot be moved
     done = []                                                      # (component, moved-away-to or None)
     try:
         os.makedirs(undo, exist_ok=True)
