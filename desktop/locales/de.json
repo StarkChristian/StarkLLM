@@ -114,5 +114,9 @@
   "The StarkLLM engine could not be downloaded: {error}. Check the internet connection and press Retry.": "Die StarkLLM-Engine konnte nicht heruntergeladen werden: {error}. Prüfen Sie die Internetverbindung und klicken Sie auf „Erneut versuchen“.",
   "The StarkLLM engine did not start. Its log is in {log}.": "Die StarkLLM-Engine ist nicht gestartet. Ihr Protokoll liegt in {log}.",
   "Downloading the StarkLLM engine: {percent} % ({done} of {total})": "StarkLLM-Engine wird heruntergeladen: {percent} % ({done} von {total})",
-  "Unpacking the StarkLLM engine (about a minute)...": "StarkLLM-Engine wird entpackt (etwa eine Minute)..."
+  "Unpacking the StarkLLM engine (about a minute)...": "StarkLLM-Engine wird entpackt (etwa eine Minute)...",
+  "Use Docker Desktop for the engine (advanced)": "Docker Desktop für die Engine verwenden (für Fortgeschrittene)",
+  "Restart StarkLLM to change the engine?": "StarkLLM neu starten, um die Engine zu wechseln?",
+  "The engine without Docker is the default and needs nothing else. Docker Desktop is for advanced users who already run it. Your chats and documents stay the same: both engines use the same data folder.": "Die Engine ohne Docker ist die Standardeinstellung und braucht nichts weiter. Docker Desktop ist für Fortgeschrittene, die es bereits nutzen. Ihre Chats und Dokumente bleiben gleich: Beide Engines verwenden denselben Datenordner.",
+  "Stopping the StarkLLM engine in Docker Desktop (StarkLLM now runs without Docker)...": "Die StarkLLM-Engine in Docker Desktop wird angehalten (StarkLLM läuft jetzt ohne Docker)..."
 }

@@ -67,6 +67,45 @@ jobs:
           # scripts (uvicorn.exe, ...) are not used: the engine starts with serve_native.py
           Remove-Item -Recurse -Force "$env:PKG\runtime\Lib\site-packages\bin" -ErrorAction SilentlyContinue
 
+      - name: Leave out what the engine never loads (about 110 MB)
+        shell: pwsh
+        run: |
+          # Each folder is only imported by code StarkLLM does not run; the next step proves the parts that stay work.
+          #   kubernetes        ChromaDB requires it for its distributed server (segment_directory); the local database
+          #                     StarkLLM uses never imports it
+          #   piper\hebrew      Piper's Hebrew voices (loaded only for a Hebrew voice; StarkLLM ships none). Arabic
+          #                     (piper\tashkeel) stays for the planned Arabic voice
+          #   test folders      pandas\tests, numpy\tests, chromadb\test: the projects' own test suites
+          # The licences (*.dist-info) stay in the package.
+          $sp = "$env:PKG\runtime\Lib\site-packages"
+          $before = (Get-ChildItem $env:PKG -Recurse -File | Measure-Object Length -Sum).Sum
+          foreach ($d in 'kubernetes', 'piper\hebrew', 'pandas\tests', 'numpy\tests', 'chromadb\test') {
+            if (-not (Test-Path "$sp\$d")) { throw "expected $d in the package (did a new version move it? check before removing anything else)" }
+            Remove-Item -Recurse -Force "$sp\$d"
+          }
+          $after = (Get-ChildItem $env:PKG -Recurse -File | Measure-Object Length -Sum).Sum
+          "left out: $([math]::Round(($before - $after) / 1MB)) MB"
+
+      - name: What stays still works (local database, read-aloud, PDF, voice input)
+        shell: pwsh
+        run: |
+          $py = "$env:PKG\runtime\python.exe"
+          $db = "$env:RUNNER_TEMP\chroma-check"
+          $code = @"
+          import chromadb
+          c = chromadb.PersistentClient(path=r'$db')
+          col = c.get_or_create_collection('check')
+          col.add(ids=['1', '2'], documents=['Rechnung Stadtwerke', 'invoice'], embeddings=[[0.1, 0.2, 0.3], [0.3, 0.2, 0.1]])
+          assert col.count() == 2
+          r = col.query(query_embeddings=[[0.1, 0.2, 0.3]], n_results=1)
+          assert r['ids'][0] == ['1'], r
+          from piper import PiperVoice
+          import fitz, faster_whisper, av, pandas, numpy
+          print('local database, piper, PDF, voice input and pandas load without the removed parts')
+          "@
+          & $py -c $code
+          if ($LASTEXITCODE -ne 0) { throw "a part the engine needs does not load ($LASTEXITCODE)" }
+
       - name: Search reranker model into the package
         shell: pwsh
         run: |
