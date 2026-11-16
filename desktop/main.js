@@ -3,7 +3,7 @@ const { sameOrigin, isWebLink, permissionAllowed } = require('./window-security'
 const fs = require('fs');
 const path = require('path');
 const { diagnose, buildErrorPage } = require('./diagnostics');
-const { startEngine, userPaths, secretKey, forgetFailedUpdate } = require('./engine');
+const { startEngine, userPaths, secretKey, forgetFailedUpdate, apiUrl, stopNativeEngine } = require('./engine');
 const { DataKeyManager, DataKeyError, createSafeStorageKeyStore, deliverKey, lockEngine } = require('./data-key');
 const { createUnlockFlow } = require('./unlock-flow');
 const { pathToFileURL } = require('url');
@@ -268,13 +268,12 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Single user on this PC: the backend signs in a "local" user when it gets the key derived from the engine's
 // SECRET_KEY (see backend/app/api/auth.py, desktop-session). Refused (409) once other accounts exist.
-const API_URL = `http://127.0.0.1:${process.env.STARKLLM_API_PORT || 8000}`;
 let localToken = null;
 
 async function fetchLocalSession() {
   try {
     const key = desktopKey(engineSecret());
-    const res = await guard.wrapFetch((u, o) => net.fetch(u, o), 'local_engine', 'Sign-in of the local user at the engine on this PC')(`${API_URL}/api/v1/auth/desktop-session`, { method: 'POST', headers: { 'X-Desktop-Key': key }, signal: AbortSignal.timeout(8000) });
+    const res = await guard.wrapFetch((u, o) => net.fetch(u, o), 'local_engine', 'Sign-in of the local user at the engine on this PC')(`${apiUrl()}/api/v1/auth/desktop-session`, { method: 'POST', headers: { 'X-Desktop-Key': key }, signal: AbortSignal.timeout(8000) });
     if (res.ok) {
       localToken = (await res.json()).access_token || null;
       logLine('signed in as the local user');
@@ -308,7 +307,7 @@ async function unlockEngine(passphrase) {
   if (!keys.status().hasKey) return { ok: true, skipped: true };
   try {
     const key = keys.load(passphrase);
-    const r = await deliverKey({ apiUrl: API_URL, secret: engineSecret(), key });
+    const r = await deliverKey({ apiUrl: apiUrl(), secret: engineSecret(), key });
     key.fill(0);
     if (!r.ok) {
       logLine(`protection: the engine refused the key (${r.status})`);
@@ -391,7 +390,7 @@ function lockEngineOnQuit() {
     if (quitLocked || !keyManager().status().passphrase) return;
     event.preventDefault();                       // wait (briefly) until the engine has forgotten the key
     quitLocked = true;
-    lockEngine({ apiUrl: API_URL, secret: engineSecret() }).finally(() => app.quit());
+    lockEngine({ apiUrl: apiUrl(), secret: engineSecret() }).finally(() => app.quit());
   });
 }
 
@@ -402,7 +401,7 @@ function backupScheduler() {
     scheduler = new BackupScheduler({
       dir: path.join(app.getPath('userData'), 'protection'),
       keyStore: keyManager().keyStore,
-      getApi: () => (localToken ? { url: API_URL, token: localToken } : null),
+      getApi: () => (localToken ? { url: apiUrl(), token: localToken } : null),
       notify: (title, body) => {
         try {
           if (Notification.isSupported()) new Notification({ title, body }).show();
@@ -446,7 +445,7 @@ function startBackupSchedule() {
 async function showApp() {
   if (!engineUnlocked) {
     if (keyManager().status().passphrase) {
-      await lockEngine({ apiUrl: API_URL, secret: engineSecret() });
+      await lockEngine({ apiUrl: apiUrl(), secret: engineSecret() });
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.loadFile(UNLOCK_PAGE, { query: { lang: i18n.language() } });
       return;                                     // the passphrase page calls showApp() again once the key is handed over
     }
@@ -511,7 +510,7 @@ function createTray() {
 async function switchAppAndEngineOffline(on, from) {
   const setEngine = (value) => setEngineOffline({
     fetchFn: guard.wrapFetch((u, o) => net.fetch(u, o), 'local_engine', 'Fully offline switch of the engine on this PC'),
-    apiUrl: API_URL, key: desktopKey(engineSecret()), on: value
+    apiUrl: apiUrl(), key: desktopKey(engineSecret()), on: value
   });
   const r = await switchOffline({ guard, on, setEngine });
   logLine(`fully offline: ${r.offline ? 'on' : 'off'} (${from}); engine: ${r.engineError ? `${r.engineError} ${r.engineDetail || ''}`.trim() : (r.engine ? 'on' : 'off')}`);
@@ -584,4 +583,6 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   isQuitting = true;
   if (updater) updater.installOnQuit();
+  // the engine without Docker is a child of the app; Docker's engine keeps running as before
+  stopNativeEngine();
 });

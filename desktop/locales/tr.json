@@ -107,5 +107,12 @@
   "It does not look for updates. Turn off \"Fully offline\" in Settings > Privacy to check for a new version.": "Güncelleme aramaz. Yeni sürümü denetlemek için Ayarlar > Gizlilik ve ağ bölümünde \"Tamamen çevrimdışı\" seçeneğini kapatın.",
   "The AI model {model} is not on this PC, and StarkLLM is fully offline, so it was not downloaded. Turn off \"Fully offline\" in Settings > Privacy to download it.": "{model} yapay zeka modeli bu PC'de yok ve StarkLLM tamamen çevrimdışı olduğu için indirilmedi. İndirmek için Ayarlar > Gizlilik ve ağ bölümünde \"Tamamen çevrimdışı\" seçeneğini kapatın.",
   "StarkLLM is fully offline, and the engine files are not on this PC yet (they are downloaded once). Turn off \"Fully offline\" in Settings > Privacy, start StarkLLM once online, then turn it on again.": "StarkLLM tamamen çevrimdışı ve motor dosyaları henüz bu PC'de değil (bir kez indirilirler). Ayarlar > Gizlilik ve ağ bölümünde \"Tamamen çevrimdışı\" seçeneğini kapatın, StarkLLM'i bir kez çevrimiçi başlatın, sonra seçeneği yeniden açın.",
-  "StarkLLM is fully offline: starting the engine from the files on this PC...": "StarkLLM tamamen çevrimdışı: motor, bu PC'deki dosyalardan başlatılıyor..."
+  "StarkLLM is fully offline: starting the engine from the files on this PC...": "StarkLLM tamamen çevrimdışı: motor, bu PC'deki dosyalardan başlatılıyor...",
+  "StarkLLM runs without Docker on this PC": "StarkLLM bu PC'de Docker olmadan çalışıyor",
+  "Starting the StarkLLM engine...": "StarkLLM motoru başlatılıyor...",
+  "Another StarkLLM engine already uses port {port}. Quit it (or the StarkLLM containers of Docker Desktop) and press Retry.": "Başka bir StarkLLM motoru {port} bağlantı noktasını zaten kullanıyor. Onu (veya Docker Desktop içindeki StarkLLM kapsayıcılarını) kapatın ve Yeniden dene düğmesine basın.",
+  "The StarkLLM engine could not be downloaded: {error}. Check the internet connection and press Retry.": "StarkLLM motoru indirilemedi: {error}. İnternet bağlantısını kontrol edin ve Yeniden dene düğmesine basın.",
+  "The StarkLLM engine did not start. Its log is in {log}.": "StarkLLM motoru başlamadı. Günlüğü şurada: {log}.",
+  "Downloading the StarkLLM engine: {percent} % ({done} of {total})": "StarkLLM motoru indiriliyor: %{percent} ({done} / {total})",
+  "Unpacking the StarkLLM engine (about a minute)...": "StarkLLM motoru açılıyor (yaklaşık bir dakika)..."
 }
