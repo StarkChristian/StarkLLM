@@ -4,13 +4,14 @@ Returns all summary statistics in a single request to avoid N+1 frontend queries
 """
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.db.session import get_db
 from app.db import models
 from app.api.auth import get_current_user
+from app.services.deadlines_service import ics_text as _ics_text, ics_fold as _ics_fold
 from app.core import netguard
 import asyncio
 import re
@@ -400,10 +401,17 @@ def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool 
 
     # a corrected letter ("ersetzt die Abrechnung vom 20.10.2026") replaces the earlier one from the same sender: the
     # earlier letter's dates and amounts are no longer valid and are not shown
-    dates = []
+    # The same rules as the deadlines list (deadlines_service): only letters have dates (a log file's timestamps are
+    # none), and a letter, its copy and the photo of it are one date, read from the oldest of them.
+    from app.services.deadlines_service import counts_as_letter, same_deadline, _norm_ref
+    from app.services.facts_service import document_facts_cached
+    dates, seen_fp = [], {}
     choices = date_choices(db, user_id)
-    for item, pages, is_replaced in zip(items, pages_of, replaced_documents(pages_of)):
-        if is_replaced:
+    replaced = replaced_documents(pages_of)
+    order = sorted(range(len(items)), key=lambda i: (items[i]["added"] or "", items[i]["scope"], items[i]["id"]))
+    for i in order:
+        item, pages = items[i], pages_of[i]
+        if replaced[i]:
             item["replaced"] = True
             continue
         if is_machine_document(pages, item["filename"]):
@@ -412,6 +420,15 @@ def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool 
         if any(f["kind"] in ("scam_signs", "ai_instructions", "hidden_text") for f in findings([{"file": item["filename"], "text": full}])):
             item["suspicious"] = True  # a scam's "deadline" is not something to do
             continue
+        facts = document_facts_cached(pages, item["filename"])
+        if not counts_as_letter({"facts": facts, "file_type": item.get("file_type")}):
+            continue
+        fp = facts.get("fingerprint")
+        if fp and fp in seen_fp:
+            continue  # the same text as an earlier document: its dates are already there
+        if fp:
+            seen_fp[fp] = i
+        refs = {_norm_ref(r["value"]) for r in facts.get("references", [])}
         from app.services.dates_service import choose_reading, date_order_evidence
         hint = date_order_evidence(full)
         for page, text in sorted(pages.items()):
@@ -420,9 +437,16 @@ def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool 
                 latest = max([d["date"], *(d.get("readings") or {}).values()])  # an open date counts by its later reading
                 if latest < first.isoformat():
                     continue
-                dates.append({**d, "page": page, "passed": latest < today.isoformat(),
-                              "scope": item["scope"], "document_id": item["id"], "workspace_id": item["workspace_id"],
-                              "filename": item["filename"]})
+                entry = {**d, "page": page, "passed": latest < today.isoformat(),
+                         "scope": item["scope"], "document_id": item["id"], "workspace_id": item["workspace_id"],
+                         "filename": item["filename"]}
+                reading = {"kind": d["kind"], "date": d["date"], "amount": d.get("amount"), "case": facts.get("case"), "refs": refs,
+                           "notice": bool(d.get("notice"))}
+                if any(same_deadline(reading, x["_reading"]) for x in dates):
+                    continue  # the photo of a letter, read slightly differently
+                dates.append({**entry, "_reading": reading})
+    for d in dates:
+        d.pop("_reading")
     dates.sort(key=lambda d: (d["date"], d["filename"]))
     return today, items, dates
 
@@ -647,22 +671,6 @@ def set_all_done(
     return {"done": changed}
 
 
-def _ics_text(value: str) -> str:
-    return (value or "").replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
-
-
-def _ics_fold(line: str) -> str:
-    """iCalendar lines are at most 75 octets; longer ones continue on lines that start with a space."""
-    out, current = [], ""
-    for ch in line:
-        if len((current + ch).encode()) > 73:
-            out.append(current)
-            current = " "
-        current += ch
-    out.append(current)
-    return "\r\n".join(out)
-
-
 def dates_calendar(today, dates, stamp: str) -> str:
     """The upcoming dates as an iCalendar file: all-day events for deadlines, payments and changes, timed events for
     appointments, each with a reminder (3 days before a deadline or payment, 1 day before an appointment)."""
@@ -706,3 +714,168 @@ def get_dates_calendar(
     body = dates_calendar(today, dates, datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
     return Response(body, media_type="text/calendar; charset=utf-8",
                     headers={"Content-Disposition": 'attachment; filename="StarkLLM-dates.ics"'})
+
+
+# ---------------------------------------------------------------- deadlines, reminders, calendar (inbox step B5)
+
+def _deadlines(db, user_id: int):
+    """(today, deadlines with their reminders) for the user's inbox letters."""
+    from app.services.deadlines_service import add_done, add_reminders, build_deadlines
+    inbox = document_inbox(db, user_id)
+    rows = db.query(models.DeadlineReminder).filter(models.DeadlineReminder.user_id == user_id).all()
+    done = db.query(models.DeadlineDone).filter(models.DeadlineDone.user_id == user_id).all()
+    deadlines = add_reminders(build_deadlines(inbox, inbox["today"]), rows, inbox["today"])
+    return inbox["today"], add_done(deadlines, done)
+
+
+@router.get("/deadlines")
+def get_deadlines(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Every deadline, payment and appointment of the inbox letters, oldest first, each with the sentence it was read
+    from, its page and line, what is due, and the reminders the user set. State: overdue, today, soon (within a
+    week) or upcoming. Deadlines the user marked done are in the list with done=true (so the mark can be undone) and
+    are not counted. Found by fixed rules in the document text; no model is asked."""
+    today, deadlines = _deadlines(db, current_user.id)
+    open_ones = [d for d in deadlines if not d["done"]]
+    counts = {s: sum(1 for d in open_ones if d["state"] == s) for s in ("overdue", "today", "soon", "upcoming")}
+    counts["done"] = len(deadlines) - len(open_ones)
+    return {"today": today, "deadlines": deadlines, "counts": counts,
+            "reminders_due": sum(1 for d in deadlines if d["reminder_active"])}
+
+
+class RemindersIn(BaseModel):
+    key: str = Field(..., max_length=120)
+    days_before: list[int] = Field(default_factory=list, max_length=20)
+
+
+class AckIn(BaseModel):
+    key: str = Field(..., max_length=120)
+
+
+class DoneIn(BaseModel):
+    key: str = Field(..., max_length=120)
+    done: bool = True
+
+
+def _checked_key(db, user_id: int, key: str) -> dict:
+    from app.services.deadlines_service import parse_key
+    parts = parse_key(key)
+    if not parts:
+        raise HTTPException(status_code=422, detail="Not a deadline key")
+    if not _owns(db, user_id, parts["scope"], parts["document_id"]):
+        raise HTTPException(status_code=404, detail="Document not found")
+    return parts
+
+
+def _group(db, user_id: int, key: str):
+    """(the deadline's own key parts, the parts of every key in its duplicate group). A letter, its copy and the photo
+    of it are one deadline: reminders and the done mark belong to the whole group, whichever document's key is sent."""
+    from app.services.deadlines_service import parse_key
+    _checked_key(db, user_id, key)
+    _, deadlines = _deadlines(db, user_id)
+    found = next((d for d in deadlines if key in d["keys"]), None)
+    keys = found["keys"] if found else [key]
+    return parse_key(found["key"] if found else key), [parse_key(k) for k in keys]
+
+
+def _group_rows(db, model, user_id: int, group: list):
+    from sqlalchemy import and_, or_
+    return db.query(model).filter(model.user_id == user_id, or_(*[
+        and_(model.scope == g["scope"], model.document_id == g["document_id"], model.due_date == g["due"], model.kind == g["kind"])
+        for g in group])).all()
+
+
+@router.put("/deadlines/reminders")
+def set_deadline_reminders(
+    body: RemindersIn,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Set the reminders of one deadline: remind me N days before (0 = on the day). The list replaces the earlier
+    one; an empty list removes the reminders. Stored on this PC; the dashboard shows a reminder from its day."""
+    from app.services.deadlines_service import MAX_REMINDER_DAYS, MAX_REMINDERS, clean_offsets
+    offsets = clean_offsets(body.days_before)
+    if offsets is None:
+        raise HTTPException(status_code=422, detail=f"Reminders: up to {MAX_REMINDERS}, each 0 to {MAX_REMINDER_DAYS} days before")
+    own, group = _group(db, current_user.id, body.key)
+    kept = {}
+    for row in _group_rows(db, models.DeadlineReminder, current_user.id, group):
+        if row.days_before in offsets and row.days_before not in kept:
+            kept[row.days_before] = row
+        else:
+            db.delete(row)
+    for days in offsets:
+        if days not in kept:
+            db.add(models.DeadlineReminder(user_id=current_user.id, scope=own["scope"], document_id=own["document_id"],
+                                           due_date=own["due"], kind=own["kind"], days_before=days))
+    db.commit()
+    return {"key": body.key, "reminders": offsets}
+
+
+@router.post("/deadlines/reminders/ack")
+def acknowledge_deadline_reminders(
+    body: AckIn,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """The user saw the reminder: it leaves the dashboard. Reminders for later days of the same deadline stay."""
+    from datetime import date, timedelta
+    own, group = _group(db, current_user.id, body.key)
+    today, due = date.today(), date.fromisoformat(own["due"])
+    changed = 0
+    for r in _group_rows(db, models.DeadlineReminder, current_user.id, group):
+        if due - timedelta(days=r.days_before) <= today and not r.acknowledged:
+            r.acknowledged = 1
+            changed += 1
+    db.commit()
+    return {"key": body.key, "acknowledged": changed}
+
+
+@router.put("/deadlines/done")
+def set_deadline_done(
+    body: DoneIn,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Mark one deadline done (a paid invoice) or take the mark back. Independent of the letter, which stays in the
+    inbox; a done deadline leaves the dashboard and the calendar file. Stored on this PC."""
+    own, group = _group(db, current_user.id, body.key)
+    rows = _group_rows(db, models.DeadlineDone, current_user.id, group)
+    if body.done and not rows:
+        db.add(models.DeadlineDone(user_id=current_user.id, scope=own["scope"], document_id=own["document_id"],
+                                   due_date=own["due"], kind=own["kind"]))
+    elif not body.done:
+        for row in rows:
+            db.delete(row)
+    db.commit()
+    return {"key": body.key, "done": body.done}
+
+
+@router.get("/deadlines.ics")
+def get_deadlines_calendar(
+    key: list[str] = Query(default=[]),
+    lang: str = Query("en", pattern="^(en|de|es|fr|it|tr)$"),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """The deadlines as a calendar file (RFC 5545) for Outlook, Google, Apple or a phone: the ones named with `key`
+    (one or several), else every deadline from today on; deadlines marked done are left out. All-day events, each with an alarm (the reminders the user
+    set, else 3 days before). Made on this PC; nothing is sent anywhere."""
+    from datetime import datetime, timezone
+    from fastapi.responses import Response
+    from app.services.deadlines_service import deadlines_calendar
+    today, deadlines = _deadlines(db, current_user.id)
+    deadlines = [d for d in deadlines if not d["done"]]
+    if key:
+        chosen = [d for d in deadlines if d["key"] in set(key)]
+        if not chosen:
+            raise HTTPException(status_code=404, detail="Deadline not found")
+        name = "StarkLLM-deadline.ics" if len(chosen) == 1 else "StarkLLM-deadlines.ics"
+    else:
+        chosen = [d for d in deadlines if d["state"] != "overdue"]
+        name = "StarkLLM-deadlines.ics"
+    body = deadlines_calendar(chosen, datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"), lang)
+    return Response(body, media_type="text/calendar; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})

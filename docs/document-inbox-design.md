@@ -61,8 +61,22 @@ Each PR has its own tests. B4 and later UI work builds on the German UI (#55).
 
 Done so far: B1 (#60), duplicate upload and calendar export (#72), B3 and B4 by rules (`facts_service.py`, Inbox page):
 type, sender, letter date, reference numbers, amounts, IBANs and dates with page and line; inbox with done/new, own
-title, cases per sender, same letter as photo and PDF. Not yet: the local model for type and summary when the rules
-find nothing, moving a document to another case from the UI (the API takes `case`), reminders (B5).
+title, cases per sender, same letter as photo and PDF.
+
+B5 (deadlines): the Deadlines tab of the inbox lists every deadline, payment date and appointment of all letters,
+oldest first, with the sentence it was read from, page and line, sender and amount, and the state (overdue, today,
+within a week, later). Only letters count (not notes, log or data files); letters with scam signs and replaced letters are left out; a letter, its
+copy and the photo of it are one deadline (same kind, due date, amount and sender, no contradicting reference number),
+which lists the documents it comes from, and reminders and the done mark apply to the whole group. The start page card
+and the calendar file use the same rules; a date that has
+passed stays in the list until the letter is marked done. Each deadline can also be marked done on its own (a paid
+invoice leaves the list, the dashboard and the calendar file, the letter stays in the inbox; "Show done" lists them and
+the mark can be undone; stored locally). Reminders: per deadline "7 / 3 / 1 days before" or "on the
+day" (stored in the local database); from its day a reminder shows on the dashboard until the user confirms it.
+Calendar export: `GET /api/v1/dashboard/deadlines.ics` for one, several (`key=`) or all upcoming deadlines, done ones skipped (RFC 5545,
+all-day events, one alarm per reminder, else 3 days before; German or English text with `lang=`), made on this PC.
+Not yet: the local model for type and summary when the rules find nothing, moving a document to another case from
+the UI (the API takes `case`), a reminder as a system notification when StarkLLM is closed (reminders are shown in the app only, by decision).
 
 B6 and B7 (draft, needs the manual test in `encryption-design.md` on a Windows PC): uploaded documents, message text, profile text,
 inbox titles and the text of the search index are stored encrypted (AES-256-GCM) with a key that the desktop app keeps in the

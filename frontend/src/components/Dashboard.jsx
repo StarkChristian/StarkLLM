@@ -8,6 +8,7 @@ import DateTimeWidget from './DateTimeWidget';
 import MarketPricesWidget from './MarketPricesWidget';
 import SystemStatusWidget from './SystemStatusWidget';
 import EmptyState from './EmptyState';
+import { DueReminders } from './Deadlines';
 import { LucyGuide, LucyHelper } from './Lucy';
 import { t } from '../i18n';
 
@@ -199,6 +200,15 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
         <img src="/Logo.png" alt="" className={styles.heroLogo} />
       </div>
 
+      {/* ── Reminders that have begun, and overdue deadlines (nothing is shown when there are none) ── */}
+      <DueReminders
+        token={token}
+        onOpen={openDoc}
+        onShowAll={() => {
+          try { sessionStorage.setItem('starkllm_inbox_tab', 'deadlines'); } catch (_) { /* private mode */ }
+          onViewChange('inbox');
+        }}
+      />
       {/* Lucy explains the first steps once (not over the buttons: she is part of the page) */}
       <LucyGuide />
 

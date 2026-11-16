@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Inbox as InboxIcon, FileText, Image, Check, RotateCcw, Pencil, X, FolderOpen, CalendarClock, ShieldAlert, Copy, ChevronDown, ChevronRight } from 'lucide-react';
 import DocumentViewerModal from './DocumentViewerModal';
 import EmptyState from './EmptyState';
+import Deadlines from './Deadlines';
 import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
 import { accountLabel } from '../utils/accounts';
@@ -64,7 +65,14 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
   const headers = { Authorization: `Bearer ${token}` };
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
-  const [tab, setTab] = useState('new');
+  // the dashboard's "All deadlines" link opens this page on the deadlines tab
+  const [tab, setTab] = useState(() => {
+    try {
+      const wanted = sessionStorage.getItem('starkllm_inbox_tab');
+      sessionStorage.removeItem('starkllm_inbox_tab');
+      return wanted === 'deadlines' ? 'deadlines' : 'new';
+    } catch (_) { return 'new'; }
+  });
   const [viewing, setViewing] = useState(null);
   const [editing, setEditing] = useState(null); // { key, title }
   const [openCase, setOpenCase] = useState(null);
@@ -117,6 +125,8 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
       onViewChange('knowledge-base');
     }
   };
+
+  const openDeadline = (d) => open({ scope: d.scope, id: d.document_id, workspace_id: d.workspace_id }, { page: d.page, text: d.text });
 
   const docs = data?.documents || [];
   const byKey = useMemo(() => Object.fromEntries(docs.map((d) => [`${d.scope}-${d.id}`, d])), [docs]);
@@ -255,12 +265,17 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
         <button role="tab" aria-selected={tab === 'cases'} className={tab === 'cases' ? styles.tabActive : styles.tab} onClick={() => setTab('cases')}>
           {t('Cases')} {cases.length > 0 && <span className={styles.countMuted}>{cases.length}</span>}
         </button>
+        <button role="tab" aria-selected={tab === 'deadlines'} className={tab === 'deadlines' ? styles.tabActive : styles.tab} onClick={() => setTab('deadlines')}>
+          {t('Deadlines')}
+        </button>
         <button role="tab" aria-selected={tab === 'all'} className={tab === 'all' ? styles.tabActive : styles.tab} onClick={() => setTab('all')}>
           {t('All documents')} {docs.length > 0 && <span className={styles.countMuted}>{docs.length}</span>}
         </button>
       </div>
 
-      {!data ? (
+      {tab === 'deadlines' ? (
+        <Deadlines token={token} onOpen={openDeadline} />
+      ) : !data ? (
         <p className={styles.note}>{error ? t('The inbox could not be loaded. Is StarkLLM running?') : t('Looking through your documents…')}</p>
       ) : tab === 'cases' ? (
         cases.length === 0 ? (
@@ -316,7 +331,7 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
         <ul className={styles.list}>{shown.map((d) => renderDoc(d))}</ul>
       )}
 
-      {data && <p className={styles.hint}>{t('Found by fixed rules, word for word in your documents. Check the letter before you act on it.')}</p>}
+      {data && tab !== 'deadlines' && <p className={styles.hint}>{t('Found by fixed rules, word for word in your documents. Check the letter before you act on it.')}</p>}
 
       {viewing && (
         <DocumentViewerModal
