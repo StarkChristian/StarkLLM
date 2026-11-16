@@ -22,11 +22,15 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+def is_admin(user: models.User, db) -> bool:
+    """The instance owner (first registered account) is the only administrator."""
+    return user.id == db.query(func.min(models.User.id)).scalar()
+
+
 def require_admin(current_user: models.User = Depends(get_current_user), db=Depends(get_db)) -> models.User:
     """The instance owner (first registered account) is the only administrator.
     Backup/restore expose or replace the data of ALL users, so ordinary accounts must not reach them."""
-    first_id = db.query(func.min(models.User.id)).scalar()
-    if current_user.id != first_id:
+    if not is_admin(current_user, db):
         raise HTTPException(status_code=403, detail="Only the instance administrator may use backup/restore.")
     return current_user
 

@@ -12,11 +12,21 @@ async function engineStatus(token) {
   return res.ok ? res.json() : null;
 }
 
+// Why the switch did not change. code: 'not_allowed' (the engine refused: only the administrator, or the account that
+// turned it on, may turn it off), 'engine_unreachable' (the desktop app could not reach the engine), 'failed'.
+export class OfflineSwitchError extends Error {
+  constructor(code, message) {
+    super(message || code);
+    this.name = 'OfflineSwitchError';
+    this.code = code;
+  }
+}
+
 async function engineSet(token, enabled) {
   const res = await fetch('/api/v1/privacy/offline', { method: 'PUT', headers: auth(token), body: JSON.stringify({ enabled }) });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail || `HTTP ${res.status}`);
+    throw new OfflineSwitchError(res.status === 403 ? 'not_allowed' : 'failed', body.detail || `HTTP ${res.status}`);
   }
   return res.json();
 }
@@ -32,17 +42,45 @@ export async function readOffline(token) {
   try { const s = await engineStatus(token); engine = s ? Boolean(s.offline) : null; } catch (_) { /* engine not reachable */ }
   try { const d = desktop(); if (d && d.getPrivacy) { const p = await d.getPrivacy(); app = p && !p.error ? Boolean(p.offline) : null; } } catch (_) { /* browser */ }
   if (engine === true && app === false) { try { await desktop().setOffline(true); app = true; } catch (_) { /* keep */ } }
-  if (app === true && engine === false) { try { await engineSet(token, true); engine = true; } catch (_) { /* keep */ } }
+  if (app === true && engine === false) {
+    try {
+      // the desktop app sets the engine itself (as the owner of this PC); an older one leaves it to the account
+      const r = await desktop().setOffline(true);
+      if (r && 'engineError' in r) engine = r.engine === true ? true : engine;
+      else { await engineSet(token, true); engine = true; }
+    } catch (_) { /* keep */ }
+  }
   return { offline: engine === true || app === true, desktop: app, engine };
 }
 
+// Returns the new state; throws an OfflineSwitchError when it could not be changed (read the real state with
+// readOffline afterwards). In the desktop app, the app's switch sets both: the person at the app owns this PC, so the
+// engine accepts it from the app (desktop/engine-offline.js). In a browser, the engine decides: every account may turn
+// it on; off is for the administrator and for the account that turned it on.
 export async function setOffline(token, enabled) {
-  // the engine first: it is the one that can say no (only the administrator turns the switch off)
-  await engineSet(token, enabled);
   const d = desktop();
-  if (d && d.setOffline) await d.setOffline(enabled);
-  announce(enabled);
-  return enabled;
+  if (d && d.setOffline) {
+    const r = await d.setOffline(enabled);
+    if (!r || r.error) throw new OfflineSwitchError('failed', (r && r.error) || 'no answer from the desktop app');
+    if (!('engineError' in r)) {
+      // an older desktop app (2.1.0 and before) sets only itself: the engine is told by the account, as before
+      try {
+        await engineSet(token, enabled);
+      } catch (e) {
+        if (!enabled) await d.setOffline(true); // the engine stays offline, so the app does too ("offline" wins)
+        throw e;
+      }
+    } else if (r.engineError) {
+      announce(Boolean(r.offline));
+      throw new OfflineSwitchError(r.engineError === 'unreachable' ? 'engine_unreachable' : 'failed', r.engineDetail || r.engineError);
+    }
+    announce(Boolean(r.offline));
+    return Boolean(r.offline);
+  }
+  const s = await engineSet(token, enabled);
+  const offline = s && typeof s.offline === 'boolean' ? s.offline : enabled;
+  announce(offline);
+  return offline;
 }
 
 export function onOfflineChange(cb) {

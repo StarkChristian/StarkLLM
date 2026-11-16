@@ -4,7 +4,6 @@ const fs = require('fs');
 const path = require('path');
 const { diagnose, buildErrorPage } = require('./diagnostics');
 const { startEngine, userPaths, secretKey, forgetFailedUpdate } = require('./engine');
-const crypto = require('crypto');
 const { DataKeyManager, DataKeyError, createSafeStorageKeyStore, deliverKey, lockEngine } = require('./data-key');
 const { createUnlockFlow } = require('./unlock-flow');
 const { pathToFileURL } = require('url');
@@ -16,6 +15,7 @@ const i18n = require('./i18n');
 const { t } = i18n;
 const { initShared } = require('./netguard');
 const { askOfflineChoice } = require('./offline-choice');
+const { desktopKey, setEngineOffline, switchOffline } = require('./engine-offline');
 
 let mainWindow = null;
 let tray = null;
@@ -98,13 +98,11 @@ function initApp() {
   const fromApp = (event) => Boolean(event.senderFrame && sameOrigin(event.senderFrame.url, APP_URL));
   const privacyState = () => ({ offline: guard.isOffline(), localCounts: guard.localCounts() });
   ipcMain.handle('privacy:get', (event) => (fromApp(event) ? privacyState() : { error: 'not allowed' }));
-  ipcMain.handle('privacy:set-offline', (event, on) => {
+  // sets the app and the engine (engine-offline.js); the answer says what the engine did
+  ipcMain.handle('privacy:set-offline', async (event, on) => {
     if (!fromApp(event)) return { error: 'not allowed' };
-    guard.setOffline(Boolean(on));
-    logLine(`fully offline: ${guard.isOffline() ? 'on' : 'off'}`);
-    applyOffline();
-    refreshTrayMenu();
-    return privacyState();
+    const r = await switchAppAndEngineOffline(Boolean(on), 'settings');
+    return { ...privacyState(), engine: r.engine, engineError: r.engineError, engineDetail: r.engineDetail };
   });
   ipcMain.handle('privacy:log', (event, limit) => (fromApp(event) ? guard.list(Math.min(Number(limit) || 500, 5000)) : { error: 'not allowed' }));
   ipcMain.handle('privacy:clear-log', (event) => {
@@ -275,8 +273,7 @@ let localToken = null;
 
 async function fetchLocalSession() {
   try {
-    const secret = process.env.SECRET_KEY || secretKey(userPaths().secret);
-    const key = crypto.createHmac('sha256', secret).update('starkllm-desktop-session').digest('hex');
+    const key = desktopKey(engineSecret());
     const res = await guard.wrapFetch((u, o) => net.fetch(u, o), 'local_engine', 'Sign-in of the local user at the engine on this PC')(`${API_URL}/api/v1/auth/desktop-session`, { method: 'POST', headers: { 'X-Desktop-Key': key }, signal: AbortSignal.timeout(8000) });
     if (res.ok) {
       localToken = (await res.json()).access_token || null;
@@ -509,15 +506,18 @@ function createTray() {
   }
 }
 
-// The switch lives in the app and in the engine; the tray menu changes the app's, so the engine is told (best effort:
-// the page in the window also reconciles the two when it opens, and "offline" always wins).
-async function syncEngineOffline(on) {
-  if (!localToken) return;
-  try {
-    await net.fetch(`${API_URL}/api/v1/privacy/offline`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localToken}` }, body: JSON.stringify({ enabled: Boolean(on) }), signal: AbortSignal.timeout(5000) });
-  } catch (e) {
-    logLine(`could not tell the engine about the offline switch: ${e.message}`);
-  }
+// The switch lives in the app and in the engine; Settings and the tray menu set both (engine-offline.js: "offline"
+// wins, and the engine accepts the desktop app with the key derived from its SECRET_KEY, whoever is signed in).
+async function switchAppAndEngineOffline(on, from) {
+  const setEngine = (value) => setEngineOffline({
+    fetchFn: guard.wrapFetch((u, o) => net.fetch(u, o), 'local_engine', 'Fully offline switch of the engine on this PC'),
+    apiUrl: API_URL, key: desktopKey(engineSecret()), on: value
+  });
+  const r = await switchOffline({ guard, on, setEngine });
+  logLine(`fully offline: ${r.offline ? 'on' : 'off'} (${from}); engine: ${r.engineError ? `${r.engineError} ${r.engineDetail || ''}`.trim() : (r.engine ? 'on' : 'off')}`);
+  applyOffline();
+  refreshTrayMenu();
+  return r;
 }
 
 // Rebuilt when a setting shown in it changes.
@@ -547,11 +547,7 @@ function refreshTrayMenu() {
       type: 'checkbox',
       checked: Boolean(guard && guard.isOffline()),
       click: (item) => {
-        guard.setOffline(item.checked);
-        logLine(`fully offline: ${item.checked ? 'on' : 'off'} (tray menu)`);
-        applyOffline();
-        syncEngineOffline(item.checked);
-        refreshTrayMenu();
+        switchAppAndEngineOffline(item.checked, 'tray menu').catch((e) => logLine(`fully offline (tray menu): ${e.message}`));
       }
     },
     {
