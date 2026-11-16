@@ -1,7 +1,7 @@
 {
   "name": "starkllm-desktop",
   "productName": "StarkLLM",
-  "version": "2.1.2",
+  "version": "2.2.0",
   "description": "StarkLLM Standalone Native Desktop Application",
   "main": "main.js",
   "author": "Christian Stark",
