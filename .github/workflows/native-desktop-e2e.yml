@@ -112,7 +112,13 @@ jobs:
           if (-not $s.access_token) { throw 'no local session' }
           'signed in as the local user'
           $body = @{ model = 'qwen2.5:0.5b'; messages = @(@{ role = 'user'; content = 'Reply with the single word: ready' }) } | ConvertTo-Json -Depth 4
-          $r = Invoke-RestMethod -Method Post http://127.0.0.1:5173/v1/chat/completions -Headers @{ Authorization = "Bearer $($s.access_token)" } -ContentType 'application/json' -Body $body -TimeoutSec 300
+          # the OpenAI-compatible API is for other apps: switched on and given a key the way Settings > Other apps does it
+          $session = @{ Authorization = "Bearer $($s.access_token)" }
+          Invoke-RestMethod -Method Put http://127.0.0.1:5173/api/v1/connections -Headers $session -ContentType 'application/json' -Body '{"enabled":true}' | Out-Null
+          $appKey = (Invoke-RestMethod -Method Post http://127.0.0.1:5173/api/v1/connections/keys -Headers $session -ContentType 'application/json' -Body '{"name":"native e2e"}').key
+          "::add-mask::$appKey"
+          "OTHER_APPS_KEY=$appKey" | Out-File -Append $env:GITHUB_ENV
+          $r = Invoke-RestMethod -Method Post http://127.0.0.1:5173/v1/chat/completions -Headers @{ Authorization = "Bearer $appKey" } -ContentType 'application/json' -Body $body -TimeoutSec 300
           "model answer: $($r.choices[0].message.content)"
           if (-not $r.choices[0].message.content) { throw 'no answer from the model' }
 
@@ -162,7 +168,7 @@ jobs:
           # the protected note is still found, and an encrypted backup is made and restore-tested inside the engine
           $body = @{ model = 'qwen2.5:0.5b'; workspace_id = $ws.id; messages = @(@{ role = 'user'; content = 'Bis wann ist die Rechnung 4711 zu zahlen?' }) } | ConvertTo-Json -Depth 4
           try {
-            $r = Invoke-RestMethod -Method Post "$api/v1/chat/completions" -Headers $auth -ContentType 'application/json' -Body $body -TimeoutSec 300
+            $r = Invoke-RestMethod -Method Post "$api/v1/chat/completions" -Headers @{ Authorization = "Bearer $env:OTHER_APPS_KEY" } -ContentType 'application/json' -Body $body -TimeoutSec 300
             "answer with protection on: $($r.choices[0].message.content)"
           } catch { "::warning::chat with protection on failed: $($_.Exception.Message)" }
           $b = Invoke-RestMethod -Method Post "$api/api/v1/system/backup/create" -Headers $auth -ContentType 'application/json' -Body '{"passphrase":"native e2e backup passphrase"}' -TimeoutSec 600
