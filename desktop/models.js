@@ -43,6 +43,10 @@ const rank = (table, m) => {
 };
 
 // Ollama ":cloud" models run on Ollama's servers, not on this PC.
+// Community copies whose safety training was removed or changed ("abliterated", "uncensored" ...) are never chosen
+// automatically: the user can still pick one in the Model Hub, and a saved choice is kept. Found on the MSI test PC
+// (16 Nov 2026): a fresh profile chose huihui_ai/Qwen3.8-abliterated although the official qwen3.8:27b was installed.
+const isModified = (m) => /abliterat|uncensor|jailbreak|nsfw|unfiltered|unaligned/i.test(m.name);
 const isCloud = (m) => /(^|[:-])cloud(\b|$)/i.test(m.name) || /-cloud$/i.test(m.name.split(':')[1] || '');
 const isEmbedding = (m) => (m.capabilities || []).includes('embedding') || /embed|bge-|nomic-bert|bert/i.test(`${m.name} ${m.family || ''}`);
 const canChat = (m) => !isEmbedding(m) && (!m.capabilities || m.capabilities.length === 0 || m.capabilities.includes('completion'));
@@ -93,6 +97,7 @@ function best(candidates, table, hw, { penalizeTiny = false, penalizeVisionOnly 
  */
 function chooseModels({ installed = [], hw = {}, saved = null, existingIndex = false }) {
   const local = installed.filter((m) => !isCloud(m));
+  const official = local.filter((m) => !isModified(m));
   const has = (name) => local.some((m) => m.name === name || m.name === `${name}:latest` || `${m.name}:latest` === name);
   const notes = [];
   const pull = [];
@@ -105,7 +110,7 @@ function chooseModels({ installed = [], hw = {}, saved = null, existingIndex = f
     embedding = DEFAULTS.embedding;
     notes.push(`documents already indexed: keeping the search model ${embedding}`);
   } else {
-    const e = best(local.filter(isEmbedding), EMBED_RANK, { ...hw, vramBytes: 0, ramBytes: Math.max(hw.ramBytes || 0, 16 * GB) });
+    const e = best(official.filter(isEmbedding), EMBED_RANK, { ...hw, vramBytes: 0, ramBytes: Math.max(hw.ramBytes || 0, 16 * GB) });
     embedding = e ? e.m.name : DEFAULTS.embedding;
     notes.push(e ? `search model ${embedding} is installed` : `no search model installed: ${embedding} will be downloaded`);
   }
@@ -116,7 +121,7 @@ function chooseModels({ installed = [], hw = {}, saved = null, existingIndex = f
   if (saved && saved.text && has(saved.text)) {
     text = saved.text;
   } else {
-    const t = best(local.filter(canChat), TEXT_RANK, hw, { penalizeTiny: true, penalizeVisionOnly: true });
+    const t = best(official.filter(canChat), TEXT_RANK, hw, { penalizeTiny: true, penalizeVisionOnly: true });
     if (t && paramsB(t.m) < TINY_B) notes.push(`installed chat models are small (largest fitting: ${t.m.name})`);
     if (t && paramsB(t.m) >= TINY_B) {
       text = t.m.name;
@@ -133,7 +138,7 @@ function chooseModels({ installed = [], hw = {}, saved = null, existingIndex = f
   if (saved && saved.vision && has(saved.vision)) {
     vision = saved.vision;
   } else {
-    const v = best(local.filter(canSee), VISION_RANK, hw);
+    const v = best(official.filter(canSee), VISION_RANK, hw);
     vision = v ? v.m.name : DEFAULTS.vision;
     notes.push(v ? `image model ${vision} is installed` : `no image model installed: ${vision} is downloaded with the first image`);
   }
