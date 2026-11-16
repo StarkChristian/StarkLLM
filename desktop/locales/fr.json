@@ -24,7 +24,7 @@
   "{error}\n\nYou can install it from the download page instead.": "{error}\n\nVous pouvez l'installer à partir de la page de téléchargement.",
   "Close": "Fermer",
   "StarkLLM {version} is ready to install.": "StarkLLM {version} est prêt à être installé.",
-  "Restart now to install it, or it is installed when you quit StarkLLM. The first start after the update prepares the new engine (a few minutes).": "Redémarrez maintenant pour l'installer, ou elle sera installée à la fermeture de StarkLLM. Le premier démarrage après la mise à jour prépare le nouveau moteur (quelques minutes).",
+  "Restart now to install it, or it is installed when you quit StarkLLM. The first start after the update prepares the new engine (a few minutes).": "Redémarrez maintenant pour l'installer, ou la mise à jour sera installée à la fermeture de StarkLLM. Le premier démarrage après la mise à jour prépare le nouveau moteur (quelques minutes).",
   "Restart now": "Redémarrer maintenant",
   "When I quit": "À la fermeture",
   "Windows has not started the StarkLLM {version} installer yet.": "Windows n'a pas encore lancé le programme d'installation de StarkLLM {version}.",
