@@ -1,7 +1,7 @@
 {
   "name": "starkllm-desktop",
   "productName": "StarkLLM",
-  "version": "2.0.9",
+  "version": "2.1.2",
   "description": "StarkLLM Standalone Native Desktop Application",
   "main": "main.js",
   "author": "Christian Stark",
@@ -14,21 +14,33 @@
   },
   "devDependencies": {
     "electron": "^33.2.0",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "26.18.1"
   },
   "build": {
     "appId": "com.starkllm.desktop",
     "productName": "StarkLLM",
-    "copyright": "Copyright \u00a9 2026 Christian Stark",
+    "copyright": "Copyright © 2026 Christian Stark",
     "directories": {
       "output": "dist"
     },
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        "nsis"
       ],
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.ico",
+      "signtoolOptions": {
+        "sign": "./build/sign.js",
+        "publisherName": [
+          "Open Source Developer Christian Stark"
+        ],
+        "signingHashAlgorithms": [
+          "sha256"
+        ]
+      },
+      "signExts": [
+        ".dll",
+        ".node"
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -36,6 +48,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "StarkLLM",
+      "multiLanguageInstaller": true,
+      "installerLanguages": ["en_US", "de_DE", "es_ES", "fr_FR", "it_IT", "tr_TR"],
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico",
       "artifactName": "StarkLLM-v${version}-Setup.${ext}"
@@ -73,9 +87,6 @@
         ]
       }
     ],
-    "portable": {
-      "artifactName": "StarkLLM-v${version}-Portable.${ext}"
-    },
     "publish": [
       {
         "provider": "github",

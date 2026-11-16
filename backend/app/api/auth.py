@@ -130,9 +130,16 @@ def desktop_key(secret: str) -> str:
     return hmac.new(secret.encode(), b"starkllm-desktop-session", hashlib.sha256).hexdigest()
 
 
+def desktop_key_valid(x_desktop_key: str) -> bool:
+    """The caller is the desktop app on this PC: it sent the key derived from the engine's SECRET_KEY. Never with the
+    public fallback secret, whose key anybody can compute."""
+    return (not settings.SECRET_KEY.startswith(_FALLBACK_SECRET_PREFIX)
+            and hmac.compare_digest((x_desktop_key or "").encode(), desktop_key(settings.SECRET_KEY).encode()))
+
+
 @router.post("/desktop-session", response_model=Token)
 def desktop_session(x_desktop_key: str = Header(default=""), db: Session = Depends(get_db)):
-    if settings.SECRET_KEY.startswith(_FALLBACK_SECRET_PREFIX) or not hmac.compare_digest(x_desktop_key, desktop_key(settings.SECRET_KEY)):
+    if not desktop_key_valid(x_desktop_key):
         raise HTTPException(status_code=403, detail="Not allowed")
     users = db.query(User).limit(2).all()
     if not users:

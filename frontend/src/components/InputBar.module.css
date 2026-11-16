@@ -11,11 +11,12 @@
 .inputWrapper {
   display: flex;
   align-items: flex-end;
-  background-color: rgba(8, 10, 16, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  /* theme colours: a fixed dark glass stayed dark on the light themes */
+  background-color: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   border-radius: 30px;
   padding: 16px 26px;
-  box-shadow: 0 12px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.1), inset 0 -1px 0 rgba(255,255,255,0.04);
+  box-shadow: var(--shadow-lg), var(--glass-highlight, inset 0 1px 0 rgba(255,255,255,0.1));
   backdrop-filter: blur(40px) saturate(1.6);
   -webkit-backdrop-filter: blur(40px) saturate(1.6);
   gap: 16px;
@@ -25,8 +26,8 @@
 }
 
 .inputWrapper:focus-within {
-  border-color: rgba(99, 102, 241, 0.5);
-  box-shadow: 0 12px 48px rgba(0,0,0,0.6), 0 0 0 4px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.1);
+  border-color: var(--accent-bright);
+  box-shadow: var(--shadow-lg), 0 0 0 4px var(--accent-glow);
   transform: translateY(-2px);
 }
 
@@ -69,7 +70,7 @@
 }
 
 .iconBtn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: var(--bg-hover);
   color: var(--text-primary);
 }
 
@@ -113,7 +114,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background-color: rgba(255, 255, 255, 0.03);
+  background-color: transparent;
   color: var(--text-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -125,9 +126,9 @@
 }
 
 .kbToggle:hover {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: var(--bg-hover);
   color: var(--text-primary);
-  border-color: rgba(255, 255, 255, 0.15);
+  border-color: var(--text-muted);
 }
 
 .kbToggleOn {

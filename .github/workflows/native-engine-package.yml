@@ -5,8 +5,10 @@ name: Engine package for Windows (no Docker)
 #   backend\   the backend code and serve_native.py
 #   ui\        the built web UI (served by the backend)
 #   tesseract\ Tesseract OCR (UB Mannheim's signed Windows build) with German, English and orientation data
+#   models\    the search reranker's model (the Docker image ships it too), so nothing is fetched on the user's PC
 # Then it unpacks the zip into a new folder the way the desktop app will (tar.exe, part of Windows) and starts the
-# engine from it, with Python not on PATH, to show the package needs nothing else.
+# engine from it, with Python not on PATH and fully offline, to show the package needs nothing else. It also lists
+# every program file (.exe, .dll, .pyd) with its Authenticode signature: what Smart App Control will look at.
 
 on:
   pull_request:
@@ -63,6 +65,16 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "pip install failed ($LASTEXITCODE)" }
           # scripts (uvicorn.exe, ...) are not used: the engine starts with serve_native.py
           Remove-Item -Recurse -Force "$env:PKG\runtime\Lib\site-packages\bin" -ErrorAction SilentlyContinue
+
+      - name: Search reranker model into the package
+        shell: pwsh
+        run: |
+          # the same model the Docker image ships (backend/Dockerfile); serve_native.py points the engine at models\
+          & "$env:PKG\runtime\python.exe" -c "from flashrank import Ranker; Ranker(model_name='ms-marco-TinyBERT-L-2-v2', cache_dir=r'$env:PKG\models')"
+          if ($LASTEXITCODE -ne 0) { throw "the reranker model could not be fetched ($LASTEXITCODE)" }
+          if (-not (Test-Path "$env:PKG\models\ms-marco-TinyBERT-L-2-v2")) { throw 'the reranker model is missing' }
+          Get-ChildItem "$env:PKG\models" -File -Filter *.zip | Remove-Item -Force
+          "models: $([math]::Round(((Get-ChildItem "$env:PKG\models" -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB)) MB"
 
       - name: Backend code and web UI into the package
         shell: pwsh
@@ -143,6 +155,8 @@ jobs:
           $env:KB_DATA_DIR = "$env:RUNNER_TEMP\kb"
           $env:OLLAMA_BASE_URL = 'http://127.0.0.1:11434'
           $env:SECRET_KEY = 'ci-only-secret'
+          # started the way the desktop app starts it when "fully offline" is on: nothing may leave this PC
+          $env:STARKLLM_OFFLINE = '1'
           $started = Get-Date
           $p = Start-Process "$dir\runtime\python.exe" -ArgumentList "$dir\backend\serve_native.py", '--port', '8765' -WorkingDirectory $home2 -PassThru -RedirectStandardOutput "$env:RUNNER_TEMP\engine.out" -RedirectStandardError "$env:RUNNER_TEMP\engine.err"
           $ok = $false
@@ -169,6 +183,59 @@ jobs:
           Pop-Location
           if ($code -ne 0) { throw "the OCR self-test failed ($code)" }
           Stop-Process -Id $p.Id -Force
+          # offline from the first start: the engine did not even try to reach the internet (the network layer records
+          # every attempt, blocked ones too, in data\network_log.jsonl; connections to this PC are not listed)
+          if (-not (Get-Content "$home2\data\privacy.json" -Raw | ConvertFrom-Json).offline) { throw 'the engine did not take over the offline switch' }
+          $tried = if (Test-Path "$home2\data\network_log.jsonl") { Get-Content "$home2\data\network_log.jsonl" | Where-Object { $_.Trim() } } else { @() }
+          if ($tried) { $tried; throw 'the engine tried to reach the internet while fully offline' }
+          'fully offline: no connection attempt'
+          # voice: Piper speaks German with the built-in voice and Whisper reads it back (its model is fetched once, as
+          # in Docker), run from another folder than the code, like the desktop app does
+          $env:STARKLLM_OFFLINE = ''
+          $env:PYTHONIOENCODING = 'utf-8'
+          $voice = "$env:RUNNER_TEMP\voice-test"
+          New-Item -ItemType Directory -Force $voice | Out-Null
+          Push-Location $voice
+          & "$dir\runtime\python.exe" -m app.services.voice_service
+          $code = $LASTEXITCODE
+          Pop-Location
+          if ($code -ne 0) { throw "the voice self-test failed ($code)" }
+
+      - name: Program files and their signatures (Smart App Control)
+        shell: pwsh
+        run: |
+          $dir = "$env:RUNNER_TEMP\unpacked"
+          $rows = Get-ChildItem $dir -Recurse -File -Include *.exe, *.dll, *.pyd | ForEach-Object {
+            $s = Get-AuthenticodeSignature $_.FullName
+            [pscustomobject]@{
+              File = $_.FullName.Substring($dir.Length + 1); Type = $_.Extension.ToLower(); KB = [math]::Round($_.Length / 1KB)
+              Status = "$($s.Status)"; Signer = if ($s.SignerCertificate) { ($s.SignerCertificate.Subject -split ',')[0] -replace '^CN=', '' } else { '' }
+            }
+          }
+          $rows | Export-Csv -NoTypeInformation -Encoding utf8 "$env:RUNNER_TEMP\engine-binaries.csv"
+          $zipMB = [math]::Round((Get-Item $env:ZIP).Length / 1MB, 1)
+          $unpackedMB = [math]::Round(((Get-ChildItem $dir -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB, 1)
+          $files = (Get-ChildItem $dir -Recurse -File).Count
+          $signed = @($rows | Where-Object Status -eq 'Valid')
+          $summary = @(
+            "### Engine package $env:ZIP", '',
+            "zip: $zipMB MB, unpacked: $unpackedMB MB in $files files", '',
+            "program files: $($rows.Count) (exe $(@($rows | Where-Object Type -eq '.exe').Count), dll $(@($rows | Where-Object Type -eq '.dll').Count), pyd $(@($rows | Where-Object Type -eq '.pyd').Count))",
+            "Authenticode-signed (Valid): $($signed.Count), not signed: $($rows.Count - $signed.Count)", '',
+            '| signer | files |', '|---|---|'
+          ) + ($rows | Group-Object Signer | Sort-Object Count -Descending | ForEach-Object { "| $(if ($_.Name) { $_.Name } else { '(not signed)' }) | $($_.Count) |" }) + @(
+            '', '| unsigned by folder | files |', '|---|---|'
+          ) + ($rows | Where-Object Status -ne 'Valid' | Group-Object { ($_.File -split '\\')[0..3] -join '\' } | Sort-Object Count -Descending | Select-Object -First 25 | ForEach-Object { "| $($_.Name) | $($_.Count) |" })
+          $summary -join "`n" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          $summary -join "`n" | Set-Content "$env:RUNNER_TEMP\engine-binaries.md"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: starkllm-engine-binaries
+          path: |
+            ${{ runner.temp }}/engine-binaries.csv
+            ${{ runner.temp }}/engine-binaries.md
+          retention-days: 14
 
       - uses: actions/upload-artifact@v4
         with:

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import styles from './OnboardingWizard.module.css';
 import { CheckCircle2, XCircle, RefreshCw, Server, Cpu, Brain, Zap, TerminalSquare, Clock } from 'lucide-react';
+import { t } from '../i18n';
 
 // How long to keep retrying before giving up and showing the error panel (seconds)
 const STARTUP_RETRY_TIMEOUT_SEC = 90;
@@ -69,7 +70,7 @@ export default function OnboardingWizard({ token, onComplete }) {
           scheduleRetry();
         } else {
           setIsStarting(false);
-          setErrorMsg(`Server returned ${res.status}. The backend did not start within ${STARTUP_RETRY_TIMEOUT_SEC} seconds.`);
+          setErrorMsg(t('Server returned {status}. The backend did not start within {seconds} seconds.', { status: res.status, seconds: STARTUP_RETRY_TIMEOUT_SEC }));
         }
       } else {
         if (!mountedRef.current) return;
@@ -86,7 +87,7 @@ export default function OnboardingWizard({ token, onComplete }) {
         scheduleRetry();
       } else {
         setIsStarting(false);
-        setErrorMsg(err.message || 'Failed to connect to backend.');
+        setErrorMsg(err.message || t('Failed to connect to backend.'));
       }
     }
     if (mountedRef.current) setLoading(false);
@@ -126,7 +127,7 @@ export default function OnboardingWizard({ token, onComplete }) {
           <div className={styles.statusLabel}>{label}</div>
           <div className={styles.statusBadge}>
             {isOnline ? (
-              <span className={styles.badgeSuccess}><CheckCircle2 size={16} /> Ready</span>
+              <span className={styles.badgeSuccess}><CheckCircle2 size={16} /> {t('Ready')}</span>
             ) : (
               <span className={styles.badgeError}><XCircle size={16} /> {status || 'Unknown'}</span>
             )}
@@ -134,7 +135,7 @@ export default function OnboardingWizard({ token, onComplete }) {
         </div>
         {!isOnline && error && (
           <div className={styles.actionableBox}>
-            <div className={styles.actionableTitle}>Action Required:</div>
+            <div className={styles.actionableTitle}>{t('Action Required:')}</div>
             <div className={styles.actionableText}>
               <TerminalSquare size={14} />
               {error}
@@ -151,7 +152,7 @@ export default function OnboardingWizard({ token, onComplete }) {
       <div className={styles.wizardContainer}>
         <div className={styles.loaderBox}>
           <RefreshCw size={24} className={styles.spinning} />
-          <p>Running system readiness checks...</p>
+          <p>{t('Running system readiness checks...')}</p>
         </div>
       </div>
     );
@@ -164,19 +165,19 @@ export default function OnboardingWizard({ token, onComplete }) {
         <div className={styles.loaderBox}>
           <Clock size={28} className={styles.spinSlow} />
           <p style={{ fontWeight: 600, fontSize: '1.1rem', color: 'var(--text-primary)' }}>
-            Starting backend…
+            {t('Starting backend…')}
           </p>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', textAlign: 'center', maxWidth: 360 }}>
-            The backend is still initialising. This can take <strong style={{ color: '#d4af37' }}>1–2 minutes</strong> on first run.
-            <br />Please wait — the app will open automatically when ready.
+            {t('The backend is still starting. On the first run this can take 1–2 minutes.')}
+            <br />{t('Please wait — the app will open automatically when ready.')}
           </p>
           {startingSeconds > 0 && (
             <p style={{ color: '#6366f1', fontSize: '0.85rem' }}>
-              Retrying… {startingSeconds}s elapsed
+              {t('Retrying… {seconds} s', { seconds: startingSeconds })}
             </p>
           )}
           <button className={styles.skipBtn} onClick={handleSkip} style={{ marginTop: '1rem' }}>
-            Skip / Proceed anyway
+            {t('Skip / Proceed anyway')}
           </button>
         </div>
       </div>
@@ -187,37 +188,36 @@ export default function OnboardingWizard({ token, onComplete }) {
     <div className={styles.wizardContainer}>
       <div className={styles.wizardCard}>
         <div className={styles.wizardHeader}>
-          <h2>Welcome to StarkLLM</h2>
-          <p>Let's make sure your local AI environment is fully set up before we begin.</p>
+          <h2>{t('Welcome to StarkLLM')}</h2>
+          <p>{t('Let\'s make sure your local AI environment is fully set up before we begin.')}</p>
         </div>
 
         <div className={styles.wizardBody}>
           {errorMsg ? (
             <div className={styles.criticalError}>
-              <strong>Connection Error:</strong> {errorMsg}
+              <strong>{t('Connection Error:')}</strong> {errorMsg}
               <p>
-                Cannot reach the StarkLLM backend API. The backend may still be starting up —
-                try <strong>Re-check Status</strong> in a moment, or click <em>Skip / Proceed anyway</em>.
+                {t('Cannot reach the StarkLLM backend. It may still be starting: press Re-check Status in a moment, or Skip / Proceed anyway.')}
               </p>
             </div>
           ) : isStarting ? (
             <div className={styles.startingNotice}>
               <RefreshCw size={16} className={styles.spinning} />
-              <span>Backend is starting up — retrying automatically…</span>
+              <span>{t('Backend is starting up — retrying automatically…')}</span>
             </div>
           ) : (
             <div className={styles.statusList}>
               <StatusItem
                 icon={Server}
                 iconColor="#6366f1"
-                label="Backend API Server"
+                label={t('Backend API Server')}
                 status={data?.backend?.status}
                 error={data?.backend?.error}
               />
               <StatusItem
                 icon={Cpu}
                 iconColor="#06b6d4"
-                label="Ollama Engine"
+                label={t('Ollama Engine')}
                 status={data?.ollama?.status}
                 error={data?.ollama?.error}
               />
@@ -241,7 +241,7 @@ export default function OnboardingWizard({ token, onComplete }) {
 
         <div className={styles.wizardFooter}>
           <button className={styles.skipBtn} onClick={handleSkip}>
-            Skip / Proceed anyway
+            {t('Skip / Proceed anyway')}
           </button>
 
           <button
@@ -250,7 +250,7 @@ export default function OnboardingWizard({ token, onComplete }) {
             disabled={loading}
           >
             <RefreshCw size={16} className={loading ? styles.spinning : ''} />
-            {loading ? 'Checking...' : 'Re-check Status'}
+            {loading ? t('Checking...') : t('Re-check Status')}
           </button>
         </div>
       </div>

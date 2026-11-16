@@ -18,6 +18,12 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# The search reranker's model ships inside the image: it is not fetched from the internet on the user's PC at first
+# start (no network connection the user did not ask for, and search works offline from the first minute)
+ENV STARKLLM_RERANKER_DIR=/opt/starkllm-models
+RUN python -c "from flashrank import Ranker; Ranker(model_name='ms-marco-TinyBERT-L-2-v2', cache_dir='/opt/starkllm-models')" \
+    && test -d /opt/starkllm-models/ms-marco-TinyBERT-L-2-v2
+
 # Copy application code
 COPY ./app /app/app
 

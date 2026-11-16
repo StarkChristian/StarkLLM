@@ -1,0 +1,4 @@
+Dear customer,
+your electricity invoice of 15.10.2026 is 412,00 EUR. Please pay it by 15.12.2026.
+Pay online: https://pay.city-utilities.example/invoice?id=4711 (no login needed).
+Kind regards, City Utilities

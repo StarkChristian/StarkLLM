@@ -28,3 +28,56 @@ def test_missing_embedding_model_is_explained():
 def test_other_errors_keep_their_text_but_are_capped():
     assert describe_indexing_error(ValueError("No text content could be extracted")) == "No text content could be extracted"
     assert len(describe_indexing_error(ValueError("x" * 2000))) == 500
+
+
+def test_unreachable_ollama_fails_the_document_at_once_instead_of_once_per_passage(monkeypatch):
+    # seen in a scenario test: with Ollama unreachable, every passage was retried alone and the document stayed at
+    # "embedding" for hours; now the first failed connection ends it, and every call has a timeout
+    from app.services import llm_service as mod
+
+    calls = []
+
+    def post(url, json=None, timeout=None, **kw):
+        calls.append(timeout)
+        raise requests.exceptions.ConnectTimeout("connect timed out")
+
+    monkeypatch.setattr(mod.requests, "post", post)
+    try:
+        mod.llm_service.generate_embeddings_batch("nomic-embed-text", ["a", "b", "c"])
+        raise AssertionError("expected a connection error")
+    except requests.exceptions.ConnectTimeout as e:
+        assert "too long" in describe_indexing_error(e) or "not reachable" in describe_indexing_error(e)
+    assert len(calls) == 1 and calls[0] is not None
+
+
+def test_every_ollama_chat_asks_for_a_context_window_that_holds_the_prompt(monkeypatch):
+    # scenario test: Ollama cut a 4263-token prompt to 2050 tokens from the front, so the retrieved passages were lost
+    from app.services import llm_service as mod
+
+    sent = []
+
+    class Answer:
+        status_code = 200
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"message": {"content": "ok"}}
+
+    def post(url, json=None, timeout=None, **kw):
+        sent.append(json)
+        return Answer()
+
+    monkeypatch.setattr(mod.requests, "post", post)
+    mod._context_used.clear()
+    short = [{"role": "user", "content": "Hallo"}]
+    long = [{"role": "system", "content": "x" * 15000}, {"role": "user", "content": "Frage"}]
+    mod.llm_service.generate_chat("m1", short)
+    mod.llm_service.generate_chat("m1", long)
+    mod.llm_service.generate_chat("m1", short)
+    sizes = [p["options"]["num_ctx"] for p in sent]
+    assert sizes == [4096, 8192, 8192]  # grows to fit, then stays (no model reload for every message)
+    mod.llm_service.generate_chat("m2", short, options={"num_ctx": 2048})
+    assert sent[-1]["options"]["num_ctx"] == 2048  # a setting from the user wins
+    assert mod.context_window([{"content": "x" * 200000}]) == mod.CONTEXT_MAX

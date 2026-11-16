@@ -1,4 +1,5 @@
 import React from 'react';
+import { t } from '../i18n';
 
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -33,9 +34,9 @@ export default class ErrorBoundary extends React.Component {
           color: 'var(--text-primary)',
         }}>
           <div style={{ fontSize: '3rem' }}>⚠️</div>
-          <h2 style={{ margin: 0, fontWeight: 700 }}>Something went wrong</h2>
+          <h2 style={{ margin: 0, fontWeight: 700 }}>{t('Something went wrong')}</h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', textAlign: 'center', maxWidth: 440 }}>
-            An unexpected error occurred in this view. You can try to recover by clicking the button below.
+            {t('An unexpected error occurred in this view. You can try to recover by clicking the button below.')}
           </p>
           {this.state.error && (
             <pre style={{
@@ -56,7 +57,7 @@ export default class ErrorBoundary extends React.Component {
             className="btn-primary"
             style={{ fontSize: '0.875rem' }}
           >
-            Try to Recover
+            {t('Try to Recover')}
           </button>
         </div>
       );

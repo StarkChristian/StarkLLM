@@ -1,7 +1,8 @@
 """Local OCR for photos and scanned pages.
 
-Everything runs on this computer with Tesseract. Photos of letters and scanned pages are read as text in German
-and English; the vision model is only asked when a picture has no readable text (a photo of a scene, a diagram).
+Everything runs on this computer with Tesseract. Photos of letters and scanned pages are read as text in English and
+German, and in the other languages the user chose in Settings (ocr_languages.py); the vision model is only asked when
+a picture has no readable text (a photo of a scene, a diagram).
 """
 import logging
 import os
@@ -14,6 +15,7 @@ from typing import List, Optional
 from PIL import Image, ImageOps, ImageSequence
 
 from app.core.config import settings
+from app.services import ocr_languages
 
 logger = logging.getLogger(__name__)
 
@@ -70,9 +72,24 @@ def _tesseract():
 
 class OcrService:
     def __init__(self, languages: Optional[str] = None):
-        self.wanted = [l for l in (languages or settings.OCR_LANGUAGES).split("+") if l]
+        self._fixed = [l for l in (languages or "").split("+") if l]  # a fixed list (tests); else the user's choice
         self._status = None
         self._lock = threading.Lock()
+
+    @property
+    def wanted(self) -> List[str]:
+        return self._fixed or ocr_languages.configured()
+
+    def reset(self) -> None:
+        """Look again at the languages and the installed data (after the user changed them)."""
+        with self._lock:
+            self._status = None
+
+    def _config(self, base: str = "") -> str:
+        """Tesseract options; with downloaded language packs they name the folder that holds them and the bundled data."""
+        cmd = getattr(getattr(_tesseract(), "pytesseract", None), "tesseract_cmd", None) or "tesseract"
+        folder = ocr_languages.tessdata_arg(cmd)
+        return f'{base} --tessdata-dir "{folder}"'.strip() if folder else base
 
     def status(self) -> dict:
         """Whether OCR works here and which languages it reads. Checked once."""
@@ -85,7 +102,7 @@ class OcrService:
         try:
             tess = _tesseract()
             version = str(tess.get_tesseract_version())
-            installed = set(tess.get_languages(config=""))
+            installed = set(tess.get_languages(config=self._config()))
         except Exception as e:  # not installed, not runnable
             logger.warning(f"OCR: Tesseract is not available ({e}); pictures are read by the vision model only")
             return {"available": False, "version": None, "languages": [], "missing": list(self.wanted)}
@@ -94,7 +111,7 @@ class OcrService:
         if missing:
             logger.warning(f"OCR: language data missing for {', '.join(missing)}; reading with {languages or ['eng']}")
         return {"available": True, "version": version, "languages": languages or ["eng"], "missing": missing,
-                "orientation": "osd" in installed}
+                "installed": sorted(installed - {"osd"}), "orientation": "osd" in installed}
 
     @property
     def available(self) -> bool:
@@ -125,7 +142,7 @@ class OcrService:
             return 0
         try:
             tess = _tesseract()
-            osd = tess.image_to_osd(img, config="--psm 0 -c min_characters_to_try=10",
+            osd = tess.image_to_osd(img, config=self._config("--psm 0 -c min_characters_to_try=10"),
                                     output_type=tess.Output.DICT)
         except Exception:  # too little text to tell
             return 0
@@ -135,7 +152,7 @@ class OcrService:
 
     def _read(self, img: Image.Image) -> OcrResult:
         tess = _tesseract()
-        data = tess.image_to_data(img, lang="+".join(self.status()["languages"]), config="--psm 3",
+        data = tess.image_to_data(img, lang="+".join(self.status()["languages"]), config=self._config("--psm 3"),
                                   output_type=tess.Output.DICT)
         lines, confidences = {}, []
         for i, word in enumerate(data["text"]):

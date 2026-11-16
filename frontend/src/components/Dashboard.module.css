@@ -7,6 +7,8 @@
   gap: 24px;
   background: var(--bg-primary);
   position: relative;
+  background-image: var(--bg-pattern);
+  background-size: var(--bg-pattern-size);
 }
 
 .neuralNetCanvas {
@@ -61,11 +63,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: linear-gradient(135deg, rgba(22, 27, 39, 0.7) 0%, rgba(14, 17, 23, 0.85) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--grad-card);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-xl);
   padding: 36px 40px;
-  background-image: radial-gradient(circle at 85% 50%, rgba(99,102,241,0.18) 0%, transparent 60%);
+  background-image: radial-gradient(circle at 85% 50%, var(--accent-glow) 0%, transparent 60%);
   position: relative;
   overflow: hidden;
   box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255,255,255,0.05);
@@ -224,7 +226,7 @@
 }
 
 .card {
-  background: linear-gradient(145deg, rgba(22, 27, 39, 0.65) 0%, rgba(14, 17, 23, 0.85) 100%);
+  background: var(--grad-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   padding: 24px;
@@ -280,7 +282,7 @@
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  background: linear-gradient(145deg, rgba(20, 25, 33, 0.6) 0%, rgba(14, 17, 23, 0.8) 100%);
+  background: var(--grad-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   color: var(--text-primary);
@@ -406,4 +408,168 @@
 .featureBannerContent p {
   font-size: var(--text-xs);
   color: var(--text-secondary);
+}
+
+/* ── Document home ── */
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+.heroActions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.homeNote {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+.homeHint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.homeList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.dateRow,
+.docRow {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.dateRow:hover, .dateRow:focus-visible,
+.docRow:hover, .docRow:focus-visible {
+  border-color: var(--accent-bright);
+  background: var(--bg-active);
+}
+.datePassed { opacity: 0.6; }
+
+.dateBox {
+  flex: none;
+  width: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 4px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  font-variant-numeric: tabular-nums;
+}
+.dateDay { font-size: 1.35rem; font-weight: 700; line-height: 1.1; }
+.dateMonth { font-size: 0.7rem; color: var(--text-secondary); text-align: center; }
+
+.dateBody {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dateMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+.dateMeta strong { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.kindDeadline, .kindPayment, .kindAppointment, .kindChange {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.kindDeadline { background: rgba(239, 68, 68, 0.14); color: var(--danger); }
+.kindPayment { background: rgba(56, 189, 248, 0.14); color: var(--info); }
+.kindChange { background: var(--bg-hover); color: var(--text-secondary); }
+.kindAppointment { background: rgba(167, 139, 250, 0.16); color: var(--accent-primary, #a78bfa); }
+.docReplaced {
+  font-size: 0.72rem;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--bg-tertiary, rgba(148, 163, 184, 0.16));
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.dateText {
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+.dateSource {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.docRow { align-items: center; }
+.docIcon {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--bg-active);
+  color: var(--accent-bright);
+}
+.docName {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.88rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.docWhere {
+  flex: none;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+button.wsRow {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.docSuspicious {
+  font-size: 0.72rem;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.14);
+  color: var(--danger, #ef4444);
+  font-weight: 600;
+  white-space: nowrap;
 }

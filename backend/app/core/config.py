@@ -1,9 +1,15 @@
 import os
 from pydantic_settings import BaseSettings
 
+# The libraries the engine uses can report usage to their makers; StarkLLM never allows that, wherever it runs
+# (docker-compose.yml sets the same variables). setdefault: a developer may still choose otherwise on purpose.
+for _name, _value in (("ANONYMIZED_TELEMETRY", "False"), ("HF_HUB_DISABLE_TELEMETRY", "1"), ("DO_NOT_TRACK", "1"),
+                      ("RAGAS_DO_NOT_TRACK", "true")):
+    os.environ.setdefault(_name, _value)
+
 class Settings(BaseSettings):
     PROJECT_NAME: str = "StarkLLM"
-    VERSION: str = "2.0.9"  # shown by /health; keep equal to the released app version
+    VERSION: str = "2.1.2"  # shown by /health; keep equal to the released app version
     
     # API settings
     API_V1_STR: str = "/api/v1"
@@ -36,8 +42,9 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
     DEFAULT_TEXT_MODEL: str = os.getenv("DEFAULT_TEXT_MODEL", "qwen2.5:7b")
     DEFAULT_VISION_MODEL: str = os.getenv("DEFAULT_VISION_MODEL", "llava")
-    # Tesseract languages for photos and scans, joined with "+"; missing ones are skipped with a warning
-    OCR_LANGUAGES: str = os.getenv("OCR_LANGUAGES", "deu+eng")
+    # Tesseract languages for photos and scans, joined with "+"; missing ones are skipped with a warning. The user's
+    # choice in Settings (data/ocr_settings.json) wins; English and German are bundled, others are downloaded on request.
+    OCR_LANGUAGES: str = os.getenv("OCR_LANGUAGES", "eng+deu")
     DEFAULT_EMBEDDING_MODEL: str = os.getenv("DEFAULT_EMBEDDING_MODEL", "nomic-embed-text")
     # Thinking models (qwen3, deepseek-r1, ...) write a hidden draft first; with a token limit that draft can use the
     # whole budget and leave no answer. Off by default; OLLAMA_THINK=true turns it on (only for models that support it).
@@ -45,6 +52,11 @@ class Settings(BaseSettings):
     
     # Paths for uploads
     UPLOAD_DIR: str = "data/uploads"
+
+    # Protection at rest (B6) and encrypted backups (B7): state of the protection, scratch space for decrypted copies
+    PROTECTION_DIR: str = "data/protection"
+    SECURE_INDEX_DIR: str = "data/secure_index"   # the encrypted search index (vector_mode "secure")
+    TEMP_DIR: str = "data/tmp"
     
     # RAG Chunking configuration
     RAG_CHUNKING_STRATEGY: str = "semantic"  # "semantic", "recursive", "fixed"

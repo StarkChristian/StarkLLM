@@ -61,71 +61,73 @@ async function diagnose(engine = {}) {
   return { docker, ollama: ollama.ok, ollamaInstalled, missingModels, backend: backend.ok, engine };
 }
 
+const { t, language } = require('./i18n');
+
 function buildRows(d) {
   const rows = [];
 
   if (d.docker === 'running') {
-    rows.push({ ok: true, title: 'Docker is running' });
+    rows.push({ ok: true, title: t('Docker is running') });
   } else if (d.docker === 'windows-containers') {
     rows.push({
       ok: false,
-      title: 'Docker Desktop is set to Windows containers',
-      detail: 'StarkLLM needs Linux containers. Right-click the Docker icon in the taskbar, choose "Switch to Linux containers...", wait until Docker Desktop says "Engine running", then press Retry. Or run this in PowerShell:',
+      title: t('Docker Desktop is set to Windows containers'),
+      detail: t('StarkLLM needs Linux containers. Right-click the Docker icon in the taskbar, choose "Switch to Linux containers...", wait until Docker Desktop says "Engine running", then press Retry. Or run this in PowerShell:'),
       code: ['& "$Env:ProgramFiles\\Docker\\Docker\\DockerCli.exe" -SwitchLinuxEngine']
     });
   } else if (d.docker === 'missing') {
     rows.push({
       ok: false,
-      title: 'Docker Desktop is not installed',
-      detail: 'StarkLLM runs its services in Docker. Install Docker Desktop (with WSL2), start it, then press Retry.',
-      link: { href: LINKS.docker, label: 'Download Docker Desktop' }
+      title: t('Docker Desktop is not installed'),
+      detail: t('StarkLLM runs its services in Docker. Install Docker Desktop (with WSL2), start it, then press Retry.'),
+      link: { href: LINKS.docker, label: t('Download Docker Desktop') }
     });
   } else {
     rows.push({
       ok: false,
-      title: 'Docker Desktop is not running',
-      detail: 'StarkLLM tried to start Docker Desktop but its engine did not come up. Open Docker Desktop, wait until it says "Engine running" (on a new PC it may ask to finish its setup or to enable WSL2 and restart), then press Retry.'
+      title: t('Docker Desktop is not running'),
+      detail: t('StarkLLM tried to start Docker Desktop but its engine did not come up. Open Docker Desktop, wait until it says "Engine running" (on a new PC it may ask to finish its setup or to enable WSL2 and restart), then press Retry.')
     });
   }
 
   if (!d.ollama && d.ollamaInstalled === false) {
     rows.push({
       ok: false,
-      title: 'Ollama is not installed',
-      detail: 'StarkLLM runs its AI models with Ollama (free). It can download the official installer from ollama.com (about 1 GB), check its signature and install it for you; no administrator rights are needed.',
-      action: { href: 'starkllm-install-ollama:', label: 'Install Ollama for me' },
-      link: { href: LINKS.ollama, label: 'or download it yourself' }
+      title: t('Ollama is not installed'),
+      detail: t('StarkLLM runs its AI models with Ollama (free). It can download the official installer from ollama.com (about 1 GB), check its signature and install it for you; no administrator rights are needed.'),
+      action: { href: 'starkllm-install-ollama:', label: t('Install Ollama for me') },
+      link: { href: LINKS.ollama, label: t('or download it yourself') }
     });
   } else if (!d.ollama) {
     rows.push({
       ok: false,
-      title: 'Ollama is not running',
-      detail: 'Install and start Ollama on this PC. StarkLLM expects it at 127.0.0.1:11434.',
-      link: { href: LINKS.ollama, label: 'Download Ollama' }
+      title: t('Ollama is not running'),
+      detail: t('Install and start Ollama on this PC. StarkLLM expects it at 127.0.0.1:11434.'),
+      link: { href: LINKS.ollama, label: t('Download Ollama') }
     });
   } else if (d.missingModels.length) {
     rows.push({
       ok: false,
-      title: 'An AI model is missing',
-      detail: 'StarkLLM could not download it automatically (see the reason below). Check the internet connection and press Retry, or open a terminal and run:',
+      title: t('An AI model is missing'),
+      detail: t('StarkLLM could not download it automatically (see the reason below). Check the internet connection and press Retry, or open a terminal and run:'),
       code: d.missingModels.map((m) => 'ollama pull ' + m)
     });
   } else {
-    rows.push({ ok: true, title: 'Ollama is running with models' });
+    rows.push({ ok: true, title: t('Ollama is running with models') });
   }
 
   if (d.engine.ok) {
-    rows.push({ ok: true, title: 'StarkLLM engine is running' });
+    rows.push({ ok: true, title: t('StarkLLM engine is running') });
   } else if (d.docker === 'running') {
     rows.push({
       ok: false,
-      title: 'The StarkLLM engine could not be started',
-      detail: (d.engine.detail || 'The engine containers did not start.') + ' The full log is in ' + d.engine.logFile + '.',
+      title: t('The StarkLLM engine could not be started'),
+      detail: (d.engine.detail || t('The engine containers did not start.')) + ' ' + t('The full log is in {file}.', { file: d.engine.logFile }),
       code: d.engine.log && d.engine.log.length ? d.engine.log : null
     });
   }
   // a warning is a text (a model download failed) or { title, detail }
-  for (const w of d.engine.warnings || []) rows.push(typeof w === 'string' ? { ok: false, title: 'Download failed', detail: w } : { ok: false, ...w });
+  for (const w of d.engine.warnings || []) rows.push(typeof w === 'string' ? { ok: false, title: t('Download failed'), detail: w } : { ok: false, ...w });
 
   return rows;
 }
@@ -139,11 +141,11 @@ const isNote = (w) => typeof w !== 'string';
 const onlyNotes = (d) => d.engine.ok && d.ollama && (d.engine.warnings || []).length > 0 && d.engine.warnings.every(isNote);
 
 function heading(d) {
-  if (!d.engine.ok) return 'StarkLLM could not start';
-  if (!d.ollama) return 'StarkLLM is running without its AI runtime';
+  if (!d.engine.ok) return t('StarkLLM could not start');
+  if (!d.ollama) return t('StarkLLM is running without its AI runtime');
   const notes = (d.engine.warnings || []).filter(isNote);
-  if (onlyNotes(d)) return notes.length === 1 ? notes[0].title : 'StarkLLM is running';
-  return 'StarkLLM is running, but an AI model is missing';
+  if (onlyNotes(d)) return notes.length === 1 ? notes[0].title : t('StarkLLM is running');
+  return t('StarkLLM is running, but an AI model is missing');
 }
 
 function buildErrorPage(d) {
@@ -161,7 +163,7 @@ function buildErrorPage(d) {
     .join('');
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${language()}">
 <head>
 <meta charset="UTF-8">
 <title>StarkLLM</title>
@@ -190,13 +192,13 @@ function buildErrorPage(d) {
 </head>
 <body>
 <div class="card">
-  <h1>${heading(d)}</h1>
-  <p class="sub">${onlyNotes(d) ? 'StarkLLM works; please note:' : 'Here is what this PC is missing:'}</p>
+  <h1>${esc(heading(d))}</h1>
+  <p class="sub">${esc(onlyNotes(d) ? t('StarkLLM works; please note:') : t('Here is what this PC is missing:'))}</p>
   <ul>${rows}</ul>
   <div class="actions">
-    <a class="btn" href="starkllm-retry:">Retry</a>
-    ${d.engine.ok ? '<a class="link" href="starkllm-continue:">Open StarkLLM anyway</a>' : ''}
-    <a class="link" href="${LINKS.guide}" target="_blank">Setup guide</a>
+    <a class="btn" href="starkllm-retry:">${esc(t('Retry'))}</a>
+    ${d.engine.ok ? '<a class="link" href="starkllm-continue:">' + esc(t('Open StarkLLM anyway')) + '</a>' : ''}
+    <a class="link" href="${LINKS.guide}" target="_blank">${esc(t('Setup guide'))}</a>
   </div>
 </div>
 </body>

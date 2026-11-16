@@ -27,6 +27,16 @@ def use_bundled_tesseract(package=PACKAGE, env=os.environ):
     return True
 
 
+def use_bundled_models(package=PACKAGE, env=os.environ):
+    """The package brings the search reranker's model in models\\ (the Docker image has it in /opt/starkllm-models), so
+    it is never fetched from the internet on the user's PC and search works fully offline from the first start."""
+    models = os.path.join(package, "models")
+    if env.get("STARKLLM_RERANKER_DIR") or not os.path.isdir(os.path.join(models, "ms-marco-TinyBERT-L-2-v2")):
+        return False
+    env["STARKLLM_RERANKER_DIR"] = models
+    return True
+
+
 def prepare_database():
     from app.db.session import engine, Base
     import app.db.models  # noqa: F401  (registers the tables)
@@ -52,6 +62,7 @@ def main(argv=None):
         sys.path.insert(0, HERE)
     os.makedirs("data", exist_ok=True)
     use_bundled_tesseract()
+    use_bundled_models()
     prepare_database()
 
     import uvicorn
