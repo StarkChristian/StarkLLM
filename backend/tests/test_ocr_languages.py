@@ -126,3 +126,14 @@ def test_the_languages_can_be_listed_chosen_and_downloaded(admin, folder, monkey
 def test_changing_the_languages_needs_the_administrator(folder):
     assert client.put("/api/v1/ocr/languages", json={"languages": ["eng"]}).status_code in (401, 403)
     assert client.post("/api/v1/ocr/languages/fra/install").status_code in (401, 403)
+
+
+def test_english_is_read_last_so_umlauts_survive():
+    """With "eng+deu" Tesseract read "Bescheid über" as "Bescheid Uber" (English is the main language then)."""
+    from app.services.ocr_service import tesseract_lang
+    assert tesseract_lang(["eng", "deu"]) == "deu+eng"
+    assert tesseract_lang(["eng", "fra", "deu"]) == "fra+deu+eng"
+    assert tesseract_lang(["deu", "tur"]) == "deu+tur"
+    assert tesseract_lang(["eng"]) == "eng"
+    assert tesseract_lang([]) == ""
+

@@ -70,6 +70,17 @@ def _tesseract():
     return pytesseract
 
 
+def tesseract_lang(languages: List[str]) -> str:
+    """The -l argument for Tesseract, with English last. Tesseract's first language is its main one, and the English
+    model has no umlauts or accents: with "eng+deu" a German letter's "über" came out as "Uber" (found by the OCR
+    self-test of the engine package, 2026-11-16, and reproduced with the Docker engine). With English last, German and
+    English samples both read exactly. The order the user chose is kept otherwise."""
+    langs = list(languages or [])
+    if len(langs) > 1 and "eng" in langs:
+        langs = [l for l in langs if l != "eng"] + ["eng"]
+    return "+".join(langs)
+
+
 class OcrService:
     def __init__(self, languages: Optional[str] = None):
         self._fixed = [l for l in (languages or "").split("+") if l]  # a fixed list (tests); else the user's choice
@@ -152,7 +163,7 @@ class OcrService:
 
     def _read(self, img: Image.Image) -> OcrResult:
         tess = _tesseract()
-        data = tess.image_to_data(img, lang="+".join(self.status()["languages"]), config=self._config("--psm 3"),
+        data = tess.image_to_data(img, lang=tesseract_lang(self.status()["languages"]), config=self._config("--psm 3"),
                                   output_type=tess.Output.DICT)
         lines, confidences = {}, []
         for i, word in enumerate(data["text"]):
