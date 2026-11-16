@@ -200,6 +200,17 @@ jobs:
           $code = $LASTEXITCODE
           Pop-Location
           if ($code -ne 0) { throw "the voice self-test failed ($code)" }
+          # one more OCR language the way Settings > Reading photos and scans adds it: one file downloaded into the
+          # user's data folder, read together with the bundled English and German (Windows without the right to make
+          # links gets copies of the bundled files), with the package's Tesseract
+          $ocr = "$env:RUNNER_TEMP\ocr-language-test"
+          New-Item -ItemType Directory -Force $ocr | Out-Null
+          Push-Location $ocr
+          & "$dir\runtime\python.exe" -c "from app.services import ocr_languages as o; from app.services.ocr_service import OcrService; o.install('fra'); o.save(['eng', 'deu', 'fra']); st = OcrService().status(); print(st); assert set(st['languages']) >= {'eng', 'deu', 'fra'}, st"
+          $code = $LASTEXITCODE
+          Pop-Location
+          if ($code -ne 0) { throw "a downloaded OCR language is not read ($code)" }
+          if (-not (Test-Path "$ocr\data\tessdata\deu.traineddata")) { throw 'the bundled German data is not next to the downloaded pack' }
 
       - name: Program files and their signatures (Smart App Control)
         shell: pwsh
