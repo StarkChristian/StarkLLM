@@ -1,0 +1,68 @@
+<svg class="lucy" data-state="idle" xmlns="http://www.w3.org/2000/svg" viewBox="90 -50 1080 1050" role="img" aria-labelledby="lucy-title">
+  <title id="lucy-title">Lucy, the StarkLLM robot</title>
+  <defs>
+    <linearGradient id="lucy-body-fill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4390d0"/>
+      <stop offset="0.55" stop-color="#3a84c4"/>
+      <stop offset="1" stop-color="#3178b6"/>
+    </linearGradient>
+    <linearGradient id="lucy-limb-fill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3f8ccc"/>
+      <stop offset="1" stop-color="#2f74b0"/>
+    </linearGradient>
+    <linearGradient id="lucy-shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/>
+      <stop offset="0.4" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="lucy-eye-fill" cx="0.4" cy="0.35" r="0.75">
+      <stop offset="0" stop-color="#3b3531"/>
+      <stop offset="1" stop-color="#1d1917"/>
+    </radialGradient>
+    <filter id="lucy-soft" x="-20%" y="-200%" width="140%" height="500%">
+      <feGaussianBlur stdDeviation="16"/>
+    </filter>
+  </defs>
+
+  <ellipse class="lucy-shadow" cx="640" cy="954" rx="350" ry="30" fill="#0b1b2b" opacity="0.28" filter="url(#lucy-soft)"/>
+
+  <g class="lucy-figure">
+    <g class="lucy-leg lucy-leg-l">
+      <rect x="502" y="780" width="70" height="130" rx="26" fill="url(#lucy-limb-fill)"/>
+      <g class="lucy-shoe lucy-shoe-l">
+        <rect x="486" y="890" width="102" height="50" rx="22" fill="#e2492c"/>
+        <rect x="482" y="918" width="110" height="30" rx="15" fill="#f6c313"/>
+        <rect x="476" y="942" width="122" height="16" rx="8" fill="#ffffff" stroke="#cfd6de" stroke-width="2"/>
+        <path d="M517 904h40M515 912h44M517 920h40" stroke="#ffffff" stroke-width="4" stroke-linecap="round" fill="none"/>
+      </g>
+    </g>
+    <g class="lucy-leg lucy-leg-r">
+      <rect x="685" y="780" width="72" height="130" rx="26" fill="url(#lucy-limb-fill)"/>
+      <g class="lucy-shoe lucy-shoe-r">
+        <rect x="670" y="890" width="102" height="50" rx="22" fill="#e2492c"/>
+        <rect x="666" y="918" width="110" height="30" rx="15" fill="#f6c313"/>
+        <rect x="660" y="942" width="122" height="16" rx="8" fill="#ffffff" stroke="#cfd6de" stroke-width="2"/>
+        <path d="M701 904h40M699 912h44M701 920h40" stroke="#ffffff" stroke-width="4" stroke-linecap="round" fill="none"/>
+      </g>
+    </g>
+
+    <g class="lucy-arm lucy-arm-l"><rect x="108" y="532" width="174" height="66" rx="28" fill="url(#lucy-limb-fill)"/></g>
+    <g class="lucy-arm lucy-arm-r"><rect x="986" y="532" width="164" height="68" rx="28" fill="url(#lucy-limb-fill)"/></g>
+
+    <g class="lucy-head-g">
+      <path class="lucy-hair lucy-hair-1" d="M508 262 C 508 170 486 110 448 62" fill="none" stroke="#f6b800" stroke-width="10" stroke-linecap="round"/>
+      <path class="lucy-hair lucy-hair-2" d="M633 262 C 633 170 640 90 660 30" fill="none" stroke="#f6b800" stroke-width="10" stroke-linecap="round"/>
+      <path class="lucy-hair lucy-hair-3" d="M757 262 C 757 190 770 130 808 80" fill="none" stroke="#f6b800" stroke-width="10" stroke-linecap="round"/>
+
+      <rect class="lucy-body" x="262" y="258" width="744" height="548" rx="52" fill="url(#lucy-body-fill)"/>
+      <rect x="262" y="258" width="744" height="548" rx="52" fill="url(#lucy-shine)"/>
+
+      <g class="lucy-eyes">
+        <circle cx="467" cy="481" r="75" fill="#1c4a78" opacity="0.28"/>
+        <circle cx="798" cy="481" r="75" fill="#1c4a78" opacity="0.28"/>
+        <ellipse class="lucy-eye" cx="467" cy="478" rx="68" ry="68" fill="url(#lucy-eye-fill)"/>
+        <ellipse class="lucy-eye" cx="798" cy="478" rx="68" ry="68" fill="url(#lucy-eye-fill)"/>
+      </g>
+      <path class="lucy-mouth" d="M551 628 C 575 690 690 692 716 622" fill="none" stroke="#d6363d" stroke-width="30" stroke-linecap="round"/>
+    </g>
+  </g>
+</svg>

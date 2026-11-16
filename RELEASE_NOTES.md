@@ -1,5 +1,128 @@
 # StarkLLM Release Notes
 
+## Version 2.1.2 — Signed by its publisher, protected data, deadlines, more languages
+
+2.1.0 and 2.1.1 were built and tested but not published; 2.1.2 is the first signed release and contains everything below.
+
+- **Signed installer and app.** StarkLLM is now signed with a code-signing certificate ("Open Source Developer Christian Stark", issued by Certum). Windows shows the publisher's name instead of "unknown publisher" and can tell who made every file. Updates are checked against this name: an update signed by anyone else is refused.
+- **Protection at rest (optional).** Settings → Protection encrypts your documents, chats, names and titles on disk, and can lock the search index too. An optional start-up passphrase with a recovery key; the passphrase is never stored.
+- **Encrypted backup.** A backup file you can keep anywhere, also in a cloud folder, tested by restoring it. Optional automatic weekly backup into a folder you choose, with several copies kept.
+- **Inbox: deadlines.** A new Deadlines tab lists every deadline, payment date and appointment found in your letters, with page and line, reminders and calendar export (.ics). Unclear dates are asked, not guessed.
+- **Inbox quality.** Logs, notes, spreadsheets, XML, JSON and CSV files and descriptions of photos are no longer treated as letters; warnings of the app are not copied into answers; no invented deadlines.
+- **Privacy you can check.** A list of every network connection the app makes, a "Fully offline" switch, and defences against malicious documents.
+- **International.** English first, German second; the app also speaks Spanish, French, Italian and Turkish, reads letters from other countries and recognises text in more languages.
+- **Lucy, the helper robot.** A short first-start guide and help on empty pages. Settings → Appearance switches her off.
+- **Updates wait one day.** The automatic update check offers a new version when it is at least 24 hours old. "Check for updates" in Settings → About offers it at once.
+- **Fixed before release.** "Fully offline" never downloads anything, also not a new engine after an update (before, the engine could be downloaded while the switch was on). "Fully offline" can be turned off again by the account that turned it on (before, only the administrator could, so other accounts stayed offline); the desktop app on this PC can always switch it. A year right before a currency ("October 2026 GBP 129.40") is no longer read as the amount. The automatic model choice no longer picks community copies whose safety training was removed ("abliterated", "uncensored"); you can still choose one yourself.
+- **Translations reviewed** in German, Spanish, French, Italian and Turkish.
+
+**From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install".
+
+Pull requests: #93, #94, #95, #97, #98, #99, #101, #102, #103, #104, #105, #106, #107, #108, #109, #110, #111, #112.
+
+---
+
+## Version 2.0.15 — Inbox: what is in every letter, cases per sender
+
+- **New: Inbox.** For every letter StarkLLM now reads its kind (bill, reminder, tax notice, contract, fine, debt collection, text message …), the sender, the date of the letter, reference numbers (customer, contract, tax number …), amounts, bank accounts and deadlines. Everything is found word for word on a page of the letter: click a value and the letter opens at that page with the line marked. Mark a letter done when you have dealt with it, or give it your own title. The number of new letters is shown next to "Inbox".
+- **Cases.** Letters of the same sender are put together, the case with the nearest deadline first. The same letter as a photo and as a PDF is marked, and so are a replaced letter and a possible scam.
+- **Updates without an admin prompt.** When Windows holds back a new version for a few hours (it checks new, unsigned programs first), StarkLLM no longer asks for administrator rights for an unknown program. It keeps running, says what happened and tries again when you quit it.
+- Nothing is renamed or moved on your disk; StarkLLM only suggests.
+
+**From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install".
+
+Pull requests: #89, #90.
+
+---
+
+## Version 2.0.14 — Your letters at a glance: deadlines, photos of letters, sources you can check
+
+- **Document home.** The start page shows your newest documents and the deadlines, appointments and payments found in them, with amount and the page they come from. "Add to calendar" saves them as a calendar file.
+- **Photos and scans of letters are read on this PC.** A photo or a scanned page is read as German or English text (OCR), turned upright if needed, and can be searched and cited like any other document. No extra model download.
+- **Sources you can check.** Click a source under an answer to see the passages it was based on, word for word, and open the document at that page.
+- **Warnings for fake letters.** If a letter asks for payment to a foreign account, by voucher or through a link, contains text addressed to AI assistants, or a sender suddenly names a different account, a red box above the answer says so. Answers also know today's date, use the corrected letter instead of the old one, and answer in your language.
+- **A plain first start.** StarkLLM creates "My documents" and opens the chat with suggestions for letters. No account screen, no technical terms.
+- **Documents window:** upload several files at once, see when a file is ready, open it. Escape closes the top window. The dashboard clock has one colour.
+- **Use StarkLLM from other programs (off by default).** Settings → Other apps turns on an MCP server and the OpenAI-compatible API, both only on this PC and only with a key. **If you used the `/v1` API before:** it now needs a key from that page.
+- **Safer app window.** Links open in your browser, never inside StarkLLM; the window grants only the microphone; the engine answers only requests addressed to this PC. The knowledge base says when your Documents folder is synced to OneDrive, Dropbox, Google Drive or iCloud.
+- **Installing Ollama for you** checks its signature without a command that security programs flag.
+- **The engine download is larger** (text recognition for German and English is included).
+
+**From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install".
+
+Pull requests: #57, #60, #62, #63, #64, #65, #66, #67, #72, #75, #77, #87.
+
+---
+
+## Version 2.0.13 — Safer answers, AI labels, update progress
+
+- **Answers cannot load images from other servers.** A hidden line in a document could make the AI write an image link that sends data to a stranger's server as soon as the answer is shown. Images in answers now load only from StarkLLM itself; any other image appears as a short note. The app page also has a strict Content Security Policy.
+- **AI-made content is labelled.** Every spoken answer carries a machine-readable "AI-generated" mark inside the audio file, Studio says above every result that it was made by AI on this PC, and saved Studio files say so too (EU AI Act, Art. 50).
+- **Warning for an old Ollama.** If the Ollama on your PC is older than 0.17.1, StarkLLM asks you to update it (security flaw "Bleeding Llama", CVE-2026-7482).
+- **Updates show their progress.** Settings → About shows "Update wird geladen: N %" instead of "Checking..." for the whole download.
+- **Studio headings in German** when the interface is German.
+- **Fixed:** the buttons on code blocks showed `{t('Copy')}` instead of "Copy".
+- **No more Portable version.** It unpacked itself to a temporary folder, which Windows Smart App Control and antivirus programs treat with suspicion, and it could not update itself. Please use the installer; your data stays in the same place.
+
+**From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install".
+
+Pull requests: #81, #82, #83, #84, #85.
+
+---
+
+## Version 2.0.12 — Studio reads your documents, the right model in Settings, light themes light everywhere
+
+- **Studio works with images and Word or Excel files.** The briefing, podcast, quiz and comparison read every file as plain text, so images and Office files reached the AI as unreadable bytes, and the briefing could say the data was corrupt. Studio now uses the text StarkLLM read when the file was added (including the text of images and scans), gives every document a fair share, writes in the language of the interface and does not invent dates.
+- **Settings → Model shows the model the chat uses.** It showed the first installed model, which could be an image model such as llava; saving the page would have switched the chat to it.
+- **Knowledge Base:** a closed folder no longer says "No documents yet" when it has documents.
+- **Light themes are light everywhere:** the message box, Settings, the documents window and its search box (typed text was white), buttons and cards follow the theme.
+- **Windows no longer show the chat through them:** the documents, memory and template windows are solid.
+- **More of the interface in German:** the About page, Studio, Knowledge Base and dates such as "Heute" and "vor 2 Tagen".
+
+**From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install".
+
+Pull request: #79.
+
+---
+
+## Version 2.0.11 — No more crashes in toasts and themes, long letters read in full, five new themes
+
+- **Fixed crashes.** In 2.0.10 some messages (toasts), the prompt templates and the theme list in Settings could stop the window with an error. Fixed, and a check now stops this kind of mistake before a release.
+- **Long letters are read in full.** Questions about long documents were cut off before they reached the AI model, without any message, so answers could miss what was at the end. StarkLLM now asks Ollama for a context window that holds the whole question.
+- **A clear message when Ollama is not running.** A document no longer stays at "embedding" for hours; it fails at once and says that Ollama cannot be reached.
+- **Search works offline.** The model that sorts search results is now part of the engine and is no longer downloaded from the internet on first use.
+- **The right "today".** The engine uses the time zone of your PC, so dates near midnight are correct.
+- **Five new themes with patterns:** Doodle Chat, Doodle Night, Flower Meadow, Matrix Code and Starry Night (Settings → Appearance). Light themes are now light everywhere, including the sidebar and cards.
+- **A list of all components (SBOM)** is attached to every release from now on.
+
+**From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install".
+
+Pull requests: #71, #73, #74, #76.
+
+---
+
+## Version 2.0.10 — The installer no longer stops at the start, German interface
+
+- **The installer no longer stops at the start.** About one first installation in five ended after two seconds without a message and without installing anything: the installer crashed (exit code -1073741819) while reading the per-user Programs folder. The fix comes with electron-builder 26.18.1; 20 first installations on fresh Windows machines ran without a fault (before: 2 crashes in 10).
+- **StarkLLM speaks German.** The whole interface is available in German: Settings → Language. Without a choice, StarkLLM follows the language of Windows. Answers of the AI follow the language of your question.
+
+Pull requests: #55, #68.
+
+---
+
+## Version 2.0.9 — Updates that do not stop, honest prices, safer engine updates
+
+- **Updates no longer stop at "The old application files could not be uninstalled".** On Windows 11 with Smart App Control, the update from 2.0.7 to 2.0.8 stopped there and StarkLLM stayed on the old version. The installer now closes StarkLLM itself and installs over the old files when the old version's uninstaller fails. Your chats and documents are not touched.
+- **Back to the previous engine if a new one does not start.** Before an engine update StarkLLM keeps the running engine. If the new engine does not start or does not answer within three minutes, StarkLLM starts the previous one again and says so. It tries the new engine again a day later, or at once with Retry.
+- **Market prices are real or not shown.** Before the first update, and whenever CoinGecko or Yahoo Finance did not answer, the dashboard showed built-in example prices from 2024 with small random changes. It now shows only real prices: the last loaded price with its time, or "not available".
+- **One date and number format.** Dates and numbers followed the Windows language and mixed with the English interface ("Montag, 9. November 2026", "$74.114"); they now match the interface.
+- **Dashboard:** the header is no longer cut off, the three widgets have the same height, and the system status shows the full model name.
+- **winget:** `packaging/winget` holds the manifest for `winget install StarkChristian.StarkLLM` (not yet published in the winget catalogue).
+
+Pull requests: #47, #48, #49, #50.
+
+---
+
 ## Version 2.0.8 — Install Ollama from inside the app, real download progress
 
 - **Ollama is installed for you.** If Ollama is missing, the start window offers "Install Ollama for me". StarkLLM downloads the official installer from ollama.com, runs it only if Windows confirms a valid signature by Ollama Inc., and installs it for the current user without further questions. Then it starts as usual.

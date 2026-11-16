@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { TrendingUp, TrendingDown, RefreshCw, Layers, Settings2, X, Check } from 'lucide-react';
 import styles from './MarketPricesWidget.module.css';
+import { UI_LOCALE, formatUsd } from '../utils/locale';
+import { t } from '../i18n';
 
 // ─── All Available Assets ───────────────────────────────────────────────────
 const ALL_ASSETS = {
@@ -8,9 +10,7 @@ const ALL_ASSETS = {
     id: 'btc',
     name: 'Bitcoin',
     symbol: 'BTC',
-    category: 'Crypto',
-    defaultPrice: 64850.00,
-    defaultChange: 1.45,
+    category: t('Crypto'),
     decimals: 0,
     fetchType: 'coingecko',
     coingeckoId: 'bitcoin',
@@ -19,42 +19,34 @@ const ALL_ASSETS = {
     id: 'eth',
     name: 'Ethereum',
     symbol: 'ETH',
-    category: 'Crypto',
-    defaultPrice: 3480.00,
-    defaultChange: 2.10,
+    category: t('Crypto'),
     decimals: 2,
     fetchType: 'coingecko',
     coingeckoId: 'ethereum',
   },
   gold: {
     id: 'gold',
-    name: 'Gold Spot',
+    name: t('Gold Spot'),
     symbol: 'XAU',
-    category: 'Commodity',
-    defaultPrice: 2422.80,
-    defaultChange: 0.32,
+    category: t('Commodity'),
     decimals: 2,
     fetchType: 'yahoo',
     yahooSymbol: 'GC=F',
   },
   silver: {
     id: 'silver',
-    name: 'Silver Spot',
+    name: t('Silver Spot'),
     symbol: 'XAG',
-    category: 'Commodity',
-    defaultPrice: 29.45,
-    defaultChange: 0.55,
+    category: t('Commodity'),
     decimals: 2,
     fetchType: 'yahoo',
     yahooSymbol: 'SI=F',
   },
   brent: {
     id: 'brent',
-    name: 'Brent Crude',
+    name: t('Brent Crude'),
     symbol: 'OIL',
-    category: 'Commodity',
-    defaultPrice: 82.45,
-    defaultChange: -0.85,
+    category: t('Commodity'),
     decimals: 2,
     fetchType: 'yahoo',
     yahooSymbol: 'BZ=F',
@@ -63,9 +55,7 @@ const ALL_ASSETS = {
     id: 'eur',
     name: 'EUR / USD',
     symbol: 'EUR',
-    category: 'Forex',
-    defaultPrice: 1.0845,
-    defaultChange: 0.12,
+    category: t('Forex'),
     decimals: 4,
     fetchType: 'yahoo',
     yahooSymbol: 'EURUSD=X',
@@ -74,9 +64,7 @@ const ALL_ASSETS = {
     id: 'spx',
     name: 'S&P 500',
     symbol: 'SPX',
-    category: 'Index',
-    defaultPrice: 5460.00,
-    defaultChange: 0.63,
+    category: t('Index'),
     decimals: 2,
     fetchType: 'yahoo',
     yahooSymbol: '^GSPC',
@@ -86,6 +74,19 @@ const ALL_ASSETS = {
 const DEFAULT_SELECTED = ['btc', 'gold', 'brent'];
 const CONSENT_KEY = 'starkllm_market_prices_consent';
 const LS_KEY = 'starkllm_market_assets';
+// Last real prices with the time they were fetched, shown at start and when a fetch fails (never invented prices).
+const LAST_KEY = 'starkllm_market_last';
+
+function loadLast() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LAST_KEY) || '{}');
+    return saved && typeof saved === 'object' ? saved : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+const fmtTime = (ms) => new Date(ms).toLocaleTimeString(UI_LOCALE, { hour: '2-digit', minute: '2-digit' });
 
 function loadSelected() {
   try {
@@ -102,10 +103,13 @@ function loadSelected() {
 
 export default function MarketPricesWidget({ token }) {
   const [selectedIds, setSelectedIds] = useState(loadSelected);
-  const [prices, setPrices] = useState({});
+  const [prices, setPrices] = useState(loadLast);
   const [loading, setLoading] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(new Date());
-  const [isSimulated, setIsSimulated] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(() => {
+    const times = Object.values(loadLast()).map((v) => v && v.at).filter(Boolean);
+    return times.length ? new Date(Math.max(...times)) : null;
+  });
+  const [failed, setFailed] = useState([]);
   const [showConfig, setShowConfig] = useState(false);
   const configRef = useRef(null);
   // StarkLLM is local-first: this widget talks to CoinGecko (directly) and Yahoo Finance (via the backend),
@@ -116,7 +120,7 @@ export default function MarketPricesWidget({ token }) {
   const setLiveConsent = (on) => {
     try { localStorage.setItem(CONSENT_KEY, on ? 'yes' : 'no'); } catch (_) { /* private mode */ }
     setConsent(on);
-    if (!on) { setPrices({}); setIsSimulated(false); setShowConfig(false); }
+    if (!on) { setFailed([]); setShowConfig(false); }
   };
 
   // Close config panel when clicking outside
@@ -148,94 +152,53 @@ export default function MarketPricesWidget({ token }) {
   // Batch-fetch CoinGecko for all selected crypto
   const fetchCoingeckoBatch = async (ids) => {
     const joined = ids.join(',');
-    const res = await fetch(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${joined}&vs_currencies=usd&include_24hr_change=true`
-    );
+    // through the engine, like the Yahoo prices: the request is recorded in Settings > Privacy & network and is refused
+    // while StarkLLM is fully offline (the browser used to ask CoinGecko directly)
+    const res = await fetch(`/api/v1/dashboard/crypto-prices?consent=1&ids=${encodeURIComponent(joined)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
     if (!res.ok) return null;
     return res.json();
   };
 
   const fetchPrices = async () => {
     setLoading(true);
-    let anyFailed = false;
-    const newPrices = {};
+    const fresh = {};
+    const assets = selectedIds.map((id) => ALL_ASSETS[id]);
+    const cryptoAssets = assets.filter((a) => a.fetchType === 'coingecko');
+    const yahooAssets = assets.filter((a) => a.fetchType === 'yahoo');
 
-    // Gather crypto vs commodity assets
-    const cryptoAssets = selectedIds
-      .map((id) => ALL_ASSETS[id])
-      .filter((a) => a.fetchType === 'coingecko');
-    const yahooAssets = selectedIds
-      .map((id) => ALL_ASSETS[id])
-      .filter((a) => a.fetchType === 'yahoo');
-
-    // Fetch all crypto in one batch
+    // All crypto in one request
     if (cryptoAssets.length > 0) {
       try {
-        const geckoIds = cryptoAssets.map((a) => a.coingeckoId);
-        const geckoData = await fetchCoingeckoBatch(geckoIds);
+        const geckoData = await fetchCoingeckoBatch(cryptoAssets.map((a) => a.coingeckoId));
         cryptoAssets.forEach((a) => {
           const d = geckoData?.[a.coingeckoId];
-          if (d) {
-            newPrices[a.id] = {
-              ...a,
-              price: d.usd,
-              change: d.usd_24h_change || 0,
-            };
-          } else {
-            anyFailed = true;
-            newPrices[a.id] = { ...a, price: a.defaultPrice, change: a.defaultChange };
-          }
+          if (d && typeof d.usd === 'number') fresh[a.id] = { price: d.usd, change: d.usd_24h_change || 0 };
         });
-      } catch (_) {
-        anyFailed = true;
-        cryptoAssets.forEach((a) => {
-          newPrices[a.id] = { ...a, price: a.defaultPrice, change: a.defaultChange };
-        });
-      }
+      } catch (_) { /* shown as not available below */ }
     }
 
-    // Fetch Yahoo assets sequentially (free tier rate limit)
+    // Yahoo one by one (rate limit of the free API)
     for (const a of yahooAssets) {
       try {
         const q = await fetchYahooQuote(a.yahooSymbol);
-        if (q && q.price) {
-          newPrices[a.id] = {
-            ...a,
-            price: parseFloat(q.price.toFixed(a.decimals)),
-            change: parseFloat(q.change.toFixed(2)),
-          };
-        } else {
-          anyFailed = true;
-          newPrices[a.id] = { ...a, price: a.defaultPrice, change: a.defaultChange };
-        }
-      } catch (_) {
-        anyFailed = true;
-        newPrices[a.id] = { ...a, price: a.defaultPrice, change: a.defaultChange };
-      }
+        if (q && q.price) fresh[a.id] = { price: q.price, change: q.change };
+      } catch (_) { /* shown as not available below */ }
     }
 
-    if (anyFailed) {
-      setIsSimulated(true);
-      // Apply micro-fluctuations to any assets that fell back to defaults
+    const now = Date.now();
+    const loaded = Object.keys(fresh);
+    setFailed(selectedIds.filter((id) => !fresh[id]));
+    if (loaded.length > 0) {
       setPrices((prev) => {
-        const next = { ...newPrices };
-        Object.keys(next).forEach((id) => {
-          if (!prev[id]) return;
-          const pct = (Math.random() - 0.5) * 0.0006;
-          next[id] = {
-            ...next[id],
-            price: parseFloat((prev[id].price * (1 + pct)).toFixed(next[id].decimals)),
-            change: parseFloat((prev[id].change + pct * 100).toFixed(2)),
-          };
-        });
+        const next = { ...prev };
+        loaded.forEach((id) => { next[id] = { ...fresh[id], at: now }; });
+        try { localStorage.setItem(LAST_KEY, JSON.stringify(next)); } catch (_) { /* private mode */ }
         return next;
       });
-    } else {
-      setIsSimulated(false);
-      setPrices(newPrices);
+      setLastUpdated(new Date(now));
     }
-
-    setLastUpdated(new Date());
     setLoading(false);
   };
 
@@ -271,14 +234,13 @@ export default function MarketPricesWidget({ token }) {
         <div className={styles.header}>
           <div className={styles.titleWrap}>
             <Layers className={styles.headerIcon} size={16} />
-            <h3 className={styles.title}>Live Market Indicators</h3>
+            <h3 className={styles.title}>{t('Live Market Indicators')}</h3>
           </div>
         </div>
         <p style={{ margin: '0.8rem 0', fontSize: '0.85rem', opacity: 0.8, lineHeight: 1.5 }}>
-          Off by default: StarkLLM keeps your data on this PC. Turning this on contacts CoinGecko and Yahoo Finance
-          from now on to fetch prices (they can see that your IP address uses StarkLLM).
+          {t('Off by default: StarkLLM keeps your data on this PC. Turning this on contacts CoinGecko and Yahoo Finance from now on to fetch prices (they can see that your IP address uses StarkLLM).')}
         </p>
-        <button className={styles.chip} onClick={() => setLiveConsent(true)}>Turn on live prices</button>
+        <button className={styles.chip} onClick={() => setLiveConsent(true)}>{t('Turn on live prices')}</button>
       </div>
     );
   }
@@ -289,13 +251,13 @@ export default function MarketPricesWidget({ token }) {
       <div className={styles.header}>
         <div className={styles.titleWrap}>
           <Layers className={styles.headerIcon} size={16} />
-          <h3 className={styles.title}>Live Market Indicators</h3>
+          <h3 className={styles.title}>{t('Live Market Indicators')}</h3>
         </div>
         <div className={styles.headerActions}>
           <button
             className={`${styles.iconBtn} ${showConfig ? styles.iconBtnActive : ''}`}
             onClick={() => setShowConfig((v) => !v)}
-            title="Configure assets"
+            title={t('Configure assets')}
           >
             <Settings2 size={14} />
           </button>
@@ -303,7 +265,7 @@ export default function MarketPricesWidget({ token }) {
             className={`${styles.iconBtn} ${loading ? styles.loading : ''}`}
             onClick={fetchPrices}
             disabled={loading}
-            title="Refresh"
+            title={t('Refresh')}
           >
             <RefreshCw size={14} />
           </button>
@@ -314,9 +276,9 @@ export default function MarketPricesWidget({ token }) {
       {showConfig && (
         <div className={styles.configPanel} ref={configRef}>
           <div className={styles.configHeader}>
-            <span className={styles.configTitle}>Select Assets</span>
+            <span className={styles.configTitle}>{t('Select Assets')}</span>
             <span className={styles.configHint}>{selectedIds.length}/6 selected</span>
-            <button className={styles.chip} onClick={() => setLiveConsent(false)} title="Stop contacting CoinGecko and Yahoo Finance">Turn off live prices</button>
+            <button className={styles.chip} onClick={() => setLiveConsent(false)} title={t('Stop contacting CoinGecko and Yahoo Finance')}>{t('Turn off live prices')}</button>
           </div>
           {categories.map((cat) => (
             <div key={cat} className={styles.configGroup}>
@@ -347,11 +309,26 @@ export default function MarketPricesWidget({ token }) {
       {/* Price List */}
       <div className={styles.priceList}>
         {selectedIds.map((id) => {
-          const asset = prices[id] || { ...ALL_ASSETS[id], price: ALL_ASSETS[id].defaultPrice, change: ALL_ASSETS[id].defaultChange };
-          const isUp = asset.change >= 0;
-          const fmtPrice = asset.symbol === 'EUR'
-            ? asset.price.toFixed(4)
-            : asset.price.toLocaleString([], { minimumFractionDigits: asset.decimals, maximumFractionDigits: asset.decimals });
+          const asset = ALL_ASSETS[id];
+          const p = prices[id];
+          // older than two refreshes, or the last fetch failed: show its time instead of the change
+          const stale = p && (failed.includes(id) || Date.now() - p.at > 2 * 60 * 1000);
+          if (!p) {
+            return (
+              <div key={id} className={styles.priceItem}>
+                <div className={styles.assetMeta}>
+                  <span className={styles.assetName}>{asset.name}</span>
+                  <span className={styles.assetSymbol}>{asset.symbol}</span>
+                </div>
+                <div className={styles.assetValuation}>
+                  <span className={styles.price}>—</span>
+                  <span className={styles.assetSymbol}>{loading ? t('loading…') : t('not available')}</span>
+                </div>
+              </div>
+            );
+          }
+          const isUp = p.change >= 0;
+          const fmtPrice = p.price.toLocaleString(UI_LOCALE, { minimumFractionDigits: asset.decimals, maximumFractionDigits: asset.decimals });
           return (
             <div key={id} className={styles.priceItem}>
               <div className={styles.assetMeta}>
@@ -359,11 +336,15 @@ export default function MarketPricesWidget({ token }) {
                 <span className={styles.assetSymbol}>{asset.symbol}</span>
               </div>
               <div className={styles.assetValuation}>
-                <span className={styles.price}>${fmtPrice}</span>
-                <span className={`${styles.change} ${isUp ? styles.up : styles.down}`}>
-                  {isUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                  {isUp ? '+' : ''}{asset.change.toFixed(2)}%
-                </span>
+                <span className={styles.price}>{asset.symbol === 'EUR' ? fmtPrice : formatUsd(p.price, asset.decimals)}</span>
+                {stale ? (
+                  <span className={styles.assetSymbol} title={t('The last fetch failed; this is the last price that was loaded')}>{t('as of {time}', { time: fmtTime(p.at) })}</span>
+                ) : (
+                  <span className={`${styles.change} ${isUp ? styles.up : styles.down}`}>
+                    {isUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                    {isUp ? '+' : ''}{p.change.toFixed(2)}%
+                  </span>
+                )}
               </div>
             </div>
           );
@@ -372,10 +353,10 @@ export default function MarketPricesWidget({ token }) {
 
       {/* Footer */}
       <div className={styles.footer}>
-        <span>Updated: {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-        {isSimulated && (
-          <span className={styles.simLabel} title="Simulating real-time updates due to API limits">
-            Live Tracker
+        <span>{lastUpdated ? t('Updated: {time}', { time: lastUpdated.toLocaleTimeString(UI_LOCALE, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }) : loading ? t('Loading prices…') : t('Not updated yet')}</span>
+        {failed.length > 0 && !loading && (
+          <span className={styles.simLabel} title={t('CoinGecko or Yahoo Finance did not answer; it is tried again every 40 seconds')}>
+            {failed.length === selectedIds.length ? t('Prices not available') : t('Some prices not available')}
           </span>
         )}
       </div>

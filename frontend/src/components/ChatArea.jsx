@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import styles from './ChatArea.module.css';
 import { 
   User, Bot, Volume2, Square, Database, Copy, Check, Globe, RefreshCw, 
-  Edit2, Download, FileText, AlertTriangle, Sparkles, Code, BookOpen,
+  Edit2, Download, FileText, AlertTriangle, Sparkles, Code, BookOpen, Upload, CalendarClock,
   ThumbsUp, ThumbsDown, Zap, Cloud
 } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
@@ -11,32 +11,44 @@ import 'highlight.js/styles/github-dark.css';
 import { useToast } from './Toast';
 import ToolCallCard from './ToolCallCard';
 import { serverDate } from '../utils/time';
-import { citedSources } from '../utils/sources';
+import { citedSources, readableSource } from '../utils/sources';
+import SourcesModal from './SourcesModal';
+import DocumentViewerModal from './DocumentViewerModal';
+import DocumentWarnings from './DocumentWarnings';
+import { UI_LOCALE } from '../utils/locale';
+import { t, language } from '../i18n';
+import { pickVoice } from '../utils/speech';
+import { UPLOAD_ACCEPT } from '../utils/uploadTypes';
+import { blockRemoteImages, escapeHtml } from '../utils/markdown';
 
+// The start page of a chat: what StarkLLM is for. The first card opens the file picker, the others ask about the
+// documents of this workspace.
 const STARTER_PROMPTS = [
   {
-    icon: Sparkles,
-    title: "Deep Tech Explainer",
-    desc: "Explain Homomorphic Encryption & ZK Proofs simply",
-    prompt: "Can you explain how Homomorphic Encryption and Zero-Knowledge Proofs work together to preserve privacy in modern AI, in simple terms?"
-  },
-  {
-    icon: Code,
-    title: "Code Architecture & Review",
-    desc: "Analyze code for performance bottlenecks & security",
-    prompt: "Act as a principal software architect. Review my codebase architecture and suggest optimizations for concurrency and memory usage."
-  },
-  {
-    icon: BookOpen,
-    title: "Workspace Knowledge Query",
-    desc: "Synthesize insights and answers from indexed documents",
-    prompt: "Based on my indexed workspace documents and knowledge base, what are the primary takeaways and key insights?"
+    icon: Upload,
+    title: t('Add a letter or document'),
+    desc: t('A photo, a scan or a file: StarkLLM reads it on this PC'),
+    upload: true
   },
   {
     icon: FileText,
-    title: "Executive Strategic Briefing",
-    desc: "Draft a concise summary on local open-source AI",
-    prompt: "Draft an executive briefing summarizing recent advancements in open-weight models, local inference speed, and private enterprise AI."
+    title: t('What does this letter want from me?'),
+    desc: t('Sender, request and deadline, in simple words'),
+    prompt: t('Explain my newest document in simple words: who sent it, what it wants from me, and by when. Name the page you read it on.'),
+    // with the newest file's name, so the model does not have to guess which document is meant
+    promptFor: (name) => t('Explain the document "{name}" in simple words: who sent it, what it wants from me, and by when.', { name })
+  },
+  {
+    icon: CalendarClock,
+    title: t('My deadlines and payments'),
+    desc: t('Every date and amount in my documents'),
+    prompt: t('List every deadline, due date and payment in my documents, sorted by date, with the amount and the document it comes from.')
+  },
+  {
+    icon: BookOpen,
+    title: t('Overview of my documents'),
+    desc: t('What each document is about, by sender'),
+    prompt: t('Give me a short overview of my documents: what each one is about, grouped by sender.')
   }
 ];
 
@@ -61,63 +73,27 @@ const md = new MarkdownIt({
 
     const encoded = encodeURIComponent(str);
     const isRunnable = ['python', 'py', 'python3'].includes((validLang || '').toLowerCase());
-    const runBtn = isRunnable ? `<button class="run-code-btn" data-lang="${validLang}" data-code="${encoded}" title="Run code in local Python sandbox"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>Run</span></button>` : '';
+    const runBtn = isRunnable ? `<button class="run-code-btn" data-lang="${validLang}" data-code="${encoded}" title="${escapeHtml(t('Run code in local Python sandbox'))}"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>${escapeHtml(t('Run'))}</span></button>` : '';
 
-    return `<div class="code-block-wrapper"><div class="code-block-header"><span class="code-block-lang">${displayLang}</span><div class="code-block-actions">${runBtn}<button class="copy-code-btn" data-code="${encoded}" title="Copy code"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span>Copy</span></button></div></div><pre><code class="hljs ${validLang}">${highlightedCode}</code></pre></div>`;
+    return `<div class="code-block-wrapper"><div class="code-block-header"><span class="code-block-lang">${displayLang}</span><div class="code-block-actions">${runBtn}<button class="copy-code-btn" data-code="${encoded}" title="${escapeHtml(t('Copy code'))}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span>${escapeHtml(t('Copy'))}</span></button></div></div><pre><code class="hljs ${validLang}">${highlightedCode}</code></pre></div>`;
   }
 });
 // Only real links: with fuzzy links on, a file name like 'card.md' became http://card.md (a Moldovan domain).
 md.linkify.set({ fuzzyLink: false, fuzzyEmail: false });
+blockRemoteImages(md);
 
 
-// ---------------------------------------------------------------------------
-// Robust language detector — no external library needed.
-// ---------------------------------------------------------------------------
-
-const GERMAN_WORDS = [
-  'ich', 'du', 'er', 'sie', 'es', 'wir', 'ihr',
-  'mein', 'dein', 'sein', 'unser',
-  'der', 'die', 'das', 'den', 'dem', 'des',
-  'ein', 'eine', 'einen', 'einem', 'einer', 'eines',
-  'ist', 'sind', 'war', 'waren', 'wird', 'werden', 'wurde', 'wurden',
-  'haben', 'hat', 'hatte', 'kann', 'können', 'muss', 'müssen', 'soll', 'sollen',
-  'und', 'nicht', 'oder', 'aber', 'auch', 'wenn', 'dann', 'dass', 'weil',
-  'mit', 'von', 'zu', 'auf', 'bei', 'nach', 'seit', 'für',
-  'hier', 'dort', 'bitte', 'danke', 'dank', 'vielen', 'ja', 'nein', 'doch', 'hallo',
-  'heute', 'immer', 'jetzt', 'schon', 'sehr', 'wie', 'was', 'wer', 'wo', 'warum'
-];
-
-const ENGLISH_WORDS = [
-  'the', 'of', 'to', 'and', 'a', 'in', 'is', 'it', 'you', 'that',
-  'he', 'was', 'for', 'on', 'are', 'as', 'with', 'his', 'they', 'i',
-  'at', 'be', 'this', 'have', 'from', 'or', 'one', 'had', 'by', 'word',
-  'but', 'not', 'what', 'all', 'were', 'we', 'when', 'your', 'can',
-  'said', 'there', 'use', 'an', 'each', 'which', 'she', 'do', 'how',
-  'their', 'if', 'would', 'about', 'who', 'get', 'go', 'me', 'my', 'them',
-  'your', 'youre', 'theyre', 'please', 'thanks'
-];
-
-const GERMAN_UMLAUT_RE = /[äöüÄÖÜß]/;
-
-function detectVoice(text) {
-  if (GERMAN_UMLAUT_RE.test(text)) return 'de_DE-thorsten-medium';
-
-  const tokens = text.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(Boolean);
-  if (tokens.length === 0) return 'en_US-lessac-medium';
-
-  let deScore = 0;
-  let enScore = 0;
-
-  for (const token of tokens) {
-    if (GERMAN_WORDS.includes(token)) deScore++;
-    if (ENGLISH_WORDS.includes(token)) enScore++;
+// Which voice speaks a message: the installed voice for the language of the text (utils/speech.js), the default
+// voice otherwise. The list of voices is asked once.
+let voiceList = null;
+async function voicesFor(token) {
+  if (!voiceList) {
+    try {
+      const res = await fetch('/api/v1/voice/voices', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      voiceList = res.ok ? (await res.json()).voices : [];
+    } catch (_) { voiceList = []; }
   }
-
-  if (enScore >= deScore) return 'en_US-lessac-medium';
-  if (deScore === 0) return 'en_US-lessac-medium';
-
-  const ratio = deScore / tokens.length;
-  return ratio >= 0.20 ? 'de_DE-thorsten-medium' : 'en_US-lessac-medium';
+  return voiceList;
 }
 
 function isRTL(text) {
@@ -244,8 +220,8 @@ const ChatMessageRenderer = React.memo(({
                 rows={Math.min(10, editText.split('\n').length + 1)}
               />
               <div className={styles.editActions}>
-                <button className={styles.editCancelBtn} onClick={handleCancelEdit}>Cancel</button>
-                <button className={styles.editSaveBtn} onClick={() => handleSaveEdit(i)}>Save & Submit</button>
+                <button className={styles.editCancelBtn} onClick={handleCancelEdit}>{t('Cancel')}</button>
+                <button className={styles.editSaveBtn} onClick={() => handleSaveEdit(i)}>{t('Save & Submit')}</button>
               </div>
             </div>
           ) : msg.role === 'assistant' && msg.content === '' ? (
@@ -256,6 +232,9 @@ const ChatMessageRenderer = React.memo(({
             </div>
           ) : (
             <>
+              {msg.role === 'assistant' && msg.warnings && msg.warnings.length > 0 && (
+                <DocumentWarnings warnings={msg.warnings} />
+              )}
               {contentSegments ? (
                 contentSegments.map((seg, sIdx) => {
                   if (seg.type === 'tool_call') {
@@ -282,32 +261,32 @@ const ChatMessageRenderer = React.memo(({
               {msg.role === 'assistant' && ((shown.ws && shown.ws.length > 0) || (shown.kb && shown.kb.length > 0) || (msg.webSources && msg.webSources.length > 0) || msg.cloudHost) && (
                 <div className={styles.sourcesContainer}>
                   {msg.cloudHost && (
-                    <div className={styles.sourceGroup} title="This answer was generated by a cloud model provider, not on this PC">
+                    <div className={styles.sourceGroup} title={t('This answer was generated by a cloud model provider, not on this PC')}>
                       <Cloud size={11} className={styles.sourceIcon} />
-                      <span>Answered by {msg.cloudHost} (cloud)</span>
+                      <span>{t('Answered by {host} (cloud)', { host: msg.cloudHost })}</span>
                     </div>
                   )}
                   {shown.ws && shown.ws.length > 0 && (
-                    <div 
-                      className={styles.sourceGroup} 
-                      title="Retrieved from Workspace Documents — click to inspect citations"
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => onInspectSources && onInspectSources('Workspace Documents', shown.ws)}
+                    <button
+                      type="button"
+                      className={styles.sourceGroup}
+                      title={t('Show the passages this answer is based on')}
+                      onClick={() => onInspectSources && onInspectSources(msg, shown.ws)}
                     >
                       <Database size={11} className={styles.sourceIcon} />
-                      <span>Workspace: {shown.ws.join(', ')}</span>
-                    </div>
+                      <span>{t('Documents')}: {shown.ws.map((l) => readableSource(l)).join(' | ')}</span>
+                    </button>
                   )}
                   {shown.kb && shown.kb.length > 0 && (
-                    <div 
-                      className={styles.sourceGroup} 
-                      title="Retrieved from Personal Knowledge Base — click to inspect citations"
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => onInspectSources && onInspectSources('Personal Knowledge Base', shown.kb)}
+                    <button
+                      type="button"
+                      className={styles.sourceGroup}
+                      title={t('Show the passages this answer is based on')}
+                      onClick={() => onInspectSources && onInspectSources(msg, shown.kb)}
                     >
                       <Database size={11} className={styles.sourceIcon} />
-                      <span>Personal KB: {shown.kb.join(', ')}</span>
-                    </div>
+                      <span>{t('Knowledge base')}: {shown.kb.map((l) => readableSource(l)).join(' | ')}</span>
+                    </button>
                   )}
                   {msg.webSources && msg.webSources.length > 0 && (
                     msg.webSources.map((src, si) => {
@@ -353,7 +332,7 @@ const ChatMessageRenderer = React.memo(({
                 className={styles.chatRetryBtn} 
                 onClick={() => onRetryMessage(msg.failedText)}
               >
-                <RefreshCw size={12} /> Retry
+                <RefreshCw size={12} /> {t('Retry')}
               </button>
             )}
           </div>
@@ -364,7 +343,7 @@ const ChatMessageRenderer = React.memo(({
               <button 
                 className={`${styles.actionBtn} ${copiedIndex === i ? styles.success : ''}`}
                 onClick={() => handleCopy(msg.content, i)}
-                title="Copy to clipboard"
+                title={t('Copy to clipboard')}
               >
                 {copiedIndex === i ? <Check size={14} /> : <Copy size={14} />}
               </button>
@@ -373,7 +352,7 @@ const ChatMessageRenderer = React.memo(({
                 <button 
                   className={styles.actionBtn} 
                   onClick={() => handleStartEdit(i, msg.content)}
-                  title="Edit message"
+                  title={t('Edit message')}
                 >
                   <Edit2 size={14} />
                 </button>
@@ -383,7 +362,7 @@ const ChatMessageRenderer = React.memo(({
                 <button 
                   className={styles.actionBtn} 
                   onClick={() => onRegenerate(i)}
-                  title="Regenerate response"
+                  title={t('Regenerate response')}
                 >
                   <RefreshCw size={14} />
                 </button>
@@ -394,7 +373,7 @@ const ChatMessageRenderer = React.memo(({
                   <button
                     className={`${styles.actionBtn} ${localFeedback === 'positive' ? styles.feedbackActive : ''}`}
                     onClick={() => handleFeedback('positive')}
-                    title="Good response"
+                    title={t('Good response')}
                     style={localFeedback === 'positive' ? { color: 'var(--success)', background: 'rgba(16,185,129,0.12)' } : {}}
                   >
                     <ThumbsUp size={14} />
@@ -402,7 +381,7 @@ const ChatMessageRenderer = React.memo(({
                   <button
                     className={`${styles.actionBtn} ${localFeedback === 'negative' ? styles.feedbackActive : ''}`}
                     onClick={() => handleFeedback('negative')}
-                    title="Bad response"
+                    title={t('Bad response')}
                     style={localFeedback === 'negative' ? { color: 'var(--danger)', background: 'rgba(239,68,68,0.12)' } : {}}
                   >
                     <ThumbsDown size={14} />
@@ -414,7 +393,7 @@ const ChatMessageRenderer = React.memo(({
                 <button 
                   className={`${styles.actionBtn} ${playingIndex === i ? styles.playing : ''}`} 
                   onClick={() => playAudio(msg.content, i)}
-                  title={playingIndex === i ? "Stop audio" : "Play audio"}
+                  title={playingIndex === i ? t('Stop audio') : t('Play audio')}
                 >
                   {playingIndex === i ? <Square size={14} fill="currentColor" /> : <Volume2 size={14} />}
                 </button>
@@ -426,7 +405,7 @@ const ChatMessageRenderer = React.memo(({
         <div className={styles.metaRow}>
           {msg.timestamp && (
             <span className={styles.timestamp}>
-              {serverDate(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {serverDate(msg.timestamp).toLocaleTimeString(UI_LOCALE, { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
           {msg.speedStats && msg.role === 'assistant' && (
@@ -441,8 +420,8 @@ const ChatMessageRenderer = React.memo(({
             const wordCount = msg.content.trim().split(/\s+/).filter(Boolean).length;
             if (wordCount < 80) return null;
             return (
-              <span className={styles.speedBadge} title={`${wordCount} words`} style={{ background: 'rgba(99,102,241,0.08)', borderColor: 'rgba(99,102,241,0.2)', color: 'var(--accent-bright)' }}>
-                {wordCount.toLocaleString()} words
+              <span className={styles.speedBadge} style={{ background: 'rgba(99,102,241,0.08)', borderColor: 'rgba(99,102,241,0.2)', color: 'var(--accent-bright)' }}>
+                {t('{count} words', { count: wordCount.toLocaleString(UI_LOCALE) })}
               </span>
             );
           })()}
@@ -461,9 +440,13 @@ export default function ChatArea({
   onRetryMessage,
   onSelectStarter,
   workspaceId,
+  chatId,
+  onUpload,
+  newestDocument,
   token
 }) {
   const toast = useToast();
+  const starterFileRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const messagesEndRef = useRef(null);
   
@@ -473,6 +456,18 @@ export default function ChatArea({
   const [editingIndex, setEditingIndex] = useState(null);
   const [editText, setEditText] = useState("");
   const [inspectingSource, setInspectingSource] = useState(null);
+  const [viewing, setViewing] = useState(null);
+
+  const loadEvidence = useCallback(async (msg) => {
+    if (!chatId || !token) return null;
+    const res = await fetch(`/api/v1/chat/session/${chatId}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const answers = (data.messages || []).filter((m) => m.role === 'assistant' && m.sources && m.sources.evidence);
+    const same = answers.filter((m) => (m.content || '').trim() === (msg.content || '').trim());
+    const match = same[same.length - 1] || answers[answers.length - 1];
+    return match ? match.sources.evidence : null;
+  }, [chatId, token]);
   const currentAudioRef = useRef(null);
   const activePlayIndexRef = useRef(null);
 
@@ -488,7 +483,7 @@ export default function ChatArea({
         const span = btn.querySelector('span');
         if (span) {
           const originalText = span.textContent;
-          span.textContent = 'Copied!';
+          span.textContent = t('Copied!');
           btn.classList.add('copied');
           setTimeout(() => {
             span.textContent = originalText;
@@ -515,7 +510,7 @@ export default function ChatArea({
 
       const span = btn.querySelector('span');
       const originalText = span ? span.textContent : 'Run';
-      if (span) span.textContent = 'Running...';
+      if (span) span.textContent = t('Running...');
       btn.disabled = true;
 
       try {
@@ -531,7 +526,7 @@ export default function ChatArea({
         const data = await res.json();
         
         const isSuccess = data.exit_code === 0;
-        const outputText = data.stdout || data.stderr || '(No output returned)';
+        const outputText = (data.stdout || data.stderr || '(No output returned)').replace(/\s+$/, '');
         const execTime = data.execution_time_ms ? `${data.execution_time_ms}ms` : '0ms';
 
         const outputEl = document.createElement('div');
@@ -540,11 +535,11 @@ export default function ChatArea({
           <div class="code-output-header">
             <div class="code-output-title-wrap">
               <span class="code-output-indicator"></span>
-              <span>Output (${execTime})</span>
+              <span>${escapeHtml(t('Output ({time})', { time: execTime }))}</span>
             </div>
-            <button class="code-output-close" title="Close output">✕</button>
+            <button class="code-output-close" title="${escapeHtml(t('Close output'))}">✕</button>
           </div>
-          <pre class="code-output-body">${outputText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+          <pre class="code-output-body">${escapeHtml(outputText)}</pre>
         `;
 
         wrapper.appendChild(outputEl);
@@ -556,11 +551,11 @@ export default function ChatArea({
           <div class="code-output-header">
             <div class="code-output-title-wrap">
               <span class="code-output-indicator"></span>
-              <span>Execution Error</span>
+              <span>${escapeHtml(t('Execution Error'))}</span>
             </div>
-            <button class="code-output-close" title="Close output">✕</button>
+            <button class="code-output-close" title="${escapeHtml(t('Close output'))}">✕</button>
           </div>
-          <pre class="code-output-body">${String(err.message || err).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+          <pre class="code-output-body">${escapeHtml(err.message || err)}</pre>
         `;
         wrapper.appendChild(outputEl);
       } finally {
@@ -654,7 +649,7 @@ export default function ChatArea({
     activePlayIndexRef.current = index;
     setPlayingIndex(index);
 
-    const voice = detectVoice(text);
+    const voice = pickVoice(await voicesFor(token), text, language());
     try {
       const response = await fetch('/api/v1/voice/synthesize', {
         method: 'POST',
@@ -693,15 +688,14 @@ export default function ChatArea({
       if (currentAudioRef.current) {
         currentAudioRef.current = null;
       }
-      toast.error("Failed to play audio: " + error.message);
+      toast.error(t('Failed to play audio: ') + error.message);
     }
   };
 
-  const isWelcomeState = messages.length === 0 || (messages.length === 1 && (
-    messages[0].content.includes('Start a new chat') || 
-    messages[0].content.includes('Welcome') || 
-    messages[0].content.includes('created')
-  ));
+  // The start page stays until the first question: upload notes ("… is ready") are shown on it, above the
+  // suggestions, so "What does this letter want from me?" is one click away after adding a letter.
+  const isWelcomeState = messages.every((m) => m.role === 'system');
+  const notices = isWelcomeState ? messages : [];
 
   return (
     <div className={styles.container}>
@@ -710,28 +704,48 @@ export default function ChatArea({
           <img src="/Logo.png" alt="StarkLLM" className={styles.welcomeLogo} />
           <h1 className={styles.welcomeTitle}>StarkLLM</h1>
           <p className={styles.welcomeSubtitle}>
-            Private AI assistant with personal Knowledge Base and RAG retrieval.
+            {t('Your private assistant for letters and documents, on this PC.')}
           </p>
+
+          {notices.map((m, i) => (
+            <p key={i} className={styles.welcomeNotice} role="status">{m.content}</p>
+          ))}
 
           <div className={styles.suggestionsGrid}>
             {STARTER_PROMPTS.map((item, idx) => {
               const Icon = item.icon;
               return (
-                <div 
-                  key={idx} 
+                <button
+                  type="button"
+                  key={idx}
                   className={styles.suggestionCard}
-                  onClick={() => onSelectStarter && onSelectStarter(item.prompt)}
-                  role="button"
-                  tabIndex={0}
+                  onClick={() => {
+                    if (item.upload) starterFileRef.current && starterFileRef.current.click();
+                    else if (onSelectStarter) onSelectStarter(item.promptFor && newestDocument ? item.promptFor(newestDocument) : item.prompt);
+                  }}
                 >
                   <div className={styles.suggestionHeader}>
                     <Icon size={16} className={styles.suggestionIcon} />
                     <span>{item.title}</span>
                   </div>
                   <div className={styles.suggestionDesc}>{item.desc}</div>
-                </div>
+                </button>
               );
             })}
+            <input
+              ref={starterFileRef}
+              type="file"
+              multiple
+              accept={UPLOAD_ACCEPT}
+              hidden
+              onChange={async (e) => {
+                const files = [...(e.target.files || [])];
+                e.target.value = '';
+                for (const f of files) {
+                  try { onUpload && (await onUpload(f)); } catch (_) { /* the chat shows the error */ }
+                }
+              }}
+            />
           </div>
         </div>
       ) : (
@@ -742,7 +756,7 @@ export default function ChatArea({
                 <button
                   className={styles.exportBtn}
                   onClick={onSummarize}
-                  title="Summarize this chat"
+                  title={t('Summarize this chat')}
                 >
                   <FileText size={18} />
                 </button>
@@ -752,23 +766,23 @@ export default function ChatArea({
                   <button
                     className={styles.exportBtn}
                     onClick={() => setShowExportMenu(!showExportMenu)}
-                    title="Export chat"
+                    title={t('Export chat')}
                   >
                     <Download size={18} />
                   </button>
                   {showExportMenu && (
                     <div className={styles.exportMenu}>
                       <button onClick={() => { onExport('md'); setShowExportMenu(false); }}>
-                        📄 Markdown (.md)
+                        {t('📄 Markdown (.md)')}
                       </button>
                       <button onClick={() => { onExport('html'); setShowExportMenu(false); }}>
-                        🖨️ Printable HTML / PDF (.html)
+                        {t('🖨️ Printable HTML / PDF (.html)')}
                       </button>
                       <button onClick={() => { onExport('json'); setShowExportMenu(false); }}>
-                        📋 Structured Data (.json)
+                        {t('📋 Structured Data (.json)')}
                       </button>
                       <button onClick={() => { onExport('txt'); setShowExportMenu(false); }}>
-                        📝 Plain Text (.txt)
+                        {t('📝 Plain Text (.txt)')}
                       </button>
                     </div>
                   )}
@@ -800,7 +814,7 @@ export default function ChatArea({
               token={token}
               onSendToolResult={onRetryMessage}
               onFeedback={null}
-              onInspectSources={(title, sources) => setInspectingSource({ title, sources })}
+              onInspectSources={(source, labels) => setInspectingSource({ msg: source, labels })}
             />
           ))}
           <div ref={messagesEndRef} />
@@ -808,113 +822,25 @@ export default function ChatArea({
         </>
       )}
 
-      {/* ── Grounding Citations / Evidence Inspector Modal ── */}
       {inspectingSource && (
-        <div 
-          style={{
-            position: 'fixed',
-            top: 0, left: 0, right: 0, bottom: 0,
-            background: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(5px)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '20px'
-          }}
-          onClick={() => setInspectingSource(null)}
-        >
-          <div 
-            style={{
-              background: 'var(--bg-secondary, #121824)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              borderRadius: '12px',
-              width: '100%',
-              maxWidth: '560px',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
-              overflow: 'hidden'
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div style={{
-              padding: '16px 20px',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Database size={18} color="var(--accent-bright, #6366f1)" />
-                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>
-                  {inspectingSource.title} Grounding Evidence
-                </h3>
-              </div>
-              <button 
-                onClick={() => setInspectingSource(null)}
-                style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', fontSize: '1.2rem', padding: '4px' }}
-              >
-                ✕
-              </button>
-            </div>
-            <div style={{ padding: '20px', maxHeight: '420px', overflowY: 'auto' }}>
-              <p style={{ margin: '0 0 14px 0', fontSize: '0.85rem', color: '#9ca3af', lineHeight: 1.5 }}>
-                The assistant retrieved and synthesized the following document citations to ground its answer accurately in your data:
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {inspectingSource.sources.map((src, sIdx) => (
-                  <div 
-                    key={sIdx}
-                    style={{
-                      padding: '12px 14px',
-                      background: 'rgba(255, 255, 255, 0.04)',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
-                      borderRadius: '8px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '10px'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                      <FileText size={15} color="#818cf8" style={{ flexShrink: 0 }} />
-                      <span style={{ fontSize: '0.88rem', fontWeight: 500, color: '#f3f4f6', wordBreak: 'break-all' }}>
-                        {src}
-                      </span>
-                    </div>
-                    <span 
-                      style={{
-                        fontSize: '0.72rem',
-                        padding: '2px 8px',
-                        background: 'rgba(99, 102, 241, 0.15)',
-                        color: '#a5b4fc',
-                        borderRadius: '12px',
-                        whiteSpace: 'nowrap',
-                        fontWeight: 500
-                      }}
-                    >
-                      Cited Source
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div style={{
-              padding: '12px 20px',
-              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-              display: 'flex',
-              justifyContent: 'flex-end',
-              background: 'rgba(0,0,0,0.15)'
-            }}>
-              <button 
-                className="btn-primary"
-                onClick={() => setInspectingSource(null)}
-                style={{ padding: '7px 18px', fontSize: '0.85rem' }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
+        <SourcesModal
+          labels={inspectingSource.labels}
+          evidence={inspectingSource.msg.evidence}
+          loadEvidence={() => loadEvidence(inspectingSource.msg)}
+          onClose={() => setInspectingSource(null)}
+          onOpenDocument={(e) => setViewing({ documentId: e.document_id, page: e.page || 1, highlight: (e.passages || [])[0] })}
+        />
+      )}
+      {viewing && (
+        <DocumentViewerModal
+          isOpen
+          onClose={() => setViewing(null)}
+          workspaceId={workspaceId}
+          documentId={viewing.documentId}
+          initialPage={viewing.page}
+          highlight={viewing.highlight}
+          token={token}
+        />
       )}
     </div>
   );

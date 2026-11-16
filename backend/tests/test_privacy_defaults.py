@@ -16,12 +16,14 @@ REPO = Path(__file__).resolve().parents[2]
 
 
 def test_market_prices_make_no_request_without_consent(monkeypatch):
-    class Boom:
-        def __init__(self, *a, **k):
-            raise AssertionError("an external HTTP client was created without consent")
-    monkeypatch.setattr(dashboard.httpx, "AsyncClient", Boom)
+    def boom(*a, **k):
+        raise AssertionError("a request was made without consent")
+    monkeypatch.setattr(dashboard.netguard, "get", boom)
     with pytest.raises(HTTPException) as e:
         asyncio.run(dashboard.get_market_prices("GC=F", consent=0, current_user=None))
+    assert e.value.status_code == 403
+    with pytest.raises(HTTPException) as e:
+        asyncio.run(dashboard.get_crypto_prices("bitcoin", consent=0, current_user=None))
     assert e.value.status_code == 403
 
 

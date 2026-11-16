@@ -2,21 +2,24 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import styles from './Sidebar.module.css';
 import {
   LayoutDashboard, MessageSquare, Database, Settings,
-  Plus, LogOut, ChevronRight, Trash2, Check, X,
+  Plus, LogOut, Monitor, ChevronRight, Trash2, Check, X,
   MessageCircle, ChevronDown, FileText, FolderOpen, BrainCircuit,
   Pencil, Search, Pin, PinOff, AlignLeft, SearchCheck,
-  FolderPlus, Folder, MoveRight, Cpu, Sparkles, Palette
+  FolderPlus, Folder, MoveRight, Cpu, Sparkles, Palette, Inbox
 } from 'lucide-react';
 import { SidebarStatusDot } from './SystemStatusWidget';
 import EmptyState from './EmptyState';
 import { AVAILABLE_THEMES, applyTheme, getCurrentTheme } from '../utils/themes';
 import { serverDate } from '../utils/time';
+import { UI_LOCALE } from '../utils/locale';
+import { t } from '../i18n';
 
 const NAV_ITEMS = [
-  { id: 'dashboard',      label: 'Dashboard',      icon: LayoutDashboard },
-  { id: 'chat',           label: 'Chat',            icon: MessageSquare },
-  { id: 'knowledge-base', label: 'Knowledge Base',  icon: Database },
-  { id: 'settings',       label: 'Settings',        icon: Settings },
+  { id: 'dashboard',      label: t('Dashboard'),      icon: LayoutDashboard },
+  { id: 'inbox',          label: t('Inbox'),           icon: Inbox },
+  { id: 'chat',           label: t('Chat'),            icon: MessageSquare },
+  { id: 'knowledge-base', label: t('Knowledge Base'),  icon: Database },
+  { id: 'settings',       label: t('Settings'),        icon: Settings },
 ];
 
 export default function Sidebar({
@@ -26,6 +29,7 @@ export default function Sidebar({
   onNewWorkspace,
   activeView,
   onViewChange,
+  inboxCount = 0,
   onLogout,
   username,
   token,
@@ -58,6 +62,8 @@ export default function Sidebar({
   onOpenModelHub,
   onOpenStudio,
 }) {
+  // The single local user of the desktop app has no account: nothing to sign out of.
+  const isLocal = username === 'local';
   const isChat = activeView === 'chat';
   const [deletingChatId, setDeletingChatId] = useState(null);
   const [deletingDocId, setDeletingDocId] = useState(null);
@@ -163,10 +169,10 @@ export default function Sidebar({
     const yesterday = new Date(now);
     yesterday.setDate(now.getDate() - 1);
     const isYesterday = d.toDateString() === yesterday.toDateString();
-    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const time = d.toLocaleTimeString(UI_LOCALE, { hour: '2-digit', minute: '2-digit' });
     if (isToday) return time;
-    if (isYesterday) return `Yesterday`;
-    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    if (isYesterday) return t('Yesterday');
+    return d.toLocaleDateString(UI_LOCALE, { month: 'short', day: 'numeric' });
   };
 
   // Close workspace dropdown when clicking outside
@@ -253,11 +259,11 @@ export default function Sidebar({
         {deletingChatId === chat.id ? (
           /* ── Delete confirmation row ── */
           <div className={styles.deleteConfirm}>
-            <span className={styles.deletePrompt}>Delete?</span>
-            <button className={styles.confirmBtn} onClick={(e) => confirmDeleteChat(e, chat.id)} title="Confirm">
+            <span className={styles.deletePrompt}>{t('Delete?')}</span>
+            <button className={styles.confirmBtn} onClick={(e) => confirmDeleteChat(e, chat.id)} title={t('Confirm')}>
               <Check size={11} />
             </button>
-            <button className={styles.cancelBtn} onClick={cancelDeleteChat} title="Cancel">
+            <button className={styles.cancelBtn} onClick={cancelDeleteChat} title={t('Cancel')}>
               <X size={11} />
             </button>
           </div>
@@ -273,10 +279,10 @@ export default function Sidebar({
               onBlur={submitRename}
               maxLength={80}
             />
-            <button className={styles.confirmBtn} onClick={submitRename} title="Save" onMouseDown={e => e.preventDefault()}>
+            <button className={styles.confirmBtn} onClick={submitRename} title={t('Save')} onMouseDown={e => e.preventDefault()}>
               <Check size={11} />
             </button>
-            <button className={styles.cancelBtn} onClick={cancelRename} title="Cancel" onMouseDown={e => e.preventDefault()}>
+            <button className={styles.cancelBtn} onClick={cancelRename} title={t('Cancel')} onMouseDown={e => e.preventDefault()}>
               <X size={11} />
             </button>
           </div>
@@ -292,13 +298,13 @@ export default function Sidebar({
               <div className={styles.chatInfo}>
                 <span className={styles.chatName}>
                   {chat.is_pinned && <Pin size={10} className={styles.pinnedIcon} />}
-                  {chat.title || 'Untitled'}
+                  {chat.title || t('Untitled')}
                 </span>
                 <div className={styles.chatMeta}>
                   {chat.content_match && chatSearchQuery.trim() && (
-                    <span className={styles.contentMatchBadge} title="Matched in message content">
+                    <span className={styles.contentMatchBadge} title={t('Matched in message content')}>
                       <AlignLeft size={9} />
-                      in messages
+                      {t('in messages')}
                     </span>
                   )}
                   {chat.created_at && (
@@ -311,7 +317,7 @@ export default function Sidebar({
               <button
                 className={styles.chatActionBtn}
                 onClick={(e) => { e.stopPropagation(); onPinChat(chat.id, chat.is_pinned); }}
-                title={chat.is_pinned ? "Unpin chat" : "Pin chat"}
+                title={chat.is_pinned ? t('Unpin chat') : t('Pin chat')}
               >
                 {chat.is_pinned ? <PinOff size={11} /> : <Pin size={11} />}
               </button>
@@ -320,15 +326,15 @@ export default function Sidebar({
                 <button
                   className={`${styles.chatActionBtn} ${movingChatId === chat.id ? styles.chatActionActive : ''}`}
                   onClick={(e) => { e.stopPropagation(); setMovingChatId(movingChatId === chat.id ? null : chat.id); }}
-                  title="Move to folder"
+                  title={t('Move to folder')}
                 >
                   <MoveRight size={11} />
                 </button>
                 {movingChatId === chat.id && (
                   <div className={styles.moveDropdown} onClick={(e) => e.stopPropagation()}>
-                    <div className={styles.moveDropdownHeader}>Move to...</div>
+                    <div className={styles.moveDropdownHeader}>{t('Move to...')}</div>
                     <button className={styles.moveDropdownItem} onClick={() => { onMoveChat(chat.id, null); setMovingChatId(null); }}>
-                      <Folder size={12} /> Uncategorized
+                      <Folder size={12} /> {t('Uncategorized')}
                     </button>
                     {chatFolders.map(f => (
                       <button key={f.id} className={styles.moveDropdownItem} onClick={() => { onMoveChat(chat.id, f.id); setMovingChatId(null); }}>
@@ -342,14 +348,14 @@ export default function Sidebar({
               <button
                 className={styles.chatActionBtn}
                 onClick={(e) => startRename(e, chat)}
-                title="Rename chat"
+                title={t('Rename chat')}
               >
                 <Pencil size={11} />
               </button>
               <button
                 className={styles.chatActionBtn + ' ' + styles.chatActionDanger}
                 onClick={(e) => handleDeleteChat(e, chat.id)}
-                title="Delete chat"
+                title={t('Delete chat')}
               >
                 <Trash2 size={11} />
               </button>
@@ -366,9 +372,9 @@ export default function Sidebar({
       <button
         className={styles.brandBtn}
         onClick={() => onViewChange('dashboard')}
-        title="Go to Dashboard"
+        title={t('Go to Dashboard')}
       >
-        <img src="/Logo.png" alt="StarkLLM logo" className={styles.brandLogo} />
+        <img src="/Logo.png" alt={t('StarkLLM logo')} className={styles.brandLogo} />
         <span className={styles.brandName}>StarkLLM</span>
       </button>
 
@@ -376,10 +382,10 @@ export default function Sidebar({
       <button
         className={styles.globalSearchBtn}
         onClick={onGlobalSearch}
-        title="Global Search (Ctrl+K)"
+        title={t('Global Search (Ctrl+K)')}
       >
         <Search size={14} className={styles.globalSearchIcon} />
-        <span className={styles.globalSearchLabel}>Search everything…</span>
+        <span className={styles.globalSearchLabel}>{t('Search everything…')}</span>
         <kbd className={styles.globalSearchKbd}>Ctrl K</kbd>
       </button>
 
@@ -393,6 +399,9 @@ export default function Sidebar({
           >
             <Icon size={18} className={styles.navIcon} />
             <span>{label}</span>
+            {id === 'inbox' && inboxCount > 0 && (
+              <span className={styles.navBadge} title={t('{count} new letters', { count: inboxCount })}>{inboxCount}</span>
+            )}
             {activeView === id && <ChevronRight size={14} className={styles.navChevron} />}
           </button>
         ))}
@@ -402,11 +411,11 @@ export default function Sidebar({
       {isChat && (
         <div className={styles.wsSelector} ref={wsDropdownRef}>
           <div className={styles.wsSelectorHeader}>
-            <span className={styles.sectionLabel}>Workspace</span>
+            <span className={styles.sectionLabel}>{t('Workspace')}</span>
             <button
               className={styles.addBtnSmall}
               onClick={onNewWorkspace}
-              title="New Workspace"
+              title={t('New Workspace')}
             >
               <Plus size={12} />
             </button>
@@ -417,7 +426,7 @@ export default function Sidebar({
           >
             <FolderOpen size={14} className={styles.wsDropdownIcon} />
             <span className={styles.wsDropdownLabel}>
-              {activeWorkspace?.name || 'Select workspace…'}
+              {activeWorkspace?.name || t('Select workspace…')}
             </span>
             <ChevronDown
               size={14}
@@ -430,8 +439,8 @@ export default function Sidebar({
                 <div style={{ padding: '8px' }}>
                   <EmptyState 
                     icon={FolderOpen} 
-                    title="No workspaces" 
-                    action={{ label: 'New Workspace', onClick: onNewWorkspace }} 
+                    title={t('No workspaces')} 
+                    action={{ label: t('New Workspace'), onClick: onNewWorkspace }} 
                     size="sm" 
                   />
                 </div>
@@ -459,19 +468,19 @@ export default function Sidebar({
       {isChat && activeWorkspace && (
         <div className={styles.chatSection}>
           <div className={styles.sectionHeaderRow}>
-            <span className={styles.sectionLabel}>Chats</span>
+            <span className={styles.sectionLabel}>{t('Chats')}</span>
             <div style={{ display: 'flex', gap: '4px' }}>
               <button
                 className={styles.addBtnSmall}
                 onClick={handleNewFolderPrompt}
-                title="New Folder"
+                title={t('New Folder')}
               >
                 <FolderPlus size={12} />
               </button>
               <button
                 className={styles.addBtnSmall}
                 onClick={onNewChat}
-                title="New Chat"
+                title={t('New Chat')}
               >
                 <Plus size={12} />
               </button>
@@ -484,16 +493,16 @@ export default function Sidebar({
               ref={searchInputRef}
               type="text"
               className={styles.searchInput}
-              placeholder="Search chats & messages…"
+              placeholder={t('Search chats & messages…')}
               value={chatSearchQuery}
               onChange={e => setChatSearchQuery(e.target.value)}
-              aria-label="Search chats"
+              aria-label={t('Search chats')}
             />
             {chatSearchQuery && (
               <button
                 className={styles.searchClear}
                 onClick={() => { setChatSearchQuery(''); searchInputRef.current?.focus(); }}
-                title="Clear search"
+                title={t('Clear search')}
               >
                 <X size={11} />
               </button>
@@ -503,14 +512,14 @@ export default function Sidebar({
             {displayChats.length === 0 && chatSearchQuery.trim() ? (
               <div className={styles.searchEmptyState}>
                 <Search size={20} className={styles.searchEmptyIcon} />
-                <span>No chats match</span>
+                <span>{t('No chats match')}</span>
                 <span className={styles.searchEmptyQuery}>"{chatSearchQuery}"</span>
               </div>
             ) : displayChats.length === 0 ? (
                 <EmptyState 
                   icon={MessageSquare} 
-                  title="No chats yet" 
-                  action={{ label: 'Start a Chat', onClick: onNewChat }} 
+                  title={t('No chats yet')} 
+                  action={{ label: t('Start a Chat'), onClick: onNewChat }} 
                   size="sm" 
                 />
             ) : null}
@@ -538,10 +547,10 @@ export default function Sidebar({
                              maxLength={50}
                              autoFocus
                            />
-                           <button className={styles.confirmBtn} onClick={submitRenameFolder} title="Save" onMouseDown={e => e.preventDefault()}>
+                           <button className={styles.confirmBtn} onClick={submitRenameFolder} title={t('Save')} onMouseDown={e => e.preventDefault()}>
                              <Check size={11} />
                            </button>
-                           <button className={styles.cancelBtn} onClick={cancelRenameFolder} title="Cancel" onMouseDown={e => e.preventDefault()}>
+                           <button className={styles.cancelBtn} onClick={cancelRenameFolder} title={t('Cancel')} onMouseDown={e => e.preventDefault()}>
                              <X size={11} />
                            </button>
                          </div>
@@ -558,10 +567,10 @@ export default function Sidebar({
                           <div className={styles.folderActions} onClick={e => e.stopPropagation()}>
                             {deletingFolderId === folder.id ? (
                               <div className={styles.deleteConfirm} style={{ background: 'transparent' }}>
-                                <button className={styles.confirmBtn} onClick={(e) => { e.stopPropagation(); onDeleteFolder(folder.id); setDeletingFolderId(null); }} title="Confirm Delete">
+                                <button className={styles.confirmBtn} onClick={(e) => { e.stopPropagation(); onDeleteFolder(folder.id); setDeletingFolderId(null); }} title={t('Confirm Delete')}>
                                   <Check size={11} />
                                 </button>
-                                <button className={styles.cancelBtn} onClick={(e) => { e.stopPropagation(); setDeletingFolderId(null); }} title="Cancel">
+                                <button className={styles.cancelBtn} onClick={(e) => { e.stopPropagation(); setDeletingFolderId(null); }} title={t('Cancel')}>
                                   <X size={11} />
                                 </button>
                               </div>
@@ -570,14 +579,14 @@ export default function Sidebar({
                                 <button
                                   className={styles.chatActionBtn}
                                   onClick={(e) => startRenameFolder(e, folder)}
-                                  title="Rename folder"
+                                  title={t('Rename folder')}
                                 >
                                   <Pencil size={11} />
                                 </button>
                                 <button
                                   className={styles.chatActionBtn + ' ' + styles.chatActionDanger}
                                   onClick={(e) => { e.stopPropagation(); setDeletingFolderId(folder.id); }}
-                                  title="Delete folder (chats will be uncategorized)"
+                                  title={t('Delete folder (chats will be uncategorized)')}
                                 >
                                   <Trash2 size={11} />
                                 </button>
@@ -590,7 +599,7 @@ export default function Sidebar({
                       {!isCollapsed && (
                         <div className={styles.folderContent}>
                           {folderChats.length === 0 ? (
-                            <div className={styles.emptyFolderHint}>Empty folder</div>
+                            <div className={styles.emptyFolderHint}>{t('Empty folder')}</div>
                           ) : (
                             folderChats.map(renderChatItem)
                           )}
@@ -616,7 +625,7 @@ export default function Sidebar({
             onClick={() => setDocsCollapsed(prev => !prev)}
           >
             <span className={styles.sectionLabel}>
-              Documents{workspaceDocs.length > 0 ? ` (${workspaceDocs.length})` : ''}
+              {t('Documents')}{workspaceDocs.length > 0 ? ` (${workspaceDocs.length})` : ''}
             </span>
             <ChevronDown
               size={12}
@@ -630,14 +639,14 @@ export default function Sidebar({
                 onClick={onManageDocuments}
               >
                 <FolderOpen size={14} />
-                Manage Documents
+                {t('Manage Documents')}
               </button>
               <button 
                 className={styles.manageDocsBtn} 
                 onClick={onManageMemories}
               >
                 <BrainCircuit size={14} />
-                Long-Term Memory
+                {t('Long-Term Memory')}
               </button>
             </div>
           )}
@@ -649,12 +658,12 @@ export default function Sidebar({
         <button 
           className={styles.modelHubBtn}
           onClick={onOpenModelHub}
-          title="Open StarkLLM Model Hub"
+          title={t('Open StarkLLM Model Hub')}
         >
           <Cpu size={18} className={styles.modelIcon} />
           <div className={styles.modelDetails}>
-            <span className={styles.modelLabel}>AI Model</span>
-            <span className={styles.modelValue}>{currentModel || 'Select Model...'}</span>
+            <span className={styles.modelLabel}>{t('AI Model')}</span>
+            <span className={styles.modelValue}>{currentModel || t('Select Model...')}</span>
           </div>
           <Sparkles size={14} className={styles.modelSparkle} />
         </button>
@@ -666,12 +675,12 @@ export default function Sidebar({
           <button
             className={styles.modelHubBtn}
             onClick={onOpenStudio}
-            title="Open AI Studio - Podcast, Briefing, Study Guide"
+            title={t('Open AI Studio - Podcast, Briefing, Study Guide')}
             style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(192,132,252,0.12) 100%)', borderColor: 'rgba(99,102,241,0.3)' }}
           >
             <Sparkles size={18} className={styles.modelIcon} style={{ color: '#c084fc' }} />
             <div className={styles.modelDetails}>
-              <span className={styles.modelLabel}>AI Studio</span>
+              <span className={styles.modelLabel}>{t('AI Studio')}</span>
               <span className={styles.modelValue} style={{ color: '#a78bfa' }}>Podcast • Briefing • Quiz</span>
             </div>
           </button>
@@ -682,16 +691,16 @@ export default function Sidebar({
       <div className={styles.footer}>
         <div className={styles.userInfo}>
           <div className={styles.avatar}>
-            {username ? username[0].toUpperCase() : '?'}
+            {isLocal ? <Monitor size={14} /> : (username ? username[0].toUpperCase() : '?')}
           </div>
-          <span className={styles.username}>{username || 'User'}</span>
+          <span className={styles.username}>{isLocal ? t('This PC') : (username || t('User'))}</span>
           <SidebarStatusDot token={token} />
         </div>
         <div className={styles.footerActions} ref={themePopoverRef}>
           <button
             className={styles.themeToggleBtn}
             onClick={() => setShowThemeMenu(prev => !prev)}
-            title="Color Theme"
+            title={t('Color Theme')}
           >
             <Palette size={16} />
           </button>
@@ -699,28 +708,30 @@ export default function Sidebar({
           {showThemeMenu && (
             <div className={styles.themePopover}>
               <div className={styles.themePopoverHeader}>
-                <span>Color Theme</span>
+                <span>{t('Color Theme')}</span>
                 <Palette size={12} />
               </div>
-              {AVAILABLE_THEMES.map(t => (
+              {AVAILABLE_THEMES.map(th => (
                 <button
-                  key={t.id}
-                  className={`${styles.themePopoverItem} ${currentTheme === t.id ? styles.themePopoverItemActive : ''}`}
-                  onClick={() => handleSelectTheme(t.id)}
+                  key={th.id}
+                  className={`${styles.themePopoverItem} ${currentTheme === th.id ? styles.themePopoverItemActive : ''}`}
+                  onClick={() => handleSelectTheme(th.id)}
                 >
                   <div className={styles.themeItemLeft}>
-                    <span className={styles.themeMiniDot} style={{ background: t.accent }} />
-                    <span>{t.name}</span>
+                    <span className={styles.themeMiniDot} style={{ background: th.accent }} />
+                    <span>{th.name}</span>
                   </div>
-                  {currentTheme === t.id && <Check size={14} />}
+                  {currentTheme === th.id && <Check size={14} />}
                 </button>
               ))}
             </div>
           )}
 
-          <button className={styles.logoutBtn} onClick={onLogout} title="Log out">
-            <LogOut size={16} />
-          </button>
+          {!isLocal && (
+            <button className={styles.logoutBtn} onClick={onLogout} title={t('Log out')}>
+              <LogOut size={16} />
+            </button>
+          )}
         </div>
       </div>
     </div>

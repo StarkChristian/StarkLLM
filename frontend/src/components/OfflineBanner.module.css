@@ -1,0 +1,4 @@
+.banner {
+  display: flex; align-items: center; gap: 8px; padding: 6px 14px; flex-shrink: 0;
+  background: var(--bg-active); border-bottom: 1px solid var(--accent); color: var(--text-primary); font-size: 0.82rem;
+}

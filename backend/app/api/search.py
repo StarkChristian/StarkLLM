@@ -6,6 +6,8 @@ from app.db.session import get_db
 from app.db import models
 from app.api.auth import get_current_user
 from app.services.rag_service import rag_service
+from app.core.protection import protection
+from app.services import label_search
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -32,16 +34,23 @@ def global_search(
     pattern = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
 
     # ── 1. Workspaces ──────────────────────────────────────────────────────────
-    workspaces = (
-        db.query(models.Workspace)
-        .filter(
-            models.Workspace.user_id == current_user.id,
-            models.Workspace.name.ilike(pattern, escape="\\"),
+    if protection.enabled:
+        # names are stored protected: SQL cannot search them (see services/label_search.py)
+        ids = label_search.matching_ids(
+            db.query(models.Workspace.id, models.Workspace.name).filter(models.Workspace.user_id == current_user.id)
+            .order_by(models.Workspace.created_at.desc()), q, MAX_RESULTS_PER_GROUP)
+        workspaces = label_search.load_in_order(db.query(models.Workspace), models.Workspace, ids)
+    else:
+        workspaces = (
+            db.query(models.Workspace)
+            .filter(
+                models.Workspace.user_id == current_user.id,
+                models.Workspace.name.ilike(pattern, escape="\\"),
+            )
+            .order_by(models.Workspace.created_at.desc())
+            .limit(MAX_RESULTS_PER_GROUP)
+            .all()
         )
-        .order_by(models.Workspace.created_at.desc())
-        .limit(MAX_RESULTS_PER_GROUP)
-        .all()
-    )
 
     ws_results = [
         {"id": ws.id, "name": ws.name, "type": "workspace"}
@@ -55,16 +64,22 @@ def global_search(
     ).all()]
 
     # Subquery: chats where title matches
-    title_matching_chats = (
-        db.query(models.Chat)
-        .filter(
-            models.Chat.workspace_id.in_(user_ws_ids),
-            models.Chat.title.ilike(pattern, escape="\\"),
+    if protection.enabled:
+        ids = label_search.matching_ids(
+            db.query(models.Chat.id, models.Chat.title).filter(models.Chat.workspace_id.in_(user_ws_ids))
+            .order_by(models.Chat.created_at.desc()), q, MAX_RESULTS_PER_GROUP)
+        title_matching_chats = label_search.load_in_order(db.query(models.Chat), models.Chat, ids)
+    else:
+        title_matching_chats = (
+            db.query(models.Chat)
+            .filter(
+                models.Chat.workspace_id.in_(user_ws_ids),
+                models.Chat.title.ilike(pattern, escape="\\"),
+            )
+            .order_by(models.Chat.created_at.desc())
+            .limit(MAX_RESULTS_PER_GROUP)
+            .all()
         )
-        .order_by(models.Chat.created_at.desc())
-        .limit(MAX_RESULTS_PER_GROUP)
-        .all()
-    )
 
     # Build workspace id → name lookup
     ws_name_map = {ws.id: ws.name for ws in db.query(models.Workspace).filter(
@@ -88,18 +103,34 @@ def global_search(
     # We need chats NOT already in title_matching_chats
     already_found_chat_ids = {c.id for c in title_matching_chats}
 
-    matching_messages = (
-        db.query(models.Message.chat_id)
-        .join(models.Chat, models.Message.chat_id == models.Chat.id)
-        .filter(
-            models.Chat.workspace_id.in_(user_ws_ids),
-            models.Message.content.ilike(pattern, escape="\\"),
-            ~models.Message.chat_id.in_(already_found_chat_ids),
+    if protection.enabled:
+        # Message text is stored protected: SQL cannot search it, so it is read (decrypted) and searched here.
+        needle = q.lower()
+        seen, matching_messages = set(), []
+        rows = (
+            db.query(models.Message.chat_id, models.Message.content)
+            .join(models.Chat, models.Message.chat_id == models.Chat.id)
+            .filter(models.Chat.workspace_id.in_(user_ws_ids), ~models.Message.chat_id.in_(already_found_chat_ids))
         )
-        .distinct()
-        .limit(MAX_RESULTS_PER_GROUP)
-        .all()
-    )
+        for chat_id, content in rows:
+            if chat_id not in seen and needle in (content or "").lower():
+                seen.add(chat_id)
+                matching_messages.append(type("Row", (), {"chat_id": chat_id}))
+                if len(matching_messages) >= MAX_RESULTS_PER_GROUP:
+                    break
+    else:
+        matching_messages = (
+            db.query(models.Message.chat_id)
+            .join(models.Chat, models.Message.chat_id == models.Chat.id)
+            .filter(
+                models.Chat.workspace_id.in_(user_ws_ids),
+                models.Message.content.ilike(pattern, escape="\\"),
+                ~models.Message.chat_id.in_(already_found_chat_ids),
+            )
+            .distinct()
+            .limit(MAX_RESULTS_PER_GROUP)
+            .all()
+        )
 
     message_chat_ids = [row.chat_id for row in matching_messages]
     if message_chat_ids:
@@ -123,16 +154,22 @@ def global_search(
     chat_results = chat_results[:MAX_RESULTS_PER_GROUP * 2]
 
     # ── 4. Documents (workspace docs by filename) ──────────────────────────────
-    ws_docs = (
-        db.query(models.Document)
-        .filter(
-            models.Document.workspace_id.in_(user_ws_ids),
-            models.Document.filename.ilike(pattern, escape="\\"),
+    if protection.enabled:
+        ids = label_search.matching_ids(
+            db.query(models.Document.id, models.Document.filename).filter(models.Document.workspace_id.in_(user_ws_ids))
+            .order_by(models.Document.created_at.desc()), q, MAX_RESULTS_PER_GROUP)
+        ws_docs = label_search.load_in_order(db.query(models.Document), models.Document, ids)
+    else:
+        ws_docs = (
+            db.query(models.Document)
+            .filter(
+                models.Document.workspace_id.in_(user_ws_ids),
+                models.Document.filename.ilike(pattern, escape="\\"),
+            )
+            .order_by(models.Document.created_at.desc())
+            .limit(MAX_RESULTS_PER_GROUP)
+            .all()
         )
-        .order_by(models.Document.created_at.desc())
-        .limit(MAX_RESULTS_PER_GROUP)
-        .all()
-    )
 
     doc_results = []
     found_doc_paths = set()

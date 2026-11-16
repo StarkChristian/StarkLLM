@@ -4,18 +4,22 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { t } = require('./i18n');
 const https = require('https');
 const { execFile } = require('child_process');
+const { getShared } = require('./netguard');
 
 const INSTALLER_URL = 'https://ollama.com/download/OllamaSetup.exe';
 
 // Follows redirects (ollama.com -> GitHub releases); onProgress(downloaded, total)
-function download(url, target, onProgress = () => {}, redirects = 5) {
+function download(url, target, onProgress = () => {}, redirects = 5, onHop = () => {}) {
   return new Promise((resolve, reject) => {
     const req = https.get(url, { headers: { 'User-Agent': 'StarkLLM-Desktop' }, timeout: 60000 }, (res) => {
       if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && redirects > 0) {
         res.resume();
-        resolve(download(new URL(res.headers.location, url).toString(), target, onProgress, redirects - 1));
+        const next = new URL(res.headers.location, url).toString();
+        onHop(next); // the download goes on at another host: the network layer lists it too
+        resolve(download(next, target, onProgress, redirects - 1, onHop));
         return;
       }
       if (res.statusCode !== 200) {
@@ -40,23 +44,25 @@ function download(url, target, onProgress = () => {}, redirects = 5) {
   });
 }
 
-// Windows' own check of the file's digital signature (Authenticode).
+// Windows' own check of the file's digital signature (Authenticode). The path goes in through an environment variable,
+// so the script is fixed text: no quoting can change it, and no encoded command is needed (security software treats
+// "powershell -EncodedCommand" as a sign of malware).
+const SIGNATURE_SCRIPT = "$s = Get-AuthenticodeSignature -LiteralPath $env:STARKLLM_SIGNED_FILE; [string]$s.Status + '|' + $s.SignerCertificate.Subject";
+
 function signature(file, runPs = powershell) {
-  const script = `$s = Get-AuthenticodeSignature -LiteralPath '${file.replace(/'/g, "''")}'; "$($s.Status)|$($s.SignerCertificate.Subject)"`;
-  return runPs(script).then((out) => {
+  return runPs(SIGNATURE_SCRIPT, { STARKLLM_SIGNED_FILE: file }).then((out) => {
     const [status, subject = ''] = out.trim().split('|');
     return { status, subject };
   });
 }
 
-function powershell(script) {
+function powershell(script, extraEnv = {}, run = execFile) {
+  if (script.includes('"')) return Promise.reject(new Error('PowerShell scripts here must not contain double quotes'));
   return new Promise((resolve, reject) => {
-    // -EncodedCommand (UTF-16LE, base64) so Windows' command-line quoting cannot change the script.
-    const encoded = Buffer.from(script, 'utf16le').toString('base64');
     // Without PSModulePath: one inherited from PowerShell 7 stops Windows PowerShell from loading its own modules.
-    const env = { ...process.env };
+    const env = { ...process.env, ...extraEnv };
     for (const k of Object.keys(env)) if (k.toLowerCase() === 'psmodulepath') delete env[k];
-    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded], { windowsHide: true, timeout: 120000, env }, (err, stdout, stderr) => {
+    run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true, timeout: 120000, env }, (err, stdout, stderr) => {
       if (err) reject(new Error(`${err.message} ${String(stderr).trim()}`.trim()));
       else if (!String(stdout).trim() && String(stderr).trim()) reject(new Error(String(stderr).trim().slice(0, 500)));
       else resolve(String(stdout));
@@ -83,21 +89,37 @@ function runInstaller(file) {
  * for the user otherwise. deps are for tests.
  */
 async function installOllama({ onStatus = () => {}, log = () => {}, deps = {} } = {}) {
+  const guard = deps.guard || getShared();
   const d = { download, signature, runInstaller, tmpdir: os.tmpdir, ...deps };
   const target = path.join(d.tmpdir(), `OllamaSetup-${Date.now()}.exe`);
-  onStatus('Downloading Ollama from ollama.com...', null);
-  const { bytes } = await d.download(INSTALLER_URL, target, (done, total) => {
-    if (total) onStatus(`Downloading Ollama: ${Math.floor((done / total) * 100)} % (${Math.round(done / 1e6)} MB of ${Math.round(total / 1e6)} MB)`, done / total);
-  });
+  // announced to the network layer: recorded, and refused while the app is fully offline
+  const announced = guard.begin('ollama_install', INSTALLER_URL, 'Download of the Ollama installer the user asked for');
+  onStatus(t('Downloading Ollama from ollama.com...'), null);
+  let bytes;
+  try {
+    ({ bytes } = await d.download(INSTALLER_URL, target, (done, total) => {
+      if (total) onStatus(t('Downloading Ollama: {percent} % ({done} MB of {total} MB)', { percent: Math.floor((done / total) * 100), done: Math.round(done / 1e6), total: Math.round(total / 1e6) }), done / total);
+    }, 5, (hop) => {
+      try {
+        guard.begin('ollama_install', hop, 'Download of the Ollama installer (redirect)').finish({});
+      } catch (e) {
+        // the switch was turned on during the download: the next start refuses; this callback must not throw
+      }
+    }));
+    announced.finish({ status: 200, bytesIn: bytes });
+  } catch (e) {
+    announced.fail(e);
+    throw e;
+  }
   log(`Ollama installer downloaded (${Math.round(bytes / 1e6)} MB)`);
-  onStatus('Checking the Ollama installer...', null);
+  onStatus(t('Checking the Ollama installer...'), null);
   const sig = await d.signature(target);
   log(`Ollama installer signature: ${sig.status}, ${sig.subject}`);
   if (!trusted(sig)) {
     try { fs.rmSync(target, { force: true }); } catch (e) { /* temp file */ }
-    throw new Error(`The downloaded file is not validly signed by Ollama (${sig.status || 'no signature'}), so it was not run. Install Ollama from ollama.com instead.`);
+    throw new Error(t('The downloaded file is not validly signed by Ollama ({status}), so it was not run. Install Ollama from ollama.com instead.', { status: sig.status || 'no signature' }));
   }
-  onStatus('Installing Ollama (about a minute)...', null);
+  onStatus(t('Installing Ollama (about a minute)...'), null);
   try {
     await d.runInstaller(target);
   } finally {
@@ -106,4 +128,4 @@ async function installOllama({ onStatus = () => {}, log = () => {}, deps = {} } 
   log('Ollama installed');
 }
 
-module.exports = { installOllama, trusted, download, signature, powershell, INSTALLER_URL };
+module.exports = { installOllama, trusted, download, signature, powershell, INSTALLER_URL, SIGNATURE_SCRIPT };
