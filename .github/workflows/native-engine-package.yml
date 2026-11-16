@@ -134,7 +134,6 @@ jobs:
           # offline from the first start: the engine did not even try to reach the internet (the network layer records
           # every attempt, blocked ones too, in data\network_log.jsonl; connections to this PC are not listed)
           Push-Location $home2
-          $offline = & "$dir
           $offline = & "$dir\runtime\python.exe" -c "from app.core import netguard; print(netguard.is_offline())"
           Pop-Location
           if ($offline -ne 'True') { throw "the engine's network layer does not see the offline switch ($offline)" }
