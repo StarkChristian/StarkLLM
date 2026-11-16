@@ -1,0 +1,6 @@
+# A local node_modules (built for this PC's system) must not replace the one installed in the image
+node_modules/
+dist/
+.env
+.env.*
+*.log

@@ -1,12 +1,21 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, dialog, net } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, dialog, net, session, safeStorage, Notification } = require('electron');
+const { sameOrigin, isWebLink, permissionAllowed } = require('./window-security');
 const fs = require('fs');
 const path = require('path');
 const { diagnose, buildErrorPage } = require('./diagnostics');
-const { startEngine, userPaths, secretKey, apiUrl, stopNativeEngine } = require('./engine');
-const crypto = require('crypto');
+const { startEngine, userPaths, secretKey, forgetFailedUpdate, apiUrl, stopNativeEngine } = require('./engine');
+const { DataKeyManager, DataKeyError, createSafeStorageKeyStore, deliverKey, lockEngine } = require('./data-key');
+const { createUnlockFlow } = require('./unlock-flow');
+const { pathToFileURL } = require('url');
+const { BackupScheduler } = require('./backup-schedule');
 const { createUpdater } = require('./updates');
 const { installOllama } = require('./ollama-install');
 const { autoUpdater } = require('electron-updater');
+const i18n = require('./i18n');
+const { t } = i18n;
+const { initShared } = require('./netguard');
+const { askOfflineChoice } = require('./offline-choice');
+const { desktopKey, setEngineOffline, switchOffline } = require('./engine-offline');
 
 let mainWindow = null;
 let tray = null;
@@ -39,17 +48,83 @@ if (!gotTheLock) {
   app.whenReady().then(initApp);
 }
 
+// The network layer (netguard.js): records every connection of the main process and of the window, and holds the
+// "fully offline" switch. Created first, so that nothing below can connect before it exists.
+let guard = null;
+
+// What the switch changes besides the rules of the network layer: Chromium downloads spell-check dictionaries from
+// Google's servers on Windows, which is a connection the page's request hook does not see, so spell check is off while
+// the app is fully offline.
+function applyOffline() {
+  try {
+    session.defaultSession.setSpellCheckerEnabled(!guard.isOffline());
+  } catch (e) {
+    logLine(`spell check setting: ${e.message}`);
+  }
+}
+
 function initApp() {
-  updater = createUpdater({ app, dialog, shell, net, autoUpdater, getWindow: () => mainWindow, log: logLine, onChange: () => refreshTrayMenu() });
+  i18n.init(app.getPath('userData'), app.getLocale());  // the language the user chose in Settings, else Windows's
+  guard = initShared(app.getPath('userData'));
+  guard.attachSession(session.defaultSession);
+  applyOffline();
+  updater = createUpdater({ app, dialog, shell, net, autoUpdater, getWindow: () => mainWindow, log: logLine, onChange: () => refreshTrayMenu(),
+    onStatus: (s) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('updates:status', s); } });
+  // The web UI tells the desktop app which language the user chose (Settings > Language), for dialogs and the tray menu
+  ipcMain.on('desktop:set-language', (event, code) => {
+    if (!fromAppPage(event) || !i18n.supported(code) || i18n.supported(code) === i18n.language()) return;
+    i18n.save(app.getPath('userData'), code);
+    i18n.setLanguage(code);
+    if (tray) tray.setToolTip(t('StarkLLM — Local AI Desktop'));
+    refreshTrayMenu();
+  });
   // Settings > About in the web UI (only the app's own page may ask)
   ipcMain.on('desktop:local-token', (event) => {
-    event.returnValue = event.senderFrame && event.senderFrame.url.startsWith(APP_URL) ? localToken : null;
+    event.returnValue = event.senderFrame && sameOrigin(event.senderFrame.url, APP_URL) ? localToken : null;
   });
+  // Knowledge Base > "Open folder": only the app's own page, and only the knowledge-base folder (no path from the page)
+  ipcMain.handle('kb:open-folder', async (event) => {
+    if (!event.senderFrame || !sameOrigin(event.senderFrame.url, APP_URL)) return { error: 'not allowed' };
+    const dir = userPaths().kb;
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+    } catch (e) {
+      return { error: e.message };
+    }
+    const err = await shell.openPath(dir);
+    return err ? { error: err } : { ok: true };
+  });
+  // Settings > Privacy: the fully offline switch and the list of connections of the app (only the app's own page may ask)
+  const fromApp = (event) => Boolean(event.senderFrame && sameOrigin(event.senderFrame.url, APP_URL));
+  const privacyState = () => ({ offline: guard.isOffline(), localCounts: guard.localCounts() });
+  ipcMain.handle('privacy:get', (event) => (fromApp(event) ? privacyState() : { error: 'not allowed' }));
+  // sets the app and the engine (engine-offline.js); the answer says what the engine did
+  ipcMain.handle('privacy:set-offline', async (event, on) => {
+    if (!fromApp(event)) return { error: 'not allowed' };
+    const r = await switchAppAndEngineOffline(Boolean(on), 'settings');
+    return { ...privacyState(), engine: r.engine, engineError: r.engineError, engineDetail: r.engineDetail };
+  });
+  ipcMain.handle('privacy:log', (event, limit) => (fromApp(event) ? guard.list(Math.min(Number(limit) || 500, 5000)) : { error: 'not allowed' }));
+  ipcMain.handle('privacy:clear-log', (event) => {
+    if (!fromApp(event)) return { error: 'not allowed' };
+    guard.clear();
+    return { ok: true };
+  });
+  registerProtectionHandlers();
+  registerUnlockHandlers();
+  lockEngineOnQuit();
+  registerBackupHandlers();
   ipcMain.handle('updates:check', async (event) => {
-    if (!event.senderFrame || !event.senderFrame.url.startsWith(APP_URL)) return { error: 'not allowed' };
+    if (!event.senderFrame || !sameOrigin(event.senderFrame.url, APP_URL)) return { error: 'not allowed' };
     const r = await updater.check({ manual: true });
     return { latest: r && r.latest, error: r && r.error };
   });
+  // Electron grants every permission to every page unless told otherwise: only the app's own page, only what it uses
+  session.defaultSession.setPermissionRequestHandler((wc, permission, callback, details) => {
+    callback(permissionAllowed(permission, (details && details.requestingUrl) || wc.getURL(), APP_URL, details || {}));
+  });
+  session.defaultSession.setPermissionCheckHandler((wc, permission, requestingOrigin, details) =>
+    permissionAllowed(permission, requestingOrigin || (wc && wc.getURL()) || '', APP_URL, details || {}));
   createMainWindow();
   createTray();
   // Also when the engine cannot start: an old version is often the reason.
@@ -81,6 +156,7 @@ function createMainWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true,
       preload: path.join(__dirname, 'preload.js'),
       spellcheck: true
     }
@@ -90,24 +166,34 @@ function createMainWindow() {
   splashShownAt = Date.now();
   mainWindow.loadFile(path.join(__dirname, 'splash.html'));
 
-  mainWindow.once('ready-to-show', () => {
+  mainWindow.once('ready-to-show', async () => {
     mainWindow.show();
+    // once, at the first start: stay online (default) or go fully offline; the engine starts with the answer
+    try {
+      if (await askOfflineChoice({ dialog, guard, parent: mainWindow, locale: i18n.language(), log: logLine })) {
+        applyOffline();
+        refreshTrayMenu();
+      }
+    } catch (e) {
+      logLine(`offline question: ${e.message}`);
+    }
     startAndLoad();
   });
 
-  // Handle external links safely in system browser
+  // No new app windows: a new window would get the desktop bridge (and with it the session token). Links to web sites
+  // open in the user's browser; anything else is refused. (Before, a link whose text merely contained
+  // "localhost:5173", or any non-web link, opened inside the app.)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('http:') || url.startsWith('https:')) {
-      if (!url.includes('localhost:5173') && !url.includes('127.0.0.1:5173')) {
-        shell.openExternal(url);
-        return { action: 'deny' };
-      }
-    }
-    return { action: 'allow' };
+    if (isWebLink(url) && !sameOrigin(url, APP_URL)) shell.openExternal(url);
+    return { action: 'deny' };
   });
 
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (url.startsWith('file:') && !url.endsWith('splash.html')) {
+    if (isWebLink(url) && !sameOrigin(url, APP_URL)) {
+      // a link in an answer or a document: the browser opens it, the app stays where it is
+      event.preventDefault();
+      shell.openExternal(url);
+    } else if (url.startsWith('file:') && !url.endsWith('splash.html')) {
       // a file dropped outside the drop area must not replace the app
       event.preventDefault();
     } else if (url.startsWith('starkllm-install-ollama:')) {
@@ -115,6 +201,8 @@ function createMainWindow() {
       installOllamaThenStart();
     } else if (url.startsWith('starkllm-retry:')) {
       event.preventDefault();
+      // Retry also tries a new engine again at once, instead of a day after it failed
+      forgetFailedUpdate();
       retryConnection();
     } else if (url.startsWith('starkllm-continue:')) {
       event.preventDefault();
@@ -137,7 +225,8 @@ function setSplashStatus(text, fraction) {
   mainWindow.webContents
     .executeJavaScript(`(function (t, v, f) {
       var s = document.getElementById('statusMsg'); if (s) s.textContent = t;
-      var b = document.getElementById('versionBadge'); if (b) b.textContent = 'Desktop v' + v;
+      var b = document.getElementById('versionBadge'); if (b) b.textContent = ${JSON.stringify(t('Desktop'))} + ' v' + v;
+      var g = document.querySelector('.tagline'); if (g) g.textContent = ${JSON.stringify(t('Private, local-first AI for your documents'))};
       if (window.setProgress) window.setProgress(f);
     })(${JSON.stringify(text)}, ${JSON.stringify(app.getVersion())}, ${JSON.stringify(f)})`)
     .catch(() => {});
@@ -152,7 +241,7 @@ async function startAndLoad() {
   try {
     result = await startEngine(APP_URL, setSplashStatus);
   } catch (e) {
-    result = { ok: false, stage: 'engine', detail: 'Unexpected error: ' + e.message };
+    result = { ok: false, stage: 'engine', detail: t('Unexpected error: {error}', { error: e.message }) };
   }
   starting = false;
   if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -183,9 +272,8 @@ let localToken = null;
 
 async function fetchLocalSession() {
   try {
-    const secret = process.env.SECRET_KEY || secretKey(userPaths().secret);
-    const key = crypto.createHmac('sha256', secret).update('starkllm-desktop-session').digest('hex');
-    const res = await net.fetch(`${apiUrl()}/api/v1/auth/desktop-session`, { method: 'POST', headers: { 'X-Desktop-Key': key }, signal: AbortSignal.timeout(8000) });
+    const key = desktopKey(engineSecret());
+    const res = await guard.wrapFetch((u, o) => net.fetch(u, o), 'local_engine', 'Sign-in of the local user at the engine on this PC')(`${apiUrl()}/api/v1/auth/desktop-session`, { method: 'POST', headers: { 'X-Desktop-Key': key }, signal: AbortSignal.timeout(8000) });
     if (res.ok) {
       localToken = (await res.json()).access_token || null;
       logLine('signed in as the local user');
@@ -198,7 +286,171 @@ async function fetchLocalSession() {
   }
 }
 
+// Protection at rest (docs/encryption-design.md): the data key lives wrapped in the Windows key store, in the user's
+// profile next to the data folder. The engine gets it in memory after it started; it never writes it down.
+let dataKeys = null;
+let engineUnlocked = false;      // the key has been handed to the engine in this run of the app
+function keyManager() {
+  if (!dataKeys) {
+    dataKeys = new DataKeyManager({ dir: path.join(app.getPath('userData'), 'protection'), keyStore: createSafeStorageKeyStore(safeStorage) });
+  }
+  return dataKeys;
+}
+
+function engineSecret() {
+  return process.env.SECRET_KEY || secretKey(userPaths().secret);
+}
+
+// Hands the key to the engine (if protection was set up on this PC). Returns { ok } or { error, message }.
+async function unlockEngine(passphrase) {
+  const keys = keyManager();
+  if (!keys.status().hasKey) return { ok: true, skipped: true };
+  try {
+    const key = keys.load(passphrase);
+    const r = await deliverKey({ apiUrl: apiUrl(), secret: engineSecret(), key });
+    key.fill(0);
+    if (!r.ok) {
+      logLine(`protection: the engine refused the key (${r.status})`);
+      return { error: 'engine-refused', message: r.detail || `The engine refused the key (${r.status}).` };
+    }
+    logLine('protection: engine unlocked');
+    engineUnlocked = true;
+    return { ok: true };
+  } catch (e) {
+    logLine(`protection: key not available (${e.code || e.message})`);
+    return { error: e.code || 'failed', message: e.message };
+  }
+}
+
+function fromAppPage(event) {
+  return event.senderFrame && sameOrigin(event.senderFrame.url, APP_URL);
+}
+
+// Settings > Protection. Only the app's own page may ask, and the key itself never goes to the page (the recovery
+// key does, once, to be shown to the user).
+function registerProtectionHandlers() {
+  const guard = (fn) => async (event, ...args) => {
+    if (!fromAppPage(event)) return { error: 'not-allowed' };
+    try {
+      return await fn(...args);
+    } catch (e) {
+      return { error: e instanceof DataKeyError ? e.code : 'failed', message: e.message };
+    }
+  };
+  ipcMain.handle('protection:status', guard(() => keyManager().status()));
+  ipcMain.handle('protection:create-key', guard(async () => {
+    const { recoveryKey } = keyManager().create();
+    const unlocked = await unlockEngine();
+    return unlocked.error ? unlocked : { recoveryKey };
+  }));
+  ipcMain.handle('protection:unlock', guard((passphrase) => unlockEngine(passphrase)));
+  ipcMain.handle('protection:recover', guard(async (recoveryKey) => {
+    keyManager().recover(recoveryKey);
+    return unlockEngine();
+  }));
+  // After a restore of a protected backup: the backup's key becomes this PC's key (the engine already has it).
+  ipcMain.handle('protection:store-key', guard((keyBase64) => {
+    const key = Buffer.from(String(keyBase64 || ''), 'base64');
+    return keyManager().install(key);
+  }));
+  ipcMain.handle('protection:set-passphrase', guard(async (passphrase) => {
+    const keys = keyManager();
+    keys.enablePassphrase(passphrase, keys.load());
+    return { ok: true };
+  }));
+  ipcMain.handle('protection:remove-passphrase', guard((passphrase) => {
+    keyManager().disablePassphrase(passphrase);
+    return { ok: true };
+  }));
+  // Protection switched off for good: remove the key (documents are plain again, nothing needs it).
+  ipcMain.handle('protection:forget-key', guard(() => {
+    keyManager().forget();
+    return { ok: true };
+  }));
+}
+
+// The start-up passphrase (optional): the engine is locked again first, so that a container that kept running does not
+// stay open, and the passphrase page is shown instead of the app until the key has been handed over.
+const UNLOCK_PAGE = path.join(__dirname, 'unlock.html');
+let unlockFlow = null;
+
+function fromUnlockPage(event) {
+  return event.senderFrame && event.senderFrame.url.split('?')[0] === pathToFileURL(UNLOCK_PAGE).href;  // ?lang=.. says the language
+}
+
+function registerUnlockHandlers() {
+  unlockFlow = createUnlockFlow({ keys: keyManager(), unlockEngine, onUnlocked: () => showApp() });
+  ipcMain.handle('unlock:submit', async (event, passphrase) => (fromUnlockPage(event) ? unlockFlow.submit(passphrase) : { error: 'not-allowed' }));
+  ipcMain.handle('unlock:recover', async (event, recoveryKey) => (fromUnlockPage(event) ? unlockFlow.recover(recoveryKey) : { error: 'not-allowed' }));
+}
+
+let quitLocked = false;
+function lockEngineOnQuit() {
+  app.on('before-quit', (event) => {
+    if (quitLocked || !keyManager().status().passphrase) return;
+    event.preventDefault();                       // wait (briefly) until the engine has forgotten the key
+    quitLocked = true;
+    lockEngine({ apiUrl: apiUrl(), secret: engineSecret() }).finally(() => app.quit());
+  });
+}
+
+// Automatic encrypted backup (backup-schedule.js): the desktop app drives it because the engine may not see the user's folders.
+let scheduler = null;
+function backupScheduler() {
+  if (!scheduler) {
+    scheduler = new BackupScheduler({
+      dir: path.join(app.getPath('userData'), 'protection'),
+      keyStore: keyManager().keyStore,
+      getApi: () => (localToken ? { url: apiUrl(), token: localToken } : null),
+      notify: (title, body) => {
+        try {
+          if (Notification.isSupported()) new Notification({ title, body }).show();
+        } catch (e) {
+          // a missing notification must not matter
+        }
+      },
+      log: logLine
+    });
+  }
+  return scheduler;
+}
+
+function registerBackupHandlers() {
+  const guard = (fn) => async (event, ...args) => {
+    if (!fromAppPage(event)) return { error: 'not-allowed' };
+    try {
+      return await fn(...args);
+    } catch (e) {
+      return { error: e.code || 'failed', message: e.message };
+    }
+  };
+  ipcMain.handle('backup:status', guard(() => backupScheduler().status()));
+  ipcMain.handle('backup:choose-folder', guard(async () => {
+    const r = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory', 'createDirectory'] });
+    return r.canceled || !r.filePaths[0] ? { canceled: true } : { folder: r.filePaths[0] };
+  }));
+  ipcMain.handle('backup:configure', guard((settings) => backupScheduler().configure(settings || {})));
+  ipcMain.handle('backup:run-now', guard(() => backupScheduler().runNow()));
+  ipcMain.handle('backup:disable', guard(() => backupScheduler().disable()));
+}
+
+let backupTimer = null;
+function startBackupSchedule() {
+  if (backupTimer) return;
+  const tick = () => backupScheduler().tick().catch((e) => logLine(`backup schedule: ${e.message}`));
+  setTimeout(tick, 2 * 60 * 1000);                      // not while the app is still starting
+  backupTimer = setInterval(tick, 30 * 60 * 1000);
+}
+
 async function showApp() {
+  if (!engineUnlocked) {
+    if (keyManager().status().passphrase) {
+      await lockEngine({ apiUrl: apiUrl(), secret: engineSecret() });
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.loadFile(UNLOCK_PAGE, { query: { lang: i18n.language() } });
+      return;                                     // the passphrase page calls showApp() again once the key is handed over
+    }
+    await unlockEngine();
+  }
   await fetchLocalSession();
   const rest = SPLASH_MIN_MS - (Date.now() - splashShownAt);
   if (rest > 0) await wait(rest);
@@ -206,6 +458,7 @@ async function showApp() {
   await mainWindow.webContents.executeJavaScript("document.body.classList.add('leaving')").catch(() => {});
   await wait(SPLASH_FADE_MS);
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.loadURL(APP_URL);
+  startBackupSchedule();
 }
 
 // "Install Ollama for me" on the what-is-missing page: download, check the signature, install, start again.
@@ -217,7 +470,7 @@ async function installOllamaThenStart() {
     await installOllama({ onStatus: setSplashStatus, log: logLine });
   } catch (e) {
     logLine(`Ollama install failed: ${e.message}`);
-    await dialog.showMessageBox(mainWindow, { type: 'warning', title: 'StarkLLM', message: 'Ollama could not be installed.', detail: e.message });
+    await dialog.showMessageBox(mainWindow, { type: 'warning', title: 'StarkLLM', message: t('Ollama could not be installed.'), detail: e.message });
   }
   startAndLoad();
 }
@@ -238,7 +491,7 @@ function createTray() {
     }
     tray = new Tray(trayIcon);
 
-    tray.setToolTip('StarkLLM — Local AI Desktop');
+    tray.setToolTip(t('StarkLLM — Local AI Desktop'));
     refreshTrayMenu();
 
     tray.on('double-click', () => {
@@ -252,12 +505,26 @@ function createTray() {
   }
 }
 
+// The switch lives in the app and in the engine; Settings and the tray menu set both (engine-offline.js: "offline"
+// wins, and the engine accepts the desktop app with the key derived from its SECRET_KEY, whoever is signed in).
+async function switchAppAndEngineOffline(on, from) {
+  const setEngine = (value) => setEngineOffline({
+    fetchFn: guard.wrapFetch((u, o) => net.fetch(u, o), 'local_engine', 'Fully offline switch of the engine on this PC'),
+    apiUrl: apiUrl(), key: desktopKey(engineSecret()), on: value
+  });
+  const r = await switchOffline({ guard, on, setEngine });
+  logLine(`fully offline: ${r.offline ? 'on' : 'off'} (${from}); engine: ${r.engineError ? `${r.engineError} ${r.engineDetail || ''}`.trim() : (r.engine ? 'on' : 'off')}`);
+  applyOffline();
+  refreshTrayMenu();
+  return r;
+}
+
 // Rebuilt when a setting shown in it changes.
 function refreshTrayMenu() {
   if (!tray) return;
   tray.setContextMenu(Menu.buildFromTemplate([
     {
-      label: 'Open StarkLLM',
+      label: t('Open StarkLLM'),
       click: () => {
         if (mainWindow) {
           mainWindow.show();
@@ -268,18 +535,27 @@ function refreshTrayMenu() {
       }
     },
     {
-      label: 'Reload Application',
+      label: t('Reload Application'),
       click: () => {
         retryConnection();
       }
     },
     { type: 'separator' },
     {
-      label: 'Check for Updates...',
+      label: guard && guard.isOffline() ? t('Fully offline: on (no connections)') : t('Fully offline: off'),
+      type: 'checkbox',
+      checked: Boolean(guard && guard.isOffline()),
+      click: (item) => {
+        switchAppAndEngineOffline(item.checked, 'tray menu').catch((e) => logLine(`fully offline (tray menu): ${e.message}`));
+      }
+    },
+    {
+      label: t('Check for Updates...'),
+      enabled: !(guard && guard.isOffline()),
       click: () => updater.check({ manual: true }).catch((e) => logLine(`update check: ${e.message}`))
     },
     {
-      label: 'Check for Updates on Start',
+      label: t('Check for Updates on Start'),
       type: 'checkbox',
       checked: updater.isEnabled(),
       click: (item) => {
@@ -289,7 +565,7 @@ function refreshTrayMenu() {
     },
     { type: 'separator' },
     {
-      label: 'Quit StarkLLM',
+      label: t('Quit StarkLLM'),
       click: () => {
         isQuitting = true;
         app.quit();
@@ -306,6 +582,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   isQuitting = true;
+  if (updater) updater.installOnQuit();
   // the engine without Docker is a child of the app; Docker's engine keeps running as before
   stopNativeEngine();
 });

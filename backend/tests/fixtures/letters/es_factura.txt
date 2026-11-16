@@ -1,0 +1,19 @@
+Energía del Río S.A.
+Calle Mayor 12, 28013 Madrid
+
+Doña Ana Ejemplo
+Calle de la Luna 5
+28012 Madrid
+
+Madrid, 3 de noviembre de 2026
+Número de cliente: 4400-118-27
+Número de factura: FA-2026-4471
+
+Factura de electricidad
+
+Estimada señora Ejemplo:
+el importe de su factura de octubre es de 1.234,56 €.
+Se aplica un recargo de 10,00 € después del vencimiento.
+Le rogamos que abone el importe antes del 15 de diciembre de 2026.
+Transferencia a IBAN ES91 2100 0418 4502 0005 1332.
+Su cita con el técnico es el 24/11/2026 a las 10:30.

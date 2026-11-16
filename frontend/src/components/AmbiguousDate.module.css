@@ -1,0 +1,7 @@
+.box { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-radius: var(--radius-md); border: 1px dashed var(--warning, #f59e0b); background: var(--bg-hover); }
+.where { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; padding: 0; color: var(--text-primary); cursor: pointer; text-align: left; }
+.hint { font-size: 0.8rem; color: var(--text-secondary); }
+.choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.choices button, .undo { font-size: 0.8rem; padding: 4px 10px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle); background: transparent; color: var(--text-primary); cursor: pointer; }
+.choices button:hover, .undo:hover { background: var(--bg-hover); }
+.undo { border-style: dashed; color: var(--text-secondary); }

@@ -2,6 +2,7 @@
 // and the engine containers (backend + web UI) from the docker-compose.yml shipped inside the app.
 // Every step reports progress through onStatus(text) and is written to <userData>/engine.log.
 const { app } = require('electron');
+const { cloudSync } = require('./cloud-folder');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -9,6 +10,8 @@ const http = require('http');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { probe } = require('./diagnostics');
+const { t, format } = require('./i18n');
+const { getShared, FEATURES: NET_FEATURES } = require('./netguard');
 const { chooseModels } = require('./models');
 const { createPullProgress, createModelProgress, throttle, formatBytes } = require('./progress');
 const native = require('./native-engine');
@@ -211,7 +214,7 @@ async function buildWithoutBake(docker, dir, env, onStatus) {
       env,
       cwd: dir,
       timeoutMs: 45 * 60 * 1000,
-      onLine: (line) => onStatus(`Engine (${service}): ` + line.slice(0, 130))
+      onLine: (line) => onStatus(t('Engine ({service}): ', { service }) + line.slice(0, 130))
     });
     if (r.code !== 0) return r;
   }
@@ -226,7 +229,7 @@ function engineImages(version, registry = process.env.STARKLLM_REGISTRY || 'ghcr
 }
 // Compressed layer sizes of a published image, keyed by the short layer id that `docker compose pull` prints,
 // so the start screen can show real overall progress. Returns an empty map if the registry cannot be asked.
-async function imageLayerSizes(image, { fetchImpl = fetch } = {}) {
+async function imageLayerSizes(image, { fetchImpl = (u, o) => getShared().wrapFetch(fetch, 'engine_download', NET_FEATURES.engine_download)(u, o) } = {}) {
   const sizes = new Map();
   try {
     const m = image.match(/^([^/]+)\/(.+):([^:]+)$/);
@@ -350,6 +353,20 @@ function size(bytes) {
 
 // Streams Ollama's /api/pull and reports the download progress.
 function pullModel(name, onStatus) {
+  // The local Ollama downloads the model from its registry: announced to the network layer (recorded, refused offline)
+  let announced;
+  try {
+    announced = getShared().begin('model_download', OLLAMA_URL + '/api/pull', `Download of the AI model ${name}`, { method: 'POST', via: 'https://registry.ollama.ai' });
+  } catch (e) {
+    return Promise.reject(e);
+  }
+  return pullModelNow(name, onStatus).then(
+    (r) => { announced.finish({ status: 200 }); return r; },
+    (e) => { announced.fail(e); throw e; }
+  );
+}
+
+function pullModelNow(name, onStatus) {
   const progress = createModelProgress();
   const show = throttle((text, f) => onStatus(text, f), 250);
   return new Promise((resolve, reject) => {
@@ -404,11 +421,11 @@ async function pullWithRetry(name, onStatus, { pull = pullModel, wait = sleep, d
       await pull(name, onStatus);
       return;
     } catch (e) {
-      const permanent = /does not exist|not found|manifest unknown|invalid model name/i.test(e.message);
+      const permanent = /does not exist|not found|manifest unknown|invalid model name|fully offline/i.test(e.message);
       write(`pull ${name} attempt ${i} of ${attempts} failed: ${e.message}`);
       if (permanent || i >= attempts) throw e;
       const secs = Math.round(delays[i - 1] / 1000);
-      onStatus(`Download of ${name} was interrupted (${e.message}). Trying again in ${secs} s (attempt ${i + 1} of ${attempts})...`);
+      onStatus(t('Download of {name} was interrupted ({error}). Trying again in {secs} s (attempt {attempt} of {attempts})...', { name, error: e.message, secs, attempt: i + 1, attempts }));
       await wait(delays[i - 1]);
     }
   }
@@ -441,10 +458,15 @@ async function ensureOllama(status, progress, warnings) {
   } catch (e) {
     log('could not save the model choice: ' + e.message);
   }
-  if (!choice.pull.length) status(`Using ${choice.text} (already installed)`);
+  if (!choice.pull.length) status('Using {model} (already installed)', { model: choice.text });
   for (const name of choice.pull) {
     if (hasModel(models, name)) continue;
-    status(`Downloading AI model ${name}...`);
+    if (getShared().isOffline()) {
+      log(`pull ${name} skipped: the app is fully offline`);
+      warnings.push(t('The AI model {model} is not on this PC, and StarkLLM is fully offline, so it was not downloaded. Turn off "Fully offline" in Settings > Privacy to download it.', { model: name }));
+      continue;
+    }
+    status('Downloading AI model {model}...', { model: name });
     try {
       await pullWithRetry(name, progress);
       log(`pulled ${name}`);
@@ -457,8 +479,11 @@ async function ensureOllama(status, progress, warnings) {
 }
 
 // StarkLLM without Docker Desktop (roadmap phase 2): the engine package with its own Python (native-engine.js).
+// It gets what the Docker engine gets from docker-compose.yml: the same data folder (the working directory holds
+// data\), the knowledge base folder, the key, the "fully offline" switch and the cloud-sync note. No TZ: Python on
+// Windows already uses the PC's time zone (and a TZ variable in IANA form would confuse it).
 const NATIVE_ANSWER_MS = Number(process.env.STARKLLM_ENGINE_ANSWER_MS) || 180000;
-async function startNativeEngine(appUrl, { status, onStatus, warnings, paths }) {
+async function startNativeEngine(appUrl, { status, onStatus, warnings, paths, guard = getShared() }) {
   const port = Number(new URL(appUrl).port) || 5173;
   nativeApiUrl = `http://127.0.0.1:${port}`;
   log('no Docker: using the StarkLLM engine without Docker');
@@ -471,17 +496,21 @@ async function startNativeEngine(appUrl, { status, onStatus, warnings, paths }) 
       status('StarkLLM is already running.');
       return { ok: true, ollama, warnings, native: true };
     }
-    return { ok: false, native: true, stage: 'engine', detail: `Another StarkLLM engine already uses port ${port}. Quit it (or Docker Desktop's StarkLLM containers) and press Retry.` };
+    return { ok: false, native: true, stage: 'engine', detail: t('Another StarkLLM engine already uses port {port}. Quit it (or the StarkLLM containers of Docker Desktop) and press Retry.', { port }) };
   }
 
   let dir;
   try {
+    // the download goes through the network layer (feature engine_download): recorded, and refused while offline
     dir = await native.ensurePackage(app.getVersion(), path.join(LOCAL_APP_DATA, 'StarkLLM', 'engine'), {
-      onStatus: (text, fraction) => onStatus(text, fraction), log
+      onStatus: (text, fraction) => onStatus(text, fraction), log, deps: { guard }
     });
   } catch (e) {
     log('engine package: ' + e.message);
-    return { ok: false, native: true, stage: 'engine', detail: `The StarkLLM engine could not be downloaded: ${e.message}. Check the internet connection and press Retry.` };
+    if (e && e.code === 'STARKLLM_OFFLINE') {
+      return { ok: false, native: true, stage: 'engine', detail: t('StarkLLM is fully offline, and the engine files are not on this PC yet (they are downloaded once). Turn off "Fully offline" in Settings > Privacy, start StarkLLM once online, then turn it on again.') };
+    }
+    return { ok: false, native: true, stage: 'engine', detail: t('The StarkLLM engine could not be downloaded: {error}. Check the internet connection and press Retry.', { error: e.message }) };
   }
 
   status('Starting the StarkLLM engine...');
@@ -489,10 +518,13 @@ async function startNativeEngine(appUrl, { status, onStatus, warnings, paths }) 
     kbDir: paths.kb,
     secret: process.env.SECRET_KEY || secretKey(paths.secret),
     build,
-    ollamaUrl: OLLAMA_URL
+    ollamaUrl: OLLAMA_URL,
+    offline: guard.isOffline(),
+    kbSync: cloudSync(paths.kb) || ''
   });
   const logFile = path.join(app.getPath('userData'), 'engine-native.log');
-  const child = native.startNative(dir, { port, userDir: app.getPath('userData'), env, logFile });
+  // the working directory is the folder that holds data\ (paths.data), the same folder the Docker engine mounts
+  const child = native.startNative(dir, { port, userDir: path.dirname(paths.data), env, logFile });
   let exited = null;
   child.on('exit', (code) => { exited = code; });
   const answers = async () => exited === null && (await isStarkLLM(appUrl)) && engineIsCurrent(await engineHealth(), build);
@@ -502,33 +534,97 @@ async function startNativeEngine(appUrl, { status, onStatus, warnings, paths }) 
   if (exited !== null || !(await answers())) {
     let tail = [];
     try { tail = fs.readFileSync(logFile, 'utf8').split(/\r?\n/).filter(Boolean).slice(-12); } catch (e) { /* no log yet */ }
-    return { ok: false, native: true, stage: 'engine', detail: `The StarkLLM engine did not start. Its log is in ${logFile}.`, log: tail };
+    return { ok: false, native: true, stage: 'engine', detail: t('The StarkLLM engine did not start. Its log is in {log}.', { log: logFile }), log: tail };
   }
   status('Ready.');
   return { ok: true, ollama, warnings, native: true };
 }
 
+// Going back to the previous engine when an updated engine does not start (roadmap phase 1).
+// Before the update the images of the running engine get a "rollback" tag, so they stay on the PC even when the new
+// engine replaces the "starkllm-backend" image or uses other images. If the new engine does not start or does not
+// answer, StarkLLM starts the tagged images again. The failed build is remembered for a day, so StarkLLM does not
+// spend several minutes on the same failing update at every start.
+const ROLLBACK_RETRY_MS = 24 * 60 * 60 * 1000;
+const ENGINE_ANSWER_MS = Number(process.env.STARKLLM_ENGINE_ANSWER_MS) || 180000;
+
+function rollbackFile() {
+  return path.join(app.getPath('userData'), 'engine-rollback.json');
+}
+
+function readRollback(file = rollbackFile()) {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (e) {
+    return null;
+  }
+}
+
+function forgetFailedUpdate() {
+  try {
+    fs.rmSync(rollbackFile(), { force: true });
+  } catch (e) {
+    log('could not remove ' + rollbackFile() + ': ' + e.message);
+  }
+}
+
+// true: the update to this build failed less than a day ago and the previous engine is still running
+function skipFailedUpdate(state, fingerprint, runningBuild, now = Date.now()) {
+  return Boolean(state && state.failedBuild === fingerprint && state.previousBuild && state.previousBuild === runningBuild
+    && now - state.at < ROLLBACK_RETRY_MS);
+}
+
+async function keepRollbackImages(docker, runningBuild, { runCmd = run } = {}) {
+  const images = {};
+  for (const service of ['backend', 'frontend']) {
+    const r = await runCmd(docker, ['inspect', '-f', '{{.Image}}', `${PROJECT}-${service}`], { timeoutMs: 20000 });
+    const id = r.code === 0 && r.lines.length ? r.lines[r.lines.length - 1].trim() : '';
+    if (!id) return null;
+    const tag = `${PROJECT}-${service}:rollback`;
+    if ((await runCmd(docker, ['tag', id, tag], { timeoutMs: 20000 })).code !== 0) return null;
+    images[service] = tag;
+  }
+  return { ...images, build: runningBuild || '' };
+}
+
+function localTimeZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+}
+
+async function rollbackEngine({ docker, compose, env, previous, answers, runCmd = run, wait = waitFor, cwd = engineDir() }) {
+  const back = { ...env, STARKLLM_BACKEND_IMAGE: previous.backend, STARKLLM_FRONTEND_IMAGE: previous.frontend, STARKLLM_ENGINE_BUILD: previous.build };
+  const up = await runCmd(docker, ['compose', '-p', PROJECT, '-f', compose, 'up', '-d', '--no-build'], { env: back, cwd, timeoutMs: 10 * 60 * 1000 });
+  up.lines.slice(-20).forEach((l) => log('compose (previous engine): ' + l));
+  return up.code === 0 && (await wait(answers, 180000));
+}
+
 // Returns { ok, ollama, warnings } or { ok: false, stage, detail, log }.
 async function startEngine(appUrl, onStatus) {
-  const status = (text) => {
-    log(text);
-    onStatus(text);
+  // the log keeps the English text, the start screen shows the user's language
+  const status = (text, values) => {
+    log(format(text, values));
+    onStatus(t(text, values));
   };
   const warnings = [];
+  const guard = getShared();
   const paths = userPaths();
   log(`--- start, app ${app.getVersion()}, engine ${engineDir()}`);
 
   status('Checking Docker...');
   const docker = await findDocker();
   if (native.engineMode({ dockerFound: Boolean(docker) }) === 'native') {
-    return startNativeEngine(appUrl, { status, onStatus, warnings, paths });
+    return startNativeEngine(appUrl, { status, onStatus, warnings, paths, guard });
   }
   // On Windows a Docker that cannot run StarkLLM (stopped, or set to Windows containers) is not a dead end: the
   // engine without Docker runs instead (found on GitHub's Windows machines, which have Docker with Windows containers).
   // STARKLLM_ENGINE=docker keeps the old behaviour: the page that explains how to fix Docker.
   const withoutDocker = (reason) => {
     log(`${reason}; using the StarkLLM engine without Docker`);
-    return startNativeEngine(appUrl, { status, onStatus, warnings, paths });
+    return startNativeEngine(appUrl, { status, onStatus, warnings, paths, guard });
   };
   const fallBack = IS_WIN && process.env.STARKLLM_ENGINE !== 'docker';
   if (!docker) {
@@ -559,20 +655,28 @@ async function startEngine(appUrl, onStatus) {
   const ollama = await ensureOllama(status, onStatus, warnings);
 
   const compose = path.join(engineDir(), 'docker-compose.yml');
-  if (!fs.existsSync(compose)) return { ok: false, stage: 'engine', detail: `Engine files are missing: ${compose}` };
+  if (!fs.existsSync(compose)) return { ok: false, stage: 'engine', detail: t('Engine files are missing: {file}', { file: compose }) };
   // The chosen models are part of the build: another model needs a recreated backend (its settings change).
   const fingerprint = crypto.createHash('sha256').update(engineFingerprint(engineDir()) + JSON.stringify(chosen)).digest('hex').slice(0, 16);
 
   let updating = false;
   let reusedOther = false;
+  let previous = null;
   if (await isStarkLLM(appUrl)) {
     const running = await engineHealth();
     if (engineIsCurrent(running, fingerprint)) {
       status('StarkLLM is already running.');
       return { ok: true, ollama, warnings };
     }
+    if (skipFailedUpdate(readRollback(), fingerprint, running && running.build)) {
+      log(`the update to engine build ${fingerprint} failed less than a day ago; using the previous engine`);
+      warnings.push({ title: t('Still using the previous engine'), detail: t('The engine of StarkLLM {version} did not start on this PC, so StarkLLM uses the previous engine. It tries the new engine again tomorrow. The details are in {log}.', { version: app.getVersion(), log: paths.log }) });
+      return { ok: true, ollama, warnings };
+    }
     log(`running engine ${(running && running.version) || 'unknown'} (build ${(running && running.build) || 'none'}), app ${app.getVersion()} (build ${fingerprint}): updating the engine`);
     updating = true;
+    previous = await keepRollbackImages(docker, running && running.build);
+    log(previous ? `kept the previous engine as ${previous.backend} and ${previous.frontend}` : 'could not keep the previous engine images');
   }
   const env = {
     ...process.env,
@@ -580,25 +684,48 @@ async function startEngine(appUrl, onStatus) {
     STARKLLM_KB_DIR: paths.kb,
     HOST_KB_PATH: paths.kb,
     SECRET_KEY: process.env.SECRET_KEY || secretKey(paths.secret),
-    STARKLLM_ENGINE_BUILD: fingerprint
+    STARKLLM_ENGINE_BUILD: fingerprint,
+    // without it the container runs on UTC, and around midnight "today" in answers and on the home page is a day off
+    STARKLLM_TZ: process.env.STARKLLM_TZ || localTimeZone(),
+    // the knowledge base folder is in OneDrive (or another synced folder): the knowledge base page says so
+    STARKLLM_KB_SYNC: cloudSync(paths.kb) || '',
+    // the "fully offline" switch: the engine starts with it on and refuses every connection except to this PC
+    STARKLLM_OFFLINE: guard.isOffline() ? '1' : ''
   };
   let up = null;
+  let builds = [];
   if (usePrebuilt()) {
     const images = engineImages(app.getVersion());
     env.STARKLLM_BACKEND_IMAGE = images.backend;
     env.STARKLLM_FRONTEND_IMAGE = images.frontend;
-    const label = updating ? `Downloading the StarkLLM engine ${app.getVersion()}` : 'Downloading the StarkLLM engine';
-    status(label + '...');
+  }
+  const noBuildUp = () => run(docker, offlineUpArgs(PROJECT, compose), { env, cwd: engineDir(), timeoutMs: 10 * 60 * 1000 });
+  if (guard.isOffline()) {
+    // no download, no build: only the engine files that are already on this PC
+    status('StarkLLM is fully offline: starting the engine from the files on this PC...');
+    up = await noBuildUp();
+    if (up.code !== 0) {
+      up.lines.slice(-8).forEach((l) => log('compose (offline): ' + l));
+      return { ok: false, stage: 'engine', detail: t('StarkLLM is fully offline, and the engine files are not on this PC yet (they are downloaded once). Turn off "Fully offline" in Settings > Privacy, start StarkLLM once online, then turn it on again.'), log: up.lines.slice(-8) };
+    }
+  } else if (usePrebuilt()) {
+    const images = engineImages(app.getVersion());
+    const label = updating ? t('Downloading the StarkLLM engine {version}', { version: app.getVersion() }) : t('Downloading the StarkLLM engine');
+    status(updating ? 'Downloading the StarkLLM engine {version}...' : 'Downloading the StarkLLM engine...', { version: app.getVersion() });
     const sizes = new Map([...(await imageLayerSizes(images.backend)), ...(await imageLayerSizes(images.frontend))]);
     const progress = createPullProgress(sizes);
     if (sizes.size) log(`engine download: ${sizes.size} layers, ${formatBytes(progress.total())}`);
     const show = throttle(() => onStatus(progress.text(label), progress.fraction()), 250);
+    // Docker downloads the images: announced to the network layer (recorded as a download from the registry)
+    const dl = guard.begin('engine_download', 'https://ghcr.io', `Download of the StarkLLM engine ${app.getVersion()} (Docker images)`);
     const pulled = await run(docker, ['compose', '-p', PROJECT, '-f', compose, 'pull'], {
       env,
       cwd: engineDir(),
       timeoutMs: 45 * 60 * 1000,
       onLine: (line) => { if (progress.feed(line)) show(); }
     });
+    if (pulled.code === 0) dl.finish({ status: 200, bytesIn: progress.total() || null });
+    else dl.fail(new Error(`docker compose pull exited with ${pulled.code}`));
     if (pulled.code === 0) {
       log(`pulled ${images.backend} and ${images.frontend}`);
       up = await run(docker, ['compose', '-p', PROJECT, '-f', compose, 'up', '-d', '--no-build'], { env, cwd: engineDir(), timeoutMs: 10 * 60 * 1000 });
@@ -608,15 +735,18 @@ async function startEngine(appUrl, onStatus) {
     }
   }
   if (!up) {
+    // building on this PC: Docker downloads the base image and packages
+    builds = ['registry-1.docker.io', 'pypi.org', 'deb.debian.org'].map((h) => guard.begin('engine_build', `https://${h}`, 'Build of the engine on this PC: Docker downloads the base image and packages'));
     status(updating
-      ? `Updating the StarkLLM engine to version ${app.getVersion()} (a few minutes)...`
-      : 'Starting the StarkLLM engine. The first start downloads and builds its components (10-20 minutes, needs internet)...');
+      ? 'Updating the StarkLLM engine to version {version} (a few minutes)...'
+      : 'Starting the StarkLLM engine. The first start downloads and builds its components (10-20 minutes, needs internet)...', { version: app.getVersion() });
     up = await run(docker, ['compose', '-p', PROJECT, '-f', compose, 'up', '-d', '--build'], {
       env,
       cwd: engineDir(),
       timeoutMs: 60 * 60 * 1000,
-      onLine: (line) => onStatus('Engine: ' + line.slice(0, 140))
+      onLine: (line) => onStatus(t('Engine: ') + line.slice(0, 140))
     });
+    builds.forEach((b) => (up.code === 0 ? b.finish({ status: 200 }) : b.fail(new Error(`docker compose up --build exited with ${up.code}`))));
   }
   if (up.code !== 0 && up.lines.some((l) => BAKE_FAILED.test(l))) {
     up.lines.slice(-20).forEach((l) => log('compose (bake): ' + l));
@@ -636,23 +766,50 @@ async function startEngine(appUrl, onStatus) {
   if (up.code !== 0 && up.lines.some((l) => WINDOWS_CONTAINERS.test(l))) {
     return { ok: false, stage: 'docker-windows-containers' };
   }
+  const goBack = async (reason) => {
+    if (!previous) return false;
+    status('The new engine did not start; going back to the previous engine...');
+    const ok = await rollbackEngine({ docker, compose, env, previous, answers: () => isStarkLLM(appUrl) });
+    log(ok ? `went back to the previous engine (${reason})` : 'the previous engine did not start either');
+    if (!ok) return false;
+    try {
+      fs.writeFileSync(rollbackFile(), JSON.stringify({ failedBuild: fingerprint, previousBuild: previous.build, at: Date.now(), reason }));
+    } catch (e) {
+      log('could not write ' + rollbackFile() + ': ' + e.message);
+    }
+    warnings.push({ title: t('Went back to the previous engine'), detail: t('The engine of StarkLLM {version} did not start ({reason}), so StarkLLM started the previous engine again. Your chats and documents are unchanged. It tries the new engine again tomorrow. The details are in {log}.', { version: app.getVersion(), reason, log: paths.log }) });
+    return true;
+  };
+  if (up.code !== 0 && !up.lines.some((l) => /address already in use|port is already allocated|ports are not available/i.test(l)) && (await goBack('it could not be started'))) {
+    return { ok: true, ollama, warnings };
+  }
   if (up.code !== 0) {
     const portBusy = up.lines.some((l) => /address already in use|port is already allocated|ports are not available/i.test(l));
     const detail = portBusy
-      ? `Another program on this PC already uses port ${process.env.STARKLLM_UI_PORT || 5173} or ${process.env.STARKLLM_API_PORT || 8000}. Close it and press Retry.`
-      : 'The engine could not be started.';
+      ? t('Another program on this PC already uses port {ui} or {api}. Close it and press Retry.', { ui: process.env.STARKLLM_UI_PORT || 5173, api: process.env.STARKLLM_API_PORT || 8000 })
+      : t('The engine could not be started.');
     return { ok: false, stage: 'engine', detail, log: up.lines.slice(-8) };
   }
 
   status('Waiting for StarkLLM to answer...');
   // After an update the old containers can answer for a moment while compose replaces them.
   const answers = async () => (await isStarkLLM(appUrl)) && (reusedOther || engineIsCurrent(await engineHealth(), fingerprint));
-  if (!(await waitFor(answers, 180000))) {
+  if (!(await waitFor(answers, ENGINE_ANSWER_MS))) {
     const logs = await run(docker, ['compose', '-p', PROJECT, '-f', compose, 'logs', '--tail', '20'], { env, timeoutMs: 30000 });
-    return { ok: false, stage: 'engine', detail: 'The engine started but the web UI does not answer.', log: logs.lines.slice(-20) };
+    logs.lines.forEach((l) => log('engine: ' + l));
+    if (await goBack(`it did not answer within ${Math.round(ENGINE_ANSWER_MS / 60000)} minutes`)) return { ok: true, ollama, warnings };
+    return { ok: false, stage: 'engine', detail: t('The engine started but the web UI does not answer.'), log: logs.lines.slice(-20) };
   }
+  if (updating) forgetFailedUpdate();
   status('Ready.');
   return { ok: true, ollama, warnings };
 }
 
-module.exports = { apiUrl, stopNativeEngine: native.stopNative, imageLayerSizes, engineImages, secretKey, startEngine, userPaths, pullWithRetry, buildWithoutBake, run, engineIsCurrent, engineFingerprint, TEXT_MODEL, EMBEDDING_MODEL };
+// Fully offline: start only from the engine images already on this PC. Without --pull never, `compose up` downloads
+// missing images by itself (found on the MSI test PC, 16 Nov 2026: 2.1.1 pulled its new engine while "fully
+// offline" was on, and the download did not appear in the network list).
+function offlineUpArgs(project, composeFile) {
+  return ['compose', '-p', project, '-f', composeFile, 'up', '-d', '--no-build', '--pull', 'never'];
+}
+
+module.exports = { apiUrl, stopNativeEngine: native.stopNative, startNativeEngine, offlineUpArgs, forgetFailedUpdate, skipFailedUpdate, keepRollbackImages, rollbackEngine, imageLayerSizes, engineImages, secretKey, startEngine, userPaths, pullWithRetry, buildWithoutBake, run, engineIsCurrent, engineFingerprint, TEXT_MODEL, EMBEDDING_MODEL };
