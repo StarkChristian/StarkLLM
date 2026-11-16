@@ -1,0 +1,24 @@
+name: chroma diag (temporary)
+on:
+  push:
+    branches: [fix/chroma-hnsw-windows]
+    paths: ['.github/diag/**', '.github/workflows/chroma-diag.yml']
+jobs:
+  diag:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - shell: pwsh
+        run: |
+          python -m pip install --quiet chromadb==1.5.9
+          $pyd = Get-ChildItem (python -c "import chromadb_rust_bindings,os;print(os.path.dirname(chromadb_rust_bindings.__file__))") -Filter *.pyd | Select-Object -First 1
+          "pyd: $($pyd.FullName)"
+          python -c "import sys,re;b=open(sys.argv[1],'rb').read();print(sorted(set(m.decode() for m in re.findall(rb'(?i)(?:api-ms-win-crt-[a-z]+-l1-1-0|vcruntime140[_1]*|msvcp140[_a-z0-9]*|ucrtbase)\.dll',b))))" $pyd.FullName
+          foreach ($args in @('default 3','default 20','default 70','2048 70','8192 70','8192 200')) {
+            $a = $args.Split(' ')
+            python .github/diag/chroma_cache.py $a[0] $a[1]
+          }
