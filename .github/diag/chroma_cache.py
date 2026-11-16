@@ -22,7 +22,9 @@ import chromadb
 client = chromadb.PersistentClient(path=tempfile.mkdtemp(), settings=chromadb.config.Settings(anonymized_telemetry=False))
 print("hnsw_cache_size", client._server.hnsw_cache_size)
 for i in range(n):
-    client.create_collection(f"coll{i}").add(ids=["a"], documents=["x"], embeddings=[[float(i), 1.0, 0.0]])
+    c = client.create_collection(f"coll{i}")
+    c.add(ids=["a"], documents=["x"], embeddings=[[float(i), 1.0, 0.0]])
+    c.count()                                   # a read: the executor marks the collection as backfilled
 bad = []
 for i in range(n):
     try:

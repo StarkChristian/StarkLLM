@@ -18,7 +18,7 @@ jobs:
           $pyd = Get-ChildItem (python -c "import chromadb_rust_bindings,os;print(os.path.dirname(chromadb_rust_bindings.__file__))") -Filter *.pyd | Select-Object -First 1
           "pyd: $($pyd.FullName)"
           python -c "import sys,re;b=open(sys.argv[1],'rb').read();print(sorted(set(m.decode() for m in re.findall(rb'(?i)(?:api-ms-win-crt-[a-z]+-l1-1-0|vcruntime140[_1]*|msvcp140[_a-z0-9]*|ucrtbase)\.dll',b))))" $pyd.FullName
-          foreach ($case in @('default 3','default 20','default 65','default 130','2048 65','2048 130','pool 65','pool 130','pool 300')) {
+          foreach ($case in @('default 2','default 3','default 5','default 10','default 20','default 65','2048 65','2048 130','pool 65','pool 130','pool 300')) {
             $a = $case.Split(' ')
             python .github/diag/chroma_cache.py $a[0] $a[1]
           }
