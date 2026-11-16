@@ -351,7 +351,9 @@ def documents_with_pages(db, user_id: int, workspace_id: int = None, include_kb:
         items.append({"scope": "kb", "id": doc.id, "workspace_id": None, "workspace": None, "filename": doc.file_name,
                       "file_type": doc.file_type, "added": added.isoformat() if added else None,
                       "_where": ("kb", None, {"document_id": doc.id})})
-    items.sort(key=lambda i: i["added"] or "", reverse=True)
+    # newest first; at the same time stamp the later row first (Windows clocks tick in steps of about 15 ms, so two
+    # documents added together can carry the same time on the engine without Docker)
+    items.sort(key=lambda i: (i["added"] or "", i["id"]), reverse=True)
     items = items[:HOME_SCAN]
 
     # one read per collection, not one per document: the home page stayed limited to the newest 60 documents, and a
