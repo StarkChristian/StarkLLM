@@ -38,4 +38,6 @@ def test_scrub_diag(env, caplog):
         except Exception as e:
             print("DIAG rows", t, e)
     con.close()
+    import gc
+    print("DIAG file: (open sqlite3 connections in gc)", sum(1 for o in gc.get_objects() if isinstance(o, sqlite3.Connection)))
     assert not any("[]" not in h for h in where(chroma))

@@ -4,25 +4,6 @@ on:
     branches: [fix/chroma-hnsw-windows]
     paths: ['.github/workflows/chroma-diag.yml', '.github/diag/**']
 jobs:
-  loop:
-    runs-on: windows-latest
-    timeout-minutes: 40
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - shell: pwsh
-        working-directory: backend
-        run: |
-          python -m pip install --quiet -r requirements.txt pytest
-          $fails = 0
-          for ($i = 1; $i -le 6; $i++) {
-            python -m pytest -q -p no:cacheprovider tests/test_chroma_store.py tests/test_secure_index_migration.py tests/test_backup_everything.py tests/test_protection_at_rest.py tests/test_encrypted_backup.py 2>&1 | Select-String -Pattern '^(FAILED|E  )|passed|failed' | Select-Object -First 12
-            if ($LASTEXITCODE -ne 0) { $fails++ }
-          }
-          "loop failures: $fails of 6"
-          if ($fails) { exit 1 }
   scrub:
     runs-on: windows-latest
     timeout-minutes: 30
@@ -37,8 +18,14 @@ jobs:
           python -m pip install --quiet -r requirements.txt pytest
           Copy-Item ../.github/diag/test_scrub_diag.py tests/
           $fails = 0
-          for ($i = 1; $i -le 8; $i++) {
-            python -m pytest -q -s -p no:cacheprovider tests/test_scrub_diag.py 2>&1 | Select-String -Pattern 'DIAG|passed|failed'
-            if ($LASTEXITCODE -ne 0) { $fails++ }
+          $combos = @(
+            'tests/test_chroma_store.py tests/test_scrub_diag.py',
+            'tests/test_secure_index_migration.py::test_dry_run_counts_and_changes_nothing tests/test_scrub_diag.py',
+            'tests/test_secure_index_migration.py::test_plan_needs_protection_on_and_a_key tests/test_scrub_diag.py',
+            'tests/test_protection_at_rest.py tests/test_scrub_diag.py')
+          foreach ($c in $combos) {
+            for ($i = 1; $i -le 4; $i++) {
+              "== $c #$i"
+              python -m pytest -q -s -p no:cacheprovider $c.Split(' ') 2>&1 | Select-String -Pattern 'DIAG (cleaned|file|log|journal)|FAILED|passed|failed' | Select-Object -First 14
+            }
           }
-          "scrub failures: $fails of 8"
