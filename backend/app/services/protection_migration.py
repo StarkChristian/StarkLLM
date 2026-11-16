@@ -27,6 +27,7 @@ from typing import Callable, Optional
 from sqlalchemy import text
 
 from app.core import crypto
+from app.core.chroma_store import wipe_index_leftovers
 from app.core.config import settings
 from app.core.protection import ProtectedText, ProtectionLocked, ProtectionState, protection as default_protection
 from app.services import vault
@@ -289,7 +290,8 @@ def _vacuum(path: str) -> bool:
 
 
 def _scrub(targets: Targets) -> dict:
-    """Remove traces of the old values from the database files (see _vacuum)."""
+    """Remove traces of the old values from the database files (see _vacuum) and from ChromaDB's index files (see
+    chroma_store.wipe_index_leftovers)."""
     result = {}
     url = targets.engine.url
     if url.get_backend_name() == "sqlite" and url.database:
@@ -297,7 +299,8 @@ def _scrub(targets: Targets) -> dict:
         result["database"] = _vacuum(url.database)
     chroma_path = getattr(getattr(targets.chroma_client, "get_settings", lambda: None)(), "persist_directory", None)
     if chroma_path:
-        result["vectors"] = _vacuum(os.path.join(chroma_path, "chroma.sqlite3"))
+        cleaned = _vacuum(os.path.join(chroma_path, "chroma.sqlite3"))
+        result["vectors"] = wipe_index_leftovers(chroma_path) and cleaned
     return result
 
 

@@ -6,9 +6,9 @@ import os
 import shutil
 import sqlite3
 
-import chromadb
 import pytest
 
+from app.core.chroma_store import open_chroma
 from app.core import crypto
 from app.core.config import settings
 from app.core.protection import protection
@@ -35,8 +35,7 @@ class World:
         con.execute("create table messages (id integer primary key, chat_id integer, content text)")
         con.execute("insert into users values (1, 'owner')")
         con.commit(); con.close()
-        self.client = chromadb.PersistentClient(path=self.paths.chroma,
-                                                settings=chromadb.config.Settings(anonymized_telemetry=False))
+        self.client = open_chroma(self.paths.chroma)
 
     def add_message(self, text):
         con = sqlite3.connect(self.paths.database)

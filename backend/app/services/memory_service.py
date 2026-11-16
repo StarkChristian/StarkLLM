@@ -1,7 +1,7 @@
 import logging
-import chromadb
 import uuid
 import json
+from app.core.chroma_store import open_chroma
 from app.core.config import settings
 from app.services.llm_service import llm_service
 from app.services.protected_collection import wrap as protect_collection
@@ -11,10 +11,7 @@ logger = logging.getLogger(__name__)
 
 class MemoryService:
     def __init__(self):
-        self.chroma_client = chromadb.PersistentClient(
-            path=settings.CHROMA_PERSIST_DIRECTORY,
-            settings=chromadb.config.Settings(anonymized_telemetry=False),
-        )
+        self.chroma_client = open_chroma(settings.CHROMA_PERSIST_DIRECTORY)
         self._memory_collection = None
         self.embedding_model = settings.DEFAULT_EMBEDDING_MODEL
         self.summarize_model = settings.DEFAULT_TEXT_MODEL

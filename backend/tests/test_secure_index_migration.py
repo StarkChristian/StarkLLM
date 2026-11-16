@@ -3,12 +3,12 @@ index inside backups, and the whole path of a letter with the encrypted index on
 import os
 import uuid
 
-import chromadb
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 
+from app.core.chroma_store import open_chroma
 from app.core import crypto
 from app.core.config import settings
 from app.core.protection import protection
@@ -38,7 +38,7 @@ def env(tmp_path, monkeypatch):
     protection.mark_enabled(True)
     engine = create_engine(f"sqlite:///{tmp_path / 'test.db'}")
     Base.metadata.create_all(engine)
-    chroma = chromadb.PersistentClient(path=str(tmp_path / "chroma"), settings=chromadb.config.Settings(anonymized_telemetry=False))
+    chroma = open_chroma(str(tmp_path / "chroma"))
     store = si.SecureStore(str(tmp_path / "secure" / "index.db"))
     secure = si.SecureClient(store)
     targets = mig.Targets(engine=engine, base=Base, upload_dir=settings.UPLOAD_DIR, chroma_client=chroma,

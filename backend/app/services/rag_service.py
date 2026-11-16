@@ -6,9 +6,9 @@ import unicodedata
 from collections import Counter 
 import tempfile 
 import logging 
-import chromadb 
 from typing import List ,Dict ,Any ,Tuple ,Optional 
 from html .parser import HTMLParser 
+from app .core .chroma_store import open_chroma 
 from app .core .config import settings 
 from app .core .protection import ProtectionLocked ,protection
 from app .services .llm_service import llm_service 
@@ -178,10 +178,7 @@ class HTMLTextExtractor (HTMLParser ):
 
 class RAGService :
     def __init__ (self ):
-        self .chroma_client =chromadb .PersistentClient (
-        path =settings .CHROMA_PERSIST_DIRECTORY ,
-        settings =chromadb .config .Settings (anonymized_telemetry =False ),
-        )
+        self .chroma_client =open_chroma (settings .CHROMA_PERSIST_DIRECTORY )
         self .embedding_model =settings .DEFAULT_EMBEDDING_MODEL 
         self .ranker =None 
         if Ranker :

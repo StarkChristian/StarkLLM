@@ -4,12 +4,12 @@ import hashlib
 import os
 import sqlite3
 
-import chromadb
 import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import StatementError
 from sqlalchemy.orm import sessionmaker
 
+from app.core.chroma_store import open_chroma
 from app.core import crypto
 from app.core.protection import ProtectionLocked, protection
 from app.db import models
@@ -32,8 +32,7 @@ def env(tmp_path, monkeypatch):
     protection.clear_key()
     engine = create_engine(f"sqlite:///{tmp_path / 'test.db'}")
     Base.metadata.create_all(engine)
-    client = chromadb.PersistentClient(path=str(tmp_path / "chroma"),
-                                       settings=chromadb.config.Settings(anonymized_telemetry=False))
+    client = open_chroma(str(tmp_path / "chroma"))
     targets = mig.Targets(engine=engine, base=Base, upload_dir=settings.UPLOAD_DIR, chroma_client=client)
     yield type("Env", (), {"tmp": tmp_path, "engine": engine, "client": client, "targets": targets,
                            "Session": sessionmaker(bind=engine), "uploads": settings.UPLOAD_DIR})
