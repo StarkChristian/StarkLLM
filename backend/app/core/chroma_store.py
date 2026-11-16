@@ -19,6 +19,7 @@ import os
 import platform
 import sqlite3
 import struct
+import threading
 import uuid
 from typing import Optional
 
@@ -103,7 +104,23 @@ def _zero_file(path: str) -> None:
         os.fsync(f.fileno())
 
 
-def wipe_index_leftovers(chroma_dir: str) -> bool:
+# Collections below this many vectors have never written vectors into their index files: ChromaDB persists an HNSW
+# index from hnsw:sync_threshold (1000, StarkLLM never changes it) on. Below it, zeroing data_level0.bin/length.bin
+# cannot touch real data, even if ChromaDB writes to the collection at the same time.
+SAFE_BELOW = 900
+
+
+def _small_vector_segments(con) -> set:
+    """Vector segments whose collection holds fewer than SAFE_BELOW vectors (counted in the metadata segment)."""
+    rows = con.execute(
+        "SELECT v.id, COUNT(e.id) FROM segments v "
+        "JOIN segments m ON m.collection = v.collection AND m.scope = 'METADATA' "
+        "LEFT JOIN embeddings e ON e.segment_id = m.id "
+        "WHERE v.scope = 'VECTOR' GROUP BY v.id")
+    return {seg for seg, n in rows if n < SAFE_BELOW}
+
+
+def wipe_index_leftovers(chroma_dir: str, while_in_use: bool = False) -> bool:
     """Remove readable leftovers from the HNSW files of the store in `chroma_dir`:
     - the folders of deleted collections: every file is overwritten with zeros, then deleted (if ChromaDB still holds
       a file open, Windows keeps the zeroed file until ChromaDB lets go);
@@ -117,6 +134,7 @@ def wipe_index_leftovers(chroma_dir: str) -> bool:
         con = sqlite3.connect(f"file:{os.path.join(chroma_dir, 'chroma.sqlite3')}?mode=ro", uri=True, timeout=5)
         try:
             live = {row[0] for row in con.execute("SELECT id FROM segments")}
+            small = _small_vector_segments(con) if while_in_use else None
         finally:
             con.close()
     except sqlite3.Error as e:
@@ -133,6 +151,8 @@ def wipe_index_leftovers(chroma_dir: str) -> bool:
         orphan = entry.name not in live
         if not orphan and _persisted_elements(entry.path) != 0:
             continue                                          # persisted vectors (or unknown format): leave it
+        if not orphan and small is not None and entry.name not in small:
+            continue                                          # in use and near its first save: next time
         for name in os.listdir(entry.path) if orphan else _SLACK_FILES:
             path = os.path.join(entry.path, name)
             if not os.path.isfile(path):
@@ -150,3 +170,61 @@ def wipe_index_leftovers(chroma_dir: str) -> bool:
             with contextlib.suppress(OSError):
                 os.rmdir(entry.path)
     return ok
+
+
+# --- While protection at rest is on --------------------------------------------------------------------------------------
+#
+# The clean-up above runs after every move between the readable and the encrypted index. A collection that is created
+# later, while protection is on and the search index is still ChromaDB's, gets the same uncleared buffers in its new
+# index files. So while protection is on, every write to ChromaDB (through ProtectedCollection) asks for a clean-up a
+# few seconds later, and the engine runs one at start. Writes and the clean-up never run at the same time (WRITE_LOCK);
+# indexes close to their first save are left for the next run (SAFE_BELOW).
+
+WRITE_LOCK = threading.RLock()
+SCRUB_DELAY = 5.0
+_scrub_timer_lock = threading.Lock()
+_Thread = threading.Thread          # the real class: tests may replace threading.Thread to watch indexing threads
+
+
+class _DelayedScrub(_Thread):
+    def __init__(self, delay: float, action):
+        _Thread.__init__(self, name="chroma-scrub", daemon=True)
+        self._delay = delay
+        self._action = action
+        self._cancelled = threading.Event()
+
+    def cancel(self):
+        self._cancelled.set()
+
+    def run(self):
+        if not self._cancelled.wait(self._delay):
+            self._action()
+
+
+_scrub_timer: Optional[_DelayedScrub] = None
+
+
+def scrub_now(chroma_dir: str) -> bool:
+    with WRITE_LOCK:
+        ok = wipe_index_leftovers(chroma_dir, while_in_use=True)
+    if not ok:
+        logger.warning("Some ChromaDB index files could not be cleaned; the next write or start tries again.")
+    return ok
+
+
+def scrub_soon(chroma_dir: str, delay: float = SCRUB_DELAY) -> None:
+    """Clean the index files `delay` seconds after the last write (one run for a whole batch of writes)."""
+    global _scrub_timer
+
+    def run():
+        try:
+            scrub_now(chroma_dir)
+        except Exception as e:                               # never let a clean-up break indexing
+            logger.warning("ChromaDB index clean-up failed: %s", e)
+
+    with _scrub_timer_lock:
+        if _scrub_timer is not None:
+            _scrub_timer.cancel()
+        _scrub_timer = _DelayedScrub(delay, run)
+        _scrub_timer.start()
+
