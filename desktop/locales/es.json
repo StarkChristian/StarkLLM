@@ -73,7 +73,7 @@
   "Docker Desktop is not running": "Docker Desktop no se está ejecutando",
   "StarkLLM tried to start Docker Desktop but its engine did not come up. Open Docker Desktop, wait until it says \"Engine running\" (on a new PC it may ask to finish its setup or to enable WSL2 and restart), then press Retry.": "StarkLLM intentó iniciar Docker Desktop, pero su motor no arrancó. Abra Docker Desktop y espere a que indique \"Engine running\" (en un PC nuevo puede pedirle que termine su configuración o que active WSL2 y reinicie), y después pulse Reintentar.",
   "Ollama is not installed": "Ollama no está instalado",
-  "StarkLLM runs its AI models with Ollama (free). It can download the official installer from ollama.com (about 1 GB), check its signature and install it for you; no administrator rights are needed.": "StarkLLM ejecuta sus modelos de IA con Ollama (gratuito). Puede descargar el instalador oficial de ollama.com (unos 1 GB), comprobar su firma e instalarlo por usted; no se necesitan derechos de administrador.",
+  "StarkLLM runs its AI models with Ollama (free). It can download the official installer from ollama.com (about 1 GB), check its signature and install it for you; no administrator rights are needed.": "StarkLLM ejecuta sus modelos de IA con Ollama (gratuito). Puede descargar el instalador oficial de ollama.com (aproximadamente 1 GB), comprobar su firma e instalarlo por usted; no se necesitan derechos de administrador.",
   "Install Ollama for me": "Instalar Ollama por mí",
   "or download it yourself": "o descárguelo usted mismo",
   "Ollama is not running": "Ollama no se está ejecutando",
