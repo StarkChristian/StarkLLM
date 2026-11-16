@@ -37,7 +37,14 @@ env:
   SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
 
 jobs:
+  # the engine without Docker, built from the same commit; the installer carries it (resources/engine-native)
+  engine:
+    uses: ./.github/workflows/native-engine-package.yml
+    permissions:
+      contents: write   # the package workflow asks for it (it attaches the zip to published releases)
+
   release:
+    needs: engine
     runs-on: windows-latest
     timeout-minutes: 300
     steps:
@@ -69,6 +76,26 @@ jobs:
           "version=$v" >> $env:GITHUB_OUTPUT
           "StarkLLM $v"
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: starkllm-engine-win-x64
+          path: ${{ runner.temp }}/engine-package
+
+      - name: The engine package into the app (resources/engine-native)
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem "$env:RUNNER_TEMP/engine-package/*.zip" | Select-Object -First 1
+          $want = ((Get-Content "$($zip.FullName).sha256" -Raw) -split '\s+')[0].ToLower()
+          $got = (Get-FileHash $zip.FullName -Algorithm SHA256).Hash.ToLower()
+          if ($want -ne $got) { throw "the engine package checksum does not match ($got, expected $want)" }
+          $dir = 'desktop/build/engine-native'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          tar.exe -xf $zip.FullName -C $dir
+          if ($LASTEXITCODE -ne 0) { throw "tar could not unpack the engine package ($LASTEXITCODE)" }
+          $engine = Get-Content "$dir/engine.json" -Raw | ConvertFrom-Json
+          if ($engine.version -ne '${{ steps.version.outputs.version }}') { throw "engine package $($engine.version) does not match the app ${{ steps.version.outputs.version }}" }
+          "engine package $($engine.version), $([math]::Round(((Get-ChildItem $dir -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB)) MB unpacked"
+
       - name: 1. Build (unsigned)
         working-directory: desktop
         run: npx electron-builder --win --x64 --publish never
@@ -78,6 +105,7 @@ jobs:
         run: |
           $app = 'desktop/dist/win-unpacked'
           if (-not (Test-Path "$app/resources/app-update.yml")) { throw 'app-update.yml is missing: the app could not find updates' }
+          if (-not (Test-Path "$app/resources/engine-native/runtime/python.exe")) { throw 'the engine without Docker is missing in resources/engine-native' }
           $exe = Get-Item "$app/StarkLLM.exe"
           "StarkLLM.exe version info:"; $exe.VersionInfo | Format-List ProductName, ProductVersion, FileVersion, CompanyName, LegalCopyright | Out-String
           Move-Item $app "$env:RUNNER_TEMP/app-unsigned"

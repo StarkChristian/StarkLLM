@@ -26,6 +26,18 @@ def use_bundled_models(package=PACKAGE, env=os.environ):
     return True
 
 
+def use_pycache_folder(env=os.environ, sys_module=sys):
+    """Python's bytecode cache goes to the folder the desktop app names (STARKLLM_PYCACHE, under
+    %LOCALAPPDATA%\\StarkLLM\\engine\\pycache), never into the installed program folder: that folder is the
+    installer's, may be read-only (installed for all users), and an update replaces it. The variable has its own name
+    because the package's python311._pth puts Python in isolated mode, which ignores PYTHONPYCACHEPREFIX."""
+    folder = env.get("STARKLLM_PYCACHE")
+    if not folder:
+        return False
+    sys_module.pycache_prefix = folder
+    return True
+
+
 def prepare_database():
     from app.db.session import engine, Base
     import app.db.models  # noqa: F401  (registers the tables)
@@ -50,6 +62,7 @@ def main(argv=None):
     if HERE not in sys.path:
         sys.path.insert(0, HERE)
     os.makedirs("data", exist_ok=True)
+    use_pycache_folder()
     use_bundled_models()
     prepare_database()
 

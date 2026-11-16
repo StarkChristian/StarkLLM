@@ -1,15 +1,15 @@
-// StarkLLM without Docker Desktop (roadmap phase 2).
+// StarkLLM without Docker Desktop (roadmap phase 1; the default on Windows since 2.2).
 // The engine package (StarkLLM-engine-v<version>-win-x64.zip, built by .github/workflows/native-engine-package.yml and
-// attached to every release) holds its own Python, the backend and the built web UI. When Docker Desktop is not
-// installed, the app downloads the package of its version once, checks its SHA-256, unpacks it with tar.exe (part of
-// Windows) and starts the engine from it. The download is announced to the network layer (netguard.js, feature
+// attached to every release) holds its own Python, the backend and the built web UI. The installer carries it unpacked
+// (resources\engine-native). Builds without it download the package of their version once, check its SHA-256, unpack
+// it with tar.exe (part of Windows) and start the engine from it. The download is announced to the network layer (netguard.js, feature
 // engine_download) like the Docker image pull: listed in Settings > Privacy, and refused while "fully offline" is on. The engine serves the web UI and the API on one port and keeps its data in
 // %APPDATA%\StarkLLM\data, the same folder the Docker engine uses, so chats and documents are the same in both.
 // No Electron here, so the tests can use it directly.
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { spawn, execFile } = require('child_process');
+const { spawn, execFile, execFileSync } = require('child_process');
 const { download } = require('./ollama-install');
 const { formatBytes } = require('./progress');
 const { getShared } = require('./netguard');
@@ -25,10 +25,49 @@ function packageUrl(version) {
   return `${RELEASES}/v${version}/${packageName(version)}`;
 }
 
-// "native": use the engine package. STARKLLM_ENGINE=native/docker chooses; else native only on Windows without Docker.
-function engineMode({ env = process.env, platform = process.platform, dockerFound }) {
+// "native": use the engine package. Since 2.2 (owner decision 2026-11-16) it is the default on Windows for everyone, new
+// and existing installs, with or without Docker Desktop; Docker is an advanced choice (tray menu, saved as "engine" in
+// settings.json). STARKLLM_ENGINE=native/docker overrides both. Other systems keep Docker: the package is for Windows.
+function engineMode({ env = process.env, platform = process.platform, choice = null } = {}) {
   if (env.STARKLLM_ENGINE === 'native' || env.STARKLLM_ENGINE === 'docker') return env.STARKLLM_ENGINE;
-  return platform === 'win32' && !dockerFound ? 'native' : 'docker';
+  if (platform !== 'win32') return 'docker';
+  return choice === 'docker' ? 'docker' : 'native';
+}
+
+// The engine choice lives in the app's settings.json (the same file as the update setting), key "engine".
+function readEngineChoice(settingsFile) {
+  try {
+    const v = JSON.parse(fs.readFileSync(settingsFile, 'utf8')).engine;
+    return v === 'docker' || v === 'native' ? v : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function writeEngineChoice(settingsFile, choice) {
+  let s = {};
+  try { s = JSON.parse(fs.readFileSync(settingsFile, 'utf8')) || {}; } catch (e) { /* new file */ }
+  s.engine = choice === 'docker' ? 'docker' : 'native';
+  fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
+  fs.writeFileSync(settingsFile, JSON.stringify(s, null, 2));
+  return s.engine;
+}
+
+// The installer ships the unpacked engine package in resources\engine-native (built by native-engine-package.yml in
+// the release pipeline), so the engine works right after the install, without a download. Returns that folder or null
+// (development builds and builds without the package: then the package is downloaded as before).
+function bundledPackage(resourcesPath) {
+  if (!resourcesPath) return null;
+  const dir = path.join(resourcesPath, 'engine-native');
+  return fs.existsSync(path.join(dir, 'engine.json')) && fs.existsSync(path.join(dir, 'runtime', 'python.exe')) ? dir : null;
+}
+
+function packageVersion(dir) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(dir, 'engine.json'), 'utf8')).version || null;
+  } catch (e) {
+    return null;
+  }
 }
 
 function sha256File(file) {
@@ -67,9 +106,16 @@ function unzip(zip, dir) {
  * A local zip (STARKLLM_ENGINE_PACKAGE, for tests) is used instead of the download.
  * onStatus(text, fraction) shows the progress on the start screen.
  */
-async function ensurePackage(version, baseDir, { onStatus = () => {}, log = () => {}, env = process.env, deps = {} } = {}) {
+async function ensurePackage(version, baseDir, { onStatus = () => {}, log = () => {}, env = process.env, deps = {}, bundled = null } = {}) {
   const d = { download, unzip, sha256File, tmpdir: require('os').tmpdir, ...deps };
   const guard = d.guard || getShared();
+  // the package inside the installer: nothing to download or unpack. Copies downloaded by older versions are removed.
+  if (bundled && !env.STARKLLM_ENGINE_PACKAGE) {
+    const v = packageVersion(bundled);
+    if (v !== version) log(`note: the bundled engine package is version ${v}, the app ${version}`);
+    removeDownloadedPackages(baseDir, log);
+    return bundled;
+  }
   const dir = path.join(baseDir, version);
   if (fs.existsSync(path.join(dir, 'engine.json')) && fs.existsSync(path.join(dir, 'runtime', 'python.exe'))) return dir;
 
@@ -135,10 +181,38 @@ async function ensurePackage(version, baseDir, { onStatus = () => {}, log = () =
   return dir;
 }
 
+// Unpacked packages downloaded by versions before the installer carried one (about 870 MB each). Only version folders
+// and unfinished downloads are removed; the folder also holds the Python cache (pycache), which stays.
+function removeDownloadedPackages(baseDir, log = () => {}) {
+  let entries = [];
+  try { entries = fs.readdirSync(baseDir, { withFileTypes: true }); } catch (e) { return; }
+  for (const e of entries) {
+    const p = path.join(baseDir, e.name);
+    const isVersion = e.isDirectory() && /^\d+\.\d+\.\d+/.test(e.name);
+    const isPart = e.isFile() && /^StarkLLM-engine-v.+\.zip(\.part)?$/.test(e.name);
+    if (isVersion || isPart) {
+      try {
+        fs.rmSync(p, { recursive: true, force: true });
+        log(`removed the downloaded engine copy ${p} (the installer carries the engine now)`);
+      } catch (err) {
+        log(`could not remove ${p}: ${err.message}`);
+      }
+    }
+  }
+}
+
 // The same settings docker-compose.yml gives the Docker engine (except TZ: see engine.js startNativeEngine).
-function nativeEnv(dir, { kbDir, secret, build, models = {}, ollamaUrl, offline = false, kbSync = '', env = process.env }) {
+// Two differences on purpose:
+// - STARKLLM_CODE_RUNNER=off: the chat's "Run" button for Python needs the isolation of the Docker container. Without
+//   Docker it is off until a real sandbox exists (owner decision 2026-11-16).
+// - STARKLLM_PYCACHE: Python's cache goes to the user's folder, never into the installed (signed) program folder
+//   (serve_native.py sets sys.pycache_prefix: the package's python311._pth makes Python ignore PYTHON* variables).
+function nativeEnv(dir, { kbDir, secret, build, models = {}, ollamaUrl, offline = false, kbSync = '', pycache = null, env = process.env }) {
+  const extra = pycache ? { STARKLLM_PYCACHE: pycache } : {};
   return {
     ...env,
+    ...extra,
+    STARKLLM_CODE_RUNNER: 'off',
     STARKLLM_STATIC_DIR: path.join(dir, 'ui'),
     KB_DATA_DIR: kbDir,
     HOST_KB_PATH: kbDir,
@@ -180,12 +254,19 @@ function startNative(dir, { port, userDir, env, logFile, spawnImpl = spawn }) {
 }
 
 // The engine runs as a child of the app: it stops when StarkLLM quits (and before an update replaces the files).
+// On Windows it waits for taskkill: the installer of an update replaces resources\engine-native and cannot overwrite
+// a python.exe that is still running.
 function stopNative() {
   const child = engineProcess;
   engineProcess = null;
   if (!child || child.exitCode !== null) return;
-  if (process.platform === 'win32') execFile('taskkill', ['/pid', String(child.pid), '/t', '/f'], { windowsHide: true }, () => {});
-  else child.kill();
+  if (process.platform === 'win32') {
+    try {
+      execFileSync('taskkill', ['/pid', String(child.pid), '/t', '/f'], { windowsHide: true, timeout: 15000, stdio: 'ignore' });
+    } catch (e) {
+      // already gone, or taskkill timed out: nothing more to do here
+    }
+  } else child.kill();
 }
 
-module.exports = { packageName, packageUrl, engineMode, parseSha256, ensurePackage, nativeEnv, startNative, stopNative, sha256File };
+module.exports = { packageName, packageUrl, engineMode, readEngineChoice, writeEngineChoice, bundledPackage, packageVersion, removeDownloadedPackages, parseSha256, ensurePackage, nativeEnv, startNative, stopNative, sha256File };

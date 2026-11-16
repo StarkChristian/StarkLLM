@@ -496,14 +496,21 @@ async function startNativeEngine(appUrl, { status, onStatus, warnings, paths, gu
       status('StarkLLM is already running.');
       return { ok: true, ollama, warnings, native: true };
     }
-    return { ok: false, native: true, stage: 'engine', detail: t('Another StarkLLM engine already uses port {port}. Quit it (or the StarkLLM containers of Docker Desktop) and press Retry.', { port }) };
+    // an existing install that used Docker: its containers still hold the port. They are stopped (not removed), so
+    // "Use Docker Desktop for the engine" in the tray menu can start them again; the data folder is the same.
+    if (await stopDockerEngine(status)) await waitFor(async () => !(await isStarkLLM(appUrl)), 30000, 1000);
+    if (await isStarkLLM(appUrl)) {
+      return { ok: false, native: true, stage: 'engine', detail: t('Another StarkLLM engine already uses port {port}. Quit it (or the StarkLLM containers of Docker Desktop) and press Retry.', { port }) };
+    }
   }
 
   let dir;
   try {
     // the download goes through the network layer (feature engine_download): recorded, and refused while offline
+    // the installer carries the package (resources\engine-native); only builds without it download it
     dir = await native.ensurePackage(app.getVersion(), path.join(LOCAL_APP_DATA, 'StarkLLM', 'engine'), {
-      onStatus: (text, fraction) => onStatus(text, fraction), log, deps: { guard }
+      onStatus: (text, fraction) => onStatus(text, fraction), log, deps: { guard },
+      bundled: app.isPackaged ? native.bundledPackage(process.resourcesPath) : null
     });
   } catch (e) {
     log('engine package: ' + e.message);
@@ -520,7 +527,8 @@ async function startNativeEngine(appUrl, { status, onStatus, warnings, paths, gu
     build,
     ollamaUrl: OLLAMA_URL,
     offline: guard.isOffline(),
-    kbSync: cloudSync(paths.kb) || ''
+    kbSync: cloudSync(paths.kb) || '',
+    pycache: path.join(LOCAL_APP_DATA, 'StarkLLM', 'engine', 'pycache')
   });
   const logFile = path.join(app.getPath('userData'), 'engine-native.log');
   // the working directory is the folder that holds data\ (paths.data), the same folder the Docker engine mounts
@@ -602,6 +610,24 @@ async function rollbackEngine({ docker, compose, env, previous, answers, runCmd 
   return up.code === 0 && (await wait(answers, 180000));
 }
 
+// Existing installs that used Docker: stop StarkLLM's containers so the engine without Docker gets the port. Docker
+// Desktop is not started for this; if it is not running, nothing of StarkLLM runs in it either.
+async function stopDockerEngine(status = () => {}) {
+  const docker = await findDocker();
+  if (!docker || !(await dockerRunning(docker))) return false;
+  const ps = await run(docker, ['ps', '-q', '--filter', `label=com.docker.compose.project=${PROJECT}`], { timeoutMs: 30000 });
+  const ids = ps.code === 0 ? ps.lines.map((l) => l.trim()).filter((l) => /^[0-9a-f]{12,64}$/i.test(l)) : [];
+  if (!ids.length) return false;
+  status('Stopping the StarkLLM engine in Docker Desktop (StarkLLM now runs without Docker)...');
+  const r = await run(docker, ['stop', ...ids], { timeoutMs: 120000 });
+  r.lines.slice(-5).forEach((l) => log('docker stop: ' + l));
+  return r.code === 0;
+}
+
+function engineSettingsFile() {
+  return path.join(app.getPath('userData'), 'settings.json');
+}
+
 // Returns { ok, ollama, warnings } or { ok: false, stage, detail, log }.
 async function startEngine(appUrl, onStatus) {
   // the log keeps the English text, the start screen shows the user's language
@@ -614,11 +640,14 @@ async function startEngine(appUrl, onStatus) {
   const paths = userPaths();
   log(`--- start, app ${app.getVersion()}, engine ${engineDir()}`);
 
-  status('Checking Docker...');
-  const docker = await findDocker();
-  if (native.engineMode({ dockerFound: Boolean(docker) }) === 'native') {
+  // the engine without Docker is the default on Windows (owner decision 2026-11-16); Docker is the advanced choice
+  const choice = native.readEngineChoice(engineSettingsFile());
+  if (native.engineMode({ choice }) === 'native') {
+    log(`engine without Docker (${process.env.STARKLLM_ENGINE ? 'STARKLLM_ENGINE' : choice ? 'chosen in the tray menu' : 'default'})`);
     return startNativeEngine(appUrl, { status, onStatus, warnings, paths, guard });
   }
+  status('Checking Docker...');
+  const docker = await findDocker();
   // On Windows a Docker that cannot run StarkLLM (stopped, or set to Windows containers) is not a dead end: the
   // engine without Docker runs instead (found on GitHub's Windows machines, which have Docker with Windows containers).
   // STARKLLM_ENGINE=docker keeps the old behaviour: the page that explains how to fix Docker.
@@ -812,4 +841,4 @@ function offlineUpArgs(project, composeFile) {
   return ['compose', '-p', project, '-f', composeFile, 'up', '-d', '--no-build', '--pull', 'never'];
 }
 
-module.exports = { apiUrl, stopNativeEngine: native.stopNative, startNativeEngine, offlineUpArgs, forgetFailedUpdate, skipFailedUpdate, keepRollbackImages, rollbackEngine, imageLayerSizes, engineImages, secretKey, startEngine, userPaths, pullWithRetry, buildWithoutBake, run, engineIsCurrent, engineFingerprint, TEXT_MODEL, EMBEDDING_MODEL };
+module.exports = { apiUrl, stopNativeEngine: native.stopNative, startNativeEngine, stopDockerEngine, engineSettingsFile, offlineUpArgs, forgetFailedUpdate, skipFailedUpdate, keepRollbackImages, rollbackEngine, imageLayerSizes, engineImages, secretKey, startEngine, userPaths, pullWithRetry, buildWithoutBake, run, engineIsCurrent, engineFingerprint, TEXT_MODEL, EMBEDDING_MODEL };

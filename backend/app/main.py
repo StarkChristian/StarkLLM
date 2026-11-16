@@ -190,8 +190,10 @@ def health_check():
 
 @app.get(settings.API_V1_STR + "/version")
 def version():
-    """The web UI only reaches /api/ through its proxy; the About page reads the version here."""
-    return {"version": settings.VERSION}
+    """The web UI only reaches /api/ through its proxy; the About page reads the version here.
+    code_runner: whether the chat's "Run" button for Python is available (off in the engine without Docker)."""
+    from app.api.system import code_runner_enabled
+    return {"version": settings.VERSION, "code_runner": code_runner_enabled()}
 
 # Every outgoing connection of the engine is recorded, and refused while the app is fully offline (roadmap phase 3)
 netguard.install()
