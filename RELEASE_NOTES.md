@@ -1,5 +1,16 @@
 # StarkLLM Release Notes
 
+## Version 2.2.0 — No Docker needed
+
+- **No Docker Desktop needed.** StarkLLM now brings its own engine inside the installer and runs it directly on Windows. Install, start, done: only the AI models are downloaded on the first start (and Ollama, if you let StarkLLM install it).
+- **Existing installs switch by themselves.** If you used StarkLLM with Docker Desktop, the first start of 2.2 stops StarkLLM's Docker containers (they are not deleted) and uses the new engine with the same data: chats, documents, settings and protection stay as they are. People who prefer Docker Desktop can choose it in the tray menu: "Use Docker Desktop for the engine (advanced)".
+- **Text in photos and scans** is read without Docker too (Tesseract is included, with English and German; other languages are added in Settings as before).
+- **Better reading of German letters.** With English and German selected, "über" was sometimes read as "Uber": English was used as the main language. English now comes last, and umlauts and accents survive.
+- **Smaller engine.** Parts the engine never uses are left out (about 110 MB).
+- **Running code in the chat** ("Run" on Python code blocks) is off in the engine without Docker until StarkLLM has its own sandbox: it would run with your rights on the PC itself. With Docker Desktop it works as before.
+
+**From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install". The installer is larger than before because it contains the engine.
+
 ## Version 2.1.2 — Signed by its publisher, protected data, deadlines, more languages
 
 2.1.0 and 2.1.1 were built and tested but not published; 2.1.2 is the first signed release and contains everything below.
