@@ -425,3 +425,10 @@
   text-align: center;
   gap: 1rem;
 }
+
+/* EU AI Act Art. 50: the reader sees that the content is AI-generated */
+.aiNote {
+  margin: 0 0 0.8rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}

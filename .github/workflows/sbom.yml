@@ -1,0 +1,49 @@
+name: SBOM
+
+# A software bill of materials for every release (roadmap phase 0; the EU Cyber Resilience Act asks for one): every
+# component of the desktop app, the web UI and the engine, in CycloneDX JSON, attached to the release.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sbom:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Desktop app and web UI (npm)
+        run: |
+          for part in desktop frontend; do
+            (cd "$part" && npm ci --ignore-scripts --no-audit --no-fund \
+              && npx --yes @cyclonedx/cyclonedx-npm@1.19.3 --omit dev --output-format JSON --output-file "../sbom-$part.cdx.json")
+          done
+      - name: Engine (Python)
+        run: |
+          python -m pip install --quiet cyclonedx-bom==4.6.1
+          cyclonedx-py requirements backend/requirements.txt --output-format JSON --outfile sbom-engine.cdx.json
+      - name: Check
+        run: |
+          for f in sbom-*.cdx.json; do
+            python -c "import json,sys; d=json.load(open('$f')); n=len(d.get('components', [])); print('$f', n, 'components'); sys.exit(0 if n else 1)"
+          done
+      - name: Attach to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" sbom-*.cdx.json --clobber
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom-*.cdx.json

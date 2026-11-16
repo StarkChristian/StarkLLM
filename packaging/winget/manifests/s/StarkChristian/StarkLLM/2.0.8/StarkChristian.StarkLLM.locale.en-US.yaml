@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.9.0.schema.json
+PackageIdentifier: StarkChristian.StarkLLM
+PackageVersion: 2.0.8
+PackageLocale: en-US
+Publisher: Christian Stark
+PublisherUrl: https://www.starkllm.com
+PublisherSupportUrl: https://github.com/StarkChristian/StarkLLM/issues
+Author: Christian Stark
+PackageName: StarkLLM
+PackageUrl: https://www.starkllm.com
+License: Apache-2.0
+LicenseUrl: https://github.com/StarkChristian/StarkLLM/blob/main/LICENSE
+Copyright: Copyright (c) 2026 Christian Stark
+ShortDescription: Private AI assistant for your own documents, running on your PC.
+Description: |-
+  StarkLLM answers questions from your own documents with page-exact sources. Documents, chats and AI models stay on
+  your PC: it runs local models with Ollama and its engine in Docker Desktop. Includes a knowledge base of folders,
+  hybrid search, voice input and output, and updates from inside the app.
+Moniker: starkllm
+Tags:
+  - ai
+  - chat
+  - llm
+  - local-ai
+  - ollama
+  - privacy
+  - rag
+ReleaseNotesUrl: https://github.com/StarkChristian/StarkLLM/releases/tag/v2.0.8
+ManifestType: defaultLocale
+ManifestVersion: 1.9.0
