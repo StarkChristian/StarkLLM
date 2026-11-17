@@ -8,6 +8,8 @@ like a normal collection and never sees the difference. What stays readable in t
   docs/encryption-design.md ("what is not protected");
 * the metadata (file name, page, chunk number, source path): filters and citations need it.
 """
+from app.core import chroma_store
+from app.core.config import settings
 from app.core.protection import protection
 
 CONTEXT = "vectors.document"
@@ -40,17 +42,24 @@ class ProtectedCollection:
     def inner(self):
         return self._inner
 
+    def _write(self, method, ids, embeddings, metadatas, documents, kwargs):
+        sealed = seal_documents(documents)
+        with chroma_store.WRITE_LOCK:
+            result = getattr(self._inner, method)(ids=ids, embeddings=embeddings, metadatas=metadatas,
+                                                  documents=sealed, **kwargs)
+        if protection.enabled:
+            # new index files can hold uncleared memory with readable text (see chroma_store)
+            chroma_store.scrub_soon(settings.CHROMA_PERSIST_DIRECTORY)
+        return result
+
     def add(self, ids, embeddings=None, metadatas=None, documents=None, **kwargs):
-        return self._inner.add(ids=ids, embeddings=embeddings, metadatas=metadatas,
-                               documents=seal_documents(documents), **kwargs)
+        return self._write("add", ids, embeddings, metadatas, documents, kwargs)
 
     def upsert(self, ids, embeddings=None, metadatas=None, documents=None, **kwargs):
-        return self._inner.upsert(ids=ids, embeddings=embeddings, metadatas=metadatas,
-                                  documents=seal_documents(documents), **kwargs)
+        return self._write("upsert", ids, embeddings, metadatas, documents, kwargs)
 
     def update(self, ids, embeddings=None, metadatas=None, documents=None, **kwargs):
-        return self._inner.update(ids=ids, embeddings=embeddings, metadatas=metadatas,
-                                  documents=seal_documents(documents), **kwargs)
+        return self._write("update", ids, embeddings, metadatas, documents, kwargs)
 
     def get(self, *args, **kwargs):
         result = self._inner.get(*args, **kwargs)

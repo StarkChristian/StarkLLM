@@ -213,6 +213,11 @@ from app.services.kb_service import kb_service
 
 @app.on_event("startup")
 def on_startup():
+    from app.core.protection import protection
+    if protection.enabled:
+        # index files created by an earlier run can still hold uncleared memory (app.core.chroma_store)
+        from app.core.chroma_store import scrub_soon
+        scrub_soon(settings.CHROMA_PERSIST_DIRECTORY, delay=1.0)
     kb_service.start_background_watcher()
 
 @app.on_event("shutdown")

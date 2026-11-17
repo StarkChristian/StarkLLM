@@ -74,3 +74,86 @@ def test_persisted_vectors_are_left_alone(tmp_path):
     after = _files(path)
     assert {n: after[n] for n in index_files} == index_files
     assert coll.get(ids=["999"], include=["embeddings"])["embeddings"][0].tolist() == [999.0, 1.0, 0.5]
+
+
+def _plant_leftover(folder):
+    # what hnswlib leaves on Windows: readable text in a freshly created, never saved index file
+    with open(os.path.join(folder, "data_level0.bin"), "r+b") as f:
+        f.write(b"Steuerbescheid file_name /uploads/")
+
+
+def _index_folders(path):
+    return [os.path.join(path, d) for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))]
+
+
+def test_while_in_use_small_new_indexes_are_cleaned_and_big_ones_wait(tmp_path, monkeypatch):
+    path = str(tmp_path / "chroma")
+    client = chroma_store.open_chroma(path)
+    small = client.create_collection("small_one")
+    small.add(ids=["a"], documents=["x"], embeddings=[[0.1, 0.2, 0.3]])
+    assert small.count() == 1
+    big = client.create_collection("big_one")
+    big.add(ids=["b"], documents=["y"], embeddings=[[0.3, 0.2, 0.1]])
+    assert big.count() == 1
+    folders = _index_folders(path)
+    assert len(folders) == 2
+    for f in folders:
+        _plant_leftover(f)
+    # make the second collection count as "near its first save"
+    monkeypatch.setattr(chroma_store, "SAFE_BELOW", 1)
+    assert chroma_store.wipe_index_leftovers(path, while_in_use=True)
+    dirty = [f for f in folders if b"Steuerbescheid" in open(os.path.join(f, "data_level0.bin"), "rb").read()]
+    assert len(dirty) == 2, "with SAFE_BELOW=1 no collection is small enough: nothing in use is touched"
+    monkeypatch.setattr(chroma_store, "SAFE_BELOW", 900)
+    assert chroma_store.wipe_index_leftovers(path, while_in_use=True)
+    for f in folders:
+        assert b"Steuerbescheid" not in open(os.path.join(f, "data_level0.bin"), "rb").read()
+    assert small.query(query_embeddings=[[0.1, 0.2, 0.3]], n_results=1)["documents"] == [["x"]]
+    small.add(ids=["c"], documents=["z"], embeddings=[[0.2, 0.2, 0.2]])
+    assert small.count() == 2
+
+
+def test_writes_ask_for_a_clean_up_only_while_protection_is_on(monkeypatch):
+    from app.services import protected_collection as pc
+
+    calls = []
+    monkeypatch.setattr(chroma_store, "scrub_soon", lambda path, delay=None: calls.append(path))
+
+    class Inner:
+        def add(self, **kw):
+            assert chroma_store.WRITE_LOCK._is_owned(), "writes run under the lock the clean-up takes"
+            return "added"
+
+    class Off:
+        enabled = False
+
+    class On:
+        enabled = True
+
+    monkeypatch.setattr(pc, "seal_documents", lambda d: d)
+    monkeypatch.setattr(pc, "protection", Off())
+    assert pc.ProtectedCollection(Inner()).add(ids=["1"], documents=["x"]) == "added"
+    assert calls == []
+    monkeypatch.setattr(pc, "protection", On())
+    assert pc.ProtectedCollection(Inner()).add(ids=["1"], documents=["x"]) == "added"
+    assert len(calls) == 1
+
+
+def test_scrub_soon_runs_once_for_a_batch_of_writes(tmp_path, monkeypatch):
+    import threading
+    runs = []
+    done = threading.Event()
+
+    def fake(path, while_in_use=False):
+        runs.append(path)
+        done.set()
+        return True
+
+    monkeypatch.setattr(chroma_store, "wipe_index_leftovers", fake)
+    for _ in range(5):
+        chroma_store.scrub_soon(str(tmp_path), delay=0.2)
+    assert done.wait(5)
+    import time
+    time.sleep(0.4)
+    assert runs == [str(tmp_path)]
+
