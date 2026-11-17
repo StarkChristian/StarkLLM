@@ -42,7 +42,26 @@ class Api:
 
     def req(self, method, path, **kw):
         kw.setdefault("timeout", 1800)
-        return self.s.request(method, self.base + path, **kw)
+        # the engine (uvicorn) closes idle connections after 5 s: a reused connection can be reset (MSI run, 17 Nov)
+        for attempt in range(3):
+            try:
+                return self.s.request(method, self.base + path, **kw)
+            except requests.exceptions.ConnectionError:
+                if attempt == 2:
+                    raise
+                time.sleep(2)
+
+    def model(self, chosen=None):
+        """The chat model the answers come from: --model, else the account's default, else the app's."""
+        if chosen:
+            return chosen
+        try:
+            me = self.req("GET", "/auth/me").json()
+            if me.get("default_model"):
+                return me["default_model"]
+            return self.req("GET", "/dashboard/system-status").json()["text_model"]["name"]
+        except Exception:
+            return "unknown"
 
 
 def sign_in(a, args):
@@ -65,7 +84,7 @@ def wait_indexed(a, ws, doc_id, limit_s=7200):
         if j.get("status") in ("indexed", "failed", "missing"):
             j["seconds"] = round(time.time() - t0)
             return j
-        time.sleep(5)
+        time.sleep(3)
     return {"status": "TIMEOUT", "seconds": limit_s}
 
 
@@ -149,7 +168,8 @@ def main():
     a = Api(args.base)
     a = Api(args.base, sign_in(a, args))
     version = a.req("GET", "/version").json()
-    log = (out / "results.jsonl").open("a", encoding="utf-8")
+    model = a.model(args.model)
+    log =(out / "results.jsonl").open("a", encoding="utf-8")
 
     def rec(**kw):
         kw["t"] = datetime.datetime.now().isoformat(timespec="seconds")
@@ -166,7 +186,7 @@ def main():
             r.raise_for_status()
             st = wait_indexed(a, ws, r.json()["id"])
             rec(step="index", file=name, status=st.get("status"), seconds=st.get("seconds"), error=st.get("error_message"))
-    rec(step="start", version=version, workspace=ws, questions=len(questions))
+    rec(step="start", version=version, model=model, workspace=ws, questions=len(questions))
 
     rows = []
     for q in questions:
@@ -181,7 +201,7 @@ def main():
         sel = list(sel)
         return f"{sum(r['pass'] for r in sel)} of {len(sel)}" if sel else "-"
 
-    lines = [f"# Large documents: {version.get('version')} ({datetime.datetime.now():%Y-%m-%d %H:%M})", "",
+    lines = [f"# Large documents: {version.get('version')}, {model} ({datetime.datetime.now():%Y-%m-%d %H:%M})", "",
              f"- all: {rate(rows)} (predicted {sum(r['p'] for r in rows):.1f})",
              f"- specific questions: {rate(r for r in rows if r['scope'] == 'specific')}",
              f"- whole-book questions: {rate(r for r in rows if r['scope'] == 'global')}",
