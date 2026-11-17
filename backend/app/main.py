@@ -30,6 +30,7 @@ _migrations = [
     "ALTER TABLE chats ADD COLUMN folder_id INTEGER REFERENCES chat_folders(id) ON DELETE SET NULL",
     "ALTER TABLE workspaces ADD COLUMN system_prompt TEXT",
     "ALTER TABLE messages ADD COLUMN feedback TEXT",
+    "ALTER TABLE documents ADD COLUMN summary_status TEXT",
 ]
 for _sql in _migrations:
     try:
@@ -219,10 +220,18 @@ def on_startup():
         from app.core.chroma_store import scrub_soon
         scrub_soon(settings.CHROMA_PERSIST_DIRECTORY, delay=1.0)
     kb_service.start_background_watcher()
+    # layered summaries of large documents (owner decision: automatic, in the background); 30 s after the start, so
+    # the first answers and the unlock come first
+    if os.environ.get("STARKLLM_SUMMARIES", "on") != "off":
+        import threading
+        from app.services import summaries
+        threading.Timer(30.0, summaries.resume_on_start).start()
 
 @app.on_event("shutdown")
 def on_shutdown():
     kb_service.stop_background_watcher()
+    from app.services import summaries
+    summaries.stop()
 
 
 # ---------------------------------------------------------------------------

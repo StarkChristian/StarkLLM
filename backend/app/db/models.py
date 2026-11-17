@@ -102,6 +102,8 @@ class Document(Base):
     file_type = Column(String)
     status = Column(String, default=DocStatus.INDEXED, nullable=False)
     error_message = Column(ProtectedText("documents.error_message", locked_value=None), nullable=True)
+    # layered summaries of large documents (services/summaries.py): None, queued, "<done>/<total>", done, small, failed
+    summary_status = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     workspace = relationship("Workspace", back_populates="documents")

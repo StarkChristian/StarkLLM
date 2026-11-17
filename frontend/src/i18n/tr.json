@@ -1115,5 +1115,8 @@
   "{count} more": "{count} tane daha",
   "Deadlines": "Son tarihler",
   "Only the administrator of this StarkLLM, or the account that turned \"Fully offline\" on, can turn it off.": "\"Tamamen çevrimdışı\" ayarını yalnızca bu StarkLLM'in yöneticisi ya da onu açan hesap kapatabilir.",
-  "The engine on this PC could not be reached, so its switch was not changed. Try again when StarkLLM has started.": "Bu bilgisayardaki motora ulaşılamadı, bu yüzden anahtarı değiştirilmedi. StarkLLM başladığında tekrar deneyin."
+  "The engine on this PC could not be reached, so its switch was not changed. Try again when StarkLLM has started.": "Bu bilgisayardaki motora ulaşılamadı, bu yüzden anahtarı değiştirilmedi. StarkLLM başladığında tekrar deneyin.",
+  "Summary waiting": "Özet bekliyor",
+  "Summary {percent} %": "Özet %{percent}",
+  "StarkLLM summarizes large documents in the background, so it can answer questions about the whole document.": "StarkLLM, belgenin tamamıyla ilgili soruları yanıtlayabilmek için büyük belgeleri arka planda özetler."
 }

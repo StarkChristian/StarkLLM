@@ -66,6 +66,9 @@ def _purge_workspace_data(db: Session, ws: models.Workspace, user_id: int):
     from app.services.memory_service import memory_service
     for d in db.query(models.Document).filter(models.Document.workspace_id == ws.id).all():
         try:
+            if d.filepath:
+                from app.services import summaries
+                summaries.remove(d.filepath)
             if d.filepath and os.path.exists(d.filepath):
                 os.remove(d.filepath)
         except Exception as e:

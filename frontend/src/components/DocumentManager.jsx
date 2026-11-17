@@ -356,6 +356,12 @@ export default function DocumentManager({
   if (!isOpen) return null;
 
   const isInProgress = (doc) => IN_PROGRESS_STATUSES.includes(doc.status);
+  // layered summaries of large documents (backend services/summaries.py): "queued" or "<done>/<total>"
+  const summaryProgress = (s) => {
+    if (s === 'queued') return t('Summary waiting');
+    const m = /^(\d+)\/(\d+)$/.exec(s || '');
+    return m ? t('Summary {percent} %', { percent: Math.floor((100 * Number(m[1])) / Number(m[2])) }) : '';
+  };
 
   const filteredDocuments = documents.filter(doc => {
     if (searchQuery.trim()) {
@@ -761,6 +767,14 @@ export default function DocumentManager({
                             <span className={styles.metaDot}>•</span>
                             <span style={{ color: '#f59e0b', fontSize: '0.7rem' }}>
                               {STATUS_CONFIG[doc.status]?.label ?? doc.status}…
+                            </span>
+                          </>
+                        )}
+                        {!isInProgress(doc) && summaryProgress(doc.summary_status) && (
+                          <>
+                            <span className={styles.metaDot}>•</span>
+                            <span style={{ fontSize: '0.7rem', opacity: 0.8 }} title={t('StarkLLM summarizes large documents in the background, so it can answer questions about the whole document.')}>
+                              {summaryProgress(doc.summary_status)}
                             </span>
                           </>
                         )}
