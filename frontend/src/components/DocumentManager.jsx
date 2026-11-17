@@ -371,7 +371,7 @@ export default function DocumentManager({
     if (filterType === 'web') return fname.includes('webpage') || doc.file_type === 'html';
     if (filterType === 'files') {
       const ext = fname.split('.').pop();
-      return ['pdf', 'txt', 'csv', 'docx', 'xlsx', 'json'].includes(ext);
+      return ['pdf', 'txt', 'csv', 'docx', 'xlsx', 'epub', 'pptx', 'json'].includes(ext);
     }
     return true;
   });

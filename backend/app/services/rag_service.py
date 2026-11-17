@@ -258,6 +258,7 @@ class RAGService :
             .png / .jpg / .jpeg / .webp / .tif(f) — OCR, or Vision description when there is no text
             .txt / .md          — plain text
             .docx               — python-docx paragraph extraction
+            .epub / .pptx       — e-books by chapter, slides with speaker notes (book_formats.py)
         """
         file_ext =os .path .splitext (file_path )[1 ].lower ()
         prefix =self ._file_id_prefix (file_path )
@@ -450,6 +451,54 @@ class RAGService :
                             "locator": f"Chunk {idx + 1}"
                         })
                         ids.append(f"{prefix}_{basename}_c{idx}")
+
+            # ---------------------------------------------------------------- EPUB (e-books, by chapter)
+            elif file_ext == ".epub":
+                from app.services import book_formats
+                parts = book_formats.epub_chapters(read_path)
+                hidden = sum(p["hidden"] for p in parts)
+                n = 0
+                for ch_no, part in enumerate(parts, 1):
+                    text = part["text"] + ("\n" + untrusted.hidden_marker(hidden) if hidden and ch_no == 1 else "")
+                    for c in self._semantic_chunk_text(text):
+                        if c.strip():
+                            n += 1
+                            chunks.append(c.strip())
+                            metadatas.append({
+                                "source": file_path,
+                                "type": "epub",
+                                "section": part["title"],
+                                "chapter": ch_no,
+                                "chunk": n,
+                                "locator": f"Chapter: '{part['title'][:60]}' (chunk {n})",
+                            })
+                            ids.append(f"{prefix}_{basename}_c{n}")
+
+            # ---------------------------------------------------------------- PPTX (slides, with speaker notes)
+            elif file_ext == ".pptx":
+                from app.services import book_formats
+                slides = book_formats.pptx_slides(read_path)
+                hidden = sum(1 for s in slides if s["hidden"])
+                for slide in slides:
+                    if slide["hidden"]:
+                        continue
+                    text = "\n".join(x for x in (slide["title"], slide["text"]) if x)
+                    if hidden:
+                        text += "\n" + untrusted.hidden_marker(hidden)
+                        hidden = 0
+                    for i, c in enumerate(self._semantic_chunk_text(text)):
+                        if c.strip():
+                            chunks.append(c.strip())
+                            metadatas.append({
+                                "source": file_path,
+                                "type": "pptx",
+                                "page": slide["number"] - 1,
+                                "slide": slide["number"],
+                                "section": slide["title"][:60],
+                                "chunk": i + 1,
+                                "locator": f"Slide {slide['number']}",
+                            })
+                            ids.append(f"{prefix}_{basename}_s{slide['number']}_c{i}")
 
             # ---------------------------------------------------------------- XLSX
             elif file_ext == ".xlsx":

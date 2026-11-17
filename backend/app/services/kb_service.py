@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 # Supported file formats for the Knowledge Base indexer.
 # CSV and JSON are intentionally omitted until a meaningful chunking strategy
 # is implemented; they are not claimed in README or UI.
-SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff", ".txt", ".md", ".markdown", ".csv", ".json", ".xlsx", ".html", ".xml", ".log"}
+SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".epub", ".pptx", ".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff", ".txt", ".md", ".markdown", ".csv", ".json", ".xlsx", ".html", ".xml", ".log"}
 
 
 
@@ -618,6 +618,34 @@ class KBService:
                                 "locator": locator
                             })
                             ids.append(f"kb_doc_{document_id}_{file_prefix}_c{docx_chunk_count}")
+
+            elif file_type in ("epub", "pptx"):
+                from app.services import book_formats
+                logger.info(f"KB: Extracting {file_type}: {file_path}")
+                if file_type == "epub":
+                    parts = [{"title": p["title"], "text": p["text"], "hidden": p["hidden"], "page": None, "locator": f"Chapter: '{p['title'][:60]}'"}
+                             for p in book_formats.epub_chapters(file_path)]
+                else:
+                    parts = [{"title": s["title"], "text": "\n".join(x for x in (s["title"], s["text"]) if x), "hidden": int(s["hidden"]),
+                              "page": s["number"] - 1, "locator": f"Slide {s['number']}"}
+                             for s in book_formats.pptx_slides(file_path)]
+                hidden = sum(p["hidden"] for p in parts)
+                count = 0
+                for part in parts:
+                    if not part["text"]:
+                        continue
+                    text = part["text"] + ("\n" + untrusted.hidden_marker(hidden) if hidden else "")
+                    hidden = 0
+                    for c in rag_service._semantic_chunk_text(text):
+                        if c.strip():
+                            count += 1
+                            chunks.append(c.strip())
+                            meta = {**base_meta, "chunk_index": count, "section": part["title"][:60],
+                                    "locator": part["locator"] if part["page"] is not None else f"{part['locator']} (chunk {count})"}
+                            if part["page"] is not None:
+                                meta["page"] = part["page"]
+                            metadatas.append(meta)
+                            ids.append(f"kb_doc_{document_id}_{file_prefix}_c{count}")
 
             elif "." + file_type in PICTURE_EXTENSIONS:
                 logger.info(f"KB: Reading picture: {file_path}")
