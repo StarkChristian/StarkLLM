@@ -236,9 +236,21 @@ function nativeEnv(dir, { kbDir, secret, build, models = {}, ollamaUrl, offline 
 
 let engineProcess = null;
 
+// Every start writes this line first, so the log shows when each run began (and an old error is not read as new).
+const START_MARKER = '--- engine start ';
+
+// The lines of the last start only (the whole text if there is no marker yet).
+function lastRun(lines) {
+  const all = [].concat(lines || []);
+  let i = all.length - 1;
+  while (i >= 0 && !String(all[i]).startsWith(START_MARKER)) i--;
+  return i >= 0 ? all.slice(i + 1) : all;
+}
+
 // Starts serve_native.py from the package; the engine's output goes to engine-native.log in the user folder.
 function startNative(dir, { port, userDir, env, logFile, spawnImpl = spawn }) {
   const out = fs.openSync(logFile, 'a');
+  try { fs.writeSync(out, `${START_MARKER}${new Date().toISOString()} (port ${port})\n`); } catch (e) { /* log not writable */ }
   const child = spawnImpl(path.join(dir, 'runtime', 'python.exe'), [path.join(dir, 'backend', 'serve_native.py'), '--port', String(port)], {
     cwd: userDir,
     env,
@@ -287,4 +299,4 @@ function blockedFile(lines) {
   return [pkg, mod].filter(Boolean).join(' / ') || 'unknown file';
 }
 
-module.exports = { blockedFile, packageName, packageUrl, engineMode, readEngineChoice, writeEngineChoice, bundledPackage, packageVersion, removeDownloadedPackages, parseSha256, ensurePackage, nativeEnv, startNative, stopNative, sha256File };
+module.exports = { START_MARKER, lastRun, blockedFile, packageName, packageUrl, engineMode, readEngineChoice, writeEngineChoice, bundledPackage, packageVersion, removeDownloadedPackages, parseSha256, ensurePackage, nativeEnv, startNative, stopNative, sha256File };

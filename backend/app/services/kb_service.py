@@ -47,11 +47,21 @@ SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".epub", ".pptx", ".png", ".jpg", ".jpe
 
 
 
+
+def missing_folder_message(folder_id, folder_path) -> str:
+    """What the knowledge base watcher logs when a watched folder cannot be found."""
+    if os.path.exists("/.dockerenv"):
+        return (f"KB Watcher: folder ID {folder_id} path '{folder_path}' is not visible inside the Docker container "
+                "(a Windows folder is mirrored into /kb_data by the desktop app). Re-add the folder in Settings.")
+    return (f"KB Watcher: folder ID {folder_id} path '{folder_path}' does not exist or cannot be read "
+            "(moved, renamed, or on a drive that is not connected). It is checked again when it comes back.")
+
 class KBService:
     def __init__(self):
         self._sync_mutex = threading.Lock()
         self._active_sync_folders: set[int] = set()
         self._folder_snapshots: dict[int, dict[str, float]] = {}
+        self._missing_reported: set[int] = set()   # folders whose missing path was logged already (once, not every poll)
         self._last_change_detected: dict[int, float] = {}
         self._watcher_thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
@@ -923,13 +933,12 @@ class KBService:
                             folder_path = folder.folder_path
 
                             if not os.path.exists(folder_path):
-                                # Path not visible from container — log warning with actionable remedy
-                                logger.warning(
-                                    f"KB Watcher: folder ID {folder_id} path '{folder_path}' "
-                                    "not accessible from inside container. If this is a Windows path, "
-                                    "use the StarkLLM launcher (start.exe) to mirror it into /kb_data."
-                                )
+                                # logged once per folder (it was every poll, ~30 s); the Docker hint only in Docker
+                                if folder_id not in self._missing_reported:
+                                    self._missing_reported.add(folder_id)
+                                    logger.warning(missing_folder_message(folder_id, folder_path))
                                 continue
+                            self._missing_reported.discard(folder_id)
 
                             current_snap = self._take_folder_snapshot(folder_path)
                             prev_snap = self._folder_snapshots.get(folder_id)

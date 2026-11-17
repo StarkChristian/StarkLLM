@@ -613,7 +613,7 @@ async function startNativeEngine(appUrl, { status, onStatus, warnings, paths, gu
   clearTimeout(slow);
   if (exited !== null || !(await answers())) {
     let lines = [];
-    try { lines = fs.readFileSync(logFile, 'utf8').split(/\r?\n/).filter(Boolean).slice(-60); } catch (e) { /* no log yet */ }
+    try { lines = native.lastRun(fs.readFileSync(logFile, 'utf8').split(/\r?\n/).filter(Boolean)).slice(-60); } catch (e) { /* no log yet */ }
     const blocked = native.blockedFile(lines);
     let detail;
     if (blocked) {
