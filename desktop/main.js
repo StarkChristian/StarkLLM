@@ -5,6 +5,7 @@ const path = require('path');
 const { diagnose, buildErrorPage } = require('./diagnostics');
 const { startEngine, userPaths, secretKey, forgetFailedUpdate, apiUrl, stopNativeEngine, engineSettingsFile } = require('./engine');
 const nativeEngine = require('./native-engine');
+const integratedGpu = require('./igpu');
 const { DataKeyManager, DataKeyError, createSafeStorageKeyStore, deliverKey, lockEngine } = require('./data-key');
 const { createUnlockFlow } = require('./unlock-flow');
 const { pathToFileURL } = require('url');
@@ -550,6 +551,29 @@ async function chooseEngine(choice) {
   app.quit();
 }
 
+// Integrated graphics for the AI models (igpu.js): on by default where Ollama would leave them out; off from here.
+// Ollama is restarted with the new setting at the next start of StarkLLM.
+async function chooseIntegratedGpu(on) {
+  const { response } = await dialog.showMessageBox(mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined, {
+    type: 'question',
+    title: 'StarkLLM',
+    message: t('Restart StarkLLM to change this?'),
+    detail: t('StarkLLM restarts Ollama (the local AI runtime) with the new setting. Your chats and documents are not affected.'),
+    buttons: [t('Restart now'), t('Later')],
+    defaultId: 0,
+    cancelId: 1
+  });
+  if (response !== 0) {
+    refreshTrayMenu();
+    return;
+  }
+  integratedGpu.writeSetting(engineSettingsFile(), { mode: on ? 'auto' : 'off' });
+  logLine(`integrated graphics: ${on ? 'on' : 'off'} (tray menu), restarting`);
+  isQuitting = true;
+  app.relaunch();
+  app.quit();
+}
+
 // Rebuilt when a setting shown in it changes.
 function refreshTrayMenu() {
   if (!tray) return;
@@ -587,6 +611,13 @@ function refreshTrayMenu() {
       checked: nativeEngine.engineMode({ choice: nativeEngine.readEngineChoice(engineSettingsFile()) }) === 'docker',
       enabled: !process.env.STARKLLM_ENGINE,
       click: (item) => chooseEngine(item.checked ? 'docker' : 'native').catch((e) => logLine(`engine choice: ${e.message}`))
+    }] : []),
+    // shown once StarkLLM has seen integrated graphics on this PC
+    ...(process.platform === 'win32' && integratedGpu.readSetting(engineSettingsFile()).name ? [{
+      label: t('Use the integrated graphics for AI'),
+      type: 'checkbox',
+      checked: integratedGpu.readSetting(engineSettingsFile()).mode !== 'off',
+      click: (item) => chooseIntegratedGpu(item.checked).catch((e) => logLine(`integrated graphics: ${e.message}`))
     }] : []),
     {
       label: t('Check for Updates...'),

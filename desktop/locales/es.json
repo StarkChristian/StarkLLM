@@ -73,7 +73,7 @@
   "Docker Desktop is not running": "Docker Desktop no se está ejecutando",
   "StarkLLM tried to start Docker Desktop but its engine did not come up. Open Docker Desktop, wait until it says \"Engine running\" (on a new PC it may ask to finish its setup or to enable WSL2 and restart), then press Retry.": "StarkLLM intentó iniciar Docker Desktop, pero su motor no arrancó. Abra Docker Desktop y espere a que indique \"Engine running\" (en un PC nuevo puede pedirle que termine su configuración o que active WSL2 y reinicie), y después pulse Reintentar.",
   "Ollama is not installed": "Ollama no está instalado",
-  "StarkLLM runs its AI models with Ollama (free). It can download the official installer from ollama.com (about 1 GB), check its signature and install it for you; no administrator rights are needed.": "StarkLLM ejecuta sus modelos de IA con Ollama (gratuito). Puede descargar el instalador oficial de ollama.com (aproximadamente 1 GB), comprobar su firma e instalarlo por usted; no se necesitan derechos de administrador.",
+  "StarkLLM runs its AI models with Ollama (free). It can download the official installer from ollama.com (about 2 GB), check its signature and install it for you; no administrator rights are needed.": "StarkLLM ejecuta sus modelos de IA con Ollama (gratuito). Puede descargar el instalador oficial de ollama.com (aproximadamente 2 GB), comprobar su firma e instalarlo por usted; no se necesitan derechos de administrador.",
   "Install Ollama for me": "Instalar Ollama por mí",
   "or download it yourself": "o descárguelo usted mismo",
   "Ollama is not running": "Ollama no se está ejecutando",
@@ -121,5 +121,11 @@
   "Stopping the StarkLLM engine in Docker Desktop (StarkLLM now runs without Docker)...": "Deteniendo el motor de StarkLLM en Docker Desktop (StarkLLM ahora funciona sin Docker)...",
   "Starting the StarkLLM engine. The first start after an install or update can take a few minutes...": "Iniciando el motor de StarkLLM. El primer inicio después de una instalación o actualización puede tardar unos minutos...",
   "Windows blocked a program file of the StarkLLM engine ({file}). Smart App Control or another application control rule on this PC does not allow it. Please report this on the StarkLLM page on GitHub; a newer version of StarkLLM fixes it. The details are in {log}.": "Windows ha bloqueado un archivo de programa del motor de StarkLLM ({file}). El Control inteligente de aplicaciones u otra regla de control de aplicaciones de este PC no lo permite. Informe de ello en la página de StarkLLM en GitHub; una versión más reciente de StarkLLM lo soluciona. Los detalles están en {log}.",
-  "The StarkLLM engine did not answer within {minutes} minutes. Its log is in {log}.": "El motor de StarkLLM no respondió en {minutes} minutos. Su registro está en {log}."
+  "The StarkLLM engine did not answer within {minutes} minutes. Its log is in {log}.": "El motor de StarkLLM no respondió en {minutes} minutos. Su registro está en {log}.",
+  "Restarting Ollama (the local AI runtime)...": "Reiniciando Ollama (el entorno de ejecución de IA local)...",
+  "Faster answers with the graphics of this PC": "Respuestas más rápidas con la gráfica de este PC",
+  "StarkLLM turned on the integrated graphics of this PC ({gpu}) for the AI models, so answers come faster. To turn it off, use \"Use the integrated graphics for AI\" in the tray menu.": "StarkLLM ha activado la gráfica integrada de este PC ({gpu}) para los modelos de IA, así las respuestas llegan más rápido. Para desactivarla, use «Usar la gráfica integrada para la IA» en el menú de la bandeja.",
+  "Use the integrated graphics for AI": "Usar la gráfica integrada para la IA",
+  "Restart StarkLLM to change this?": "¿Reiniciar StarkLLM para cambiar esto?",
+  "StarkLLM restarts Ollama (the local AI runtime) with the new setting. Your chats and documents are not affected.": "StarkLLM reinicia Ollama (el entorno de ejecución de IA local) con el nuevo ajuste. Sus chats y documentos no se ven afectados."
 }

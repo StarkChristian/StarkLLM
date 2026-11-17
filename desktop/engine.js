@@ -13,6 +13,7 @@ const { probe } = require('./diagnostics');
 const { t, format } = require('./i18n');
 const { getShared, FEATURES: NET_FEATURES } = require('./netguard');
 const { chooseModels } = require('./models');
+const integratedGpu = require('./igpu');
 const { createPullProgress, createModelProgress, throttle, formatBytes } = require('./progress');
 const native = require('./native-engine');
 
@@ -304,15 +305,61 @@ async function ollamaDetails() {
   }));
 }
 
-// Total RAM, and the video memory of an NVIDIA card if nvidia-smi is there (0 otherwise).
-async function hardware() {
+// Total RAM, and the video memory of an NVIDIA card if nvidia-smi is there; without one, the share of the RAM that
+// integrated graphics Ollama uses may take (igpu.js); 0 otherwise.
+async function hardware(integrated = null) {
   const hw = { ramBytes: os.totalmem(), vramBytes: 0 };
   const r = await run('nvidia-smi', ['--query-gpu=memory.total', '--format=csv,noheader,nounits'], { timeoutMs: 8000 });
   if (r.code === 0) {
     const mib = Math.max(0, ...r.lines.map((l) => parseInt(l, 10)).filter(Number.isFinite));
     hw.vramBytes = mib * 1024 * 1024;
   }
+  if (!hw.vramBytes && integrated) hw.vramBytes = integratedGpu.videoMemoryFor(integrated, hw.ramBytes);
   return hw;
+}
+
+// Ollama's own log (the per-user install writes it to %LOCALAPPDATA%\Ollama\server.log): the last 512 KB
+function ollamaServerLog() {
+  const file = path.join(LOCAL_APP_DATA, 'Ollama', 'server.log');
+  try {
+    const size = fs.statSync(file).size;
+    const fd = fs.openSync(file, 'r');
+    const len = Math.min(size, 512 * 1024);
+    const buf = Buffer.alloc(len);
+    fs.readSync(fd, buf, 0, len, size - len);
+    fs.closeSync(fd);
+    return buf.toString('utf8');
+  } catch (e) {
+    return '';
+  }
+}
+
+// How many models Ollama has loaded right now (unknown counts as one: then nothing is restarted)
+async function ollamaLoadedCount() {
+  const r = await probe(OLLAMA_URL + '/api/ps');
+  if (!r.ok) return 1;
+  try {
+    return (JSON.parse(r.body).models || []).length;
+  } catch (e) {
+    return 1;
+  }
+}
+
+// Stops the per-user Ollama app and its server and starts the app again (it inherits StarkLLM's environment).
+// true when Ollama answers again and has written which graphics it uses.
+async function restartOllama() {
+  await run('taskkill', ['/IM', 'ollama app.exe', '/F'], { timeoutMs: 15000 });
+  await run('taskkill', ['/IM', 'ollama.exe', '/F'], { timeoutMs: 15000 });
+  await waitFor(async () => (await ollamaModels()) === null, 15000, 500);
+  const before = ollamaServerLog().length;
+  if (!launchDetached(OLLAMA_APP)) return false;
+  if (!(await waitFor(async () => (await ollamaModels()) !== null, 45000))) return false;
+  // the server answers before it has written the graphics it found; give the log a moment
+  await waitFor(async () => {
+    const text = ollamaServerLog();
+    return text.length !== before && /msg="inference compute"/.test(integratedGpu.lastStart(text));
+  }, 20000, 1000);
+  return true;
 }
 
 // Documents were indexed before if the vector store has collections; their search model must then stay.
@@ -445,11 +492,30 @@ async function ensureOllama(status, progress, warnings) {
     if (saved) useModels(saved);
     return false;
   }
+  // integrated graphics (AMD Radeon, Intel Arc/Iris) that Ollama leaves out: turned on once (igpu.js)
+  let gpu = { used: null };
+  if (IS_WIN && fs.existsSync(OLLAMA_APP)) {
+    try {
+      gpu = await integratedGpu.applyIntegratedGpu({
+        settingsFile: engineSettingsFile(),
+        readLog: ollamaServerLog,
+        loadedModels: ollamaLoadedCount,
+        restartOllama: async () => { status('Restarting Ollama (the local AI runtime)...'); return restartOllama(); },
+        log
+      });
+      if (gpu.turnedOn) {
+        warnings.push({ title: t('Faster answers with the graphics of this PC'), detail: t('StarkLLM turned on the integrated graphics of this PC ({gpu}) for the AI models, so answers come faster. To turn it off, use "Use the integrated graphics for AI" in the tray menu.', { gpu: gpu.turnedOn }) });
+      }
+      models = (await ollamaModels()) || models;
+    } catch (e) {
+      log('integrated graphics: ' + e.message);
+    }
+  }
   status('Looking at the AI models on this PC...');
   const installed = (await ollamaDetails()) || [];
-  const hw = await hardware();
+  const hw = await hardware(gpu.used);
   const choice = chooseModels({ installed, hw, saved: readSavedModels(), existingIndex: hasIndex(userPaths().data) });
-  log(`models: ${installed.length} installed; RAM ${size(hw.ramBytes)}, video memory ${hw.vramBytes ? size(hw.vramBytes) : 'unknown'}`);
+  log(`models: ${installed.length} installed; RAM ${size(hw.ramBytes)}, video memory ${hw.vramBytes ? size(hw.vramBytes) : 'unknown'}${gpu.used ? ` (integrated graphics: ${gpu.used.name})` : ''}`);
   choice.notes.forEach((n) => log('models: ' + n));
   log(`models: chat ${choice.text}, search ${choice.embedding}, images ${choice.vision}; downloading: ${choice.pull.join(', ') || 'nothing'}`);
   useModels(choice);

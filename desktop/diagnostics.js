@@ -97,7 +97,7 @@ function buildRows(d) {
     rows.push({
       ok: false,
       title: t('Ollama is not installed'),
-      detail: t('StarkLLM runs its AI models with Ollama (free). It can download the official installer from ollama.com (about 1 GB), check its signature and install it for you; no administrator rights are needed.'),
+      detail: t('StarkLLM runs its AI models with Ollama (free). It can download the official installer from ollama.com (about 2 GB), check its signature and install it for you; no administrator rights are needed.'),
       action: { href: 'starkllm-install-ollama:', label: t('Install Ollama for me') },
       link: { href: LINKS.ollama, label: t('or download it yourself') }
     });
