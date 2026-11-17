@@ -13,7 +13,7 @@
     "test": "node --test"
   },
   "devDependencies": {
-    "electron": "^33.2.0",
+    "electron": "^45.3.3",
     "electron-builder": "26.18.1"
   },
   "build": {
