@@ -269,4 +269,22 @@ function stopNative() {
   } else child.kill();
 }
 
-module.exports = { packageName, packageUrl, engineMode, readEngineChoice, writeEngineChoice, bundledPackage, packageVersion, removeDownloadedPackages, parseSha256, ensurePackage, nativeEnv, startNative, stopNative, sha256File };
+// What the engine's log says about a failed start. Windows refuses to load a program file it does not trust
+// (Smart App Control, or another application control rule): Python then reports
+//   ImportError: DLL load failed while importing _ext: An Application Control policy has blocked this file.
+// in the language of Windows. Returns the blocked package and module ("ctranslate2 / _ext"), or null.
+const APP_CONTROL = /Anwendungssteuerungsrichtlinie|Application Control policy|application control|WinError 4551/i;
+function blockedFile(lines) {
+  const text = [].concat(lines || []);
+  const hit = text.findIndex((l) => APP_CONTROL.test(l));
+  if (hit < 0) return null;
+  const mod = (text[hit].match(/importing (\S+?):/) || [])[1];
+  let pkg = null;
+  for (let i = hit; i >= 0 && !pkg; i--) {
+    const m = text[i].match(/site-packages[\\/]([^\\/"]+)[\\/]/);
+    if (m) pkg = m[1];
+  }
+  return [pkg, mod].filter(Boolean).join(' / ') || 'unknown file';
+}
+
+module.exports = { blockedFile, packageName, packageUrl, engineMode, readEngineChoice, writeEngineChoice, bundledPackage, packageVersion, removeDownloadedPackages, parseSha256, ensurePackage, nativeEnv, startNative, stopNative, sha256File };

@@ -19,6 +19,9 @@
 // are NOT signed by default, only our own files. STARKLLM_SIGN_THIRD_PARTY=1 signs them too: use it only if the Smart
 // App Control test on Windows 11 shows that they are blocked (docs/signing-on-owner-pc.md). The NSIS plugin DLLs are
 // signed only by naming them on the command line (node build/sign.js <dll>...), same condition.
+// The engine without Docker (resources/engine-native) is different: its unsigned files are always signed, because Smart
+// App Control blocked them (2.2.0 test, 17 Nov 2026: ctranslate2's _ext.pyd). Files with a valid signature of another
+// publisher (the Python Software Foundation's python.exe) keep it; an expired one (Tesseract's) is replaced by ours.
 // Files that already carry a valid signature (ours from an earlier run, Microsoft's d3dcompiler_47.dll in Electron)
 // are left as they are, so a run that stopped half way (SimplySign session expired) can simply be started again.
 const fs = require('fs');

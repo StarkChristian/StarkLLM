@@ -6,12 +6,11 @@
     { "pattern": "libGLESv2.dll", "reason": "Electron/Chromium library (ANGLE), built and shipped unchanged by the Electron project" },
     { "pattern": "vk_swiftshader.dll", "reason": "Electron/Chromium library (software Vulkan), built and shipped unchanged by the Electron project" },
     { "pattern": "vulkan-1.dll", "reason": "Electron/Chromium library (Vulkan loader), built and shipped unchanged by the Electron project" },
-    { "pattern": "resources/elevate.exe", "reason": "electron-builder helper for installing for all users, third-party binary shipped unchanged" },
-    { "pattern": "resources/engine-native/**", "reason": "the engine without Docker (built by native-engine-package.yml): Python's embeddable runtime and the backend's packages from PyPI, third-party files shipped unchanged. Signed by us only if the Smart App Control test blocks them (owner decision 2026-11-16, STARKLLM_SIGN_THIRD_PARTY=1)" }
+    { "pattern": "resources/elevate.exe", "reason": "electron-builder helper for installing for all users, third-party binary shipped unchanged" }
   ],
   "foreignSignatureAllowed": [
     { "pattern": "d3dcompiler_47.dll", "reason": "signed by Microsoft; a second signature from us is neither needed nor allowed to replace it" },
-    { "pattern": "resources/engine-native/**", "reason": "the engine's Python runtime (python.exe, python311.dll, ...) is signed by the Python Software Foundation" }
+    { "pattern": "resources/engine-native/**", "reason": "the engine's Python runtime (python.exe, python311.dll, ...) is signed by the Python Software Foundation. All other program files of the engine (unsigned, or with an expired signature like Tesseract's) are signed by us: Smart App Control blocked the unsigned ctranslate2 module on the 2.2.0 test (MSI, 17 Nov 2026), so they are not on the unsigned list" }
   ],
   "insideInstallerOnly": [
     { "pattern": "System.dll, StdUtils.dll, UAC.dll, WinShell.dll, nsis7z.dll, nsProcess.dll", "reason": "NSIS plugins from NSIS and electron-builder, unpacked to a temp folder by the installer; they are not on disk in a build folder, so no check can see them. CI signs them in the NSIS toolset copy before the build (windows-trust.yml); on the owner's PC they stay unsigned unless build/copy-nsis-plugins.js is used" }

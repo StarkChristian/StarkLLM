@@ -95,6 +95,14 @@ gh release upload v<version> release-work\out\StarkLLM-v<version>-Setup.exe rele
 
 Then put the SHA-256 values into the release notes / checksum file as for every release.
 
+### The engine without Docker: always signed
+
+The program files of the engine without Docker (`resources\engine-native`: Python packages from PyPI, Tesseract) are
+signed by us in every release, without `STARKLLM_SIGN_THIRD_PARTY`. On the 2.2.0 test (17 Nov 2026) Smart App Control
+blocked the unsigned `ctranslate2\_ext.cp311-win_amd64.pyd`, so the engine could not start. That is about 230
+signatures per release (the cloud certificate allows 5000 a month). Files signed by the Python Software Foundation keep
+their signature; Tesseract's expired signature (Universitaet Mannheim, 2023) is replaced by ours.
+
 ### Only if the Windows 11 test shows a block: third-party files and NSIS plugins
 
 Decision of the owner: **only our own files are signed by default.** The third-party files (Electron/Chromium libraries,

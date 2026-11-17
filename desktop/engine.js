@@ -482,7 +482,9 @@ async function ensureOllama(status, progress, warnings) {
 // It gets what the Docker engine gets from docker-compose.yml: the same data folder (the working directory holds
 // data\), the knowledge base folder, the key, the "fully offline" switch and the cloud-sync note. No TZ: Python on
 // Windows already uses the PC's time zone (and a TZ variable in IANA form would confuse it).
-const NATIVE_ANSWER_MS = Number(process.env.STARKLLM_ENGINE_ANSWER_MS) || 180000;
+// The first start after an install or update is slow: Python compiles the backend (pycache) and Windows checks every
+// program file once. On a busy PC that took more than 3 minutes (2.2.0 test), so it gets 10.
+const NATIVE_ANSWER_MS = Number(process.env.STARKLLM_ENGINE_ANSWER_MS) || 600000;
 async function startNativeEngine(appUrl, { status, onStatus, warnings, paths, guard = getShared() }) {
   const port = Number(new URL(appUrl).port) || 5173;
   nativeApiUrl = `http://127.0.0.1:${port}`;
@@ -536,13 +538,27 @@ async function startNativeEngine(appUrl, { status, onStatus, warnings, paths, gu
   let exited = null;
   child.on('exit', (code) => { exited = code; });
   const answers = async () => exited === null && (await isStarkLLM(appUrl)) && engineIsCurrent(await engineHealth(), build);
+  const slow = setTimeout(() => status('Starting the StarkLLM engine. The first start after an install or update can take a few minutes...'), 30000);
+  let timedOut = false;
   if (!(await waitFor(async () => exited !== null || (await answers()), NATIVE_ANSWER_MS))) {
+    timedOut = exited === null;
     native.stopNative();
   }
+  clearTimeout(slow);
   if (exited !== null || !(await answers())) {
-    let tail = [];
-    try { tail = fs.readFileSync(logFile, 'utf8').split(/\r?\n/).filter(Boolean).slice(-12); } catch (e) { /* no log yet */ }
-    return { ok: false, native: true, stage: 'engine', detail: t('The StarkLLM engine did not start. Its log is in {log}.', { log: logFile }), log: tail };
+    let lines = [];
+    try { lines = fs.readFileSync(logFile, 'utf8').split(/\r?\n/).filter(Boolean).slice(-60); } catch (e) { /* no log yet */ }
+    const blocked = native.blockedFile(lines);
+    let detail;
+    if (blocked) {
+      detail = t('Windows blocked a program file of the StarkLLM engine ({file}). Smart App Control or another application control rule on this PC does not allow it. Please report this on the StarkLLM page on GitHub; a newer version of StarkLLM fixes it. The details are in {log}.', { file: blocked, log: logFile });
+    } else if (timedOut) {
+      detail = t('The StarkLLM engine did not answer within {minutes} minutes. Its log is in {log}.', { minutes: Math.round(NATIVE_ANSWER_MS / 60000), log: logFile });
+    } else {
+      detail = t('The StarkLLM engine did not start. Its log is in {log}.', { log: logFile });
+    }
+    log(`the engine without Docker did not start: ${blocked ? `Windows blocked ${blocked}` : timedOut ? 'no answer in time' : `exit code ${exited}`}`);
+    return { ok: false, native: true, stage: 'engine', detail, log: lines.slice(-12) };
   }
   status('Ready.');
   return { ok: true, ollama, warnings, native: true };
