@@ -1,0 +1,160 @@
+name: Clean PC, first answer (Windows)
+
+# Roadmap phase 1, "done means": on a clean PC, with one installer and no restart, the first answer in less than about
+# 20 minutes. GitHub's Windows machine is a clean PC without Docker, Ollama or a graphics card. This takes the
+# published installer, installs it, and presses what a user presses: "Install Ollama for me" on the start page
+# (through the window's debugging port), then waits until StarkLLM has chosen and downloaded its models and shows its
+# main page, and asks one question. Every step is timed from the start of the install. Run it by hand (Actions tab):
+# it downloads several GB (Ollama and the models).
+
+on:
+  pull_request:
+    paths: ['.github/workflows/clean-pc-first-answer.yml', '.github/scripts/cdp.mjs']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to test (empty = the latest published release)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  first-answer:
+    runs-on: windows-latest
+    timeout-minutes: 100
+    env:
+      GH_TOKEN: ${{ github.token }}
+      STARKLLM_UPDATE_CHECK: '0'
+      # nobody is there to answer the first-start question (stay online / fully offline): stays online
+      STARKLLM_ASK_OFFLINE: '0'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: A clean PC and the published installer
+        shell: pwsh
+        run: |
+          if (Test-Path "$env:LOCALAPPDATA\Programs\Ollama") { throw 'Ollama is already on this machine: not a clean PC' }
+          if (Get-Command ollama -ErrorAction SilentlyContinue) { throw 'ollama is on PATH: not a clean PC' }
+          if (Get-Command docker -ErrorAction SilentlyContinue) { 'note: docker is on PATH (StarkLLM does not need it)' }
+          $tag = '${{ inputs.tag }}'
+          if (-not $tag) { $tag = gh release view --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName }
+          gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern '*-Setup.exe' --dir setup
+          $setup = Get-ChildItem setup/*-Setup.exe | Select-Object -First 1
+          $sig = Get-AuthenticodeSignature $setup.FullName
+          "$tag, $($setup.Name): $([math]::Round($setup.Length / 1MB)) MB, signature $($sig.Status), $($sig.SignerCertificate.Subject)"
+          if ($sig.Status -ne 'Valid') { throw 'the installer is not validly signed' }
+          "SETUP=$($setup.FullName)" | Out-File -Append $env:GITHUB_ENV
+          "TAG=$tag" | Out-File -Append $env:GITHUB_ENV
+          "RAM $([math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)) GB, $((Get-CimInstance Win32_Processor | Measure-Object NumberOfLogicalProcessors -Sum).Sum) logical processors, graphics: $((Get-CimInstance Win32_VideoController).Name -join ', ')"
+
+      - name: Install, start, "Install Ollama for me", models, first answer
+        shell: pwsh
+        run: |
+          $t0 = Get-Date
+          New-Item -ItemType Directory -Force out | Out-Null
+          "| step | time since the install began |`n|---|---|" | Out-File out/timings.md
+          function Stamp($what) {
+            $s = [math]::Round(((Get-Date) - $t0).TotalSeconds)
+            "[{0,5} s] {1}" -f $s, $what
+            "| $what | $([math]::Floor($s / 60)) min $($s % 60) s |" | Out-File -Append out/timings.md
+          }
+          function Shot($name) {
+            Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+            $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+            $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+            [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+            $bmp.Save("$PWD\out\$name.png")
+          }
+          $cdp = "$env:GITHUB_WORKSPACE\.github\scripts\cdp.mjs"
+          function Page($expr) { node $cdp $expr }
+          $log = "$env:APPDATA\StarkLLM\engine.log"
+
+          Start-Process $env:SETUP -ArgumentList '/S', '/currentuser' -Wait
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\StarkLLM\StarkLLM.exe'
+          $deadline = (Get-Date).AddMinutes(6)
+          while (-not (Test-Path $exe) -and (Get-Date) -lt $deadline) { Start-Sleep 3 }
+          if (-not (Test-Path $exe)) { throw 'the app was not installed' }
+          Stamp 'StarkLLM installed'
+
+          $app = Start-Process $exe -ArgumentList '--remote-debugging-port=9333' -PassThru
+          # 1. the start page offers to install Ollama (the engine itself starts without it)
+          $deadline = (Get-Date).AddMinutes(15)
+          $offered = $false
+          while ((Get-Date) -lt $deadline) {
+            Start-Sleep 5
+            if ($app.HasExited) { throw "the app exited with code $($app.ExitCode)" }
+            if ((Page "!!document.querySelector('a[href^=""starkllm-install-ollama:""]')") -eq 'true') { $offered = $true; break }
+          }
+          Shot '1-start-page'
+          if (-not $offered) { if (Test-Path $log) { Get-Content $log -Tail 40 }; throw 'the start page did not offer "Install Ollama for me"' }
+          Stamp 'start page offers "Install Ollama for me"'
+          Page "document.querySelector('a[href^=""starkllm-install-ollama:""]').click(), true" | Out-Null
+          Stamp 'pressed "Install Ollama for me"'
+
+          # 2. Ollama installed, models chosen and downloaded, the app shows its main page
+          $deadline = (Get-Date).AddMinutes(75)
+          $seen = @{}
+          $result = $null
+          while ((Get-Date) -lt $deadline) {
+            Start-Sleep 10
+            if ($app.HasExited) { throw "the app exited with code $($app.ExitCode)" }
+            if (-not $seen.ollama -and (Test-Path "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe")) { $seen.ollama = 1; Stamp 'Ollama installed' }
+            if (-not $seen.models -and (Test-Path $log) -and (Select-String -Path $log -Pattern 'models: chat' -Quiet)) { $seen.models = 1; Stamp 'models chosen, download starts' }
+            if (-not $seen.ready -and (Test-Path $log) -and (Select-String -Path $log -Pattern '^\S+ Ready\.' -Quiet)) { $seen.ready = 1; Stamp 'engine ready' }
+            $url = Page 'location.href'
+            if ($url -match '(127\.0\.0\.1|localhost):5173') { $result = 'app'; break }
+            # a page with notes only has "Continue"; a page with a problem has "Retry" and is the result
+            if ((Page "(function(){var a=document.querySelector('a[href^=""starkllm-continue:""]'); if(a){a.click(); return true} return false})()") -eq 'true') { Stamp 'start page with a note: pressed Continue'; continue }
+            if ($seen.ready -and (Page "!!document.querySelector('a[href^=""starkllm-retry:""]')") -eq 'true') { $result = 'problem page'; break }
+          }
+          Start-Sleep 5
+          Shot '2-after-models'
+          Get-Content $log | Select-String 'models:|pull|Ollama|Ready|integrated' | ForEach-Object { $_.Line } | Out-File out/engine-excerpt.txt
+          Get-Content out/engine-excerpt.txt
+          if ($result -ne 'app') { throw "StarkLLM did not reach its main page ($result)" }
+          Stamp 'StarkLLM shows its main page'
+
+          # 3. the first answer, with the chat model StarkLLM chose
+          $chosen = Get-Content "$env:APPDATA\StarkLLM\models.json" -Raw | ConvertFrom-Json
+          "chosen models: chat $($chosen.text), search $($chosen.embedding), images $($chosen.vision)"
+          $secret = (Get-Content "$env:APPDATA\StarkLLM\secret.key" -Raw).Trim()
+          $hmac = New-Object System.Security.Cryptography.HMACSHA256
+          $hmac.Key = [Text.Encoding]::UTF8.GetBytes($secret)
+          $key = -join ($hmac.ComputeHash([Text.Encoding]::UTF8.GetBytes('starkllm-desktop-session')) | ForEach-Object { $_.ToString('x2') })
+          $s = Invoke-RestMethod -Method Post http://127.0.0.1:5173/api/v1/auth/desktop-session -Headers @{ 'X-Desktop-Key' = $key }
+          $session = @{ Authorization = "Bearer $($s.access_token)" }
+          Invoke-RestMethod -Method Put http://127.0.0.1:5173/api/v1/connections -Headers $session -ContentType 'application/json' -Body '{"enabled":true}' | Out-Null
+          $appKey = (Invoke-RestMethod -Method Post http://127.0.0.1:5173/api/v1/connections/keys -Headers $session -ContentType 'application/json' -Body '{"name":"clean pc test"}').key
+          "::add-mask::$appKey"
+          $body = @{ model = $chosen.text; messages = @(@{ role = 'user'; content = 'In one sentence: what is a deadline?' }) } | ConvertTo-Json -Depth 4
+          $q = Get-Date
+          $r = Invoke-RestMethod -Method Post http://127.0.0.1:5173/v1/chat/completions -Headers @{ Authorization = "Bearer $appKey" } -ContentType 'application/json' -Body $body -TimeoutSec 900
+          $answer = $r.choices[0].message.content
+          "answer ($([math]::Round(((Get-Date) - $q).TotalSeconds)) s): $answer"
+          if (-not $answer) { throw 'no answer from the model' }
+          Stamp "first answer ($($chosen.text))"
+
+          $total = ((Get-Date) - $t0).TotalMinutes
+          $verdict = if ($total -le 20) { "PASS: first answer after $([math]::Round($total, 1)) min (goal: about 20)" } else { "OVER THE GOAL: first answer after $([math]::Round($total, 1)) min (goal: about 20)" }
+          if ($total -gt 20) { "::warning::$verdict" }
+          @("## Clean PC, first answer: $env:TAG", '', $verdict, '', (Get-Content out/timings.md -Raw), '', "Chosen models: chat $($chosen.text), search $($chosen.embedding), images $($chosen.vision)", '', '```', (Get-Content out/engine-excerpt.txt -Raw), '```') | Out-File -Append $env:GITHUB_STEP_SUMMARY
+
+      - name: Logs and screenshots
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force out | Out-Null
+          foreach ($f in 'engine.log', 'engine-native.log', 'models.json') { if (Test-Path "$env:APPDATA\StarkLLM\$f") { Copy-Item "$env:APPDATA\StarkLLM\$f" out/ } }
+          if (Test-Path "$env:LOCALAPPDATA\Ollama\server.log") { Copy-Item "$env:LOCALAPPDATA\Ollama\server.log" out/ollama-server.log }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: clean-pc-first-answer
+          path: out/
