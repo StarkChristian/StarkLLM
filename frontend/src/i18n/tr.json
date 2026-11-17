@@ -129,6 +129,7 @@
   "Copy your files into knowledge_base_data/my-folder inside the StarkLLM project directory, then register the path /kb_data/my-folder here.": "Dosyalarınızı StarkLLM proje dizini içindeki knowledge_base_data/my-folder klasörüne kopyalayın, ardından /kb_data/my-folder yolunu buraya kaydedin.",
   "Core Concepts & Glossary": "Temel Kavramlar ve Sözlük",
   "Could not check: {error}": "Denetlenemedi: {error}",
+  "StarkLLM is up to date.": "StarkLLM güncel.",
   "Could not fetch GitHub repo": "GitHub deposu alınamadı",
   "Could not fetch URL": "URL alınamadı",
   "Could not fetch YouTube transcript": "YouTube dökümü alınamadı",

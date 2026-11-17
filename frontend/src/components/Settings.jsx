@@ -73,7 +73,7 @@ export default function Settings({ token, username, activeWorkspace, currentMode
     setUpdateState('Checking...');
     try {
       const r = await desktop.checkForUpdates();
-      setUpdateState(r && r.error ? t('Could not check: {error}', { error: r.error }) : '');
+      setUpdateState(r && r.error ? t('Could not check: {error}', { error: r.error }) : (r && r.upToDate ? t('StarkLLM is up to date.') : ''));
     } catch (e) {
       setUpdateState(t('Could not check: {error}', { error: e.message }));
     }

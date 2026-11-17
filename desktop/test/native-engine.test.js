@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { blockedFile, packageName, packageUrl, engineMode, readEngineChoice, writeEngineChoice, bundledPackage, removeDownloadedPackages, parseSha256, ensurePackage, nativeEnv } = require('../native-engine');
+const { START_MARKER, lastRun, blockedFile, packageName, packageUrl, engineMode, readEngineChoice, writeEngineChoice, bundledPackage, removeDownloadedPackages, parseSha256, ensurePackage, nativeEnv } = require('../native-engine');
 const { createGuard } = require('../netguard');
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'native-engine-'));
@@ -257,5 +257,17 @@ test('a file blocked by Smart App Control is named (2.2.0 test on the MSI, Germa
   assert.equal(blockedFile(lines), 'ctranslate2 / _ext');
   assert.equal(blockedFile(['ImportError: DLL load failed while importing _ext: An Application Control policy has blocked this file.']), '_ext');
   assert.equal(blockedFile(['INFO: Application startup complete.']), null);
+});
+
+test('only the last start of the engine is read: an old error in the log is not taken as new (N22)', () => {
+  const log = [
+    `${START_MARKER}2026-11-17T12:29:00.000Z (port 5173)`,
+    'ImportError: DLL load failed while importing _ext: Eine Anwendungssteuerungsrichtlinie hat diese Datei blockiert.',
+    `${START_MARKER}2026-11-17T13:53:09.000Z (port 5173)`,
+    'INFO:     Started server process'
+  ];
+  assert.deepEqual(lastRun(log), ['INFO:     Started server process']);
+  assert.equal(blockedFile(lastRun(log)), null);
+  assert.deepEqual(lastRun(['a', 'b']), ['a', 'b'], 'a log from before the marker: everything');
 });
 

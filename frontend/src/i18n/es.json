@@ -129,6 +129,7 @@
   "Copy your files into knowledge_base_data/my-folder inside the StarkLLM project directory, then register the path /kb_data/my-folder here.": "Copie sus archivos en knowledge_base_data/mi-carpeta dentro de la carpeta del proyecto StarkLLM y después registre aquí la ruta /kb_data/mi-carpeta.",
   "Core Concepts & Glossary": "Conceptos clave y glosario",
   "Could not check: {error}": "No se pudo comprobar: {error}",
+  "StarkLLM is up to date.": "StarkLLM está actualizado.",
   "Could not fetch GitHub repo": "No se pudo obtener el repositorio de GitHub",
   "Could not fetch URL": "No se pudo obtener la URL",
   "Could not fetch YouTube transcript": "No se pudo obtener la transcripción de YouTube",
