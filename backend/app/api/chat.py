@@ -13,6 +13,7 @@ from app.db.session import get_db
 from app.db import models
 from app.services.llm_service import llm_service, ModelNotFoundError, LLMBackendError, cloud_host
 from app.services.rag_service import rag_service
+from app.services import summaries
 from app.services.document_checks import fact_block, findings, note, ibans, sender_key
 from app.services.locale_rules import language_name
 from app.services.memory_service import memory_service
@@ -706,7 +707,10 @@ async def chat(
                          if docs_available and DATE_QUESTION.search(req.message) else "")
 
         # ---- Concurrent Data Fetching (RAG, Web, Memory)
+        summary_sources = []   # labels of the layered summaries used (services/summaries.py)
+
         async def fetch_rag():
+            summaries.note_chat()  # the background summaries wait while the user chats
             if not (is_rag_intent or matched_filepaths or docs_available):
                 logger.info("Skipped RAG vector search: GENERAL intent and no indexed documents.")
                 return [], [], "", ""
@@ -750,6 +754,12 @@ async def chat(
                 ws_res = [r for r in ws_res if not r.get("replaced_by")]
                 ws_ctx = "\n\n".join(replaced_notes + [
                     f"[Document: {_build_citation_label(r)[0]}]\n{_strip_tool_fences(r['content'])}" for r in ws_res])
+                # a question about a whole document (summary, ending, all people ...): its layered summaries first
+                if summaries.is_whole_document_question(req.message):
+                    summary_ctx, labels = await asyncio.to_thread(summaries.context_for, req.workspace_id, req.message)
+                    if summary_ctx:
+                        ws_ctx = summary_ctx + ("\n\n" + ws_ctx if ws_ctx else "")
+                        summary_sources.extend(labels)
                 kb_ctx = "\n\n".join(f"[Personal KB Document: {_build_citation_label(r)[0]}]\n{_strip_tool_fences(r['content'])}" for r in kb_res)
                 
                 logger.info(f"DEBUG: RAG merged → {len(ws_res)} workspace ({len(ws_ctx)} chars) + {len(kb_res)} KB ({len(kb_ctx)} chars) result(s)")
@@ -827,6 +837,8 @@ async def chat(
                 _, ui_lbl = _build_citation_label(r)
                 if ui_lbl not in ws_sources:
                     ws_sources.append(ui_lbl)
+
+        ws_sources = summary_sources + ws_sources
 
         kb_sources = []
         for r in (kb_results or []):
@@ -961,6 +973,9 @@ STRICT DOCUMENT RAG MODE
   is in no document, such as the date and signature.
 - If passages disagree (for example an old and a new version of the same contract or manual), answer with the current, valid one first. A passage that says it was replaced, superseded or is no longer valid is outdated: mention its value only as outdated, never as an equal alternative.
 - When asked to summarize a document, cover its key terms (parties, duration, amounts, deadlines, liabilities) and add nothing that is not in the passages.
+- Passages that start with [Summary of <file>, ...] were written by StarkLLM from the whole document, part by part. Use
+  them for questions about the whole document (what it is about, what happens, how it ends, who appears); for exact
+  quotes, numbers and details prefer the document's own passages. Name the file and the pages they cover.
 {DEADLINE_RULES}
 
 ═══════════════════════════════════════
@@ -997,6 +1012,9 @@ DOCUMENT-AWARE MODE
   is in no document, such as the date and signature.
 - If passages disagree (for example an old and a new version of the same contract or manual), answer with the current, valid one first. A passage that says it was replaced, superseded or is no longer valid is outdated: mention its value only as outdated, never as an equal alternative.
 - When asked to summarize a document, cover its key terms (parties, duration, amounts, deadlines, liabilities) and add nothing that is not in the passages.
+- Passages that start with [Summary of <file>, ...] were written by StarkLLM from the whole document, part by part. Use
+  them for questions about the whole document (what it is about, what happens, how it ends, who appears); for exact
+  quotes, numbers and details prefer the document's own passages. Name the file and the pages they cover.
 {DEADLINE_RULES}
 - If the message asks for facts about the user's own company, files, people, products, contracts or data that only their documents could contain, and the passages do not contain the answer, reply that you could not find it in the provided documents (in the user's language). Do NOT guess and do NOT answer from general knowledge in that case.
 - For greetings, chit-chat, general knowledge, coding or writing tasks that have nothing to do with the documents, answer normally and do not mention the documents.

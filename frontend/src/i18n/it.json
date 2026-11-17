@@ -1115,5 +1115,8 @@
   "{count} more": "{count} altre",
   "Deadlines": "Scadenze",
   "Only the administrator of this StarkLLM, or the account that turned \"Fully offline\" on, can turn it off.": "Solo l'amministratore di questo StarkLLM, o l'account che ha attivato «Completamente offline», può disattivarlo.",
-  "The engine on this PC could not be reached, so its switch was not changed. Try again when StarkLLM has started.": "Il motore di questo PC non è raggiungibile, quindi il suo interruttore non è stato modificato. Riprovi quando StarkLLM sarà avviato."
+  "The engine on this PC could not be reached, so its switch was not changed. Try again when StarkLLM has started.": "Il motore di questo PC non è raggiungibile, quindi il suo interruttore non è stato modificato. Riprovi quando StarkLLM sarà avviato.",
+  "Summary waiting": "Riassunto in attesa",
+  "Summary {percent} %": "Riassunto {percent} %",
+  "StarkLLM summarizes large documents in the background, so it can answer questions about the whole document.": "StarkLLM riassume i documenti grandi in background, così può rispondere a domande sull'intero documento."
 }

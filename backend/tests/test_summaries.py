@@ -1,0 +1,107 @@
+"""Layered summaries of large documents (services/summaries.py, roadmap phase 2)."""
+import json
+
+from app.services import summaries as S
+
+
+def chunk(text, page=None, order=0, section=""):
+    return {"text": text, "page": page, "order": order, "section": section}
+
+
+def test_sections_follow_the_table_of_contents_with_the_front_matter_first():
+    chunks = [chunk("x" * 1000, p) for p in range(1, 41)]
+    toc = [("CHAPTER 1. Loomings", 5), ("CHAPTER 2. The Carpet-Bag", 12), ("CHAPTER 3. The Spouter-Inn", 20)]
+    s = S.plan_sections(chunks, toc)
+    titles = [x["title"] for x in s]
+    assert titles[0] == "Beginning" and s[0]["pages"] == [1, 4]
+    assert "CHAPTER 2. The Carpet-Bag" in titles
+    # chapter 3 runs from page 20 to the end: 21 pages * 1000 characters, split into parts of at most 12,000
+    ch3 = [x for x in s if x["title"].startswith("CHAPTER 3")]
+    assert len(ch3) > 1 and all(len(x["text"]) <= S.SECTION_MAX_CHARS for x in ch3)
+    assert ch3[0]["title"].endswith("(1/%d)" % len(ch3))
+
+
+def test_sections_from_chapter_labels_pages_or_plain_size():
+    epub = [chunk("a" * 3000, None, i, "Chapter 1") for i in range(3)] + [chunk("b" * 3000, None, 3 + i, "Chapter 2") for i in range(3)]
+    assert [x["title"] for x in S.plan_sections(epub)] == ["Chapter 1", "Chapter 2"]
+    pages = [chunk("p" * 1000, p) for p in range(1, 26)]
+    assert [x["title"] for x in S.plan_sections(pages)][:3] == ["Pages 1-10", "Pages 11-20", "Pages 21-25"]
+    plain = [chunk("t" * 4000, None, i) for i in range(10)]
+    assert all(len(x["text"]) <= S.SECTION_MAX_CHARS for x in S.plan_sections(plain))
+
+
+def test_small_sections_join_the_one_before():
+    chunks = [chunk("a" * 5000, None, 0, "One"), chunk("tiny", None, 1, "Two"), chunk("c" * 5000, None, 2, "Three")]
+    s = S.plan_sections(chunks)
+    assert [x["title"] for x in s] == ["One", "Three"] and "tiny" in s[0]["text"]
+
+
+def test_only_large_documents_are_summarized():
+    assert not S.is_large([chunk("x" * 1000, p) for p in range(1, 10)])
+    assert S.is_large([chunk("x" * 100, p) for p in range(1, 40)])
+    assert S.is_large([chunk("x" * 70_000)])
+
+
+def test_build_writes_sections_parts_and_the_whole_and_reuses_an_unfinished_run(monkeypatch):
+    calls = []
+
+    def fake_ask(instruction, text, max_words, stop=None):
+        calls.append(instruction[:40])
+        return f"summary {len(calls)}"
+
+    monkeypatch.setattr(S, "_ask", fake_ask)
+    chunks = [chunk("x" * 3000, p) for p in range(1, 121)]   # 12 windows of 10 pages ... split into 30 sections
+    seen = []
+    data = S.build(chunks, name="moby-dick.pdf", progress=lambda d, t: seen.append((d, t)))
+    n = len(data["sections"])
+    assert n >= 12 and len(data["parts"]) == (n + S.GROUP - 1) // S.GROUP and data["document"]
+    assert seen[-1][0] == seen[-1][1]
+    assert data["parts"][0]["pages"][0] == 1
+    # an interrupted run: the section summaries already written are not asked again
+    before = len(calls)
+    partial = {"sections": data["sections"][:5]}
+    S.build(chunks, name="moby-dick.pdf", previous=partial)
+    assert len(calls) - before == (n - 5) + len(data["parts"]) + 1
+
+
+def test_whole_document_questions_are_recognised():
+    whole = ["Summarize the whole of Moby-Dick in five sentences.", "How does Moby-Dick end?", "Who are the three mates of the Pequod?",
+             "Name the harpooneers of the Pequod.", "List the characters Alice meets in Wonderland.",
+             "Fasse den Roman Effi Briest in fünf Sätzen zusammen.", "Wie endet der Roman Effi Briest?",
+             "Welche Rolle spielen die Briefe von Crampas in Effi Briest?", "Worum geht es in dem Buch?"]
+    specific = ["What does Ahab nail to the mainmast?", "Wie heißt Effis Ehemann in Effi Briest?",
+                "In Alice's Adventures in Wonderland, what is written on the little bottle?", "Wie hoch ist die Miete?"]
+    assert all(S.is_whole_document_question(q) for q in whole), [q for q in whole if not S.is_whole_document_question(q)]
+    assert not any(S.is_whole_document_question(q) for q in specific), [q for q in specific if S.is_whole_document_question(q)]
+
+
+def test_the_document_named_in_the_question_is_picked():
+    docs = [{"name": "moby-dick.pdf"}, {"name": "alice.pdf"}, {"name": "effi-briest.pdf"}]
+    assert [d["name"] for d in S.pick(docs, "How does Moby-Dick end?")] == ["moby-dick.pdf"]
+    assert [d["name"] for d in S.pick(docs, "Wie endet der Roman Effi Briest?")] == ["effi-briest.pdf"]
+    assert S.pick(docs, "How does it end?") == []
+    assert [d["name"] for d in S.pick(docs[:1], "How does it end?")] == ["moby-dick.pdf"]
+
+
+def test_context_has_the_whole_document_first_and_the_last_sections_for_the_ending():
+    data = {"document": "The whole story.", "parts": [{"titles": ["CHAPTER 1", "CHAPTER 10"], "pages": [1, 50], "summary": "Part one."}],
+            "sections": [{"title": f"CHAPTER {i}", "pages": [i * 5, i * 5 + 4], "summary": f"Section {i}."} for i in range(1, 11)]}
+    text, labels = S.build_context([("moby-dick.pdf", data)], "How does Moby-Dick end?")
+    assert text.startswith("[Summary of moby-dick.pdf, the whole document (pages 1-54)]\nThe whole story.")
+    assert "Section 10." in text and "Section 8." in text and "Section 7." not in text
+    assert labels == ["moby-dick.pdf (summary of the whole document)"]
+    text, _ = S.build_context([("moby-dick.pdf", data)], "Summarize Moby-Dick.")
+    assert "Section 10." not in text and "Part one." in text
+
+
+def test_stored_next_to_the_upload_through_the_vault(tmp_path, monkeypatch):
+    from app.services import vault
+    written = {}
+    monkeypatch.setattr(vault, "write_text", lambda p, t: (written.__setitem__(p, t), open(p, "w", encoding="utf-8").write(t)))
+    f = tmp_path / "book.pdf"
+    f.write_bytes(b"%PDF")
+    S.save(str(f), {"version": S.VERSION, "document": "x", "sections": [], "parts": []})
+    assert any(p.endswith("book.pdf.summaries.json.part") for p in written), "written through the vault (protection at rest)"
+    assert S.load(str(f))["document"] == "x"
+    S.remove(str(f))
+    assert not (tmp_path / "book.pdf.summaries.json").exists()

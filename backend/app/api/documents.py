@@ -72,6 +72,9 @@ def _index_document_background(doc_id: int, workspace_id: int, user_id: int, fil
 
         _set_doc_status(doc_id, DocStatus.INDEXED)
         logger.info(f"Document {doc_id} indexed successfully.")
+        if os.environ.get("STARKLLM_SUMMARIES", "on") != "off":
+            from app.services import summaries
+            summaries.enqueue(doc_id)  # large documents get layered summaries in the background
     except Exception as e:
         logger.error(f"Background indexing failed for doc {doc_id}: {e}", exc_info=True)
         _set_doc_status(doc_id, DocStatus.FAILED, error_message=describe_indexing_error(e))
@@ -822,6 +825,7 @@ def get_documents(
             "file_size": size,
             "status": effective_status,
             "error_message": d.error_message,
+            "summary_status": d.summary_status,
         })
 
     return result
@@ -915,7 +919,10 @@ async def reindex_document(
     # Set status to EXTRACTING to let client know re-index started
     doc.status = DocStatus.EXTRACTING
     doc.error_message = None
+    doc.summary_status = None
     db.commit()
+    from app.services import summaries
+    summaries.remove(doc.filepath)  # written again after the new index
 
     # 1. Remove old vectors
     try:
@@ -970,6 +977,9 @@ async def delete_document(
 
     # Remove file from disk
     try:
+        if doc.filepath:
+            from app.services import summaries
+            summaries.remove(doc.filepath)
         if doc.filepath and os.path.exists(doc.filepath):
             os.remove(doc.filepath)
     except Exception as e:
