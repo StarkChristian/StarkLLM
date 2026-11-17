@@ -121,11 +121,13 @@ function buildRows(d) {
 
   if (d.engine.ok) {
     rows.push({ ok: true, title: t('StarkLLM engine is running') });
-  } else if (d.docker === 'running') {
+  } else if (d.docker === 'running' || d.docker === 'not-needed') {
+    // the engine without Docker names its own log (engine-native.log) in its detail
     rows.push({
       ok: false,
       title: t('The StarkLLM engine could not be started'),
-      detail: (d.engine.detail || t('The engine containers did not start.')) + ' ' + t('The full log is in {file}.', { file: d.engine.logFile }),
+      detail: d.engine.native ? (d.engine.detail || t('The StarkLLM engine did not start. Its log is in {log}.', { log: d.engine.logFile }))
+        : (d.engine.detail || t('The engine containers did not start.')) + ' ' + t('The full log is in {file}.', { file: d.engine.logFile }),
       code: d.engine.log && d.engine.log.length ? d.engine.log : null
     });
   }

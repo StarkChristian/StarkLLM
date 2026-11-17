@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { packageName, packageUrl, engineMode, readEngineChoice, writeEngineChoice, bundledPackage, removeDownloadedPackages, parseSha256, ensurePackage, nativeEnv } = require('../native-engine');
+const { blockedFile, packageName, packageUrl, engineMode, readEngineChoice, writeEngineChoice, bundledPackage, removeDownloadedPackages, parseSha256, ensurePackage, nativeEnv } = require('../native-engine');
 const { createGuard } = require('../netguard');
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'native-engine-'));
@@ -246,3 +246,16 @@ test('the engine without Docker gets the offline switch and the cloud-sync note 
   assert.ok(!('STARKLLM_PYCACHE' in off));
   assert.strictEqual(nativeEnv('C:\\pkg', { kbDir: 'C:\\kb', secret: 's', build: 'b', pycache: 'C:\\cache', env: {} }).STARKLLM_PYCACHE, 'C:\\cache');
 });
+
+test('a file blocked by Smart App Control is named (2.2.0 test on the MSI, German Windows)', () => {
+  const lines = [
+    'Traceback (most recent call last):',
+    '  File "C:\\Users\\x\\AppData\\Local\\Programs\\StarkLLM\\resources\\engine-native\\runtime\\Lib\\site-packages\\ctranslate2\\__init__.py", line 53, in <module>',
+    '    from ctranslate2._ext import (',
+    'ImportError: DLL load failed while importing _ext: Eine Anwendungssteuerungsrichtlinie hat diese Datei blockiert.'
+  ];
+  assert.equal(blockedFile(lines), 'ctranslate2 / _ext');
+  assert.equal(blockedFile(['ImportError: DLL load failed while importing _ext: An Application Control policy has blocked this file.']), '_ext');
+  assert.equal(blockedFile(['INFO: Application startup complete.']), null);
+});
+

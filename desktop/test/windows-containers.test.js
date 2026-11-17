@@ -11,3 +11,11 @@ test('the start page explains how to switch Docker to Linux containers', () => {
   assert.match(html, /DockerCli\.exe&quot; -SwitchLinuxEngine|DockerCli\.exe" -SwitchLinuxEngine/);
   assert.doesNotMatch(html, /StarkLLM engine could not be started/, 'no raw build log on top of the explanation');
 });
+
+test('the start page names why the engine without Docker did not start (N19)', () => {
+  const html = buildErrorPage({ docker: 'not-needed', ollama: true, missingModels: [], backend: false, engine: { ok: false, native: true, stage: 'engine', detail: 'Windows blocked a program file of the StarkLLM engine (ctranslate2 / _ext).', log: ['ImportError: DLL load failed'] } });
+  assert.match(html, /StarkLLM engine could not be started/);
+  assert.match(html, /ctranslate2 \/ _ext/);
+  assert.match(html, /DLL load failed/);
+});
+

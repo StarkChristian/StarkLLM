@@ -118,5 +118,8 @@
   "Use Docker Desktop for the engine (advanced)": "Usar Docker Desktop para el motor (avanzado)",
   "Restart StarkLLM to change the engine?": "¿Reiniciar StarkLLM para cambiar el motor?",
   "The engine without Docker is the default and needs nothing else. Docker Desktop is for advanced users who already run it. Your chats and documents stay the same: both engines use the same data folder.": "El motor sin Docker es el predeterminado y no necesita nada más. Docker Desktop es para usuarios avanzados que ya lo utilizan. Sus chats y documentos no cambian: ambos motores usan la misma carpeta de datos.",
-  "Stopping the StarkLLM engine in Docker Desktop (StarkLLM now runs without Docker)...": "Deteniendo el motor de StarkLLM en Docker Desktop (StarkLLM ahora funciona sin Docker)..."
+  "Stopping the StarkLLM engine in Docker Desktop (StarkLLM now runs without Docker)...": "Deteniendo el motor de StarkLLM en Docker Desktop (StarkLLM ahora funciona sin Docker)...",
+  "Starting the StarkLLM engine. The first start after an install or update can take a few minutes...": "Iniciando el motor de StarkLLM. El primer inicio después de una instalación o actualización puede tardar unos minutos...",
+  "Windows blocked a program file of the StarkLLM engine ({file}). Smart App Control or another application control rule on this PC does not allow it. Please report this on the StarkLLM page on GitHub; a newer version of StarkLLM fixes it. The details are in {log}.": "Windows ha bloqueado un archivo de programa del motor de StarkLLM ({file}). El Control inteligente de aplicaciones u otra regla de control de aplicaciones de este PC no lo permite. Informe de ello en la página de StarkLLM en GitHub; una versión más reciente de StarkLLM lo soluciona. Los detalles están en {log}.",
+  "The StarkLLM engine did not answer within {minutes} minutes. Its log is in {log}.": "El motor de StarkLLM no respondió en {minutes} minutos. Su registro está en {log}."
 }

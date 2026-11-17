@@ -167,7 +167,12 @@ function createMainWindow() {
   splashShownAt = Date.now();
   mainWindow.loadFile(path.join(__dirname, 'splash.html'));
 
-  mainWindow.once('ready-to-show', async () => {
+  // The engine starts at 'ready-to-show', or after 5 s if that never comes (seen on the MSI test with a locked
+  // session: the start screen stayed at "Starting..." and nothing happened).
+  let begun = false;
+  const begin = async () => {
+    if (begun || !mainWindow || mainWindow.isDestroyed()) return;
+    begun = true;
     mainWindow.show();
     // once, at the first start: stay online (default) or go fully offline; the engine starts with the answer
     try {
@@ -179,7 +184,9 @@ function createMainWindow() {
       logLine(`offline question: ${e.message}`);
     }
     startAndLoad();
-  });
+  };
+  mainWindow.once('ready-to-show', begin);
+  setTimeout(begin, 5000);
 
   // No new app windows: a new window would get the desktop bridge (and with it the session token). Links to web sites
   // open in the user's browser; anything else is refused. (Before, a link whose text merely contained

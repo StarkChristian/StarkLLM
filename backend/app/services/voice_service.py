@@ -1,7 +1,6 @@
 import os
 import re
 import logging
-from faster_whisper import WhisperModel
 from app.core import netguard
 import subprocess
 import sys
@@ -72,6 +71,9 @@ class VoiceService:
         if self._model is None:
             logger.info("Initializing WhisperModel on CPU...")
             try:
+                # imported here, not at the top: faster_whisper loads ctranslate2 and PyAV (native libraries). If one
+                # of them cannot load (Windows blocked it, a missing runtime), only voice input fails, not the engine.
+                from faster_whisper import WhisperModel
                 try:
                     # the model is on this PC after its first download: then nothing is fetched at all
                     self._model = WhisperModel("base", device="cpu", compute_type="int8", local_files_only=True)
