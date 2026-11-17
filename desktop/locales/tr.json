@@ -73,7 +73,7 @@
   "Docker Desktop is not running": "Docker Desktop çalışmıyor",
   "StarkLLM tried to start Docker Desktop but its engine did not come up. Open Docker Desktop, wait until it says \"Engine running\" (on a new PC it may ask to finish its setup or to enable WSL2 and restart), then press Retry.": "StarkLLM, Docker Desktop'ı başlatmayı denedi ancak motoru açılmadı. Docker Desktop'ı açın, \"Engine running\" yazana kadar bekleyin (yeni bir PC'de kurulumu bitirmenizi veya WSL2'yi etkinleştirip yeniden başlatmanızı isteyebilir), ardından Yeniden dene düğmesine basın.",
   "Ollama is not installed": "Ollama kurulu değil",
-  "StarkLLM runs its AI models with Ollama (free). It can download the official installer from ollama.com (about 1 GB), check its signature and install it for you; no administrator rights are needed.": "StarkLLM yapay zeka modellerini Ollama (ücretsiz) ile çalıştırır. Resmi yükleyiciyi ollama.com'dan indirebilir (yaklaşık 1 GB), imzasını denetleyebilir ve sizin için kurabilir; yönetici hakkı gerekmez.",
+  "StarkLLM runs its AI models with Ollama (free). It can download the official installer from ollama.com (about 2 GB), check its signature and install it for you; no administrator rights are needed.": "StarkLLM yapay zeka modellerini Ollama (ücretsiz) ile çalıştırır. Resmi yükleyiciyi ollama.com'dan indirebilir (yaklaşık 2 GB), imzasını denetleyebilir ve sizin için kurabilir; yönetici hakkı gerekmez.",
   "Install Ollama for me": "Ollama'yı benim için kur",
   "or download it yourself": "veya kendiniz indirin",
   "Ollama is not running": "Ollama çalışmıyor",
@@ -121,5 +121,11 @@
   "Stopping the StarkLLM engine in Docker Desktop (StarkLLM now runs without Docker)...": "Docker Desktop’taki StarkLLM motoru durduruluyor (StarkLLM artık Docker olmadan çalışıyor)...",
   "Starting the StarkLLM engine. The first start after an install or update can take a few minutes...": "StarkLLM motoru başlatılıyor. Kurulum veya güncellemeden sonraki ilk başlatma birkaç dakika sürebilir...",
   "Windows blocked a program file of the StarkLLM engine ({file}). Smart App Control or another application control rule on this PC does not allow it. Please report this on the StarkLLM page on GitHub; a newer version of StarkLLM fixes it. The details are in {log}.": "Windows, StarkLLM motorunun bir program dosyasını engelledi ({file}). Bu bilgisayardaki Akıllı Uygulama Denetimi veya başka bir uygulama denetimi kuralı buna izin vermiyor. Lütfen bunu GitHub'daki StarkLLM sayfasında bildirin; StarkLLM'in daha yeni bir sürümü sorunu giderir. Ayrıntılar {log} içinde.",
-  "The StarkLLM engine did not answer within {minutes} minutes. Its log is in {log}.": "StarkLLM motoru {minutes} dakika içinde yanıt vermedi. Günlüğü {log} içinde."
+  "The StarkLLM engine did not answer within {minutes} minutes. Its log is in {log}.": "StarkLLM motoru {minutes} dakika içinde yanıt vermedi. Günlüğü {log} içinde.",
+  "Restarting Ollama (the local AI runtime)...": "Ollama yeniden başlatılıyor (yerel yapay zeka çalışma ortamı)...",
+  "Faster answers with the graphics of this PC": "Bu bilgisayarın grafik birimiyle daha hızlı yanıtlar",
+  "StarkLLM turned on the integrated graphics of this PC ({gpu}) for the AI models, so answers come faster. To turn it off, use \"Use the integrated graphics for AI\" in the tray menu.": "StarkLLM, yanıtlar daha hızlı gelsin diye bu bilgisayarın tümleşik grafik birimini ({gpu}) yapay zeka modelleri için açtı. Kapatmak için sistem tepsisi menüsündeki \"Yapay zeka için tümleşik grafiği kullan\" seçeneğini kullanın.",
+  "Use the integrated graphics for AI": "Yapay zeka için tümleşik grafiği kullan",
+  "Restart StarkLLM to change this?": "Bunu değiştirmek için StarkLLM yeniden başlatılsın mı?",
+  "StarkLLM restarts Ollama (the local AI runtime) with the new setting. Your chats and documents are not affected.": "StarkLLM, Ollama'yı (yerel yapay zeka çalışma ortamı) yeni ayarla yeniden başlatır. Sohbetleriniz ve belgeleriniz etkilenmez."
 }

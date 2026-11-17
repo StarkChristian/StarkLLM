@@ -73,7 +73,7 @@
   "Docker Desktop is not running": "Docker Desktop läuft nicht",
   "StarkLLM tried to start Docker Desktop but its engine did not come up. Open Docker Desktop, wait until it says \"Engine running\" (on a new PC it may ask to finish its setup or to enable WSL2 and restart), then press Retry.": "StarkLLM hat versucht, Docker Desktop zu starten, aber dessen Engine ist nicht hochgekommen. Öffnen Sie Docker Desktop, warten Sie, bis „Engine running“ angezeigt wird (auf einem neuen PC wird möglicherweise verlangt, die Einrichtung abzuschließen oder WSL2 zu aktivieren und neu zu starten), und klicken Sie dann auf „Erneut versuchen“.",
   "Ollama is not installed": "Ollama ist nicht installiert",
-  "StarkLLM runs its AI models with Ollama (free). It can download the official installer from ollama.com (about 1 GB), check its signature and install it for you; no administrator rights are needed.": "StarkLLM führt seine KI-Modelle mit Ollama aus (kostenlos). Es kann das offizielle Installationsprogramm von ollama.com herunterladen (etwa 1 GB), dessen Signatur prüfen und es für Sie installieren; Administratorrechte sind dafür nicht nötig.",
+  "StarkLLM runs its AI models with Ollama (free). It can download the official installer from ollama.com (about 2 GB), check its signature and install it for you; no administrator rights are needed.": "StarkLLM führt seine KI-Modelle mit Ollama aus (kostenlos). Es kann das offizielle Installationsprogramm von ollama.com herunterladen (etwa 2 GB), dessen Signatur prüfen und es für Sie installieren; Administratorrechte sind dafür nicht nötig.",
   "Install Ollama for me": "Ollama für mich installieren",
   "or download it yourself": "oder selbst herunterladen",
   "Ollama is not running": "Ollama läuft nicht",
@@ -121,5 +121,11 @@
   "Stopping the StarkLLM engine in Docker Desktop (StarkLLM now runs without Docker)...": "Die StarkLLM-Engine in Docker Desktop wird angehalten (StarkLLM läuft jetzt ohne Docker)...",
   "Starting the StarkLLM engine. The first start after an install or update can take a few minutes...": "Die StarkLLM-Engine wird gestartet. Der erste Start nach einer Installation oder einem Update kann einige Minuten dauern...",
   "Windows blocked a program file of the StarkLLM engine ({file}). Smart App Control or another application control rule on this PC does not allow it. Please report this on the StarkLLM page on GitHub; a newer version of StarkLLM fixes it. The details are in {log}.": "Windows hat eine Programmdatei der StarkLLM-Engine blockiert ({file}). Die intelligente App-Steuerung oder eine andere Regel zur Anwendungssteuerung auf diesem PC lässt sie nicht zu. Bitte melden Sie das auf der StarkLLM-Seite bei GitHub; eine neuere Version von StarkLLM behebt es. Die Einzelheiten stehen in {log}.",
-  "The StarkLLM engine did not answer within {minutes} minutes. Its log is in {log}.": "Die StarkLLM-Engine hat nicht innerhalb von {minutes} Minuten geantwortet. Ihr Protokoll liegt in {log}."
+  "The StarkLLM engine did not answer within {minutes} minutes. Its log is in {log}.": "Die StarkLLM-Engine hat nicht innerhalb von {minutes} Minuten geantwortet. Ihr Protokoll liegt in {log}.",
+  "Restarting Ollama (the local AI runtime)...": "Ollama (die lokale KI-Laufzeit) wird neu gestartet...",
+  "Faster answers with the graphics of this PC": "Schnellere Antworten mit der Grafik dieses PCs",
+  "StarkLLM turned on the integrated graphics of this PC ({gpu}) for the AI models, so answers come faster. To turn it off, use \"Use the integrated graphics for AI\" in the tray menu.": "StarkLLM hat die integrierte Grafik dieses PCs ({gpu}) für die KI-Modelle eingeschaltet, damit Antworten schneller kommen. Ausschalten können Sie das im Tray-Menü mit „Integrierte Grafik für KI verwenden“.",
+  "Use the integrated graphics for AI": "Integrierte Grafik für KI verwenden",
+  "Restart StarkLLM to change this?": "StarkLLM neu starten, um das zu ändern?",
+  "StarkLLM restarts Ollama (the local AI runtime) with the new setting. Your chats and documents are not affected.": "StarkLLM startet Ollama (die lokale KI-Laufzeit) mit der neuen Einstellung neu. Ihre Chats und Dokumente bleiben unberührt."
 }
