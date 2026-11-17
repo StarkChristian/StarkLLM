@@ -105,3 +105,50 @@ def test_stored_next_to_the_upload_through_the_vault(tmp_path, monkeypatch):
     assert S.load(str(f))["document"] == "x"
     S.remove(str(f))
     assert not (tmp_path / "book.pdf.summaries.json").exists()
+
+
+def test_gentle_pace_rests_after_each_call_and_waits_on_battery_and_for_a_hot_card(monkeypatch):
+    slept = []
+    monkeypatch.delenv("STARKLLM_SUMMARY_PACE", raising=False)
+    monkeypatch.setattr(S, "_sleep", lambda seconds, stop=None: slept.append(round(seconds, 1)))
+    # a laptop on mains power rests as long as the call took, a PC without a battery a third of it
+    monkeypatch.setattr(S, "_gpu_temperature", lambda: None)
+    monkeypatch.setattr(S, "_power", lambda: "mains")
+    S._rest(6.0)
+    monkeypatch.setattr(S, "_power", lambda: "none")
+    S._rest(6.0)
+    assert slept == [6.0, 1.8]
+    # on battery it waits until the PC is plugged in
+    slept.clear()
+    power = iter(["battery", "battery", "mains"])
+    monkeypatch.setattr(S, "_power", lambda: next(power))
+    S._rest(2.0)
+    assert slept == [S.BATTERY_CHECK_S, S.BATTERY_CHECK_S, 2.0]
+    # a hot graphics card gets a break until it is cool again
+    slept.clear()
+    temps = iter([84, 78, 69])
+    monkeypatch.setattr(S, "_power", lambda: "none")
+    monkeypatch.setattr(S, "_gpu_temperature", lambda: next(temps))
+    S._rest(10.0)
+    assert slept == [3.0, S.GPU_CHECK_S, S.GPU_CHECK_S]
+    # a card below the limit is not waited for
+    slept.clear()
+    monkeypatch.setattr(S, "_gpu_temperature", lambda: 79)
+    S._rest(10.0)
+    assert slept == [3.0]
+
+
+def test_full_pace_does_not_rest(monkeypatch):
+    slept = []
+    monkeypatch.setenv("STARKLLM_SUMMARY_PACE", "full")
+    monkeypatch.setattr(S, "_sleep", lambda seconds, stop=None: slept.append(seconds))
+    monkeypatch.setattr(S, "_power", lambda: "battery")
+    S._rest(5.0)
+    assert slept == []
+
+
+def test_power_and_temperature_are_unknown_without_windows_or_nvidia(monkeypatch):
+    if S.os.name != "nt":
+        assert S._power() == "none"
+    monkeypatch.setattr(S.shutil, "which", lambda name: None)
+    assert S._gpu_temperature() is None
