@@ -1,5 +1,15 @@
 # StarkLLM Release Notes
 
+## Version 2.3.0 — Whole books, e-books and faster answers on more PCs
+
+- **Questions about a whole document.** For large documents (about 30 pages and more) StarkLLM now writes short summaries in the background: one per chapter, one per group of chapters and one of the whole document. Questions like "Summarize the book", "How does it end?" or "Who are the main characters?" are answered from them, with the pages they cover. Before, an answer saw only a few passages and often said it could not tell. The summaries are built one document at a time and pause while you chat; the document list shows the progress ("Summary 40 %"). With protection at rest they are encrypted like the document.
+- **E-books and presentations.** EPUB e-books are read chapter by chapter (citations name the chapter), PowerPoint presentations (.pptx) slide by slide with the speaker notes (citations name the slide). Copy-protected (DRM) e-books are refused with a clear message.
+- **Faster on PCs without an NVIDIA card.** On PCs with integrated graphics (AMD Radeon, Intel Arc/Iris), StarkLLM now lets Ollama use them: on a Radeon 780M a long document answer took 5 seconds instead of 19. You are told once; "Use the integrated graphics for AI" in the tray menu turns it off. The model choice counts this graphics memory too.
+- **Up to date underneath.** The app runs on Electron 45 (the version before no longer received security fixes).
+- **Small fixes.** Settings → About says "StarkLLM is up to date" right away instead of "Checking..." until the dialog is closed. The engine's log marks every start with the time. The knowledge base no longer logs an old Docker hint every 30 seconds for a folder that is not there. The "Install Ollama for me" text gives the right size (about 2 GB).
+
+**From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install".
+
 ## Version 2.2.1 — No Docker needed
 
 2.2.0 was built and tested but not published; 2.2.1 is the first release without Docker and contains everything below.

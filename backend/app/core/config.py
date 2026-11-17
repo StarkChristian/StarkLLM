@@ -9,7 +9,7 @@ for _name, _value in (("ANONYMIZED_TELEMETRY", "False"), ("HF_HUB_DISABLE_TELEME
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "StarkLLM"
-    VERSION: str = "2.2.1"  # shown by /health; keep equal to the released app version
+    VERSION: str = "2.3.0"  # shown by /health; keep equal to the released app version
     
     # API settings
     API_V1_STR: str = "/api/v1"
