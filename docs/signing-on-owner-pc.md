@@ -8,7 +8,7 @@ is one script: [`desktop/build/release-sign.js`](../desktop/build/release-sign.j
 ## One-time setup
 
 1. **Windows SDK** (for `signtool.exe`): `winget install Microsoft.WindowsSDK.10.0.26100` (any 10.0.x SDK works, the
-   script finds the newest `signtool.exe`; or set `SIGNTOOL_PATH`). Node.js 20 and Git are needed as for any build.
+   script finds the newest `signtool.exe`; or set `SIGNTOOL_PATH`). Node.js 22.12 or newer and Git are needed as for any build (Electron 45 needs it).
 2. **SimplySign Desktop** from Certum (certum.eu, "SimplySign Desktop") and the **SimplySign** app on the phone.
 3. Log in to SimplySign Desktop with the Certum account name, and as the password the **one-time code** the phone app
    shows. Never write that code, or any PIN, into a file, a script, an environment variable or a chat.
