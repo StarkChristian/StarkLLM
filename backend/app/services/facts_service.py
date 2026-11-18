@@ -280,6 +280,21 @@ def machine_text(full: str) -> bool:
     return len(lines) >= 2 and sum(1 for l in lines if is_log_line(l)) * 2 >= len(lines)
 
 
+# A book, a manual or a long report is no letter (MSI test of 2.3.0, N30: Moby-Dick was an "invoice" from
+# "MOBY-DICK;" with "1,000,000 GBP" and a scam badge, Effi Briest too, in the inbox among the new letters). The same
+# limits as for the layered summaries (summaries.MIN_PAGES, MIN_CHARS): letters, bills and notices are far shorter.
+LONG_PAGES = 30
+LONG_CHARS = 60_000
+
+
+def is_long_document(pages: Dict[int, str]) -> bool:
+    """True for a document of LONG_PAGES pages or LONG_CHARS characters of text: a book, manual or report."""
+    texts = {p: t for p, t in (pages or {}).items() if (t or "").strip()}
+    numbered = [p for p in texts if isinstance(p, int)]
+    return (max(numbered, default=0) >= LONG_PAGES or len(texts) >= LONG_PAGES
+            or sum(len(t) for t in texts.values()) >= LONG_CHARS)
+
+
 def is_machine_document(pages: Dict[int, str], filename: Optional[str] = None) -> bool:
     """A log, table, JSON, XML, YAML, Markdown note, photo description or program code: never a letter, and its dates are not deadlines."""
     return machine_file_name(filename) or machine_text("\n".join((pages or {})[p] or "" for p in sorted(pages or {})))
@@ -290,6 +305,14 @@ def document_facts(pages: Dict[int, str], filename: Optional[str] = None) -> Dic
     that are never letters (a log, a table, JSON, Markdown, program code)."""
     pages = {p: t for p, t in (pages or {}).items() if (t or "").strip()}
     full = "\n".join(pages[p] for p in sorted(pages))
+    if is_long_document(pages):
+        # no letter: no kind, sender, amounts or dates, and no scam signs (a novel's "a million pounds" is no demand).
+        # The checks are not run over the whole book either (7 s for Moby-Dick, on every home page): the passages a
+        # chat answer uses are checked for instructions to an AI and hidden text as before (chat._document_warnings).
+        return {"type": None, "sender": None, "date": None, "references": [], "amounts": [], "accounts": [], "dates": [],
+                "warnings": [],
+                "fingerprint": hashlib.sha1(_norm(full)[:4000].encode()).hexdigest() if full else None,
+                "letter": False, "long": True, "case": None}
     machine = machine_file_name(filename) or machine_text(full)
     facts = {
         "type": None if machine else doc_type(pages),
