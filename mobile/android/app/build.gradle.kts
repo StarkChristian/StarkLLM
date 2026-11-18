@@ -17,6 +17,17 @@ android {
         versionName = "0.1.0"
     }
 
+    // Debug builds only: one fixed test key (password "android", Android's usual debug key), so that a test build from
+    // CI installs over the one before. The store version is signed with the owner's own key (Play App Signing).
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
