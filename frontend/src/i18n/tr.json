@@ -1171,5 +1171,16 @@
   "Matrix Code": "Matrix Kodu",
   "Green code rain on black, in a monospace font.": "Siyah üzerinde, eş aralıklı yazı tipiyle yeşil kod yağmuru.",
   "Starry Night": "Yıldızlı Gece",
-  "A quiet night sky full of small stars, with warm gold accents.": "Sıcak altın vurgularıyla, küçük yıldızlarla dolu sakin bir gece gökyüzü."
+  "A quiet night sky full of small stars, with warm gold accents.": "Sıcak altın vurgularıyla, küçük yıldızlarla dolu sakin bir gece gökyüzü.",
+  "Attach file (PDF, TXT, PNG, JPG)": "Dosya ekle (PDF, TXT, PNG, JPG)",
+  "Because the code is open, you can check what the app sends over the network: nothing, unless you turn on a cloud model or web search yourself.": "Kod açık olduğu için uygulamanın ağ üzerinden ne gönderdiğini kontrol edebilirsiniz: bir bulut modelini veya web aramasını kendiniz açmadıkça hiçbir şey.",
+  "Define a custom system prompt for the": "Şu çalışma alanı için özel bir sistem istemi tanımlayın:",
+  "Save Persona": "Personayı Kaydet",
+  "Searching all KB Folders": "Tüm Bilgi Tabanı Klasörlerinde Aranıyor",
+  "Start / Stop voice recording (Whisper transcription)": "Sesli kaydı başlat / durdur (Whisper dökümü)",
+  "These settings are stored locally. The backend defaults are controlled via": "Bu ayarlar yerel olarak saklanır. Backend varsayılanları şuradan belirlenir:",
+  "config.py": "config.py",
+  "On: nothing leaves this PC. No update check, no model downloads, no web search, no online AI providers. Only the AI engine (Ollama) on this PC is used.": "Açık: hiçbir şey bu PC'den çıkmaz. Güncelleme denetimi, model indirme, web araması ve çevrimiçi yapay zeka sağlayıcıları yoktur. Yalnızca bu PC'deki yapay zeka motoru (Ollama) kullanılır.",
+  "Off: connections you turned on (updates, model downloads, web search, online providers) are allowed. They are listed below.": "Kapalı: açtığınız bağlantılara (güncellemeler, model indirme, web araması, çevrimiçi sağlayıcılar) izin verilir. Bunlar aşağıda listelenir.",
+  "The preview and answers from this document are available once indexing is complete.": "Önizleme ve bu belgeden yanıtlar, dizinleme tamamlandığında kullanılabilir."
 }

@@ -232,6 +232,10 @@ def on_startup():
         from app.core.chroma_store import scrub_soon
         scrub_soon(settings.CHROMA_PERSIST_DIRECTORY, delay=1.0)
     kb_service.start_background_watcher()
+    # documents whose indexing was cut off by closing the app are indexed again (N40)
+    import threading as _threading
+    from app.api.documents import resume_interrupted_indexing
+    _threading.Timer(5.0, resume_interrupted_indexing).start()
     # layered summaries of large documents (owner decision: automatic, in the background); 30 s after the start, so
     # the first answers and the unlock come first
     if os.environ.get("STARKLLM_SUMMARIES", "on") != "off":

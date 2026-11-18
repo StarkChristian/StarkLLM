@@ -1171,5 +1171,16 @@
   "Matrix Code": "Codice Matrix",
   "Green code rain on black, in a monospace font.": "Pioggia di codice verde su nero, in un carattere monospaziato.",
   "Starry Night": "Notte stellata",
-  "A quiet night sky full of small stars, with warm gold accents.": "Un tranquillo cielo notturno pieno di piccole stelle, con caldi accenti dorati."
+  "A quiet night sky full of small stars, with warm gold accents.": "Un tranquillo cielo notturno pieno di piccole stelle, con caldi accenti dorati.",
+  "Attach file (PDF, TXT, PNG, JPG)": "Allega file (PDF, TXT, PNG, JPG)",
+  "Because the code is open, you can check what the app sends over the network: nothing, unless you turn on a cloud model or web search yourself.": "Poiché il codice è aperto, può verificare cosa invia l'app in rete: nulla, a meno che non attivi lei stesso un modello cloud o la ricerca web.",
+  "Define a custom system prompt for the": "Definisca un prompt di sistema personalizzato per l'area di lavoro",
+  "Save Persona": "Salva persona",
+  "Searching all KB Folders": "Ricerca in tutte le cartelle della base di conoscenza",
+  "Start / Stop voice recording (Whisper transcription)": "Avvia / arresta la registrazione vocale (trascrizione con Whisper)",
+  "These settings are stored locally. The backend defaults are controlled via": "Queste impostazioni sono salvate in locale. I valori predefiniti del backend sono controllati tramite",
+  "config.py": "config.py",
+  "On: nothing leaves this PC. No update check, no model downloads, no web search, no online AI providers. Only the AI engine (Ollama) on this PC is used.": "Attivo: nulla lascia questo PC. Nessuna verifica degli aggiornamenti, nessun download di modelli, nessuna ricerca web, nessun provider di IA online. Viene usato solo il motore di IA (Ollama) di questo PC.",
+  "Off: connections you turned on (updates, model downloads, web search, online providers) are allowed. They are listed below.": "Disattivato: le connessioni che Lei ha attivato (aggiornamenti, download di modelli, ricerca web, provider online) sono consentite. Sono elencate qui sotto.",
+  "The preview and answers from this document are available once indexing is complete.": "L'anteprima e le risposte da questo documento saranno disponibili al termine dell'indicizzazione."
 }
