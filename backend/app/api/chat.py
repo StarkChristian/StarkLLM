@@ -86,10 +86,12 @@ EVIDENCE_CHARS = 700
 EVIDENCE_PER_SOURCE = 3
 
 
-def _sources_used(sources_json: str, answer: str) -> str:
+def _sources_used(sources_json: str, answer: str, passages=None) -> str:
     """The saved sources of an answer: the workspace and knowledge-base sources reduced to the documents the answer
-    used (services/answer_sources.py, N36); everything retrieved stays under "searched"."""
+    used (services/answer_sources.py, N36); everything retrieved stays under "searched". passages: the text the
+    answer was given; quotations of the answer that are not in it are listed under "unverified_quotes" (N44)."""
     from app.services.answer_sources import used_labels
+    from app.services import quote_check
     try:
         data = json.loads(sources_json)
         evidence = data.get("evidence") or []
@@ -101,6 +103,8 @@ def _sources_used(sources_json: str, answer: str) -> str:
             # a label that is not a retrieved passage (a summary of the whole document) stays when it was given
             data[key] = [l for l in listed if l in used or l not in known]
         data["used"] = True
+        if passages is not None:
+            data["unverified_quotes"] = quote_check.unverified(answer, passages)
         return json.dumps(data)
     except Exception as e:  # the sources line must never cost the answer
         logger.warning(f"sources of the answer not reduced: {e}")
@@ -1270,7 +1274,7 @@ LANGUAGE & WRITING QUALITY
                                     chat_id=chat_obj.id,
                                     role="assistant",
                                     content=full_response,
-                                    sources=_sources_used(sources_json, full_response),
+                                    sources=_sources_used(sources_json, full_response, [ws_context, kb_context]),
                                 )
                                 local_db.add(ast_msg)
                                 local_db.commit()
@@ -1321,7 +1325,7 @@ LANGUAGE & WRITING QUALITY
                     raise HTTPException(status_code=e.http_status, detail=str(e))
                 raise HTTPException(status_code=502, detail=f"The language model backend (Ollama) failed: {e}")
 
-            saved_sources = _sources_used(sources_json, content)
+            saved_sources = _sources_used(sources_json, content, [ws_context, kb_context])
             ast_msg = models.Message(
                 chat_id=chat_obj.id, role="assistant", content=content, sources=saved_sources
             )

@@ -217,7 +217,7 @@ const ChatMessageRenderer = React.memo(({
         className={`${styles.content} ${msg.role !== 'system' && isRTL(msg.content) ? styles.rtl : ''}`} 
         style={msg.role === 'system' ? { fontStyle: 'italic', color: 'var(--text-secondary)', background: 'transparent', border: 'none', margin: '0 auto' } : {}}
       >
-        {msg.role !== 'system' ? (
+        {msg.isError ? null : msg.role !== 'system' ? (
           editingIndex === i ? (
             <div className={styles.editContainer}>
               <textarea 
@@ -329,6 +329,16 @@ const ChatMessageRenderer = React.memo(({
           )
         ) : (
           msg.content
+        )}
+
+        {msg.role === 'assistant' && msg.unverifiedQuotes?.length > 0 && (
+          <div className={styles.chatErrorBox} style={{ borderColor: 'rgba(245,158,11,0.35)', background: 'rgba(245,158,11,0.08)', color: '#b45309' }}>
+            <AlertTriangle size={14} className={styles.chatErrorIcon} />
+            <span style={{ flex: 1 }}>
+              {t('StarkLLM did not find these quoted words in the documents. Check them before you rely on them:')}
+              {msg.unverifiedQuotes.map((q, qi) => <span key={qi} style={{ display: 'block', fontStyle: 'italic', marginTop: 4 }}>“{q}”</span>)}
+            </span>
+          </div>
         )}
 
         {msg.isError && (

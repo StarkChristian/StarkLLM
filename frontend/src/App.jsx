@@ -312,6 +312,7 @@ export default function App() {
                 wsSources: m.sources.ws || [],
                 sourcesMode: m.sources.mode || null,
                 sourcesUsed: !!m.sources.used,
+                unverifiedQuotes: m.sources.unverified_quotes || [],
                 evidence: m.sources.evidence || null,
                 warnings: m.sources.warnings || [],
                 webSources: m.sources.web || [],
@@ -343,6 +344,7 @@ export default function App() {
               kbSources: saved.sources.kb || [],
               evidence: saved.sources.evidence || last.evidence || null,
               sourcesUsed: true,
+              unverifiedQuotes: saved.sources.unverified_quotes || [],
             };
             return msgs;
           });

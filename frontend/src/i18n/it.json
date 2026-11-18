@@ -1173,5 +1173,6 @@
   "Starry Night": "Notte stellata",
   "A quiet night sky full of small stars, with warm gold accents.": "Un tranquillo cielo notturno pieno di piccole stelle, con caldi accenti dorati.",
   "The preview and answers from this document are available once indexing is complete.": "L'anteprima e le risposte da questo documento saranno disponibili al termine dell'indicizzazione.",
-  "This question has no answer: StarkLLM was closed or stopped while it was answering. Try again.": "Questa domanda non ha risposta: StarkLLM è stato chiuso o interrotto mentre rispondeva. Riprovi."
+  "This question has no answer: StarkLLM was closed or stopped while it was answering. Try again.": "Questa domanda non ha risposta: StarkLLM è stato chiuso o interrotto mentre rispondeva. Riprovi.",
+  "StarkLLM did not find these quoted words in the documents. Check them before you rely on them:": "StarkLLM non ha trovato queste parole citate nei documenti. Le verifichi prima di farvi affidamento:"
 }

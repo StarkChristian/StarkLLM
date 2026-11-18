@@ -47,3 +47,20 @@ def test_the_saved_sources_keep_the_used_documents_and_what_was_searched():
     assert saved["ws"] == ["en-invoice.pdf (Page 1)", "moby-dick.pdf (summary of the whole document)"]
     assert saved["searched"]["ws"][1] == "contract.pdf (Page 1)"
     assert _sources_used("not json", "x") == "not json"
+
+
+
+def test_a_quotation_that_is_not_in_the_passages_is_listed():
+    # N44 (MSI night test of 2.3.0): an invented sentence was given as a quote from Moby-Dick, chapter 3
+    import json
+    from app.api.chat import _sources_used
+    from app.services.quote_check import unverified
+    page = ("Entering that gable-ended Spouter-Inn, you found yourself in a wide, low, straggling entry with "
+            "old-fashioned wainscots. The Spouter Inn:—Peter Coffin.")
+    fake = ('In Chapter 3: "Peter Coffin himself, a corpulent, genial old man... and his wife, a very fat, very '
+            'good-natured woman, named Houck."')
+    real = 'Ishmael says: "you found yourself in a wide, low, straggling entry with old-fashioned wainscots."'
+    assert unverified(fake, [page]) and unverified(real, [page]) == []
+    assert unverified('He answered "yes" and left.', [page]) == []  # too short to be a quotation
+    saved = json.loads(_sources_used(json.dumps({"ws": [], "kb": [], "evidence": []}), fake, [page, ""]))
+    assert saved["unverified_quotes"] == [fake.split(': "', 1)[1].rstrip('."') + "."]
