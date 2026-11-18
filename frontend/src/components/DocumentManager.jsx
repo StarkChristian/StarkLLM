@@ -820,7 +820,6 @@ export default function DocumentManager({
                     <button 
                       className={`${styles.actionBtnDanger} ${deleteConfirmId === selectedDoc.id ? styles.confirmDanger : ''}`}
                       onClick={() => handleDeleteClick(selectedDoc.id)}
-                      disabled={isInProgress(selectedDoc)}
                     >
                       <Trash2 size={14} /> 
                       {deleteConfirmId === selectedDoc.id ? t('Confirm Delete?') : t('Delete')}
@@ -859,7 +858,7 @@ export default function DocumentManager({
                   }}>
                     <Loader size={13} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
                     {t('Indexing in progress:')} <strong>{STATUS_CONFIG[selectedDoc.status]?.label}</strong>…
-                    Preview and RAG will be available once indexing completes.
+                    {' '}{t('The preview and answers from this document are available once indexing is complete.')}
                   </div>
                 )}
 

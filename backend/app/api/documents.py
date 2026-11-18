@@ -3,6 +3,7 @@ import shutil
 import asyncio
 import logging
 import threading
+import time
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
@@ -58,6 +59,47 @@ def _display_name(doc_id: int) -> Optional[str]:
         db.close()
 
 
+
+def _document_exists(doc_id: int) -> bool:
+    from app.db.session import SessionLocal
+    db = SessionLocal()
+    try:
+        return db.query(models.Document.id).filter(models.Document.id == doc_id).first() is not None
+    finally:
+        db.close()
+
+INTERRUPTED = (DocStatus.UPLOADING, DocStatus.EXTRACTING, DocStatus.CHUNKING, DocStatus.EMBEDDING)
+
+
+def resume_interrupted_indexing():
+    """Documents whose indexing was cut off when StarkLLM closed (MSI night test of 2.3.0, N40: Moby-Dick stayed at
+    "embedding" for good, with Re-index and Delete disabled). At the start they are indexed again, one after the
+    other, in the background; a document whose file is gone is marked failed with what to do."""
+    from app.core.protection import protection
+    from app.db.session import SessionLocal
+    while protection.locked:
+        time.sleep(30)  # the files can be read once the app has unlocked them
+    db = SessionLocal()
+    try:
+        rows = (db.query(models.Document, models.Workspace)
+                .join(models.Workspace, models.Document.workspace_id == models.Workspace.id)
+                .filter(models.Document.status.in_(INTERRUPTED)).order_by(models.Document.id).all())
+        todo = [(d.id, w.id, w.user_id, d.filepath) for d, w in rows]
+    finally:
+        db.close()
+    for doc_id, workspace_id, user_id, path in todo:
+        if not path or not os.path.exists(path):
+            _set_doc_status(doc_id, DocStatus.FAILED, error_message="Indexing was interrupted and the file is no longer "
+                            "on this PC. Delete this entry and upload the file again.")
+            continue
+        logger.info(f"Document {doc_id}: indexing was interrupted when StarkLLM closed; indexing it again")
+        try:
+            rag_service.get_or_create_collection(workspace_id, user_id).delete(where={"source": path})
+        except Exception as e:
+            logger.warning(f"Could not remove partial vectors of document {doc_id}: {e}")
+        _index_document_background(doc_id, workspace_id, user_id, path)
+
+
 def _index_document_background(doc_id: int, workspace_id: int, user_id: int, file_path: str):
     """Background thread: runs the full indexing pipeline with status updates."""
     try:
@@ -69,6 +111,13 @@ def _index_document_background(doc_id: int, workspace_id: int, user_id: int, fil
 
         # Run the synchronous rag_service call
         rag_service.add_document(workspace_id, user_id, file_path, display_name=_display_name(doc_id))
+        if not _document_exists(doc_id):
+            # deleted while it was being indexed (Delete is no longer disabled then): no vectors may stay behind
+            try:
+                rag_service.get_or_create_collection(workspace_id, user_id).delete(where={"source": file_path})
+            except Exception as e:
+                logger.warning(f"Could not remove vectors of deleted document {doc_id}: {e}")
+            return
 
         _set_doc_status(doc_id, DocStatus.INDEXED)
         logger.info(f"Document {doc_id} indexed successfully.")
