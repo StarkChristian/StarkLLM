@@ -293,12 +293,12 @@ internal fun Bar(
 }
 
 @Composable
-internal fun SectionLabel(text: String) {
+internal fun SectionLabel(text: String, start: Dp = 20.dp) {
     Text(
         text.uppercase(),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 8.dp),
+        modifier = Modifier.padding(start = start, end = 20.dp, top = 12.dp, bottom = 8.dp),
     )
 }
 

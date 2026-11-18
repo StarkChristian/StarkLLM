@@ -137,6 +137,7 @@
     <string name="channel_deadlines">Fristen</string>
     <string name="widget_name">StarkLLM-Fristen</string>
     <string name="widget_description">Die nächsten Fristen aus Ihren Briefen</string>
+    <string name="answer_running">Eine andere Antwort läuft noch. Fragen Sie gleich noch einmal.</string>
     <string name="tile_ask">StarkLLM fragen</string>
     <plurals name="deadline_in_days">
         <item quantity="one">in %d Tag</item>

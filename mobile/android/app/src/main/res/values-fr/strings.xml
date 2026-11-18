@@ -137,6 +137,7 @@
     <string name="channel_deadlines">Échéances</string>
     <string name="widget_name">Échéances StarkLLM</string>
     <string name="widget_description">Les prochaines échéances de vos courriers</string>
+    <string name="answer_running">Une autre réponse arrive encore. Reposez la question dans un instant.</string>
     <string name="tile_ask">Demander à StarkLLM</string>
     <plurals name="deadline_in_days">
         <item quantity="one">dans %d jour</item>

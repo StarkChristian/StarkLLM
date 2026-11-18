@@ -44,7 +44,8 @@ sealed interface Screen {
     data object Home : Screen
     data object Workspaces : Screen
     data class Chats(val workspace: Workspace) : Screen
-    data class Chat(val workspace: Workspace, val chatId: Int?, val title: String, val from: Screen) : Screen
+    // nonce: this opening of the chat; an answer that is still coming in belongs to it
+    data class Chat(val workspace: Workspace, val chatId: Int?, val title: String, val from: Screen, val nonce: Long = System.nanoTime()) : Screen
     data object Deadlines : Screen
     data object ThisPc : Screen
     data object Settings : Screen
@@ -69,7 +70,8 @@ data class UiState(
     val chats: List<ChatSummary>? = null,
     val recent: List<RecentChat> = emptyList(),
     val lines: List<ChatLine> = emptyList(),
-    val answering: Boolean = false,
+    /** the chat (Screen.Chat.nonce) whose answer is coming in; it goes on when the user leaves that chat */
+    val answeringFor: Long? = null,
     val home: Home? = null,
     val inboxCount: Int? = null,
     val deadlines: List<Deadline>? = null,
@@ -88,6 +90,7 @@ data class UiState(
     val reminders: Boolean = false,
 ) {
     val level: String get() = hello?.level ?: "work"
+    val answering: Boolean get() = answeringFor != null && (screen as? Screen.Chat)?.nonce == answeringFor
     val canSend: Boolean get() = level == "work" || level == "manage"
     val canManage: Boolean get() = level == "manage"
     val workspace: Workspace? get() = workspaces?.firstOrNull { it.id == workspaceId } ?: workspaces?.firstOrNull()
@@ -330,38 +333,45 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val question = text.trim()
         val screen = _state.value.screen as? Screen.Chat ?: return
         val a = api ?: return
-        if (question.isEmpty() || _state.value.answering) return
+        if (question.isEmpty()) return
+        if (_state.value.answeringFor != null) {
+            _state.update { it.copy(info = Info(R.string.answer_running)) }
+            return
+        }
         val s0 = _state.value
+        val nonce = screen.nonce
+        // changes of the chat on the screen, only while it is still the chat of this answer
+        fun here(change: (UiState) -> UiState) = _state.update { s -> if ((s.screen as? Screen.Chat)?.nonce == nonce) change(s) else s }
         _state.update {
-            it.copy(answering = true, notice = null,
+            it.copy(answeringFor = nonce, notice = null,
                 lines = it.lines + ChatLine("user", question) + ChatLine("assistant", "", streaming = true))
         }
         answer = viewModelScope.launch {
             try {
                 val request = ChatRequest(screen.workspace.id, screen.chatId, question, language = Locale.getDefault().language,
                     model = s0.model?.takeIf { it in s0.models }, useKnowledgeBase = s0.useKnowledgeBase)
-                val chatId = a.ask(request) { sofar ->
-                    _state.update { s -> s.copy(lines = s.lines.dropLast(1) + ChatLine("assistant", sofar, streaming = true)) }
-                }
-                _state.update { s ->
-                    val sc = s.screen
-                    s.copy(screen = if (sc is Screen.Chat && sc.chatId == null) sc.copy(chatId = chatId) else sc)
+                val chatId = a.ask(request, onChat = { id ->
+                    here { s -> s.copy(screen = (s.screen as Screen.Chat).let { sc -> if (sc.chatId == null) sc.copy(chatId = id) else sc }) }
+                }) { sofar ->
+                    here { s -> s.copy(lines = s.lines.dropLast(1) + ChatLine("assistant", sofar, streaming = true)) }
                 }
                 // the source line and the quotation check are saved with the answer once it is complete
-                runCatching { loadChat(a, chatId) }
-                    .onFailure { _state.update { s -> s.copy(lines = s.lines.map { l -> l.copy(streaming = false) }) } }
+                if ((_state.value.screen as? Screen.Chat)?.nonce == nonce) {
+                    runCatching { loadChat(a, chatId) }
+                        .onFailure { here { s -> s.copy(lines = s.lines.map { l -> l.copy(streaming = false) }) } }
+                }
                 runCatching { _state.value.workspaces?.let { loadRecent(a, it) } }
             } catch (e: CancellationException) {
-                _state.update { s -> s.copy(lines = s.lines.map { l -> l.copy(streaming = false) }) }
+                here { s -> s.copy(lines = s.lines.map { l -> l.copy(streaming = false) }) }
                 throw e
             } catch (e: Exception) {
                 failed(e)
-                _state.update { s ->
+                here { s ->
                     val lines = if (s.lines.isEmpty()) s.lines else s.lines.dropLast(1) + s.lines.last().copy(streaming = false, failed = true)
                     s.copy(lines = lines)
                 }
             } finally {
-                _state.update { it.copy(answering = false) }
+                _state.update { it.copy(answeringFor = null) }
             }
         }
     }
@@ -475,8 +485,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun back(): Boolean {
         val s = _state.value
         when (val screen = s.screen) {
+            // the answer goes on (as in the PC's app): the chat shows it when it is opened again
             is Screen.Chat -> {
-                stop()
                 when (val from = screen.from) {
                     is Screen.Chats -> {
                         _state.update { it.copy(screen = from) }

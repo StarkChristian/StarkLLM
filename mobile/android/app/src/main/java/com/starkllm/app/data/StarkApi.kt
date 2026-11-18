@@ -169,7 +169,7 @@ class StarkApi(
      * Sends a question and streams the answer: onText gets the whole answer so far after every piece. Returns the chat's
      * id (new chats get one from the PC). Cancelling the coroutine stops the answer.
      */
-    suspend fun ask(request: ChatRequest, onText: (String) -> Unit): Int = withContext(Dispatchers.IO) {
+    suspend fun ask(request: ChatRequest, onChat: (Int) -> Unit = {}, onText: (String) -> Unit): Int = withContext(Dispatchers.IO) {
         var call: Call? = null
         val body = json.encodeToString(ChatRequest.serializer(), request).toRequestBody(JSON_TYPE)
         // "Stop": the coroutine is cancelled; closing the call ends the blocking read below
@@ -177,6 +177,7 @@ class StarkApi(
         try {
             check(execute("POST", "/api/v1/chat/", body) { call = it }).use { res ->
                 val chatId = res.header("X-Chat-ID")?.toIntOrNull() ?: request.chatId ?: 0
+                onChat(chatId)
                 val text = StringBuilder()
                 InputStreamReader(res.body.byteStream(), Charsets.UTF_8).use { reader ->
                     val buf = CharArray(1024)

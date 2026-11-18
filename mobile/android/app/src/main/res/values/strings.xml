@@ -138,6 +138,7 @@
     <string name="channel_deadlines">Deadlines</string>
     <string name="widget_name">StarkLLM deadlines</string>
     <string name="widget_description">The next deadlines from your letters</string>
+    <string name="answer_running">Another answer is still coming in. Ask again in a moment.</string>
     <string name="tile_ask">Ask StarkLLM</string>
     <plurals name="deadline_in_days">
         <item quantity="one">in %d day</item>

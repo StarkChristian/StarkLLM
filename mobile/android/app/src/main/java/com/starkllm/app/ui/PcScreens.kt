@@ -186,7 +186,7 @@ internal fun ThisPcScreen(state: UiState, vm: AppViewModel, activity: FragmentAc
             }
             InfoRow(Icons.Filled.Lock, stringResource(R.string.this_phone_may), stringResource(levelText(state.level)))
 
-            SectionLabel(stringResource(R.string.actions))
+            SectionLabel(stringResource(R.string.actions), start = 4.dp)
             if (state.canManage) {
                 Button(
                     onClick = { confirmPerson(activity, confirmTitle, activity.getString(R.string.action_backup)) { vm.runAction("backup-now") } },
@@ -212,7 +212,7 @@ internal fun ThisPcScreen(state: UiState, vm: AppViewModel, activity: FragmentAc
                     modifier = Modifier.padding(horizontal = 4.dp))
             }
 
-            SectionLabel(stringResource(R.string.paired_pcs))
+            SectionLabel(stringResource(R.string.paired_pcs), start = 4.dp)
             state.links.forEach { l ->
                 ListCard(StarkIcons.Computer, l.pcName, subtitle = l.addresses.firstOrNull(), onClick = { vm.switchPc(l.id) }) {
                     if (l.id == link?.id) Icon(Icons.Filled.Check, null, tint = MaterialTheme.colorScheme.primary)
@@ -268,6 +268,7 @@ private fun statusWord(status: String) = when (status) {
 
 private fun relative(millis: Long): String =
     DateUtils.getRelativeTimeSpanString(millis, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString()
+        .replaceFirstChar { it.lowercase() }   // inside a sentence ("zuletzt vor 3 Tagen", not "Vor")
 
 @Composable
 private fun InfoRow(icon: ImageVector, title: String, value: String) {
@@ -308,10 +309,10 @@ internal fun SettingsScreen(state: UiState, vm: AppViewModel, activity: Fragment
                     notifyPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                 } else vm.setReminders(on)
             }
-            SectionLabel(stringResource(R.string.shortcuts))
+            SectionLabel(stringResource(R.string.shortcuts), start = 4.dp)
             Text(stringResource(R.string.shortcuts_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 4.dp))
-            SectionLabel(stringResource(R.string.about))
+            SectionLabel(stringResource(R.string.about), start = 4.dp)
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp)) {
                 Mark(36.dp)
                 Column(Modifier.padding(start = 12.dp)) {

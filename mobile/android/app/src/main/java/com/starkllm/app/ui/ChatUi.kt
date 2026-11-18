@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -582,7 +583,7 @@ private fun AttachSheet(state: UiState, vm: AppViewModel, target: Workspace?, on
     val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) send(uri, null, "Document") }
 
     ModalBottomSheet(onDismissRequest = onClose, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
-        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
+        Column(Modifier.navigationBarsPadding().padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
             Text(stringResource(R.string.attach_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = 4.dp, bottom = 12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 val enabled = state.canSend && target != null
