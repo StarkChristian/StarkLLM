@@ -15,6 +15,8 @@ function fileName(label) {
 export function citedSources(msg) {
   const ws = msg.wsSources || [];
   const kb = msg.kbSources || [];
+  // the engine compared the finished answer with the passages and kept the documents it used (N36)
+  if (msg.sourcesUsed) return { ws, kb };
   const text = (msg.content || '').toLowerCase();
   if (!text) return { ws, kb };
   const keep = (list) => list.filter((label) => text.includes(fileName(label)));

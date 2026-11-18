@@ -310,6 +310,7 @@ export default function App() {
                 kbSources: m.sources.kb || [],
                 wsSources: m.sources.ws || [],
                 sourcesMode: m.sources.mode || null,
+                sourcesUsed: !!m.sources.used,
                 evidence: m.sources.evidence || null,
                 warnings: m.sources.warnings || [],
                 webSources: m.sources.web || [],
@@ -319,6 +320,37 @@ export default function App() {
       );
     } catch (err) {
       console.error('Error loading chat:', err);
+    }
+  };
+
+  const refreshAnswerSources = async (chatId, answerText) => {
+    if (!chatId) return;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await fetch(`/api/v1/chat/session/${chatId}`, { headers: getHeaders() });
+        if (!res.ok) return;
+        const data = await res.json();
+        const saved = (data.messages || []).filter(m => m.role === 'assistant' && (m.content || '').trim() === answerText.trim()).pop();
+        if (saved && saved.sources && saved.sources.used) {
+          setMessages(prev => {
+            const msgs = [...prev];
+            const last = msgs[msgs.length - 1];
+            if (!last || last.role !== 'assistant' || (last.content || '').trim() !== answerText.trim()) return prev;
+            msgs[msgs.length - 1] = {
+              ...last,
+              wsSources: saved.sources.ws || [],
+              kbSources: saved.sources.kb || [],
+              evidence: saved.sources.evidence || last.evidence || null,
+              sourcesUsed: true,
+            };
+            return msgs;
+          });
+          return;
+        }
+      } catch {
+        return;
+      }
+      await new Promise(r => setTimeout(r, 400));
     }
   };
 
@@ -640,6 +672,9 @@ export default function App() {
         });
         return;
       }
+
+      // The engine saves the answer with the sources it used (not every passage it searched): show those.
+      refreshAnswerSources(response.headers.get('X-Chat-ID') || currentChatId, fullText);
 
       const totalElapsedSec = Math.max(0.1, (performance.now() - streamStartTime) / 1000);
       const totalWords = fullText.trim().split(/\s+/).filter(Boolean).length;

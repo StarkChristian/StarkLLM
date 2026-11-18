@@ -86,6 +86,27 @@ EVIDENCE_CHARS = 700
 EVIDENCE_PER_SOURCE = 3
 
 
+def _sources_used(sources_json: str, answer: str) -> str:
+    """The saved sources of an answer: the workspace and knowledge-base sources reduced to the documents the answer
+    used (services/answer_sources.py, N36); everything retrieved stays under "searched"."""
+    from app.services.answer_sources import used_labels
+    try:
+        data = json.loads(sources_json)
+        evidence = data.get("evidence") or []
+        used = set(used_labels(answer, evidence))
+        known = {e.get("ui") or e.get("label") for e in evidence}
+        for key in ("ws", "kb"):
+            listed = data.get(key) or []
+            data.setdefault("searched", {})[key] = listed
+            # a label that is not a retrieved passage (a summary of the whole document) stays when it was given
+            data[key] = [l for l in listed if l in used or l not in known]
+        data["used"] = True
+        return json.dumps(data)
+    except Exception as e:  # the sources line must never cost the answer
+        logger.warning(f"sources of the answer not reduced: {e}")
+        return sources_json
+
+
 def _citation_evidence(results, scope: str, doc_ids: dict) -> list:
     """What the answer was built from, so the user can check it: per source label the file, the page and the passages
     (word for word). doc_ids maps a workspace file path to its document id, so the UI can open the document."""
@@ -94,7 +115,7 @@ def _citation_evidence(results, scope: str, doc_ids: dict) -> list:
         meta = r.get("metadata") or {}
         if not meta:
             continue
-        label, _ = _build_citation_label(r)
+        label, ui = _build_citation_label(r)
         page = meta.get("page")
         try:
             page = int(page) + 1 if page is not None else None
@@ -105,6 +126,7 @@ def _citation_evidence(results, scope: str, doc_ids: dict) -> list:
             path = meta.get("file_path") or meta.get("source") or ""
             entry = by_label[label] = {
                 "label": label,
+                "ui": ui,
                 "file": _citation_filename(meta),
                 "page": page,
                 "scope": scope,
@@ -1236,7 +1258,7 @@ LANGUAGE & WRITING QUALITY
                                     chat_id=chat_obj.id,
                                     role="assistant",
                                     content=full_response,
-                                    sources=sources_json,
+                                    sources=_sources_used(sources_json, full_response),
                                 )
                                 local_db.add(ast_msg)
                                 local_db.commit()
@@ -1287,8 +1309,9 @@ LANGUAGE & WRITING QUALITY
                     raise HTTPException(status_code=e.http_status, detail=str(e))
                 raise HTTPException(status_code=502, detail=f"The language model backend (Ollama) failed: {e}")
 
+            saved_sources = _sources_used(sources_json, content)
             ast_msg = models.Message(
-                chat_id=chat_obj.id, role="assistant", content=content, sources=sources_json
+                chat_id=chat_obj.id, role="assistant", content=content, sources=saved_sources
             )
             db.add(ast_msg)
             db.commit()
@@ -1297,7 +1320,7 @@ LANGUAGE & WRITING QUALITY
             response.headers["X-Chat-ID"] = str(chat_obj.id)
             response.headers["X-KB-Used"] = kb_used_val
             response.headers["X-KB-Sources"] = urllib.parse.quote("|".join(kb_sources))
-            response.headers["X-WS-Sources"] = urllib.parse.quote("|".join(ws_sources))
+            response.headers["X-WS-Sources"] = urllib.parse.quote("|".join(json.loads(saved_sources).get("ws") or []))
             response.headers["X-Web-Sources"] = urllib.parse.quote(",".join(web_sources))
             response.headers["X-Web-Sources-Urls"] = urllib.parse.quote(",".join(web_source_urls))
             response.headers["X-Cloud-Provider"] = cloud

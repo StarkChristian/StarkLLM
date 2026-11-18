@@ -21,3 +21,8 @@ test('a question about the documents keeps all sources when the answer names non
   const older = citedSources({ content: 'The rent is 900 EUR.', wsSources: ws });
   assert.deepEqual(older.ws, ws);
 });
+
+test('sources the engine reduced to the used documents are shown as they are, even none', () => {
+  assert.deepEqual(citedSources({ content: 'The total is GBP 148.90.', wsSources: ['en-invoice.pdf (Page 1)'], sourcesUsed: true }).ws, ['en-invoice.pdf (Page 1)']);
+  assert.deepEqual(citedSources({ content: 'Hello!', wsSources: [], sourcesUsed: true, sourcesMode: 'documents' }).ws, []);
+});
