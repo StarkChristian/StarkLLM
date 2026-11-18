@@ -111,7 +111,8 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
 
 
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? t('Good morning') : hour < 17 ? t('Good afternoon') : t('Good evening');
+  // before 5 in the morning it is still the evening for the person at the PC ("Good morning" at 00:57 was odd)
+  const greeting = hour < 5 ? t('Good evening') : hour < 12 ? t('Good morning') : hour < 17 ? t('Good afternoon') : t('Good evening');
 
   const fileRef = useRef(null);
   const [home, setHome] = useState(null);

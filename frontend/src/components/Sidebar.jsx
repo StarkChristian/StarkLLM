@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { SidebarStatusDot } from './SystemStatusWidget';
 import EmptyState from './EmptyState';
-import { AVAILABLE_THEMES, applyTheme, getCurrentTheme } from '../utils/themes';
+import { AVAILABLE_THEMES, applyTheme, getCurrentTheme, themeText } from '../utils/themes';
 import { serverDate } from '../utils/time';
 import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
@@ -719,7 +719,7 @@ export default function Sidebar({
                 >
                   <div className={styles.themeItemLeft}>
                     <span className={styles.themeMiniDot} style={{ background: th.accent }} />
-                    <span>{th.name}</span>
+                    <span>{themeText(th.id).name}</span>
                   </div>
                   {currentTheme === th.id && <Check size={14} />}
                 </button>

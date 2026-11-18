@@ -164,15 +164,15 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
                 try {
                   const ids = JSON.parse(activeWorkspace.active_kb_dir_ids);
                   if (Array.isArray(ids)) {
-                    if (ids.length === 0) return 'KB Search Disabled (0 folders)';
-                    return `Searching ${ids.length} KB Folder${ids.length === 1 ? '' : 's'}`;
+                    if (ids.length === 0) return t('Knowledge base search off (no folder chosen)');
+                    return ids.length === 1 ? t('Searching 1 knowledge base folder') : t('Searching {count} knowledge base folders', { count: ids.length });
                   }
-                  return 'Searching all KB Folders';
+                  return t('Searching all knowledge base folders');
                 } catch {
-                  return 'Searching all KB Folders';
+                  return t('Searching all knowledge base folders');
                 }
               })()
-            : t('Searching all KB Folders')}
+            : t('Searching all knowledge base folders')}
             <Settings size={14} style={{ marginLeft: '6px' }} />
           </button>
         )}
@@ -198,7 +198,7 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
             role="status"
           >
             <Cloud size={14} />
-            Cloud: {cloudHost} receives your question and document passages
+            {t('Cloud: {host} receives your question and document passages', { host: cloudHost })}
           </button>
         )}
       </div>

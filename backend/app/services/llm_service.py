@@ -173,6 +173,7 @@ _OUT_OF_MEMORY = re.compile(
 )
 REQUEST_TIMEOUT_SECONDS = 150
 EMBED_TIMEOUT = (10, 600)  # connect, read: a big batch on a slow PC may take minutes, an absent Ollama must not
+EMBED_BATCH = 64  # passages per embedding request
 
 
 def _ollama_error_text(response) -> str:
@@ -513,22 +514,43 @@ class LLMService:
             raise
 
     def generate_embeddings_batch(self, model: str, prompts: List[str]) -> List[List[float]]:
+        """Embeddings of many passages, EMBED_BATCH per request (N27: a whole book went to Ollama in one request; in
+        the MSI test of 17 Nov 2026 it answered 400 twice and every passage of the book was then embedded alone)."""
+        out: List[List[float]] = []
+        for i in range(0, len(prompts), EMBED_BATCH):
+            out.extend(self._embed_group(model, prompts[i:i + EMBED_BATCH]))
+        return out
+
+    def _embed_group(self, model: str, group: List[str]) -> List[List[float]]:
         url = f"{self.base_url}/api/embed"
-        payload = {
-            "model": model,
-            "input": prompts
-        }
         try:
-            response = netguard.post(url, feature="ollama", json=payload, timeout=EMBED_TIMEOUT)
+            response = netguard.post(url, feature="ollama", json={"model": model, "input": group}, timeout=EMBED_TIMEOUT)
             response.raise_for_status()
-            return response.json().get("embeddings", [])
+            embeddings = response.json().get("embeddings", [])
+            if len(embeddings) != len(group):
+                raise ValueError(f"Ollama returned {len(embeddings)} embeddings for {len(group)} passages")
+            return embeddings
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
             # Ollama is not there or hangs: one request per passage would only fail the same way, once per passage
             # (a document stayed at "embedding" for hours), so the document fails now with a message that says why
             raise
-        except requests.exceptions.RequestException as e:
-            logger.error(f"LLM Batch Embeddings API Error: {e}")
-            logger.warning("Falling back to single embedding generation...")
-            return [self.generate_embeddings(model, p) for p in prompts]
+        except requests.exceptions.HTTPError as e:
+            status = getattr(e.response, "status_code", None)
+            if status == 404:
+                raise  # the embedding model is not installed: describe_indexing_error says what to do
+            detail = ""
+            try:
+                detail = (e.response.text or "")[:300]
+            except Exception:
+                pass
+            logger.warning(f"Ollama refused a batch of {len(group)} passage(s) ({status}): {detail}")
+        except (requests.exceptions.RequestException, ValueError) as e:
+            logger.warning(f"Batch embedding of {len(group)} passage(s) failed: {e}")
+        # only the refused group is split (halves, down to single passages on the older single-passage API), so one
+        # passage Ollama does not take costs a few requests instead of one request per passage of the whole book
+        if len(group) == 1:
+            return [self.generate_embeddings(model, group[0])]
+        mid = len(group) // 2
+        return self._embed_group(model, group[:mid]) + self._embed_group(model, group[mid:])
 
 llm_service = LLMService()
