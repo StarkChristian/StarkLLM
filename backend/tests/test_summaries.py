@@ -154,6 +154,14 @@ def test_power_and_temperature_are_unknown_without_windows_or_nvidia(monkeypatch
     assert S._gpu_temperature() is None
 
 
+def test_after_a_restart_the_progress_starts_at_the_saved_sections(monkeypatch):
+    # N43: the status fell from 44 % to 2 % and climbed again while the saved sections were taken over
+    monkeypatch.setattr(S, "_ask", lambda instruction, text, max_words, stop=None: "s")
+    chunks = [chunk("x" * 3000, p) for p in range(1, 61)]
+    first = S.build(chunks, name="moby-dick.pdf")
+    seen = []
+    S.build(chunks, name="moby-dick.pdf", previous={"sections": first["sections"][:8]}, progress=lambda d, t: seen.append(d))
+    assert seen[0] == 8 and seen == sorted(seen)
 def test_the_workspace_in_use_goes_first(monkeypatch):
     # N28: the queue went by document number, so an old workspace's big book came before the books being asked about
     assert S._choose({7: 4, 52: 6, 53: 6}, None) == 7

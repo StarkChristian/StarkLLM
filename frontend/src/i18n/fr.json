@@ -1172,5 +1172,6 @@
   "Green code rain on black, in a monospace font.": "Pluie de code vert sur fond noir, dans une police à chasse fixe.",
   "Starry Night": "Nuit étoilée",
   "A quiet night sky full of small stars, with warm gold accents.": "Un ciel nocturne paisible rempli de petites étoiles, avec de chaudes touches dorées.",
-  "The preview and answers from this document are available once indexing is complete.": "L'aperçu et les réponses issues de ce document seront disponibles une fois l'indexation terminée."
+  "The preview and answers from this document are available once indexing is complete.": "L'aperçu et les réponses issues de ce document seront disponibles une fois l'indexation terminée.",
+  "This question has no answer: StarkLLM was closed or stopped while it was answering. Try again.": "Cette question n'a pas de réponse : StarkLLM a été fermé ou arrêté pendant qu'il répondait. Réessayez."
 }

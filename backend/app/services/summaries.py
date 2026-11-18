@@ -321,6 +321,15 @@ def build(chunks, toc=None, name="the document", progress=lambda done, total: No
     result = {"version": VERSION, "model": settings.DEFAULT_TEXT_MODEL, "created": datetime.utcnow().isoformat(timespec="seconds"),
               "file": name, "sections": [], "parts": [], "document": ""}
     total = len(sections) + (len(sections) + GROUP - 1) // GROUP + 1
+    # after a restart the sections written before come back from the saved part at once: the progress starts there
+    # instead of falling back to 2 % and climbing again (MSI night test of 2.3.0, N43)
+    reused = 0
+    for s in sections:
+        if (s["title"], tuple(s["pages"] or ())) not in done_before:
+            break
+        reused += 1
+    if reused:
+        progress(reused, total)
     for i, s in enumerate(sections):
         if stop is not None and stop.is_set():
             raise InterruptedError
@@ -334,7 +343,8 @@ def build(chunks, toc=None, name="the document", progress=lambda done, total: No
             "happens or what it says, who appears (with names), and anything that is decided, found or ends here.",
             s["text"], 120, stop)
         result["sections"].append({"title": s["title"], "pages": s["pages"], "summary": summary})
-        progress(i + 1, total)
+        if i + 1 > reused:
+            progress(i + 1, total)
         if save and (i + 1) % SAVE_EVERY == 0:
             save(result)
     for g in range(0, len(result["sections"]), GROUP):
