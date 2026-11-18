@@ -64,7 +64,7 @@ class PairingInfoTest {
     @Test
     fun theSourceLineNamesTheDocuments() {
         val sources = json.parseToJsonElement(
-            """{"ws":["Effi Briest.pdf","books/Moby Dick.epub"],"kb":["Effi Briest.pdf"],"used":true,"unverified_quotes":["Call me Ishmael, said he."]}"""
+            """{"ws":["Effi Briest.pdf (Chunk 3)","books/Moby Dick.epub"],"kb":["Effi Briest.pdf (Chunk 12)"],"used":true,"unverified_quotes":["Call me Ishmael, said he."]}"""
         )
         val s = AnswerSources.from(sources)
         assertEquals(listOf("Effi Briest.pdf", "Moby Dick.epub"), s.documents)

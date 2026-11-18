@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -279,7 +280,8 @@ private fun ChatScreen(state: UiState, vm: AppViewModel, screen: Screen.Chat) {
         if (state.lines.isNotEmpty()) listState.scrollToItem(state.lines.size - 1, Int.MAX_VALUE / 2)
     }
     Scaffold(topBar = { Bar(screen.title.ifBlank { stringResource(R.string.new_chat) }, onBack = { vm.back() }) }) { pad ->
-        Column(Modifier.padding(pad).fillMaxSize().imePadding()) {
+        // the bar insets are in pad already: without consumeWindowInsets the keyboard height counted twice
+        Column(Modifier.padding(pad).consumeWindowInsets(pad).fillMaxSize().imePadding()) {
             NoticeCard(state, vm)
             if (state.busy && state.lines.isEmpty()) LinearProgressIndicator(Modifier.fillMaxWidth())
             LazyColumn(
@@ -322,7 +324,8 @@ private fun Bubble(line: ChatLine) {
             color = if (mine) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
             contentColor = if (mine) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
             shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.widthIn(max = 560.dp),
+            // a question keeps a margin on the left, an answer on the right, so the two are told apart at a glance
+            modifier = Modifier.padding(start = if (mine) 48.dp else 0.dp, end = if (mine) 0.dp else 24.dp).widthIn(max = 560.dp),
         ) {
             Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
                 if (line.text.isEmpty() && line.streaming) {

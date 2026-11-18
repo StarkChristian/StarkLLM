@@ -80,8 +80,10 @@ data class AnswerSources(val documents: List<String>, val unverifiedQuotes: List
             return AnswerSources(docs, strings("unverified_quotes"))
         }
 
-        /** "report.pdf (p. 3)" or "folder/report.pdf" -> what the source line shows */
-        fun documentName(label: String): String = label.substringAfterLast('/').substringAfterLast('\\').trim()
+        private val CHUNK = Regex("""\s*\((Chunk|chunk|Abschnitt)\s*\d+\)\s*$""")
+
+        /** "folder/report.pdf (Chunk 3)" -> "report.pdf": the source line names documents, not search passages */
+        fun documentName(label: String): String = CHUNK.replace(label.substringAfterLast('/').substringAfterLast('\\'), "").trim()
     }
 }
 
