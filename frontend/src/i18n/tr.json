@@ -1173,5 +1173,6 @@
   "Starry Night": "Yıldızlı Gece",
   "A quiet night sky full of small stars, with warm gold accents.": "Sıcak altın vurgularıyla, küçük yıldızlarla dolu sakin bir gece gökyüzü.",
   "The preview and answers from this document are available once indexing is complete.": "Önizleme ve bu belgeden yanıtlar, dizinleme tamamlandığında kullanılabilir.",
-  "This question has no answer: StarkLLM was closed or stopped while it was answering. Try again.": "Bu sorunun yanıtı yok: StarkLLM yanıt verirken kapatıldı veya durduruldu. Lütfen tekrar deneyin."
+  "This question has no answer: StarkLLM was closed or stopped while it was answering. Try again.": "Bu sorunun yanıtı yok: StarkLLM yanıt verirken kapatıldı veya durduruldu. Lütfen tekrar deneyin.",
+  "StarkLLM did not find these quoted words in the documents. Check them before you rely on them:": "StarkLLM alıntılanan bu sözleri belgelerde bulamadı. Bunlara güvenmeden önce kontrol edin:"
 }
