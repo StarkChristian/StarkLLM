@@ -732,7 +732,7 @@ async def chat(
         summary_sources = []   # labels of the layered summaries used (services/summaries.py)
 
         async def fetch_rag():
-            summaries.note_chat()  # the background summaries wait while the user chats
+            summaries.note_chat(req.workspace_id)  # the background summaries wait while the user chats
             if not (is_rag_intent or matched_filepaths or docs_available):
                 logger.info("Skipped RAG vector search: GENERAL intent and no indexed documents.")
                 return [], [], "", ""
