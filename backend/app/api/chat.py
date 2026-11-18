@@ -719,11 +719,16 @@ async def chat(
         docs_available = ws_indexed_docs > 0 or len(kb_docs) > 0
         missing_terms = (await asyncio.to_thread(_terms_missing, req.message, req.workspace_id, current_user.id,
                                                  bool(req.use_knowledge_base)) if docs_available else [])
+        # The model must not quote this note, and general knowledge must be marked and short (MSI night test of 2.3.0,
+        # N41: "the text explicitly notes that no document contains this term", then a novel's landlord got an invented wife).
         missing_section = ("\nNOT IN THE DOCUMENTS (checked by StarkLLM): no document contains the word(s) "
                            + ", ".join(f'"{t}"' for t in missing_terms)
                            + ". Answer about them only if a document clearly covers the same thing under another name "
-                             "(for example \"Kfz-Versicherung\" for \"Autoversicherung\"). Otherwise say plainly that you did "
-                             "not find it in the documents, and never take a number from a document about something else.\n"
+                             "(for example \"Kfz-Versicherung\" for \"Autoversicherung\"). Otherwise say plainly, in your own words, that "
+                             "you did not find it in the documents; do not mention or quote this check. If you add something "
+                             "from general knowledge, say that it is not from the documents, keep it to one or two sentences "
+                             "and add no names, numbers or details you are not sure of. "
+                             "Never take a number from a document about something else.\n"
                            if missing_terms else "")
         dates_section = (_dates_section(db, current_user.id, req.workspace_id, bool(req.use_knowledge_base), req.message)
                          if docs_available and DATE_QUESTION.search(req.message) else "")
