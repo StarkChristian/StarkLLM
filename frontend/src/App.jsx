@@ -309,6 +309,7 @@ export default function App() {
                 kbUsed: !!m.sources.kb_used,
                 kbSources: m.sources.kb || [],
                 wsSources: m.sources.ws || [],
+                sourcesMode: m.sources.mode || null,
                 evidence: m.sources.evidence || null,
                 warnings: m.sources.warnings || [],
                 webSources: m.sources.web || [],
@@ -591,6 +592,7 @@ export default function App() {
       const webSourcesHeader = response.headers.get('X-Web-Sources') ? decodeURIComponent(response.headers.get('X-Web-Sources')) : '';
       const webSourcesUrlsHeader = response.headers.get('X-Web-Sources-Urls') ? decodeURIComponent(response.headers.get('X-Web-Sources-Urls')) : '';
       const cloudHostHeader = response.headers.get('X-Cloud-Provider') || null;
+      const sourcesModeHeader = response.headers.get('X-Sources-Mode') || null;
       let docWarnings = [];
       try { docWarnings = JSON.parse(decodeURIComponent(response.headers.get('X-Doc-Warnings') || '%5B%5D')); } catch { docWarnings = []; }
 
@@ -621,6 +623,7 @@ export default function App() {
             kbUsed: kbUsedHeader,
             kbSources: kbSourcesHeader ? kbSourcesHeader.split('|').filter(Boolean) : [],
             wsSources: wsSourcesHeader ? wsSourcesHeader.split('|').filter(Boolean) : [],
+            sourcesMode: sourcesModeHeader,
             webSources: webSourcesData,
             cloudHost: cloudHostHeader,
             warnings: docWarnings

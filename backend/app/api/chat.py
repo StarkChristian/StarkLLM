@@ -861,7 +861,13 @@ async def chat(
                                         req.message)
                     if (ws_results or kb_results) else [])
 
+        # How sure it is that the question is about the documents (the same test that picks the prompt mode below):
+        # "documents" (strict mode), "maybe" (passages offered, the model decides), "none". With "maybe" the app shows
+        # sources only for files the answer names: a code answer listed every retrieved file (MSI test §15).
+        sources_mode = ("documents" if (is_rag_intent or matched_filepaths)
+                        else "maybe" if docs_available else "none")
         sources_json = json.dumps({
+            "mode": sources_mode,
             "kb_used": bool(req.use_knowledge_base and kb_results),
             "kb": kb_sources,
             "ws": ws_sources,
@@ -1254,7 +1260,8 @@ LANGUAGE & WRITING QUALITY
                     "X-Cloud-Provider": cloud,
                     "X-Chat-Renamed": "true" if chat_renamed else "false",
                     "X-Doc-Warnings": urllib.parse.quote(json.dumps(warnings)),
-                    "Access-Control-Expose-Headers": "X-Chat-ID,X-KB-Used,X-KB-Sources,X-WS-Sources,X-Web-Sources,X-Web-Sources-Urls,X-Cloud-Provider,X-Chat-Renamed,X-Doc-Warnings",
+                    "X-Sources-Mode": sources_mode,
+                    "Access-Control-Expose-Headers": "X-Chat-ID,X-KB-Used,X-KB-Sources,X-WS-Sources,X-Web-Sources,X-Web-Sources-Urls,X-Cloud-Provider,X-Chat-Renamed,X-Doc-Warnings,X-Sources-Mode",
                 },
             )
         else:
@@ -1296,7 +1303,8 @@ LANGUAGE & WRITING QUALITY
             response.headers["X-Cloud-Provider"] = cloud
             response.headers["X-Chat-Renamed"] = "true" if chat_renamed else "false"
             response.headers["X-Doc-Warnings"] = urllib.parse.quote(json.dumps(warnings))
-            response.headers["Access-Control-Expose-Headers"] = "X-Chat-ID,X-KB-Used,X-KB-Sources,X-WS-Sources,X-Web-Sources,X-Web-Sources-Urls,X-Cloud-Provider,X-Chat-Renamed,X-Doc-Warnings"
+            response.headers["X-Sources-Mode"] = sources_mode
+            response.headers["Access-Control-Expose-Headers"] = "X-Chat-ID,X-KB-Used,X-KB-Sources,X-WS-Sources,X-Web-Sources,X-Web-Sources-Urls,X-Cloud-Provider,X-Chat-Renamed,X-Doc-Warnings,X-Sources-Mode"
             
             return {"response": content, "chat_id": chat_obj.id}
 
