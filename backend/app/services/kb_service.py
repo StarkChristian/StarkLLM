@@ -230,6 +230,8 @@ class KBService:
                     logger.warning(f"Failed to purge chunks for deleted folder {folder_id}: {e}")
 
             # 2. Delete document records from DB (cascade typically handles this, but we do it explicitly to be safe if cascade isn't set up)
+            from app.db.models import forget_documents
+            forget_documents(db, "kb", [d.id for d in db.query(KnowledgeBaseDocument.id).filter(KnowledgeBaseDocument.folder_id == folder_id).all()])
             db.query(KnowledgeBaseDocument).filter(KnowledgeBaseDocument.folder_id == folder_id).delete(synchronize_session=False)
 
             # 3. Delete folder record from DB
