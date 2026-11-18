@@ -42,7 +42,9 @@ class MainActivity : FragmentActivity() {
                         shared = shared,
                         onSharedDone = { shared = null },
                         focusAsk = focusAsk,
-                        onExit = { finish() },
+                        // back on the start screen: into the background, as Android does for apps; an answer that is
+                        // still coming in goes on (closing the app would cut it off)
+                        onExit = { moveTaskToBack(true) },
                     )
                 }
             }
