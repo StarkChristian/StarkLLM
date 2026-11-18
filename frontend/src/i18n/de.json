@@ -1120,5 +1120,6 @@
   "The engine on this PC could not be reached, so its switch was not changed. Try again when StarkLLM has started.": "Die Engine auf diesem PC war nicht erreichbar, ihr Schalter wurde deshalb nicht geändert. Versuchen Sie es erneut, sobald StarkLLM gestartet ist.",
   "Summary waiting": "Zusammenfassung wartet",
   "Summary {percent} %": "Zusammenfassung {percent} %",
-  "StarkLLM summarizes large documents in the background, so it can answer questions about the whole document.": "StarkLLM fasst große Dokumente im Hintergrund zusammen, um Fragen zum ganzen Dokument beantworten zu können."
+  "StarkLLM summarizes large documents in the background, so it can answer questions about the whole document.": "StarkLLM fasst große Dokumente im Hintergrund zusammen, um Fragen zum ganzen Dokument beantworten zu können.",
+  "The preview and answers from this document are available once indexing is complete.": "Vorschau und Antworten aus diesem Dokument sind verfügbar, sobald die Indexierung abgeschlossen ist."
 }
