@@ -173,7 +173,7 @@ def test_the_overview_of_the_first_retrieved_document_with_summaries(tmp_path, m
     monkeypatch.setattr(S, "load", lambda p: {"document": "Effi marries Baron Innstetten.\nNames: Innstetten (husband), Rollo (dog)",
                                               "sections": [{"pages": [1, 284]}]} if p == str(book) else None)
     text = S.overview_for(ws_id, [str(note), str(book)])
-    assert text.startswith("[Summary of effi-briest.pdf, the whole document (pages 1-284)]") and "Rollo (dog)" in text
+    assert text.startswith("[Summary of effi-briest.pdf, the whole document (pages 1-284); written by StarkLLM, not a quote") and "Rollo (dog)" in text
     assert S.overview_for(ws_id, [str(note)]) == "" and S.overview_for(ws_id, []) == ""
 
 

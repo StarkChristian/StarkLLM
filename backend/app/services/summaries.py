@@ -593,7 +593,9 @@ def overview_for(workspace_id: int, sources) -> str:
             if data and data.get("document"):
                 last = max((s["pages"][1] for s in data.get("sections") or [] if s.get("pages")), default=None)
                 pages = f" (pages 1-{last})" if last else ""
-                return f"[Summary of {docs[path]}, the whole document{pages}]\n{data['document'][:OVERVIEW_CHARS]}"
+                # labelled as StarkLLM's words: in the eval a small model quoted a summary sentence as page 250
+                return (f"[Summary of {docs[path]}, the whole document{pages}; written by StarkLLM, not a quote from the "
+                        f"document]\n{data['document'][:OVERVIEW_CHARS]}")
     return ""
 
 
