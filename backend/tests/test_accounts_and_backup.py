@@ -68,6 +68,16 @@ def test_only_the_first_account_is_administrator(db):
     assert e.value.status_code == 403
 
 
+def test_the_profile_says_who_is_administrator(db):
+    # the settings show backup and restore only to the administrator; the others got the controls and a 403 (N33)
+    first, second = User(username="owner", hashed_password="x"), User(username="guest", hashed_password="x")
+    db.add_all([first, second])
+    db.commit()
+    assert auth.read_users_me(current_user=first, db=db).is_admin is True
+    me = auth.read_users_me(current_user=second, db=db)
+    assert me.is_admin is False and me.username == "guest"
+
+
 def _db_file(tmp_path, tables):
     p = tmp_path / "starkllm.db"
     con = sqlite3.connect(p)
