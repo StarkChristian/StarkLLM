@@ -309,6 +309,16 @@ test('home addresses: private IPv4 only, home ranges first', () => {
   assert.deepStrictEqual(list, ['192.168.0.47', '172.20.0.1']);
 });
 
+test('home addresses leave out containers, virtual machines and VPNs, and are at most four', () => {
+  const v4 = (address) => [{ family: 'IPv4', address, internal: false }];
+  const list = homeAddresses({
+    'docker0': v4('172.17.0.1'), 'br-1a2b3c': v4('192.168.112.1'), 'vEthernet (WSL)': v4('172.29.0.1'),
+    'VirtualBox Host-Only Network': v4('192.168.56.1'), 'tailscale0': v4('100.64.0.1'),
+    'WLAN': v4('192.168.0.47'), 'Ethernet': v4('10.0.0.5'), 'eth1': v4('10.0.1.5'), 'eth2': v4('10.0.2.5'), 'eth3': v4('10.0.3.5')
+  });
+  assert.deepStrictEqual(list, ['192.168.0.47', '10.0.0.5', '10.0.1.5', '10.0.2.5']);
+});
+
 test('the QR code of a pairing address is a square of a valid size', () => {
   const uri = 'starkllm://pair?v=1&n=GEEKOM&a=192.168.0.47%2C10.0.0.5&p=47615&f=' + 'A'.repeat(43) + '&c=' + 'B'.repeat(22);
   const m = qrMatrix(uri);

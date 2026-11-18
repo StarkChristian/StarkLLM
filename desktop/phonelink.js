@@ -63,10 +63,15 @@ const hash = (s) => crypto.createHash('sha256').update(String(s)).digest();
 const sameSecret = (a, b) => crypto.timingSafeEqual(hash(a), hash(b));
 const cleanName = (s) => String(s || '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 60);
 
-// The PC's addresses on the home network, the usual home ranges first (172.16-31 are often virtual adapters)
+// Adapters of virtual machines, containers and VPNs: a phone on the home network cannot reach them
+const VIRTUAL = /^(docker|br-|veth|virbr|vmnet|vboxnet|lxc|lxd|cni|flannel|podman|tailscale|zt|wg|tun|tap|utun)|vEthernet|VirtualBox|VMware|Hyper-V|WSL|Loopback|Bluetooth|Teredo|isatap/i;
+const MAX_ADDRESSES = 4;
+
+// The PC's addresses on the home network (at most 4, without virtual adapters), the usual home ranges first
 function homeAddresses(interfaces = os.networkInterfaces()) {
   const out = [];
-  for (const list of Object.values(interfaces || {})) {
+  for (const [name, list] of Object.entries(interfaces || {})) {
+    if (VIRTUAL.test(name)) continue;
     for (const a of list || []) {
       const v4 = a.family === 'IPv4' || a.family === 4;
       if (!v4 || a.internal || /^169\.254\./.test(a.address) || classify(a.address) !== 'lan') continue;
@@ -74,7 +79,7 @@ function homeAddresses(interfaces = os.networkInterfaces()) {
     }
   }
   const rank = (ip) => (ip.startsWith('192.168.') ? 0 : ip.startsWith('10.') ? 1 : 2);
-  return out.sort((x, y) => rank(x) - rank(y));
+  return out.sort((x, y) => rank(x) - rank(y)).slice(0, MAX_ADDRESSES);
 }
 
 function pairingUri({ pcName, addresses, port, fingerprint, code }) {
