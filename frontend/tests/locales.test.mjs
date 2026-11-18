@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { languageList, pickLanguage, localeFor, formatMoney, formatDay, SOURCE_LANGUAGE } from '../src/i18n/locales.js';
+import { languageList, languageName, pickLanguage, localeFor, formatMoney, formatDay, SOURCE_LANGUAGE } from '../src/i18n/locales.js';
 
 const flat = (s) => s.replace(/[  ]/g, ' ');
 const I18N = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'src', 'i18n');
@@ -71,6 +71,12 @@ test('money is written with the separators of the locale and the symbol of its c
   assert.equal(flat(formatMoney(1234.56, 'TRY', 'tr-TR')), '₺1.234,56');
   assert.equal(flat(formatMoney(5, 'USD', 'en-US', 0)), '$5');
   assert.equal(formatMoney(5, 'not a currency', 'en-US'), '5.00 not a currency');
+});
+
+test('a language can be named in the interface language (Settings > Language, second line)', () => {
+  assert.equal(languageName('fr', 'de'), 'Französisch');
+  assert.equal(languageName('de', 'de'), 'Deutsch');
+  assert.equal(languageName('de', 'en'), 'German');
 });
 
 test('French is offered and named in French', () => {

@@ -16,6 +16,11 @@ function displayName(code, inLanguage) {
   }
 }
 
+/** The name of a language written in another language: languageName('fr', 'de') is "Französisch". */
+export function languageName(code, inLanguage) {
+  return displayName(code, inLanguage);
+}
+
 /** [{ code, name (English), nativeName, dir }]: English first, then by English name. */
 export function languageList(codes) {
   const all = [...new Set([SOURCE_LANGUAGE, ...codes])].map((code) => ({
