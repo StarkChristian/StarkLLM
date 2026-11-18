@@ -109,7 +109,17 @@ def describe_indexing_error(e: Exception) -> str:
         return "Ollama took too long to embed this document. Try again, or use a smaller file."
     if isinstance(e, requests.exceptions.HTTPError) and getattr(e.response, "status_code", None) == 404:
         return "The embedding model is not installed in Ollama. Run 'ollama pull nomic-embed-text', then upload the file again."
-    return str(e)[:500]
+    text = str(e)
+    # PyMuPDF on a file that is not what its name says (N39: a text file renamed to .pdf showed
+    # "Failed to open file 'data/uploads\426583b5_fake-night.pdf' as type pdf.")
+    opened = re.search(r"Failed to open file .* as type (\w+)", text)
+    if opened or type(e).__name__ in ("FileDataError", "EmptyFileError"):
+        kind = opened.group(1).lower() if opened else "pdf"
+        return (f"This file could not be opened as {kind.upper()}: it may be damaged, or another kind of file that was "
+                f"renamed to .{kind}.")
+    # the engine's own upload paths mean nothing to the user ("data/uploads/426583b5_letter.pdf" → "letter.pdf")
+    text = re.sub(r"(?:[A-Za-z]:)?[^\s'\"]*?uploads[\\/]+[0-9a-f]{8}_", "", text)
+    return text[:500]
 
 
 def empty_answer_error(model: str, thought: bool) -> "LLMBackendError":
