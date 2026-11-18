@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only: a pairing link can be opened with adb (adb shell am start -d "starkllm://pair?..."), so the
+     pairing can be tested without a camera. The release app reads pairing codes only with its own camera screen, so no
+     web page or other app can start a pairing. The app still asks before it pairs. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="starkllm" android:host="pair" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

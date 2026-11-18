@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- No plain HTTP anywhere. The PC is reached over HTTPS with its own certificate, checked against the fingerprint from
+     the pairing QR code (data/Pinning.kt), not against the certificate authorities below. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
