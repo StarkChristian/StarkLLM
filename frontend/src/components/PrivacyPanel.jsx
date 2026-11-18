@@ -109,8 +109,8 @@ export default function PrivacyPanel({ token }) {
           <strong>{t('Fully offline')}</strong>
           <span className={styles.muted}>
             {offline
-              ? t('On: nothing leaves this PC. No update check, no model downloads, no web search, no online AI providers. Only the AI engine (Ollama) on this PC is used.')
-              : t('Off: connections you turned on (updates, model downloads, web search, online providers) are allowed. They are listed below.')}
+              ? t('On: nothing leaves this PC. No update check, no model downloads, no web search, no online AI providers, no live prices. Only the AI engine (Ollama) on this PC is used.')
+              : t('Off: connections you turned on (updates, model downloads, web search, online providers, live prices) are allowed. They are listed below.')}
           </span>
         </div>
         {offline !== null && (

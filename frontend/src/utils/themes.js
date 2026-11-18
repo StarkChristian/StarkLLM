@@ -1,14 +1,14 @@
 /**
  * StarkLLM Theme Definitions
  * Curated palette presets for high-aesthetic personalization.
+ * The ids never change (they are saved in the settings); the names and descriptions come from themeText() in the
+ * interface language.
  */
+import { t } from '../i18n';
 
 export const AVAILABLE_THEMES = [
   {
     id: 'dark',
-    name: 'Midnight Indigo',
-    badge: 'Default',
-    desc: 'Classic deep slate with rich indigo and violet radiance.',
     bg: '#05070a',
     card: '#121622',
     accent: '#4f46e5',
@@ -17,9 +17,6 @@ export const AVAILABLE_THEMES = [
   },
   {
     id: 'pink',
-    name: 'Cyberpunk Rose',
-    badge: 'Cyber Rose',
-    desc: 'Vibrant neon pink & rose with warm ambient cyber glow.',
     bg: '#0a040b',
     card: '#220f28',
     accent: '#f43f5e',
@@ -28,9 +25,6 @@ export const AVAILABLE_THEMES = [
   },
   {
     id: 'black',
-    name: 'OLED Pitch Black',
-    badge: 'OLED Black',
-    desc: 'Pure #000000 true black for maximum contrast and battery life.',
     bg: '#000000',
     card: '#101010',
     accent: '#0284c7',
@@ -39,9 +33,6 @@ export const AVAILABLE_THEMES = [
   },
   {
     id: 'glass',
-    name: 'Liquid Glass',
-    badge: 'Liquid Glass',
-    desc: 'Translucent frosted glass with iridescent multi-color radiance.',
     bg: '#070b16',
     card: 'rgba(25, 36, 66, 0.42)',
     accent: '#8b5cf6',
@@ -50,9 +41,6 @@ export const AVAILABLE_THEMES = [
   },
   {
     id: 'emerald',
-    name: 'Matrix Emerald',
-    badge: 'Matrix Emerald',
-    desc: 'Obsidian matrix with electric cyber emerald green accents.',
     bg: '#030c08',
     card: '#0d281e',
     accent: '#10b981',
@@ -61,9 +49,6 @@ export const AVAILABLE_THEMES = [
   },
   {
     id: 'amber',
-    name: 'Sunset Volcano',
-    badge: 'Sunset Amber',
-    desc: 'Volcanic slate infused with warm glowing amber & flame accents.',
     bg: '#0b0602',
     card: '#26190b',
     accent: '#f59e0b',
@@ -72,9 +57,6 @@ export const AVAILABLE_THEMES = [
   },
   {
     id: 'nord',
-    name: 'Arctic Frost',
-    badge: 'Arctic Frost',
-    desc: 'Sub-zero arctic navy with crystalline cyan & blue frost.',
     bg: '#060f18',
     card: '#152c43',
     accent: '#0891b2',
@@ -83,9 +65,6 @@ export const AVAILABLE_THEMES = [
   },
   {
     id: 'light',
-    name: 'Daylight Minimal',
-    badge: 'Daylight Light',
-    desc: 'Clean daylight aesthetic with soft shadows and crisp contrast.',
     bg: '#f0f2f8',
     card: '#ffffff',
     accent: '#4f46e5',
@@ -94,9 +73,6 @@ export const AVAILABLE_THEMES = [
   },
   {
     id: 'doodle',
-    name: 'Doodle Chat',
-    badge: 'Pattern',
-    desc: 'Warm paper with little dolls, hearts, letters and stars drawn in the background.',
     bg: '#efe6dc',
     card: '#fffdf9',
     accent: '#0f766e',
@@ -106,9 +82,6 @@ export const AVAILABLE_THEMES = [
   },
   {
     id: 'doodle-night',
-    name: 'Doodle Night',
-    badge: 'Pattern',
-    desc: 'The doodles on a calm dark chat background.',
     bg: '#0b141a',
     card: '#1f2c33',
     accent: '#14b8a6',
@@ -118,9 +91,6 @@ export const AVAILABLE_THEMES = [
   },
   {
     id: 'flowers',
-    name: 'Flower Meadow',
-    badge: 'Pattern',
-    desc: 'Small pink, lilac and peach flowers on soft blush.',
     bg: '#fdf2f6',
     card: '#ffffff',
     accent: '#db2777',
@@ -130,9 +100,6 @@ export const AVAILABLE_THEMES = [
   },
   {
     id: 'matrix',
-    name: 'Matrix Code',
-    badge: 'Pattern',
-    desc: 'Green code rain on black, in a monospace font.',
     bg: '#000a03',
     card: '#02140a',
     accent: '#16a34a',
@@ -142,9 +109,6 @@ export const AVAILABLE_THEMES = [
   },
   {
     id: 'stars',
-    name: 'Starry Night',
-    badge: 'Pattern',
-    desc: 'A quiet night sky full of small stars, with warm gold accents.',
     bg: '#0a0f24',
     card: '#161e44',
     accent: '#f59e0b',
@@ -153,6 +117,27 @@ export const AVAILABLE_THEMES = [
     pattern: true
   }
 ];
+
+const THEME_TEXTS = () => ({
+  dark: { name: t('Midnight Indigo'), badge: t('Default'), desc: t('Classic deep slate with rich indigo and violet radiance.') },
+  pink: { name: t('Cyberpunk Rose'), badge: t('Cyber Rose'), desc: t('Vibrant neon pink & rose with warm ambient cyber glow.') },
+  black: { name: t('OLED Pitch Black'), badge: t('OLED Black'), desc: t('Pure #000000 true black for maximum contrast and battery life.') },
+  glass: { name: t('Liquid Glass'), badge: t('Liquid Glass'), desc: t('Translucent frosted glass with iridescent multi-color radiance.') },
+  emerald: { name: t('Matrix Emerald'), badge: t('Matrix Emerald'), desc: t('Obsidian matrix with electric cyber emerald green accents.') },
+  amber: { name: t('Sunset Volcano'), badge: t('Sunset Amber'), desc: t('Volcanic slate infused with warm glowing amber & flame accents.') },
+  nord: { name: t('Arctic Frost'), badge: t('Arctic Frost'), desc: t('Sub-zero arctic navy with crystalline cyan & blue frost.') },
+  light: { name: t('Daylight Minimal'), badge: t('Daylight Light'), desc: t('Clean daylight aesthetic with soft shadows and crisp contrast.') },
+  doodle: { name: t('Doodle Chat'), badge: t('Pattern'), desc: t('Warm paper with little dolls, hearts, letters and stars drawn in the background.') },
+  'doodle-night': { name: t('Doodle Night'), badge: t('Pattern'), desc: t('The doodles on a calm dark chat background.') },
+  flowers: { name: t('Flower Meadow'), badge: t('Pattern'), desc: t('Small pink, lilac and peach flowers on soft blush.') },
+  matrix: { name: t('Matrix Code'), badge: t('Pattern'), desc: t('Green code rain on black, in a monospace font.') },
+  stars: { name: t('Starry Night'), badge: t('Pattern'), desc: t('A quiet night sky full of small stars, with warm gold accents.') },
+});
+
+/** Name, badge and description of a theme in the interface language (read while rendering). */
+export function themeText(themeId) {
+  return THEME_TEXTS()[themeId] || { name: themeId, badge: '', desc: '' };
+}
 
 export function applyTheme(themeId) {
   document.documentElement.setAttribute('data-theme', themeId);

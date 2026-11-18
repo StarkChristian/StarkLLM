@@ -277,3 +277,48 @@ class DeadlineDone(Base):
     due_date    = Column(String, nullable=False)                 # ISO yyyy-mm-dd
     kind        = Column(String, nullable=False)
     created_at  = Column(DateTime, default=datetime.utcnow)
+
+
+
+# ---------------------------------------------------------------------------
+# What the user decided about a document goes with the document (MSI night test of 2.3.0, N38)
+# ---------------------------------------------------------------------------
+# Reviews, date readings, reminders and done marks point to a document by (scope, id), without a foreign key. SQLite
+# gives a new document the id of a deleted one, so a new bill inherited the deleted letter's "done", its title and
+# its case, and could have hidden its deadline. They are now deleted with the document, however it is deleted (one
+# document, a workspace, a knowledge-base folder), and rows left by older versions are removed at start-up.
+from sqlalchemy import delete as _delete, event as _event, select as _select  # noqa: E402
+from sqlalchemy.orm import Session as _Session  # noqa: E402
+
+DOCUMENT_LINKED = (DocumentReview, DateChoice, DeadlineReminder, DeadlineDone)
+
+
+def forget_documents(connection_or_session, scope: str, ids) -> None:
+    """Delete everything the user decided about these documents (scope "ws" or "kb")."""
+    ids = [i for i in ids if i is not None]
+    if not ids:
+        return
+    for model in DOCUMENT_LINKED:
+        connection_or_session.execute(_delete(model).where(model.scope == scope, model.document_id.in_(ids)))
+
+
+@_event.listens_for(_Session, "after_flush")
+def _forget_deleted_documents(session, _context):
+    ws = [o.id for o in session.deleted if isinstance(o, Document)]
+    kb = [o.id for o in session.deleted if isinstance(o, KnowledgeBaseDocument)]
+    if ws:
+        forget_documents(session.connection(), "ws", ws)
+    if kb:
+        forget_documents(session.connection(), "kb", kb)
+
+
+def forget_orphans(session) -> int:
+    """Remove decisions about documents that no longer exist; returns how many rows went."""
+    removed = 0
+    for scope, model in (("ws", Document), ("kb", KnowledgeBaseDocument)):
+        existing = _select(model.id)
+        for linked in DOCUMENT_LINKED:
+            result = session.execute(_delete(linked).where(linked.scope == scope, linked.document_id.not_in(existing)))
+            removed += result.rowcount or 0
+    session.commit()
+    return removed
