@@ -5,7 +5,17 @@
     <string name="cancel">Annuler</string>
     <string name="refresh">Actualiser</string>
     <string name="pair_title">Connecter à votre PC</string>
-    <string name="pair_intro">Sur votre PC, ouvrez StarkLLM, allez dans Paramètres &gt; Téléphone, activez-le et choisissez « Afficher le code QR ». Scannez ensuite le code ici. Le téléphone et le PC doivent être sur le même Wi-Fi.</string>
+    <string name="pair_subtitle">Interrogez les documents de votre PC depuis votre téléphone.</string>
+    <string name="pair_step1">Ouvrez StarkLLM sur votre PC.</string>
+    <string name="pair_step2">Allez dans Paramètres &gt; Téléphone, activez-le et choisissez « Afficher le code QR ».</string>
+    <string name="pair_step3">Scannez le code avec ce téléphone. Le téléphone et le PC doivent être sur le même Wi-Fi.</string>
+    <string name="connected">Connecté</string>
+    <string name="chats">Chats</string>
+    <string name="suggestion_1">Quelles échéances approchent ?</string>
+    <string name="suggestion_2">Résume le document le plus récent.</string>
+    <string name="suggestion_3">Combien dois-je payer, et avant quand ?</string>
+    <string name="copy">Copier</string>
+    <string name="copied">Copié</string>
     <string name="privacy_note">Vos documents et le modèle d\'IA restent sur votre PC. Le téléphone se connecte de façon chiffrée par votre réseau domestique et n\'affiche que les réponses.</string>
     <string name="scan_button">Scanner le code QR</string>
     <string name="scan_hint">Pointez l\'appareil photo vers le code QR affiché sur votre PC.</string>
@@ -37,7 +47,6 @@
     <string name="stop">Arrêter</string>
     <string name="thinking">Lecture des documents…</string>
     <string name="answer_failed">La réponse a été interrompue.</string>
-    <string name="sources">Sources : %1$s</string>
     <string name="unverified_quotes">StarkLLM n\'a pas trouvé ces mots cités dans les documents. Vérifiez-les avant de vous y fier :</string>
     <string name="paired_pc">PC associé</string>
     <string name="paired_with">Associé à %1$s</string>

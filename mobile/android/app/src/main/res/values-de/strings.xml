@@ -5,7 +5,17 @@
     <string name="cancel">Abbrechen</string>
     <string name="refresh">Aktualisieren</string>
     <string name="pair_title">Mit Ihrem PC verbinden</string>
-    <string name="pair_intro">Öffnen Sie StarkLLM auf Ihrem PC, gehen Sie zu Einstellungen &gt; Telefon, schalten Sie es ein und wählen Sie „QR-Code anzeigen“. Scannen Sie dann den Code hier. Telefon und PC müssen im selben WLAN sein.</string>
+    <string name="pair_subtitle">Fragen Sie die Dokumente auf Ihrem PC vom Telefon aus.</string>
+    <string name="pair_step1">Öffnen Sie StarkLLM auf Ihrem PC.</string>
+    <string name="pair_step2">Gehen Sie zu Einstellungen &gt; Telefon, schalten Sie es ein und wählen Sie „QR-Code anzeigen“.</string>
+    <string name="pair_step3">Scannen Sie den Code mit diesem Telefon. Telefon und PC müssen im selben WLAN sein.</string>
+    <string name="connected">Verbunden</string>
+    <string name="chats">Chats</string>
+    <string name="suggestion_1">Welche Fristen stehen an?</string>
+    <string name="suggestion_2">Fasse das neueste Dokument zusammen.</string>
+    <string name="suggestion_3">Wie viel muss ich bis wann bezahlen?</string>
+    <string name="copy">Kopieren</string>
+    <string name="copied">Kopiert</string>
     <string name="privacy_note">Ihre Dokumente und das KI-Modell bleiben auf Ihrem PC. Das Telefon verbindet sich verschlüsselt über Ihr Heimnetz und zeigt nur die Antworten.</string>
     <string name="scan_button">QR-Code scannen</string>
     <string name="scan_hint">Richten Sie die Kamera auf den QR-Code auf dem Bildschirm Ihres PCs.</string>
@@ -37,7 +47,6 @@
     <string name="stop">Stopp</string>
     <string name="thinking">Dokumente werden gelesen…</string>
     <string name="answer_failed">Die Antwort wurde abgebrochen.</string>
-    <string name="sources">Quellen: %1$s</string>
     <string name="unverified_quotes">StarkLLM hat diese zitierten Worte in den Dokumenten nicht gefunden. Prüfen Sie sie, bevor Sie sich darauf verlassen:</string>
     <string name="paired_pc">Gekoppelter PC</string>
     <string name="paired_with">Gekoppelt mit %1$s</string>

@@ -5,7 +5,17 @@
     <string name="cancel">Cancelar</string>
     <string name="refresh">Actualizar</string>
     <string name="pair_title">Conectar con su PC</string>
-    <string name="pair_intro">En su PC, abra StarkLLM, vaya a Ajustes &gt; Teléfono, actívelo y elija «Mostrar código QR». Después escanee el código aquí. El teléfono y el PC deben estar en la misma wifi.</string>
+    <string name="pair_subtitle">Pregunte por los documentos de su PC desde el teléfono.</string>
+    <string name="pair_step1">Abra StarkLLM en su PC.</string>
+    <string name="pair_step2">Vaya a Ajustes &gt; Teléfono, actívelo y elija «Mostrar código QR».</string>
+    <string name="pair_step3">Escanee el código con este teléfono. El teléfono y el PC deben estar en la misma wifi.</string>
+    <string name="connected">Conectado</string>
+    <string name="chats">Chats</string>
+    <string name="suggestion_1">¿Qué plazos se acercan?</string>
+    <string name="suggestion_2">Resume el documento más reciente.</string>
+    <string name="suggestion_3">¿Cuánto tengo que pagar y hasta cuándo?</string>
+    <string name="copy">Copiar</string>
+    <string name="copied">Copiado</string>
     <string name="privacy_note">Sus documentos y el modelo de IA se quedan en su PC. El teléfono se conecta cifrado por su red doméstica y solo muestra las respuestas.</string>
     <string name="scan_button">Escanear código QR</string>
     <string name="scan_hint">Apunte la cámara al código QR de la pantalla de su PC.</string>
@@ -37,7 +47,6 @@
     <string name="stop">Detener</string>
     <string name="thinking">Leyendo los documentos…</string>
     <string name="answer_failed">La respuesta se cortó.</string>
-    <string name="sources">Fuentes: %1$s</string>
     <string name="unverified_quotes">StarkLLM no encontró estas palabras citadas en los documentos. Compruébelas antes de confiar en ellas:</string>
     <string name="paired_pc">PC vinculado</string>
     <string name="paired_with">Vinculado con %1$s</string>

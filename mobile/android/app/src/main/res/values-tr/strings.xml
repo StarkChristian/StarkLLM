@@ -5,7 +5,17 @@
     <string name="cancel">İptal</string>
     <string name="refresh">Yenile</string>
     <string name="pair_title">Bilgisayarınıza bağlanın</string>
-    <string name="pair_intro">Bilgisayarınızda StarkLLM\'i açın, Ayarlar &gt; Telefon\'a gidin, açın ve \"QR kodunu göster\"i seçin. Ardından kodu burada tarayın. Telefon ve bilgisayar aynı Wi-Fi ağında olmalıdır.</string>
+    <string name="pair_subtitle">Bilgisayarınızdaki belgelere telefonunuzdan soru sorun.</string>
+    <string name="pair_step1">Bilgisayarınızda StarkLLM\'i açın.</string>
+    <string name="pair_step2">Ayarlar &gt; Telefon\'a gidin, açın ve \"QR kodunu göster\"i seçin.</string>
+    <string name="pair_step3">Kodu bu telefonla tarayın. Telefon ve bilgisayar aynı Wi-Fi ağında olmalıdır.</string>
+    <string name="connected">Bağlı</string>
+    <string name="chats">Sohbetler</string>
+    <string name="suggestion_1">Hangi son tarihler yaklaşıyor?</string>
+    <string name="suggestion_2">En yeni belgeyi özetle.</string>
+    <string name="suggestion_3">Ne kadar ödemem gerekiyor ve ne zamana kadar?</string>
+    <string name="copy">Kopyala</string>
+    <string name="copied">Kopyalandı</string>
     <string name="privacy_note">Belgeleriniz ve yapay zekâ modeli bilgisayarınızda kalır. Telefon ev ağınız üzerinden şifreli bağlanır ve yalnızca yanıtları gösterir.</string>
     <string name="scan_button">QR kodunu tara</string>
     <string name="scan_hint">Kamerayı bilgisayarınızın ekranındaki QR koduna doğrultun.</string>
@@ -37,7 +47,6 @@
     <string name="stop">Durdur</string>
     <string name="thinking">Belgeler okunuyor…</string>
     <string name="answer_failed">Yanıt yarıda kesildi.</string>
-    <string name="sources">Kaynaklar: %1$s</string>
     <string name="unverified_quotes">StarkLLM alıntılanan bu sözleri belgelerde bulamadı. Bunlara güvenmeden önce kontrol edin:</string>
     <string name="paired_pc">Eşlenen bilgisayar</string>
     <string name="paired_with">%1$s ile eşlendi</string>

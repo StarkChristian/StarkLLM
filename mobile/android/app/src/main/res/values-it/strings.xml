@@ -5,7 +5,17 @@
     <string name="cancel">Annulla</string>
     <string name="refresh">Aggiorna</string>
     <string name="pair_title">Collegare al vostro PC</string>
-    <string name="pair_intro">Sul vostro PC aprite StarkLLM, andate in Impostazioni &gt; Telefono, attivatelo e scegliete «Mostra codice QR». Poi scansionate il codice qui. Telefono e PC devono essere sulla stessa Wi-Fi.</string>
+    <string name="pair_subtitle">Fate domande sui documenti del vostro PC dal telefono.</string>
+    <string name="pair_step1">Aprite StarkLLM sul vostro PC.</string>
+    <string name="pair_step2">Andate in Impostazioni &gt; Telefono, attivatelo e scegliete «Mostra codice QR».</string>
+    <string name="pair_step3">Scansionate il codice con questo telefono. Telefono e PC devono essere sulla stessa Wi-Fi.</string>
+    <string name="connected">Connesso</string>
+    <string name="chats">Chat</string>
+    <string name="suggestion_1">Quali scadenze si avvicinano?</string>
+    <string name="suggestion_2">Riassumi il documento più recente.</string>
+    <string name="suggestion_3">Quanto devo pagare, ed entro quando?</string>
+    <string name="copy">Copia</string>
+    <string name="copied">Copiato</string>
     <string name="privacy_note">I vostri documenti e il modello di IA restano sul vostro PC. Il telefono si collega cifrato tramite la rete di casa e mostra solo le risposte.</string>
     <string name="scan_button">Scansiona codice QR</string>
     <string name="scan_hint">Inquadrate il codice QR sullo schermo del vostro PC.</string>
@@ -37,7 +47,6 @@
     <string name="stop">Interrompi</string>
     <string name="thinking">Lettura dei documenti…</string>
     <string name="answer_failed">La risposta si è interrotta.</string>
-    <string name="sources">Fonti: %1$s</string>
     <string name="unverified_quotes">StarkLLM non ha trovato queste parole citate nei documenti. Le verifichi prima di farvi affidamento:</string>
     <string name="paired_pc">PC associato</string>
     <string name="paired_with">Associato a %1$s</string>

@@ -2,7 +2,10 @@ package com.starkllm.app.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
@@ -46,7 +49,27 @@ private val Light = lightColorScheme(
 val Amber = Color(0xFFB45309)
 val AmberBackground = Color(0x14F59E0B)
 
+/** Success green of the "connected" dot */
+val Connected = Color(0xFF22C55E)
+
+// A compact type scale: phones are often set to larger text (the Flip5 of the test: 130 % and a larger display zoom),
+// and Material's default sizes then look oversized. These sizes follow the system setting but start smaller.
+private val Compact = Typography().let { d ->
+    d.copy(
+        headlineSmall = d.headlineSmall.copy(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold),
+        titleLarge = d.titleLarge.copy(fontSize = 19.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold),
+        titleMedium = d.titleMedium.copy(fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold),
+        titleSmall = d.titleSmall.copy(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium),
+        bodyLarge = d.bodyLarge.copy(fontSize = 15.sp, lineHeight = 22.sp, letterSpacing = 0.1.sp),
+        bodyMedium = d.bodyMedium.copy(fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.1.sp),
+        bodySmall = d.bodySmall.copy(fontSize = 12.sp, lineHeight = 16.sp),
+        labelLarge = d.labelLarge.copy(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium),
+        labelMedium = d.labelMedium.copy(fontSize = 12.sp, lineHeight = 16.sp),
+        labelSmall = d.labelSmall.copy(fontSize = 11.sp, lineHeight = 14.sp, letterSpacing = 0.6.sp),
+    )
+}
+
 @Composable
 fun StarkTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = if (isSystemInDarkTheme()) Dark else Light, content = content)
+    MaterialTheme(colorScheme = if (isSystemInDarkTheme()) Dark else Light, typography = Compact, content = content)
 }

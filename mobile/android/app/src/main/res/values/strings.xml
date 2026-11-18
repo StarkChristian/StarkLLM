@@ -6,7 +6,17 @@
     <string name="cancel">Cancel</string>
     <string name="refresh">Refresh</string>
     <string name="pair_title">Connect to your PC</string>
-    <string name="pair_intro">On your PC, open StarkLLM, go to Settings &gt; Phone, turn it on and choose \"Show QR code\". Then scan the code here. The phone and the PC must be on the same Wi-Fi.</string>
+    <string name="pair_subtitle">Ask about the documents on your PC from your phone.</string>
+    <string name="pair_step1">Open StarkLLM on your PC.</string>
+    <string name="pair_step2">Go to Settings &gt; Phone, turn it on and choose \"Show QR code\".</string>
+    <string name="pair_step3">Scan the code with this phone. Phone and PC must be on the same Wi-Fi.</string>
+    <string name="connected">Connected</string>
+    <string name="chats">Chats</string>
+    <string name="suggestion_1">Which deadlines are coming up?</string>
+    <string name="suggestion_2">Summarize the newest document.</string>
+    <string name="suggestion_3">How much do I have to pay, and by when?</string>
+    <string name="copy">Copy</string>
+    <string name="copied">Copied</string>
     <string name="privacy_note">Your documents and the AI model stay on your PC. The phone connects over your home network, encrypted, and only shows the answers.</string>
     <string name="scan_button">Scan QR code</string>
     <string name="scan_hint">Point the camera at the QR code on your PC\'s screen.</string>
@@ -38,7 +48,6 @@
     <string name="stop">Stop</string>
     <string name="thinking">Reading the documents…</string>
     <string name="answer_failed">The answer was cut off.</string>
-    <string name="sources">Sources: %1$s</string>
     <string name="unverified_quotes">StarkLLM did not find these quoted words in the documents. Check them before you rely on them:</string>
     <string name="paired_pc">Paired PC</string>
     <string name="paired_with">Paired with %1$s</string>
