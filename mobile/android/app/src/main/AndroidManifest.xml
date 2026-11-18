@@ -4,12 +4,19 @@
 
     <!-- the PC on the home network -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- only to read the pairing QR code; nothing is recorded -->
+    <!-- the pairing QR code and photos of letters; nothing is recorded without the user's tap -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- dictation: only while the microphone button is held; the recording goes to the PC and is deleted here -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- deadline reminders (Settings, off by default) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- app lock and confirming actions on the PC -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
-    <!-- No backup: the device token must not leave the phone (it is also encrypted with a key of the Android Keystore,
-         which a backup could not restore anyway). -->
+    <!-- No backup: the device tokens must not leave the phone (they are also encrypted with a key of the Android
+         Keystore, which a backup could not restore anyway). -->
     <application
         android:allowBackup="false"
         android:fullBackupContent="false"
@@ -25,12 +32,53 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|density|uiMode">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- "Share" from other apps: a document or photo into a workspace on the PC -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="application/epub+zip" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.presentationml.presentation" />
+            </intent-filter>
         </activity>
+
+        <!-- photos taken for the PC are kept in the app's cache until they are sent -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
+        </provider>
+
+        <!-- home-screen widget: the next deadlines -->
+        <receiver android:name=".widget.DeadlinesWidget" android:exported="false" android:label="@string/widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_deadlines" />
+        </receiver>
+
+        <!-- Quick Settings tile "Ask StarkLLM" -->
+        <service
+            android:name=".tile.AskTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_stat_starkllm"
+            android:label="@string/tile_ask"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

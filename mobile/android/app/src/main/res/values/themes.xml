@@ -6,4 +6,13 @@
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
+
+    <!-- one deadline in the home-screen widget -->
+    <style name="WidgetRow">
+        <item name="android:layout_marginTop">8dp</item>
+        <item name="android:textColor">#FFE7E5F0</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+    </style>
 </resources>
