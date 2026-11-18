@@ -36,18 +36,22 @@ small HTTPS server in the desktop app (Electron main process) in front of it:
 5. **Device token.** `POST /phone/v1/pair {code, name}` returns a random 256-bit token. The app keeps it in the
    Android Keystore; the PC keeps only its SHA-256 hash (`phone/phone-link.json`). Every later request carries it in
    `X-StarkLLM-Device`. Settings > Phone lists the paired phones (at most 10) with "Remove", which takes effect at once.
-6. **Allow-list.** A paired phone reaches only these engine calls (`ALLOWED` in `phonelink.js`); everything else gets
-   404, also with `..` or encoded slashes in the path:
+6. **Allow-list and levels.** A paired phone reaches only these engine calls (`ALLOWED` in `phonelink.js`), each at a
+   level; everything else gets 404, also with `..` or encoded slashes in the path. Settings > Phone sets the level of
+   each phone ("This phone may:"); a new pairing gets "work"; a call above the phone's level gets 403.
 
-   | Method | Path (`/api/v1/...`) |
-   |---|---|
-   | GET | `auth/me`, `workspaces/`, `chat/sessions/{ws}`, `chat/session/{id}`, `chat/messages/{id}`, `documents/{ws}`, `documents/{ws}/documents/{id}/status`, `dashboard/home`, `dashboard/inbox`, `dashboard/inbox/count`, `dashboard/deadlines` |
-   | POST | `auth/login`, `chat/`, `chat/save-partial`, `chat/sessions/{ws}`, `documents/{ws}/upload` |
-   | DELETE | `chat/session/{id}` |
+   | Level | Method | Path (`/api/v1/...`) |
+   |---|---|---|
+   | ask | GET | `auth/me`, `workspaces/`, `chat/sessions/{ws}`, `chat/session/{id}`, `chat/messages/{id}`, `chat/models`, `documents/{ws}`, `documents/{ws}/documents/{id}/status`, `dashboard/home`, `dashboard/inbox`, `dashboard/inbox/count`, `dashboard/deadlines`, `dashboard/system-status` |
+   | ask | POST | `auth/login`, `chat/`, `chat/save-partial`, `chat/sessions/{ws}`, `voice/transcribe` (dictation with the PC's speech model) |
+   | work | POST, PUT, DELETE | `documents/{ws}/upload`, `dashboard/deadlines/done`, `chat/session/{id}` |
+   | manage | POST | `/phone/v1/actions/backup-now`, `/phone/v1/actions/go-offline`: actions of the desktop app, not of the engine; the app asks for the fingerprint first |
 
-   Not reachable from the phone: settings, models, backup, protection, knowledge base, tools (MCP), the OpenAI
-   compatible API, imports from the web, and everything of the system. A chat request loses `provider`, `api_key` and
-   `base_url`: the phone always uses the local model.
+   `GET /phone/v1/status` tells every paired phone its level and what the desktop app knows about the PC (backup,
+   protection; no paths, keys or file names). Not reachable from the phone: engine settings, model downloads,
+   backup files, protection keys, knowledge base, tools (MCP), the OpenAI compatible API, imports from the web, and
+   everything of the system. A chat request loses `provider`, `api_key` and `base_url`: the phone always uses the
+   local model.
 7. **Who is signed in.** With one user on the PC (the usual case) the phone link adds the local user's session, so the
    phone needs no password. Where StarkLLM has several accounts, the app shows the login and sends its own sign-in.
 8. **Only the home network.** Connections from addresses that are not private (RFC 1918, link-local, this PC) are

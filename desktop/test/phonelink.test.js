@@ -7,7 +7,7 @@ const path = require('path');
 const http = require('http');
 const https = require('https');
 const { createSelfSigned, fingerprintOf } = require('../selfcert');
-const { createPhoneLink, isAllowed, homeAddresses, DEVICE_HEADER } = require('../phonelink');
+const { createPhoneLink, isAllowed, neededLevel, homeAddresses, DEVICE_HEADER, LEVELS } = require('../phonelink');
 const { createGuard } = require('../netguard');
 const { qrMatrix } = require('../qr');
 
@@ -165,7 +165,7 @@ test('the pairing closes after ten wrong codes and after five minutes', async (t
 test('a paired phone reaches the allowed engine calls with the local session; the device token stays here', async (t) => {
   const s = await paired(t);
   const hello = await request(s.port, { path: '/phone/v1/hello', headers: { [DEVICE_HEADER]: s.token }, pin: s.pin });
-  assert.deepStrictEqual(hello.json, { pc_name: 'GEEKOM', version: '2.4.0', device_id: s.deviceId, signed_in: true });
+  assert.deepStrictEqual(hello.json, { pc_name: 'GEEKOM', version: '2.4.0', device_id: s.deviceId, signed_in: true, level: 'work' });
   const r = await request(s.port, { path: '/api/v1/workspaces/?x=1', headers: { [DEVICE_HEADER]: s.token, accept: 'application/json', cookie: 'a=b' } });
   assert.strictEqual(r.status, 200);
   const seen = s.engine.seen.at(-1);
@@ -195,7 +195,9 @@ test('calls outside the allow-list are refused, also with tricks in the path', a
     ['GET', '/api/v1/documents/1%2F..%2F..%2Fsystem'],
     ['GET', '/v1/models'],
     ['POST', '/mcp'],
-    ['GET', '/api/v1/chat/models']
+    ['POST', '/api/v1/chat/models/pull'],
+    ['DELETE', '/api/v1/chat/models/qwen2.5:3b'],
+    ['POST', '/api/v1/voice/synthesize'],
   ];
   for (const [method, p] of refused) {
     const r = await request(s.port, { method, path: p, headers: { [DEVICE_HEADER]: s.token } });
@@ -326,4 +328,82 @@ test('the QR code of a pairing address is a square of a valid size', () => {
   assert.ok(m.every((row) => row.length === m.length));
   // the three finder patterns
   for (const [r, c] of [[0, 0], [0, m.length - 7], [m.length - 7, 0]]) assert.strictEqual(m[r][c] && m[r + 6][c + 6] && !m[r + 1][c + 1], true);
+});
+
+// ---- what a phone may do (levels set in Settings > Phone)
+
+test('a new phone may "work": ask, send documents, mark deadlines done; not run actions on the PC', async (t) => {
+  const s = await paired(t);
+  assert.strictEqual(s.link.status().devices[0].level, 'work');
+  const hello = await request(s.port, { path: '/phone/v1/hello', headers: { [DEVICE_HEADER]: s.token } });
+  assert.strictEqual(hello.json.level, 'work');
+  for (const [method, p] of [['GET', '/api/v1/chat/models'], ['PUT', '/api/v1/dashboard/deadlines/done'], ['POST', '/api/v1/documents/1/upload'],
+    ['GET', '/api/v1/dashboard/system-status'], ['POST', '/api/v1/voice/transcribe']]) {
+    const r = await request(s.port, { method, path: p, headers: { [DEVICE_HEADER]: s.token, 'content-type': 'application/json' }, body: method === 'GET' ? null : '{}' });
+    assert.strictEqual(r.status, 200, `${method} ${p}`);
+  }
+  const action = await request(s.port, { method: 'POST', path: '/phone/v1/actions/backup-now', headers: { [DEVICE_HEADER]: s.token } });
+  assert.strictEqual(action.status, 403);
+  assert.deepStrictEqual(action.json, { error: 'not-allowed', needs: 'manage', level: 'work' });
+});
+
+test('a phone set to "ask" can read and ask, but not change anything', async (t) => {
+  const s = await paired(t);
+  s.link.setLevel(s.deviceId, 'ask');
+  const seenBefore = s.engine.seen.length;
+  for (const [method, p] of [['POST', '/api/v1/documents/1/upload'], ['DELETE', '/api/v1/chat/session/4'], ['PUT', '/api/v1/dashboard/deadlines/done']]) {
+    const r = await request(s.port, { method, path: p, headers: { [DEVICE_HEADER]: s.token }, body: method === 'DELETE' ? null : '{}' });
+    assert.strictEqual(r.status, 403, `${method} ${p}`);
+    assert.strictEqual(r.json.needs, 'work');
+  }
+  assert.strictEqual(s.engine.seen.length, seenBefore);
+  const ok = await request(s.port, { method: 'POST', path: '/api/v1/chat/', headers: { [DEVICE_HEADER]: s.token, 'content-type': 'application/json' }, body: { workspace_id: 1, message: 'x' } });
+  assert.strictEqual(ok.status, 200);
+});
+
+test('a phone set to "manage" runs the actions of the desktop app; the level survives a restart', async (t) => {
+  const done = [];
+  const s = await paired(t, { link: {
+    pcStatus: () => ({ backup: { enabled: true, lastSuccess: 1700000000000 }, protection: { hasKey: true } }),
+    actions: { 'backup-now': async () => { done.push('backup'); return { ok: true, file: 'x.starkbackup' }; }, 'go-offline': async () => { done.push('offline'); } }
+  } });
+  assert.deepStrictEqual(s.link.setLevel(s.deviceId, 'owner'), { error: 'bad-request' });
+  s.link.setLevel(s.deviceId, 'manage');
+  const st = await request(s.port, { path: '/phone/v1/status', headers: { [DEVICE_HEADER]: s.token } });
+  assert.deepStrictEqual(st.json.actions, ['backup-now', 'go-offline']);
+  assert.strictEqual(st.json.backup.enabled, true);
+  assert.strictEqual(st.json.level, 'manage');
+  const backup = await request(s.port, { method: 'POST', path: '/phone/v1/actions/backup-now', headers: { [DEVICE_HEADER]: s.token } });
+  assert.deepStrictEqual(backup.json, { ok: true, action: 'backup-now', result: { ok: true, file: 'x.starkbackup' } });
+  const unknown = await request(s.port, { method: 'POST', path: '/phone/v1/actions/format-disk', headers: { [DEVICE_HEADER]: s.token } });
+  assert.strictEqual(unknown.status, 404);
+  const offline = await request(s.port, { method: 'POST', path: '/phone/v1/actions/go-offline', headers: { [DEVICE_HEADER]: s.token } });
+  assert.strictEqual(offline.status, 202);                  // answered first: going offline closes this link
+  await new Promise((r) => setTimeout(r, 400));
+  assert.deepStrictEqual(done, ['backup', 'offline']);
+  s.link.stop();
+  const again = s.make();
+  t.after(() => again.stop());
+  assert.strictEqual(again.status().devices[0].level, 'manage');
+});
+
+test('levels of the allow-list', () => {
+  assert.deepStrictEqual(LEVELS, ['ask', 'work', 'manage']);
+  assert.strictEqual(neededLevel('POST', '/api/v1/chat/'), 'ask');
+  assert.strictEqual(neededLevel('POST', '/api/v1/voice/transcribe'), 'ask');
+  assert.strictEqual(neededLevel('POST', '/api/v1/documents/3/upload'), 'work');
+  assert.strictEqual(neededLevel('POST', '/api/v1/chat/models/pull'), null);
+  assert.strictEqual(neededLevel('GET', '/api/v1/system/backup'), null);
+});
+
+test('a phone paired before levels existed may "work"', async (t) => {
+  const s = await paired(t);
+  const file = path.join(s.dir, 'phone-link.json');
+  const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+  delete saved.devices[0].level;
+  fs.writeFileSync(file, JSON.stringify(saved));
+  s.link.stop();
+  const again = s.make();
+  t.after(() => again.stop());
+  assert.strictEqual(again.status().devices[0].level, 'work');
 });

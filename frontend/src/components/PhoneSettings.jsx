@@ -25,6 +25,18 @@ const MESSAGES = {
 };
 const say = (code, fallback) => MESSAGES[code] || fallback || t('The phone link could not start.');
 
+// What a paired phone may do (desktop/phonelink.js, LEVELS)
+const LEVELS = [
+  ['ask', t('Ask only')],
+  ['work', t('Ask and send documents')],
+  ['manage', t('Ask, send and manage this PC')],
+];
+const LEVEL_HINTS = {
+  ask: t('Reads workspaces, chats, the inbox and deadlines, and asks questions. Changes nothing.'),
+  work: t('Also sends photos and documents, deletes chats and marks deadlines as done.'),
+  manage: t('Also starts a backup now and can switch StarkLLM fully offline. The phone asks for your fingerprint first.'),
+};
+
 // The QR code as squares (the desktop app makes it; no library and no network here). Dark on white with a quiet zone,
 // also in the dark theme, so every phone camera reads it.
 function QrSquares({ matrix }) {
@@ -111,6 +123,8 @@ export default function PhoneSettings() {
     run(`remove-${d.id}`, async () => { check(await api.removeDevice(d.id)); });
   };
 
+  const setLevel = (d, level) => run(`level-${d.id}`, async () => { check(await api.setLevel(d.id, level)); });
+
   const when = (iso) => (iso ? new Date(iso).toLocaleString() : '');
   const left = pairing ? Math.max(0, Math.round((pairing.expiresAt - clock) / 1000)) : 0;
   const on = Boolean(status && status.enabled);
@@ -178,6 +192,13 @@ export default function PhoneSettings() {
               <div style={{ flex: 1 }}>
                 <div>{d.name}</div>
                 <div className={styles.hint}>{t('Paired {time}', { time: when(d.created) })}{d.lastSeen ? ` · ${t('last seen {time}', { time: when(d.lastSeen) })}` : ''}</div>
+                <label className={styles.hint} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                  {t('This phone may:')}
+                  <select value={d.level || 'work'} disabled={busy === `level-${d.id}`} onChange={(e) => setLevel(d, e.target.value)}>
+                    {LEVELS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </label>
+                <div className={styles.hint}>{LEVEL_HINTS[d.level || 'work']}</div>
               </div>
               <button className="btn-secondary" disabled={busy === `remove-${d.id}`} onClick={() => remove(d)} title={t('Remove')}>
                 <Trash2 size={16} /> {t('Remove')}

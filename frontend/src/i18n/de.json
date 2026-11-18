@@ -1201,5 +1201,12 @@
   "Paired phones": "Gekoppelte Telefone",
   "Paired {time}": "Gekoppelt am {time}",
   "last seen {time}": "zuletzt gesehen {time}",
-  "Paired phone (incoming)": "Gekoppeltes Telefon (eingehend)"
+  "Paired phone (incoming)": "Gekoppeltes Telefon (eingehend)",
+  "This phone may:": "Dieses Telefon darf:",
+  "Ask only": "Nur fragen",
+  "Ask and send documents": "Fragen und Dokumente senden",
+  "Ask, send and manage this PC": "Fragen, senden und diesen PC verwalten",
+  "Reads workspaces, chats, the inbox and deadlines, and asks questions. Changes nothing.": "Liest Arbeitsbereiche, Chats, Posteingang und Fristen und stellt Fragen. Ändert nichts.",
+  "Also sends photos and documents, deletes chats and marks deadlines as done.": "Sendet außerdem Fotos und Dokumente, löscht Chats und markiert Fristen als erledigt.",
+  "Also starts a backup now and can switch StarkLLM fully offline. The phone asks for your fingerprint first.": "Startet außerdem sofort eine Sicherung und kann StarkLLM vollständig offline schalten. Das Telefon fragt vorher nach Ihrem Fingerabdruck."
 }
