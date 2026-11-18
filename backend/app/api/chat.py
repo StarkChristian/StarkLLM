@@ -787,6 +787,13 @@ async def chat(
                     if summary_ctx:
                         ws_ctx = summary_ctx + ("\n\n" + ws_ctx if ws_ctx else "")
                         summary_sources.extend(labels)
+                elif ws_res:
+                    # any other question about a large document: its short overview first (what it is, who is who),
+                    # so "Effi's husband" or "the dog" can be named when the passages miss the name
+                    overview = await asyncio.to_thread(
+                        summaries.overview_for, req.workspace_id, [(r.get("metadata") or {}).get("source") for r in ws_res])
+                    if overview:
+                        ws_ctx = overview + "\n\n" + ws_ctx
                 kb_ctx = "\n\n".join(f"[Personal KB Document: {_build_citation_label(r)[0]}]\n{_strip_tool_fences(r['content'])}" for r in kb_res)
                 
                 logger.info(f"DEBUG: RAG merged → {len(ws_res)} workspace ({len(ws_ctx)} chars) + {len(kb_res)} KB ({len(kb_ctx)} chars) result(s)")
