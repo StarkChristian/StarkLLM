@@ -477,6 +477,7 @@ internal fun InputBar(
     var recording by remember { mutableStateOf(false) }
     val dictation = remember { Dictation(context) }
     val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    val holdHint = stringResource(R.string.hold_to_talk)
     LaunchedEffect(state.dictated) {
         state.dictated?.let {
             onChange(listOf(value.trim(), it).filter { s -> s.isNotEmpty() }.joinToString(" "))
@@ -532,7 +533,7 @@ internal fun InputBar(
                                     recording = false
                                     val audio = dictation.stop()
                                     if (audio == null) {
-                                        Toast.makeText(context, context.getString(R.string.hold_to_talk), Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, holdHint, Toast.LENGTH_SHORT).show()
                                     } else {
                                         vm.transcribe(audio, "dictation.ogg", "audio/ogg")
                                     }
