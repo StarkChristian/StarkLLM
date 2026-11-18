@@ -1172,15 +1172,5 @@
   "Green code rain on black, in a monospace font.": "Grüner Code-Regen auf Schwarz, in einer Festbreitenschrift.",
   "Starry Night": "Sternennacht",
   "A quiet night sky full of small stars, with warm gold accents.": "Ein stiller Nachthimmel voller kleiner Sterne, mit warmen Goldakzenten.",
-  "Attach file (PDF, TXT, PNG, JPG)": "Datei anhängen (PDF, TXT, PNG, JPG)",
-  "Because the code is open, you can check what the app sends over the network: nothing, unless you turn on a cloud model or web search yourself.": "Weil der Code offen ist, können Sie prüfen, was die App über das Netzwerk sendet: nichts, solange Sie nicht selbst ein Cloud-Modell oder die Websuche einschalten.",
-  "Define a custom system prompt for the": "Eigene Systemanweisung für den Arbeitsbereich",
-  "Save Persona": "Rolle speichern",
-  "Searching all KB Folders": "Sucht in allen Wissensordnern",
-  "Start / Stop voice recording (Whisper transcription)": "Sprachaufnahme starten / beenden (Spracherkennung mit Whisper)",
-  "These settings are stored locally. The backend defaults are controlled via": "Diese Einstellungen werden lokal gespeichert. Die Standardwerte des Backends stehen in",
-  "config.py": "config.py",
-  "On: nothing leaves this PC. No update check, no model downloads, no web search, no online AI providers. Only the AI engine (Ollama) on this PC is used.": "An: Nichts verlässt diesen PC. Keine Update-Prüfung, keine Modell-Downloads, keine Websuche, keine Online-KI-Anbieter. Es wird nur die KI-Engine (Ollama) auf diesem PC genutzt.",
-  "Off: connections you turned on (updates, model downloads, web search, online providers) are allowed. They are listed below.": "Aus: Verbindungen, die Sie eingeschaltet haben (Updates, Modell-Downloads, Websuche, Online-Anbieter), sind erlaubt. Sie stehen unten in der Liste.",
   "The preview and answers from this document are available once indexing is complete.": "Vorschau und Antworten aus diesem Dokument sind verfügbar, sobald die Indexierung abgeschlossen ist."
 }

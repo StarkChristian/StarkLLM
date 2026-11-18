@@ -1172,15 +1172,5 @@
   "Green code rain on black, in a monospace font.": "Lluvia de código verde sobre negro, en una fuente monoespaciada.",
   "Starry Night": "Noche estrellada",
   "A quiet night sky full of small stars, with warm gold accents.": "Un cielo nocturno tranquilo lleno de pequeñas estrellas, con cálidos acentos dorados.",
-  "Attach file (PDF, TXT, PNG, JPG)": "Adjuntar archivo (PDF, TXT, PNG, JPG)",
-  "Because the code is open, you can check what the app sends over the network: nothing, unless you turn on a cloud model or web search yourself.": "Como el código es abierto, puede comprobar qué envía la aplicación por la red: nada, a menos que usted active un modelo en la nube o la búsqueda web.",
-  "Define a custom system prompt for the": "Defina un prompt de sistema personalizado para el",
-  "Save Persona": "Guardar persona",
-  "Searching all KB Folders": "Buscando en todas las carpetas de la base de conocimiento",
-  "Start / Stop voice recording (Whisper transcription)": "Iniciar / detener la grabación de voz (transcripción con Whisper)",
-  "These settings are stored locally. The backend defaults are controlled via": "Estos ajustes se almacenan localmente. Los valores predeterminados del backend se controlan mediante",
-  "config.py": "config.py",
-  "On: nothing leaves this PC. No update check, no model downloads, no web search, no online AI providers. Only the AI engine (Ollama) on this PC is used.": "Activado: nada sale de este PC. Sin comprobación de actualizaciones, sin descargas de modelos, sin búsqueda web, sin proveedores de IA en línea. Solo se usa el motor de IA (Ollama) de este PC.",
-  "Off: connections you turned on (updates, model downloads, web search, online providers) are allowed. They are listed below.": "Desactivado: se permiten las conexiones que usted activó (actualizaciones, descargas de modelos, búsqueda web, proveedores en línea). Aparecen en la lista de abajo.",
   "The preview and answers from this document are available once indexing is complete.": "La vista previa y las respuestas a partir de este documento estarán disponibles cuando termine la indexación."
 }
