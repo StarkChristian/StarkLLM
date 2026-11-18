@@ -316,6 +316,14 @@ def build(chunks, toc=None, name="the document", progress=lambda done, total: No
     result whose section summaries are reused (same title and pages). yield_to(): True when another document should go
     first; the build then saves what it has and raises Yielded."""
     sections = plan_sections(chunks, toc)
+    # the language of the document, named in every request: a small model wrote English summaries of a German novel
+    # although the instructions say "in the language of the text" (eval/large-docs, qwen2.5:3b)
+    try:
+        from app.api.chat import language_of
+        lang = language_of(" ".join(c["text"] for c in chunks[:40])[:6000])
+    except Exception:
+        lang = None
+    write_in = f" Write in {lang}." if lang else ""
     done_before = {(s["title"], tuple(s["pages"] or ())): s["summary"]
                    for s in ((previous or {}).get("sections") or []) if s.get("summary")}
     result = {"version": VERSION, "model": settings.DEFAULT_TEXT_MODEL, "created": datetime.utcnow().isoformat(timespec="seconds"),
@@ -340,7 +348,7 @@ def build(chunks, toc=None, name="the document", progress=lambda done, total: No
         key = (s["title"], tuple(s["pages"] or ()))
         summary = done_before.get(key) or _ask(
             f"Summarize this part of {name} ('{s['title']}', {_pages_text(s['pages'])}) in at most 120 words: what "
-            "happens or what it says, who appears (with names), and anything that is decided, found or ends here.",
+            "happens or what it says, who appears (with names), and anything that is decided, found or ends here." + write_in,
             s["text"], 120, stop)
         result["sections"].append({"title": s["title"], "pages": s["pages"], "summary": summary})
         if i + 1 > reused:
@@ -353,7 +361,7 @@ def build(chunks, toc=None, name="the document", progress=lambda done, total: No
         text = "\n\n".join(f"[{s['title']}, {_pages_text(s['pages'])}]\n{s['summary']}" for s in group)
         summary = group[0]["summary"] if len(group) == 1 else _ask(
             f"Here are summaries of consecutive parts of {name}. Combine them into one summary of at most 200 words, in "
-            "order, keeping every name that matters and how this stretch begins and ends.", text, 200, stop)
+            "order, keeping every name that matters and how this stretch begins and ends." + write_in, text, 200, stop)
         result["parts"].append({"titles": [group[0]["title"], group[-1]["title"]],
                                 "pages": [min(pages), max(pages)] if pages else None, "summary": summary})
         progress(len(sections) + g // GROUP + 1, total)
@@ -361,7 +369,7 @@ def build(chunks, toc=None, name="the document", progress=lambda done, total: No
     result["document"] = result["parts"][0]["summary"] if len(result["parts"]) == 1 else _ask(
         f"Here are summaries of all parts of {name}, in order. Write a summary of the whole document in at most 300 "
         "words: what it is, the main people, places or things, the course from beginning to end, and how it ends. "
-        "Then add one line that starts with 'Names:' and lists the main people (or parties) with their role.",
+        "Then add one line that starts with 'Names:' and lists the main people (or parties) with their role." + write_in,
         text, 330, stop)
     progress(total, total)
     return result
@@ -646,6 +654,38 @@ def context_for(workspace_id: int, message: str):
         db.close()
     chosen = pick(docs, message)
     return build_context([(d["name"], load(d["path"])) for d in chosen], message)
+
+
+OVERVIEW_CHARS = 2_500
+
+
+def overview_for(workspace_id: int, sources) -> str:
+    """The whole-document summary (with its "Names:" line) of the first retrieved document that has summaries, as one
+    passage for questions that are not about the whole document: it costs a few hundred words of context and lets a
+    small model name people and things the retrieved passages only hint at (eval/large-docs: "Wie heißt Effis
+    Ehemann?" was answered "Briest" from five passages about Effi's parents). "" when there is none."""
+    from app.db import models
+    from app.db.session import SessionLocal
+    wanted = [s for s in sources or [] if s]
+    if not wanted:
+        return ""
+    db = SessionLocal()
+    try:
+        docs = {d.filepath: d.filename for d in db.query(models.Document).filter(
+            models.Document.workspace_id == workspace_id, models.Document.summary_status == "done",
+            models.Document.filepath.in_(wanted)).all()}
+    finally:
+        db.close()
+    for path in wanted:
+        if path in docs:
+            data = load(path)
+            if data and data.get("document"):
+                last = max((s["pages"][1] for s in data.get("sections") or [] if s.get("pages")), default=None)
+                pages = f" (pages 1-{last})" if last else ""
+                # labelled as StarkLLM's words: in the eval a small model quoted a summary sentence as page 250
+                return (f"[Summary of {docs[path]}, the whole document{pages}; written by StarkLLM, not a quote from the "
+                        f"document]\n{data['document'][:OVERVIEW_CHARS]}")
+    return ""
 
 
 def build_context(named_data, message):

@@ -191,3 +191,33 @@ def test_after_a_restart_the_progress_starts_at_the_saved_sections(monkeypatch):
     seen = []
     S.build(chunks, name="moby-dick.pdf", previous={"sections": first["sections"][:8]}, progress=lambda d, t: seen.append(d))
     assert seen[0] == 8 and seen == sorted(seen)
+def test_the_overview_of_the_first_retrieved_document_with_summaries(tmp_path, monkeypatch):
+    import uuid
+    from app.db import models
+    from app.db.session import SessionLocal
+    from app.main import app  # noqa: F401  (creates the database)
+    db = SessionLocal()
+    try:
+        user = models.User(username=f"ov-{uuid.uuid4().hex[:8]}", hashed_password="x")
+        db.add(user); db.commit()
+        ws = models.Workspace(name="Books", user_id=user.id); db.add(ws); db.commit()
+        book, note = tmp_path / "effi-briest.pdf", tmp_path / "note.txt"
+        db.add_all([models.Document(filename="effi-briest.pdf", filepath=str(book), workspace_id=ws.id, status="indexed", summary_status="done"),
+                    models.Document(filename="note.txt", filepath=str(note), workspace_id=ws.id, status="indexed", summary_status="small")])
+        db.commit(); ws_id = ws.id
+    finally:
+        db.close()
+    monkeypatch.setattr(S, "load", lambda p: {"document": "Effi marries Baron Innstetten.\nNames: Innstetten (husband), Rollo (dog)",
+                                              "sections": [{"pages": [1, 284]}]} if p == str(book) else None)
+    text = S.overview_for(ws_id, [str(note), str(book)])
+    assert text.startswith("[Summary of effi-briest.pdf, the whole document (pages 1-284); written by StarkLLM, not a quote") and "Rollo (dog)" in text
+    assert S.overview_for(ws_id, [str(note)]) == "" and S.overview_for(ws_id, []) == ""
+
+
+def test_every_summary_request_names_the_language_of_the_document(monkeypatch):
+    # a small model wrote English summaries of a German novel (eval/large-docs, qwen2.5:3b)
+    asked = []
+    monkeypatch.setattr(S, "_ask", lambda instruction, text, max_words, stop=None: asked.append(instruction) or "s")
+    text = "Effi Briest war die Tochter des Ritterschaftsrats von Briest. Sie und ihre Mutter saßen im Garten, und die Sonne schien auf das Haus. " * 30
+    S.build([chunk(text, p) for p in range(1, 31)], name="effi-briest.pdf")
+    assert asked and all(a.endswith("Write in German.") for a in asked)
