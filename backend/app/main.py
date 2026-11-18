@@ -214,6 +214,18 @@ from app.services.kb_service import kb_service
 
 @app.on_event("startup")
 def on_startup():
+    try:  # decisions about deleted documents must not pass to new ones with the same id (N38)
+        from app.db.models import forget_orphans
+        from app.db.session import SessionLocal
+        _db = SessionLocal()
+        try:
+            gone = forget_orphans(_db)
+            if gone:
+                logger.info(f"Removed {gone} inbox decision(s) of deleted documents")
+        finally:
+            _db.close()
+    except Exception as e:
+        logger.warning(f"Could not clean up decisions of deleted documents: {e}")
     from app.core.protection import protection
     if protection.enabled:
         # index files created by an earlier run can still hold uncleared memory (app.core.chroma_store)

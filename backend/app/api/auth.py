@@ -58,6 +58,7 @@ class UserResponse(BaseModel):
     temperature: Optional[float] = None
     top_p: Optional[float] = None
     max_tokens: Optional[int] = None
+    is_admin: Optional[bool] = None  # only in /me: the settings show backup and restore to the administrator only
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -199,8 +200,10 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.get("/me", response_model=UserResponse)
-def read_users_me(current_user: User = Depends(get_current_user)):
-    return current_user
+def read_users_me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    from app.api.system import is_admin  # app.api.system imports this module
+    fields = {name: getattr(current_user, name, None) for name in UserResponse.model_fields if name != "is_admin"}
+    return UserResponse(**fields, is_admin=is_admin(current_user, db))
 
 class ChangePasswordRequest(BaseModel):
     new_password: str = Field(..., min_length=6, max_length=72)

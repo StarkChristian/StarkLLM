@@ -846,6 +846,8 @@ def get_documents(
     ).first()
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace not found")
+    from app.services import summaries
+    summaries.note_workspace(workspace_id)  # its documents get their summaries first
 
     docs = db.query(models.Document).filter(
         models.Document.workspace_id == workspace_id

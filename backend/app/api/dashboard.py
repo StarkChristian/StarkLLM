@@ -380,8 +380,12 @@ def replaced_documents(pages_of) -> list:
     """For each document: True when a later letter of the same sender says it replaces it
     ("ersetzt die Abrechnung vom 20.10.2026")."""
     from app.services.dates_service import letter_date, replaced_letters, sender
+    from app.services.facts_service import is_long_document
     replaced, letters = set(), []
     for pages in pages_of:
+        if is_long_document(pages):
+            letters.append((None, None))  # a book is no letter: reading all of it on every home page cost seconds
+            continue
         full = "\n".join(text for _, text in sorted(pages.items()))
         letters.append((sender(full), letter_date(full)))
         for when in replaced_letters(full):
@@ -395,7 +399,7 @@ def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool 
     and by the chat, which hands these dates to the model for questions like "what is due in the next two weeks?"."""
     from datetime import date, timedelta
     from app.services.document_checks import findings
-    from app.services.facts_service import is_machine_document
+    from app.services.facts_service import is_long_document, is_machine_document
 
     items, pages_of = documents_with_pages(db, user_id, workspace_id, include_kb)
     today = date.today()
@@ -416,6 +420,8 @@ def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool 
         if replaced[i]:
             item["replaced"] = True
             continue
+        if is_long_document(pages):
+            continue  # a book, manual or report (N30/N31: four books made the home page take 9 s, and got scam badges)
         if is_machine_document(pages, item["filename"]):
             continue  # a log, table, JSON or note: its timestamps and dates are not deadlines
         full = "\n".join(text for _, text in sorted(pages.items()))

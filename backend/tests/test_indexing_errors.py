@@ -81,3 +81,64 @@ def test_every_ollama_chat_asks_for_a_context_window_that_holds_the_prompt(monke
     mod.llm_service.generate_chat("m2", short, options={"num_ctx": 2048})
     assert sent[-1]["options"]["num_ctx"] == 2048  # a setting from the user wins
     assert mod.context_window([{"content": "x" * 200000}]) == mod.CONTEXT_MAX
+
+
+def _answer(status, embeddings=None, text=""):
+    resp = requests.Response()
+    resp.status_code = status
+    resp._content = (text or "").encode()
+
+    class A:
+        status_code = status
+
+        def raise_for_status(self):
+            if status >= 400:
+                raise requests.exceptions.HTTPError(f"{status}", response=resp)
+
+        def json(self):
+            return {"embeddings": embeddings}
+    return A()
+
+
+def test_embeddings_go_in_batches_and_a_refused_batch_is_split_not_sent_one_by_one(monkeypatch):
+    # N27: a whole book went to Ollama in one request; a 400 then sent every passage of the book alone
+    from app.services import llm_service as mod
+
+    batches, singles = [], []
+
+    def post(url, json=None, timeout=None, **kw):
+        if url.endswith("/api/embeddings"):
+            singles.append(json["prompt"])
+            return type("S", (), {"raise_for_status": lambda self: None, "json": lambda self: {"embedding": [9.0]}})()
+        batch = json["input"]
+        batches.append(len(batch))
+        if "bad" in batch:
+            return _answer(400, text='{"error":"input rejected"}')
+        return _answer(200, [[float(len(x))] for x in batch])
+
+    monkeypatch.setattr(mod.requests, "post", post)
+    prompts = [f"p{i}" for i in range(150)]
+    prompts[70] = "bad"
+    out = mod.llm_service.generate_embeddings_batch("nomic-embed-text", prompts)
+    assert len(out) == 150 and out[70] == [9.0] and out[0] == [2.0] and out[149] == [4.0]
+    assert singles == ["bad"]                       # only the refused passage goes alone
+    assert batches[:3] == [64, 64, 22] or batches[0] == 64
+    assert max(batches) <= mod.EMBED_BATCH and len(batches) < 20
+
+
+def test_a_missing_embedding_model_is_not_retried_passage_by_passage(monkeypatch):
+    from app.services import llm_service as mod
+
+    calls = []
+
+    def post(url, json=None, timeout=None, **kw):
+        calls.append(url)
+        return _answer(404, text='{"error":"model not found"}')
+
+    monkeypatch.setattr(mod.requests, "post", post)
+    try:
+        mod.llm_service.generate_embeddings_batch("nomic-embed-text", ["a", "b", "c"])
+        raise AssertionError("expected the 404")
+    except requests.exceptions.HTTPError as e:
+        assert "ollama pull" in describe_indexing_error(e)
+    assert len(calls) == 1
