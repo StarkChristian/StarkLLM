@@ -72,7 +72,6 @@ import com.starkllm.app.UiState
 import com.starkllm.app.data.Problem
 import kotlinx.coroutines.launch
 
-internal val Night = Color(0xFF07060B)
 internal val CardShape = RoundedCornerShape(14.dp)
 
 @Composable
