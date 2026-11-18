@@ -81,3 +81,11 @@ def test_every_ollama_chat_asks_for_a_context_window_that_holds_the_prompt(monke
     mod.llm_service.generate_chat("m2", short, options={"num_ctx": 2048})
     assert sent[-1]["options"]["num_ctx"] == 2048  # a setting from the user wins
     assert mod.context_window([{"content": "x" * 200000}]) == mod.CONTEXT_MAX
+
+
+def test_a_file_renamed_to_pdf_gets_a_clear_message_without_the_internal_path():
+    # N39 (MSI night test of 2.3.0): a text file named .pdf
+    msg = describe_indexing_error(RuntimeError("Failed to open file 'data/uploads\\426583b5_fake-night.pdf' as type pdf."))
+    assert msg.startswith("This file could not be opened as PDF") and "renamed to .pdf" in msg and "uploads" not in msg
+    other = describe_indexing_error(ValueError("No text in C:\\Users\\x\\data\\uploads\\0123abcd_letter.pdf"))
+    assert "uploads" not in other and "letter.pdf" in other
