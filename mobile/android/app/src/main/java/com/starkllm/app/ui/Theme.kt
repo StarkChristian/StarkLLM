@@ -8,6 +8,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.graphics.Color
 
 // The colours of StarkLLM on the PC (frontend/src/index.css: --accent #4f46e5, --accent-bright #818cf8, dark #07060b)
@@ -69,7 +72,13 @@ private val Compact = Typography().let { d ->
     )
 }
 
+/** Larger system text is followed by half: 130 % becomes 115 %, 200 % becomes 150 % (owner's review, Galaxy Z Flip5). */
+fun dampedFontScale(system: Float): Float = if (system > 1f) 1f + (system - 1f) / 2f else system
+
 @Composable
 fun StarkTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = if (isSystemInDarkTheme()) Dark else Light, typography = Compact, content = content)
+    val density = LocalDensity.current
+    CompositionLocalProvider(LocalDensity provides Density(density.density, dampedFontScale(density.fontScale))) {
+        MaterialTheme(colorScheme = if (isSystemInDarkTheme()) Dark else Light, typography = Compact, content = content)
+    }
 }

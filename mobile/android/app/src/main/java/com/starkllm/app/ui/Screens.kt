@@ -123,8 +123,10 @@ fun StarkApp(vm: AppViewModel, onExit: () -> Unit) {
 /** The StarkLLM mark on its dark tile, as in the launcher icon */
 @Composable
 private fun Mark(size: Dp) {
+    // a hairline keeps the dark tile visible on the dark theme
     Box(
-        Modifier.size(size).clip(RoundedCornerShape(size * 0.28f)).background(Night),
+        Modifier.size(size).clip(RoundedCornerShape(size * 0.28f)).background(Night)
+            .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), RoundedCornerShape(size * 0.28f)),
         contentAlignment = Alignment.Center,
     ) {
         Image(painterResource(R.mipmap.ic_launcher_foreground), contentDescription = null, modifier = Modifier.size(size * 1.4f))
@@ -605,7 +607,7 @@ private fun InputBar(value: String, onChange: (String) -> Unit, answering: Boole
             TextField(
                 value = value,
                 onValueChange = onChange,
-                placeholder = { Text(stringResource(R.string.message_hint), style = MaterialTheme.typography.bodyLarge) },
+                placeholder = { Text(stringResource(R.string.message_hint), style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 textStyle = MaterialTheme.typography.bodyLarge,
                 maxLines = 6,
                 modifier = Modifier.weight(1f),
