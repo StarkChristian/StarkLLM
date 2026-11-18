@@ -21,6 +21,7 @@ const FEATURES = {
   engine_build: 'Build of the engine on this PC (Docker downloads packages)',
   model_download: 'Download of an AI model by the local Ollama',
   ui: 'A request of the app window to another host',
+  phone_link: 'A paired phone on the home network (Settings > Phone; incoming)',
   unattributed: 'A connection that did not go through the network layer'
 };
 
@@ -201,6 +202,17 @@ function createGuard({ dir = null, now = () => new Date(), maxBytes = 2 * 1024 *
         finish: ({ status = null, bytesIn = null } = {}) => done({ status, bytes_in: bytesIn }),
         fail: (e) => done({ outcome: 'error', error: String((e && e.message) || e).slice(0, 200) })
       };
+    },
+
+    // A device of the home network connects to the app (the phone link, phonelink.js): refused while fully offline,
+    // otherwise recorded like an outgoing connection, with the method "IN".
+    inbound(feature, address, purpose = '') {
+      const host = String(address || '').replace(/^::ffff:/i, '');
+      if (offline) {
+        guard.record({ feature, host, purpose, method: 'IN', outcome: 'blocked', error: 'offline mode' });
+        throw new OfflineError(host, feature);
+      }
+      return guard.record({ feature, host, purpose, method: 'IN', scheme: 'https' });
     },
 
     // fetch(url, opts) -> the same, but announced first. For net.fetch / global fetch.
