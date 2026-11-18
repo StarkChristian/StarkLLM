@@ -1,0 +1,9 @@
+.gradle/
+build/
+app/build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+# the Kotlin package com.starkllm.app.data is code, not a data folder (the repository ignores "data/")
+!app/src/*/java/com/starkllm/app/data/
