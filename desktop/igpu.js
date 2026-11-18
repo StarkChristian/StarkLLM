@@ -39,6 +39,24 @@ function usedIntegratedGpu(logText) {
   return { name: description(line) || 'integrated graphics', totalBytes: total ? Math.round(parseFloat(total[1]) * 1024 ** 3) : 0 };
 }
 
+// The graphics card of its own (NVIDIA, or an AMD card Ollama counts as discrete) Ollama uses since its last
+// start, or null. Such a PC keeps its integrated graphics left out (MSI test of 2.3.0, N46: a laptop with an RTX 5090
+// and a Radeon 890M was about to get OLLAMA_IGPU_ENABLE=1).
+function discreteGpu(logText) {
+  const line = lastStart(logText).split(/\r?\n/).find((l) => l.includes('msg="inference compute"')
+    && (/\btype=discrete\b/.test(l) || /\blibrary=CUDA\b/.test(l)));
+  return line ? (description(line) || 'a graphics card') : null;
+}
+
+// An NVIDIA driver is installed (its tool sits in System32): also when Ollama's log does not say it yet.
+function nvidiaDriver(env = process.env) {
+  try {
+    return fs.existsSync(path.join(env.SystemRoot || 'C:\\Windows', 'System32', 'nvidia-smi.exe'));
+  } catch (_) {
+    return false;
+  }
+}
+
 // Integrated graphics share the PC's memory: the model choice counts at most 40 % of the RAM as video memory
 // (Ollama reports most of the RAM as available to them, 19.9 GiB of 24 GB on the 780M).
 function videoMemoryFor(used, ramBytes) {
@@ -85,17 +103,20 @@ const userVar = {
 //   settingsFile, readLog() -> server.log text, loadedModels() -> number, restartOllama() -> true when back,
 //   reg (userVar), env (process.env, the Ollama app StarkLLM starts inherits it), log
 // Returns { used } (graphics in use, for the model choice) and turnedOn (name) when it was switched on now.
-async function applyIntegratedGpu({ settingsFile, readLog, loadedModels, restartOllama, reg = userVar, env = process.env, log = () => {} }) {
+async function applyIntegratedGpu({ settingsFile, readLog, loadedModels, restartOllama, reg = userVar, env = process.env, log = () => {},
+  hasNvidia = () => nvidiaDriver(env) }) {
   const s = readSetting(settingsFile);
   const current = reg.read();
-  if (s.mode === 'off') {
+  const discrete = discreteGpu(readLog()) || (hasNvidia() ? 'an NVIDIA graphics card' : null);
+  if (s.mode === 'off' || discrete) {
+    if (discrete && s.mode !== 'off') log(`integrated graphics: left as they are, this PC has ${discrete}`);
     if (current === '1' && s.setByStarkLLM) {
       if ((await loadedModels()) > 0) { log('integrated graphics: turning off waits, a model is loaded'); return { used: usedIntegratedGpu(readLog()) }; }
       reg.write(null);
       delete env[VAR];
       writeSetting(settingsFile, { setByStarkLLM: false });
       await restartOllama();
-      log('integrated graphics: turned off (tray menu), Ollama restarted');
+      log(`integrated graphics: turned off (${discrete ? 'this PC has its own graphics card' : 'tray menu'}), Ollama restarted`);
     }
     return { used: usedIntegratedGpu(readLog()) };
   }
@@ -125,4 +146,4 @@ async function applyIntegratedGpu({ settingsFile, readLog, loadedModels, restart
   return { used, turnedOn: used ? used.name : null };
 }
 
-module.exports = { VAR, SETTING, lastStart, droppedIntegratedGpu, usedIntegratedGpu, videoMemoryFor, readSetting, writeSetting, userVar, applyIntegratedGpu };
+module.exports = { VAR, SETTING, lastStart, droppedIntegratedGpu, usedIntegratedGpu, discreteGpu, nvidiaDriver, videoMemoryFor, readSetting, writeSetting, userVar, applyIntegratedGpu };

@@ -27,7 +27,7 @@ test('integrated graphics count with at most 40 % of the RAM for the model choic
   assert.equal(g.videoMemoryFor(null, 24 * GB), 0);
 });
 
-function setup({ log, loaded = 0, current = null, setting } = {}) {
+function setup({ log, loaded = 0, current = null, setting, nvidia = false } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'starkllm-igpu-'));
   const settingsFile = path.join(dir, 'settings.json');
   fs.writeFileSync(settingsFile, JSON.stringify({ engine: 'native', ...(setting ? { integratedGpu: setting } : {}) }));
@@ -39,7 +39,8 @@ function setup({ log, loaded = 0, current = null, setting } = {}) {
     restartOllama: async () => { state.restarts++; state.log = [state.log, CONFIG, state.value === '1' ? USED : DROPPED].join('\n'); return true; },
     reg: { read: () => state.value, write: (v) => { state.value = v; } },
     env: state.env,
-    log: (l) => state.lines.push(l)
+    log: (l) => state.lines.push(l),
+    hasNvidia: () => nvidia
   };
   return { deps, state, settingsFile };
 }
@@ -84,4 +85,34 @@ test('a PC without integrated graphics: nothing happens', async () => {
   assert.deepEqual(r, { used: null });
   assert.equal(state.restarts, 0);
   assert.equal(state.value, null);
+});
+
+// MSI test of 2.3.0 (N46): a laptop with a Radeon 890M and an RTX 5090; Ollama 0.40.16 leaves the Radeon out
+const DROPPED_890M = 'time=2026-11-18T21:16:40.100+01:00 level=INFO source=runner.go:405 msg="dropping integrated GPU; to enable, set OLLAMA_IGPU_ENABLE=1" id=0 library=Vulkan compute=0.0 name=Vulkan0 description="AMD Radeon(TM) 890M Graphics" pci_id=""';
+const RTX = 'time=2026-11-18T21:16:40.300+01:00 level=INFO source=types.go:32 msg="inference compute" id=GPU-1 filter_id="" library=CUDA compute=12.0 name=CUDA0 description="NVIDIA GeForce RTX 5090 Laptop GPU" libdirs=ollama,cuda_v13 driver=13.0 pci_id="" type=discrete total="23.9 GiB" available="22.1 GiB"';
+
+test('a PC with a graphics card of its own keeps its integrated graphics left out', async () => {
+  const { deps, state, settingsFile } = setup({ log: [CONFIG, DROPPED_890M, RTX].join('\n') });
+  assert.equal(g.discreteGpu([CONFIG, DROPPED_890M, RTX].join('\n')), 'NVIDIA GeForce RTX 5090 Laptop GPU');
+  const r = await g.applyIntegratedGpu(deps);
+  assert.equal(r.turnedOn, undefined);
+  assert.equal(state.value, null, 'no OLLAMA_IGPU_ENABLE');
+  assert.equal(state.restarts, 0, 'Ollama is not restarted');
+  assert.equal(state.env.OLLAMA_IGPU_ENABLE, undefined);
+  assert.equal(g.readSetting(settingsFile).setByStarkLLM, false);
+  assert.ok(state.lines.some((l) => l.includes('left as they are, this PC has NVIDIA GeForce RTX 5090 Laptop GPU')));
+});
+
+test("an NVIDIA driver counts even when Ollama's log does not show the card; an earlier switch by StarkLLM is undone", async () => {
+  const fresh = setup({ log: [CONFIG, DROPPED_890M].join('\n'), nvidia: true });
+  await g.applyIntegratedGpu(fresh.deps);
+  assert.equal(fresh.state.value, null);
+  assert.equal(fresh.state.restarts, 0);
+  const earlier = setup({ log: [CONFIG, USED].join('\n'), current: '1', nvidia: true, setting: { mode: 'auto', setByStarkLLM: true, name: 'AMD Radeon(TM) 890M Graphics' } });
+  await g.applyIntegratedGpu(earlier.deps);
+  assert.equal(earlier.state.value, null, 'StarkLLM removes its own variable');
+  assert.equal(earlier.state.restarts, 1);
+  const theirs = setup({ log: [CONFIG, USED].join('\n'), current: '1', nvidia: true, setting: { mode: 'auto', setByStarkLLM: false } });
+  await g.applyIntegratedGpu(theirs.deps);
+  assert.equal(theirs.state.value, '1', 'a variable the user set is never removed');
 });
