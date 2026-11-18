@@ -6,7 +6,8 @@ plugins {
 
 android {
     namespace = "com.starkllm.app"
-    compileSdk = 36
+    // the current AndroidX libraries need 37 to compile; the app keeps the behaviour of Android 16 (targetSdk)
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.starkllm.app"
