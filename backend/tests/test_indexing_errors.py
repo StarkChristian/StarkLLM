@@ -142,3 +142,9 @@ def test_a_missing_embedding_model_is_not_retried_passage_by_passage(monkeypatch
     except requests.exceptions.HTTPError as e:
         assert "ollama pull" in describe_indexing_error(e)
     assert len(calls) == 1
+def test_a_file_renamed_to_pdf_gets_a_clear_message_without_the_internal_path():
+    # N39 (MSI night test of 2.3.0): a text file named .pdf
+    msg = describe_indexing_error(RuntimeError("Failed to open file 'data/uploads\\426583b5_fake-night.pdf' as type pdf."))
+    assert msg.startswith("This file could not be opened as PDF") and "renamed to .pdf" in msg and "uploads" not in msg
+    other = describe_indexing_error(ValueError("No text in C:\\Users\\x\\data\\uploads\\0123abcd_letter.pdf"))
+    assert "uploads" not in other and "letter.pdf" in other
