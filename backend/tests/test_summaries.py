@@ -152,3 +152,26 @@ def test_power_and_temperature_are_unknown_without_windows_or_nvidia(monkeypatch
         assert S._power() == "none"
     monkeypatch.setattr(S.shutil, "which", lambda name: None)
     assert S._gpu_temperature() is None
+
+
+def test_the_overview_of_the_first_retrieved_document_with_summaries(tmp_path, monkeypatch):
+    import uuid
+    from app.db import models
+    from app.db.session import SessionLocal
+    from app.main import app  # noqa: F401  (creates the database)
+    db = SessionLocal()
+    try:
+        user = models.User(username=f"ov-{uuid.uuid4().hex[:8]}", hashed_password="x")
+        db.add(user); db.commit()
+        ws = models.Workspace(name="Books", user_id=user.id); db.add(ws); db.commit()
+        book, note = tmp_path / "effi-briest.pdf", tmp_path / "note.txt"
+        db.add_all([models.Document(filename="effi-briest.pdf", filepath=str(book), workspace_id=ws.id, status="indexed", summary_status="done"),
+                    models.Document(filename="note.txt", filepath=str(note), workspace_id=ws.id, status="indexed", summary_status="small")])
+        db.commit(); ws_id = ws.id
+    finally:
+        db.close()
+    monkeypatch.setattr(S, "load", lambda p: {"document": "Effi marries Baron Innstetten.\nNames: Innstetten (husband), Rollo (dog)",
+                                              "sections": [{"pages": [1, 284]}]} if p == str(book) else None)
+    text = S.overview_for(ws_id, [str(note), str(book)])
+    assert text.startswith("[Summary of effi-briest.pdf, the whole document (pages 1-284)]") and "Rollo (dog)" in text
+    assert S.overview_for(ws_id, [str(note)]) == "" and S.overview_for(ws_id, []) == ""

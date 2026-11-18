@@ -559,6 +559,36 @@ def context_for(workspace_id: int, message: str):
     return build_context([(d["name"], load(d["path"])) for d in chosen], message)
 
 
+OVERVIEW_CHARS = 2_500
+
+
+def overview_for(workspace_id: int, sources) -> str:
+    """The whole-document summary (with its "Names:" line) of the first retrieved document that has summaries, as one
+    passage for questions that are not about the whole document: it costs a few hundred words of context and lets a
+    small model name people and things the retrieved passages only hint at (eval/large-docs: "Wie heißt Effis
+    Ehemann?" was answered "Briest" from five passages about Effi's parents). "" when there is none."""
+    from app.db import models
+    from app.db.session import SessionLocal
+    wanted = [s for s in sources or [] if s]
+    if not wanted:
+        return ""
+    db = SessionLocal()
+    try:
+        docs = {d.filepath: d.filename for d in db.query(models.Document).filter(
+            models.Document.workspace_id == workspace_id, models.Document.summary_status == "done",
+            models.Document.filepath.in_(wanted)).all()}
+    finally:
+        db.close()
+    for path in wanted:
+        if path in docs:
+            data = load(path)
+            if data and data.get("document"):
+                last = max((s["pages"][1] for s in data.get("sections") or [] if s.get("pages")), default=None)
+                pages = f" (pages 1-{last})" if last else ""
+                return f"[Summary of {docs[path]}, the whole document{pages}]\n{data['document'][:OVERVIEW_CHARS]}"
+    return ""
+
+
 def build_context(named_data, message):
     """(text, labels) from [(file name, summaries)]."""
     blocks, labels = [], []
