@@ -184,3 +184,32 @@ def test_every_summary_request_names_the_language_of_the_document(monkeypatch):
     text = "Effi Briest war die Tochter des Ritterschaftsrats von Briest. Sie und ihre Mutter saßen im Garten, und die Sonne schien auf das Haus. " * 30
     S.build([chunk(text, p) for p in range(1, 31)], name="effi-briest.pdf")
     assert asked and all(a.endswith("Write in German.") for a in asked)
+def test_the_workspace_in_use_goes_first(monkeypatch):
+    # N28: the queue went by document number, so an old workspace's big book came before the books being asked about
+    assert S._choose({7: 4, 52: 6, 53: 6}, None) == 7
+    assert S._choose({7: 4, 52: 6, 53: 6}, 6) == 52
+    assert S._choose({7: 4}, 6) == 7
+    assert S._choose({}, 6) is None
+    monkeypatch.setattr(S, "_active_workspace", None)
+    S.note_chat(6)
+    assert S._workspace_in_use() == 6
+    monkeypatch.setattr(S, "_active_since", S.time.time() - S.ACTIVE_FOR_S - 1)
+    assert S._workspace_in_use() is None
+
+
+def test_a_build_steps_aside_for_the_workspace_in_use_and_keeps_its_progress(monkeypatch):
+    monkeypatch.setattr(S, "_ask", lambda instruction, text, max_words, stop=None: "s")
+    chunks = [chunk("x" * 3000, p) for p in range(1, 61)]
+    saved, asked = [], iter([False, False, True])
+    try:
+        S.build(chunks, name="big-book.pdf", save=lambda r: saved.append(len(r["sections"])), yield_to=lambda: next(asked))
+        assert False, "should have stepped aside"
+    except S.Yielded:
+        pass
+    assert saved == [3]  # the three sections written before are kept for the next run
+    # it steps aside only for a waiting document of another workspace that is in use
+    monkeypatch.setattr(S, "_pending", {52: 6})
+    monkeypatch.setattr(S, "_workspace_in_use", lambda: 6)
+    assert S._should_yield(4) and not S._should_yield(6)
+    monkeypatch.setattr(S, "_workspace_in_use", lambda: None)
+    assert not S._should_yield(4)

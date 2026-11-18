@@ -17,7 +17,6 @@ the upload folder), a backup contains them and deleting the document deletes the
 import json
 import logging
 import os
-import queue
 import re
 import shutil
 import subprocess
@@ -37,6 +36,7 @@ SECTION_MIN_CHARS = 1_500    # smaller sections join the one before
 PAGES_PER_SECTION = 10       # documents without a table of contents
 GROUP = 10                   # sections per part summary
 CHAT_QUIET_S = 60            # no summary call within this time after a chat question
+ACTIVE_FOR_S = 30 * 60       # a workspace counts as "in use" this long after its last chat question or document list
 CONTEXT_BUDGET = 20_000      # characters of summaries in one answer
 SAVE_EVERY = 5               # sections between saves (a restart continues from there)
 REST_WITH_BATTERY = 1.0      # gentle pace: after each model call rest as long as it took (laptops on mains power) ...
@@ -60,11 +60,29 @@ def summary_path(filepath: str) -> str:
 _last_chat = 0.0
 
 
-def note_chat():
+def note_chat(workspace_id=None):
     """Called by every chat question: the background work waits CHAT_QUIET_S, so the user's answer never queues
     behind a summary in Ollama (it answers one request at a time)."""
     global _last_chat
     _last_chat = time.time()
+    if workspace_id is not None:
+        note_workspace(workspace_id)
+
+
+# The workspace in use goes first (N28, MSI test of 2.3.0): the queue went by document number, so the big book of an
+# old test workspace was summarized before the three books the user was asking about, for over an hour.
+_active_workspace = None
+_active_since = 0.0
+
+
+def note_workspace(workspace_id):
+    """The user works in this workspace (asks in it, or its document list is open)."""
+    global _active_workspace, _active_since
+    _active_workspace, _active_since = workspace_id, time.time()
+
+
+def _workspace_in_use():
+    return _active_workspace if time.time() - _active_since < ACTIVE_FOR_S else None
 
 
 def _wait_until_quiet(stop=None):
@@ -288,9 +306,15 @@ def _pages_text(pages):
     return f"pages {pages[0]}-{pages[1]}" if pages else "no page numbers"
 
 
-def build(chunks, toc=None, name="the document", progress=lambda done, total: None, previous=None, save=None, stop=None):
+class Yielded(Exception):
+    """The build stepped aside for a document of the workspace in use; its progress is saved."""
+
+
+def build(chunks, toc=None, name="the document", progress=lambda done, total: None, previous=None, save=None, stop=None,
+          yield_to=None):
     """Summaries of a document: {version, model, created, sections, parts, document}. previous: an earlier, unfinished
-    result whose section summaries are reused (same title and pages)."""
+    result whose section summaries are reused (same title and pages). yield_to(): True when another document should go
+    first; the build then saves what it has and raises Yielded."""
     sections = plan_sections(chunks, toc)
     # the language of the document, named in every request: a small model wrote English summaries of a German novel
     # although the instructions say "in the language of the text" (eval/large-docs, qwen2.5:3b)
@@ -308,6 +332,10 @@ def build(chunks, toc=None, name="the document", progress=lambda done, total: No
     for i, s in enumerate(sections):
         if stop is not None and stop.is_set():
             raise InterruptedError
+        if yield_to is not None and i > 0 and yield_to():
+            if save:
+                save(result)
+            raise Yielded
         key = (s["title"], tuple(s["pages"] or ()))
         summary = done_before.get(key) or _ask(
             f"Summarize this part of {name} ('{s['title']}', {_pages_text(s['pages'])}) in at most 120 words: what "
@@ -379,11 +407,23 @@ def _set_status(doc_id, status):
         db.close()
 
 
-_queue: "queue.Queue[int]" = queue.Queue()
-_queued: set = set()
+def _workspace_of(doc_id):
+    from app.db import models
+    from app.db.session import SessionLocal
+    db = SessionLocal()
+    try:
+        doc = db.query(models.Document).filter(models.Document.id == doc_id).first()
+        return doc.workspace_id if doc else None
+    finally:
+        db.close()
+
+
+_pending: dict = {}   # document id -> workspace id, waiting
+_queued: set = set()  # waiting or being summarized
 _worker = None
 _stop = threading.Event()
 _lock = threading.Lock()
+_wake = threading.Condition(_lock)
 
 
 def enqueue(doc_id: int):
@@ -391,9 +431,39 @@ def enqueue(doc_id: int):
         if doc_id in _queued:
             return
         _queued.add(doc_id)
+    workspace_id = _workspace_of(doc_id)
     _set_status(doc_id, "queued")
-    _queue.put(doc_id)
+    with _lock:
+        _pending[doc_id] = workspace_id
+        _wake.notify()
     _start()
+
+
+def _choose(pending, in_use):
+    """The next document: the lowest id of the workspace in use, else the lowest id."""
+    if not pending:
+        return None
+    mine = [d for d, ws in pending.items() if in_use is not None and ws == in_use]
+    return min(mine or pending)
+
+
+def _next(timeout=5.0):
+    with _lock:
+        if not _pending:
+            _wake.wait(timeout)
+        doc_id = _choose(_pending, _workspace_in_use())
+        if doc_id is not None:
+            _pending.pop(doc_id)
+        return doc_id
+
+
+def _should_yield(workspace_id):
+    """True when the workspace in use is another one and one of its documents waits."""
+    in_use = _workspace_in_use()
+    if in_use is None or in_use == workspace_id:
+        return False
+    with _lock:
+        return any(ws == in_use for ws in _pending.values())
 
 
 def _start():
@@ -411,20 +481,28 @@ def stop():
 
 def _run():
     while not _stop.is_set():
-        try:
-            doc_id = _queue.get(timeout=5)
-        except queue.Empty:
+        doc_id = _next()
+        if doc_id is None:
             continue
+        requeue = False
         try:
             summarize_document(doc_id)
         except InterruptedError:
             return
+        except Yielded:
+            requeue = True
+            logger.info(f"Summaries of document {doc_id} step aside for the workspace in use; they go on later")
         except Exception as e:
             logger.error(f"Summaries of document {doc_id} failed: {e}", exc_info=True)
             _set_status(doc_id, "failed")
         finally:
+            if not requeue:
+                with _lock:
+                    _queued.discard(doc_id)
+        if requeue:  # still in _queued: enqueue() does not add it twice meanwhile
+            _set_status(doc_id, "queued")
             with _lock:
-                _queued.discard(doc_id)
+                _pending[doc_id] = _workspace_of(doc_id)
 
 
 def _pdf_toc(path):
@@ -473,7 +551,8 @@ def summarize_document(doc_id: int):
     previous = existing or _load_part(filepath)
     started = time.time()
     data = build(chunks, toc, name, progress=lambda d, t: _set_status(doc_id, f"{d}/{t}"), previous=previous,
-                 save=lambda partial: _save_part(filepath, partial), stop=_stop)
+                 save=lambda partial: _save_part(filepath, partial), stop=_stop,
+                 yield_to=lambda: _should_yield(workspace_id))
     if not os.path.exists(filepath):
         return  # deleted meanwhile
     save(filepath, data)

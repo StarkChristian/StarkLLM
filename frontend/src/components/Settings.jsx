@@ -8,10 +8,12 @@ import { setHidden as setLucyHidden } from '../utils/lucy';
 import ProtectionSettings from './ProtectionSettings';
 import EncryptedBackupSettings from './EncryptedBackupSettings';
 import AutomaticBackupSettings from './AutomaticBackupSettings';
-import { AVAILABLE_THEMES, applyTheme } from '../utils/themes';
+import { AVAILABLE_THEMES, applyTheme, themeText } from '../utils/themes';
+import { UPLOAD_EXTENSIONS } from '../utils/uploadTypes';
 import OtherAppsPanel from './OtherAppsPanel';
 import PrivacyPanel from './PrivacyPanel';
 import { t, language, setLanguage } from '../i18n';
+import { languageName } from '../i18n/locales';
 import { SUPPORTED_LANGUAGES } from '../utils/languages';
 import { cloudHostFor } from '../utils/cloud';
 
@@ -56,6 +58,11 @@ function Toggle({ checked, onChange, label, hint }) {
 // Image and search models cannot chat; never pick one of them by default.
 const NOT_CHAT = /llava|bakllava|moondream|minicpm-v|vision|embed|bge-|nomic|clip/i;
 const chatModelOf = (models) => models.find(m => !NOT_CHAT.test(m)) || models[0] || '';
+// Embedding models only turn text into numbers for the search; they cannot answer, so the chat model list leaves them out
+// (image models like llava stay: they can chat).
+const isEmbeddingModel = (m) => /embed/i.test(m);
+
+const FONT_SIZES = [['small', t('Small')], ['medium', t('Medium')], ['large', t('Large')]];
 
 export default function Settings({ token, username, activeWorkspace, currentModel }) {
   // The About page showed a fixed "v1.0.0-beta"; the engine reports its real version.
@@ -122,11 +129,15 @@ print(response.choices[0].message.content)`;
   const [customInstructions, setCustomInstructions] = useState('');
   const [instructionsSaved, setInstructionsSaved] = useState(false);
   const [instructionsLoading, setInstructionsLoading] = useState(false);
+  // Backup and restore are for the administrator of this StarkLLM only (the engine refuses everyone else).
+  // null while unknown, so the controls do not flash up for an account that may not use them.
+  const [isAdmin, setIsAdmin] = useState(null);
 
   useEffect(() => {
     fetch('/api/v1/auth/me', { headers: { Authorization: `Bearer ${token}` } })
       .then(res => res.json())
       .then(data => {
+        setIsAdmin(data.is_admin !== false);
         if (data.profile_context) setProfileContext(data.profile_context);
         if (data.custom_instructions) setCustomInstructions(data.custom_instructions);
         
@@ -135,7 +146,7 @@ print(response.choices[0].message.content)`;
         if (data.top_p !== null) setTopP(data.top_p);
         if (data.max_tokens !== null) setMaxTokens(data.max_tokens);
       })
-      .catch(err => console.error('Failed to load user profile', err));
+      .catch(err => { setIsAdmin(true); console.error('Failed to load user profile', err); });
   }, [token]);
 
   const saveInstructions = async () => {
@@ -549,8 +560,11 @@ print(response.choices[0].message.content)`;
                 <h2>{t('Instructions for this workspace')}</h2>
               </div>
               <p className={styles.panelDesc}>
-                {t('Define a custom system prompt for the')} <strong>{activeWorkspace?.name || 'active workspace'}</strong>.
-                This overrides the default StarkLLM identity for this specific workspace only — perfect for specialized roles like a coding assistant, legal analyst, or language tutor.
+                {(() => {
+                  // the workspace name is shown in bold where the translation puts {name}
+                  const [before, after = ''] = t('Instructions for the workspace {name}: they replace StarkLLM\'s default instructions in this workspace only, for example for a coding assistant, a legal analyst or a language tutor.').split('{name}');
+                  return <>{before}<strong>{activeWorkspace?.name || t('active workspace')}</strong>{after}</>;
+                })()}
               </p>
 
               {!activeWorkspace ? (
@@ -563,7 +577,7 @@ print(response.choices[0].message.content)`;
                     <label className={styles.label}>{t('Workspace System Prompt')}</label>
                     <textarea
                       className="input-field"
-                      placeholder={`Example:\nYou are a senior Python software engineer specializing in data pipelines and ML systems. Always provide production-ready code with error handling. Prefer asyncio for I/O-bound tasks. When reviewing code, highlight security issues first.`}
+                      placeholder={t('Example:') + '\n' + t('You are a senior Python software engineer specializing in data pipelines and ML systems. Always provide production-ready code with error handling. Prefer asyncio for I/O-bound tasks. When reviewing code, highlight security issues first.')}
                       rows={10}
                       value={wsSystemPrompt}
                       onChange={e => setWsSystemPrompt(e.target.value)}
@@ -580,7 +594,7 @@ print(response.choices[0].message.content)`;
                       onClick={saveWsSystemPrompt}
                       disabled={wsPromptLoading}
                     >
-                      {wsPromptLoading ? t('Saving…') : wsPromptSaved ? <><CheckCircle size={14} /> {t('Saved!')}</> : <><Save size={14} /> {t('Save Persona')}</>}
+                      {wsPromptLoading ? t('Saving…') : wsPromptSaved ? <><CheckCircle size={14} /> {t('Saved!')}</> : <><Save size={14} /> {t('Save Instructions')}</>}
                     </button>
                     {wsSystemPrompt && (
                       <button
@@ -730,7 +744,7 @@ print(response.choices[0].message.content)`;
                     />
                     {cloudHostFor('openai_compatible', baseUrl) && (
                       <div style={{ fontSize: '0.78rem', color: 'var(--warning)', marginTop: 6 }}>
-                        Not local: your questions and the document passages found for them are sent to {cloudHostFor('openai_compatible', baseUrl)}. The chat shows this while it is active.
+                        {t('Not local: your questions and the document passages found for them are sent to {host}. The chat shows this while it is active.', { host: cloudHostFor('openai_compatible', baseUrl) })}
                       </div>
                     )}
                   </div>
@@ -772,7 +786,7 @@ print(response.choices[0].message.content)`;
                     onChange={(e) => setModelName(e.target.value)}
                   >
                     <option value="">{t('Default Backend Model')}</option>
-                    {availableModels.map(m => (
+                    {availableModels.filter(m => !isEmbeddingModel(m) || m === modelName).map(m => (
                       <option key={m} value={m}>{m}</option>
                     ))}
                   </select>
@@ -880,7 +894,7 @@ print(response.choices[0].message.content)`;
               </button>
 
               <div className={styles.infoBox}>
-                <strong>{t('Note:')}</strong> {t('These settings are stored locally. The backend defaults are controlled via')} <code>{t('config.py')}</code>.
+                <strong>{t('Note:')}</strong> {t('These settings are stored on this PC.')}
               </div>
             </div>
           )}
@@ -908,8 +922,8 @@ print(response.choices[0].message.content)`;
               <div className={styles.formGroup}>
                 <label className={styles.label}>{t('Supported File Types')}</label>
                 <div className={styles.tagList}>
-                  {['PDF', 'DOCX', 'PNG', 'JPG', 'JPEG'].map(fmt => (
-                    <span key={fmt} className="badge badge-accent">{fmt}</span>
+                  {UPLOAD_EXTENSIONS.map(ext => (
+                    <span key={ext} className="badge badge-accent">{ext.toUpperCase()}</span>
                   ))}
                 </div>
                 <p className={styles.hint}>{t('Only the formats listed above can be indexed in the Knowledge Base.')}</p>
@@ -1021,13 +1035,13 @@ print(response.choices[0].message.content)`;
               <div className={styles.formGroup}>
                 <label className={styles.label}>{t('Font Size')}</label>
                 <div className={styles.segmentedControl}>
-                  {['small', 'medium', 'large'].map(size => (
+                  {FONT_SIZES.map(([size, label]) => (
                     <button
                       key={size}
                       className={`${styles.segment} ${fontSize === size ? styles.segmentActive : ''}`}
                       onClick={() => setFontSize(size)}
                     >
-                      {size.charAt(0).toUpperCase() + size.slice(1)}
+                      {label}
                     </button>
                   ))}
                 </div>
@@ -1037,12 +1051,13 @@ print(response.choices[0].message.content)`;
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '8px' }}>
                   <label className={styles.label} style={{ margin: 0 }}>{t('Color Theme & Palette')}</label>
                   <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    {AVAILABLE_THEMES.length} Presets Available
+                    {t('{count} themes available', { count: AVAILABLE_THEMES.length })}
                   </span>
                 </div>
                 <div className={styles.themeGrid}>
                   {AVAILABLE_THEMES.map(th => {
                     const isSelected = theme === th.id;
+                    const text = themeText(th.id);
                     return (
                       <div
                         key={th.id}
@@ -1085,10 +1100,10 @@ print(response.choices[0].message.content)`;
                         {/* Text info */}
                         <div className={styles.themeCardBody}>
                           <div className={styles.themeTitleRow}>
-                            <span className={styles.themeName}>{th.name}</span>
-                            <span className={styles.themeBadge}>{th.badge}</span>
+                            <span className={styles.themeName}>{text.name}</span>
+                            <span className={styles.themeBadge}>{text.badge}</span>
                           </div>
-                          <p className={styles.themeDesc}>{th.desc}</p>
+                          <p className={styles.themeDesc}>{text.desc}</p>
                         </div>
 
                         {isSelected && <CheckCircle size={18} className={styles.themeCheck} />}
@@ -1125,6 +1140,7 @@ print(response.choices[0].message.content)`;
               <div className={styles.languageGrid}>
                 {SUPPORTED_LANGUAGES.map(lang => {
                   const isActive = lang.code === language();
+                  const nameHere = languageName(lang.code, language());
                   return (
                     <div
                       key={lang.code}
@@ -1136,7 +1152,7 @@ print(response.choices[0].message.content)`;
                           <span className={styles.languageFlag}>{lang.code.toUpperCase()}</span>
                           <div className={styles.languageNames}>
                             <span className={styles.languageNative}>{lang.nativeName}</span>
-                            <span className={styles.languageEnglish}>{lang.name}</span>
+                            {nameHere !== lang.nativeName && <span className={styles.languageEnglish}>{nameHere}</span>}
                           </div>
                         </div>
                         {isActive ? (
@@ -1193,19 +1209,19 @@ print(response.choices[0].message.content)`;
                 {
                   category: t('Message Actions'),
                   shortcuts: [
-                    { keys: ['Click Copy'], desc: t('Copy message content to clipboard') },
-                    { keys: ['Click Edit ✏️'], desc: t('Edit a user message (re-runs from that point)') },
-                    { keys: ['Click Regenerate ↺'], desc: t('Regenerate the last AI response') },
+                    { keys: [t('Copy button')], desc: t('Copy message content to clipboard') },
+                    { keys: [t('Edit button ✏️')], desc: t('Edit a user message (re-runs from that point)') },
+                    { keys: [t('Regenerate button ↺')], desc: t('Regenerate the last AI response') },
                   ]
                 },
                 {
                   category: t('Input Bar'),
                   shortcuts: [
-                    { keys: ['Paperclip 📎'], desc: t('Attach file (PDF, TXT, PNG, JPG)') },
-                    { keys: ['Mic 🎙️'], desc: t('Start / Stop voice recording (Whisper transcription)') },
-                    { keys: ['FileCode 📝'], desc: t('Open Prompt Templates library') },
-                    { keys: ['Database 🗃️'], desc: t('Toggle Knowledge Base retrieval') },
-                    { keys: ['Globe 🌐'], desc: t('Toggle Web Search') },
+                    { keys: [t('Paperclip 📎')], desc: t('Attach a file') },
+                    { keys: [t('Microphone 🎙️')], desc: t('Start / stop voice input') },
+                    { keys: [t('Templates button 📝')], desc: t('Open Prompt Templates library') },
+                    { keys: [t('Knowledge base button 🗃️')], desc: t('Toggle Knowledge Base retrieval') },
+                    { keys: [t('Web search button 🌐')], desc: t('Toggle Web Search') },
                   ]
                 },
               ].map(group => (
@@ -1261,7 +1277,16 @@ print(response.choices[0].message.content)`;
           {/* ───── System ───── */}
           {activeSection === 'protection' && <ProtectionSettings token={token} />}
 
-          {activeSection === 'system' && (
+          {activeSection === 'system' && isAdmin === false && (
+            <div className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <Archive size={18} />
+                <h2>{t('Backup & Restore')}</h2>
+              </div>
+              <p className={styles.panelDesc}>{t('Only the administrator of this StarkLLM can make or restore backups.')}</p>
+            </div>
+          )}
+          {activeSection === 'system' && isAdmin && (
             <>
               <EncryptedBackupSettings token={token} />
               <AutomaticBackupSettings />
@@ -1298,7 +1323,7 @@ print(response.choices[0].message.content)`;
                 </p>
 
                 <p className={styles.aboutText}>
-                  {t('Because the code is open, you can check what the app sends over the network: nothing, unless you turn on a cloud model or web search yourself.')}
+                  {t('Because the code is open, you can check what the app sends over the network. It connects to the internet only for what you turn on or ask for yourself: downloads (the engine, AI models, speech and OCR files), an online AI model, web search, imports from the web (web pages, YouTube, GitHub), the live prices widget and, if you agree, the update check. Only an online AI model receives your questions and passages from your documents; web search receives your question. Settings > Privacy & network lists every connection.')}
                 </p>
 
                 <div className={styles.aboutGrid}>
@@ -1325,9 +1350,8 @@ print(response.choices[0].message.content)`;
                 </div>
 
                 <div className={styles.aboutLegal}>
-                  <strong>{t('No Warranty / No Liability:')}</strong> This software is provided "as is", 
-                  without warranty of any kind, express or implied. In no event shall the authors 
-                  be liable for any claim, damages or other liability.
+                  <strong>{t('No Warranty / No Liability:')}</strong>{' '}
+                  {t('This software is provided "as is", without warranty of any kind, express or implied. In no event shall the authors be liable for any claim, damages or other liability.')}
                 </div>
               </div>
             </div>
