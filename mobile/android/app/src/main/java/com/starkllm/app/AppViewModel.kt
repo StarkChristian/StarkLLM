@@ -346,6 +346,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             it.copy(answeringFor = nonce, notice = null,
                 lines = it.lines + ChatLine("user", question) + ChatLine("assistant", "", streaming = true))
         }
+        AnswerService.start(getApplication())
         answer = viewModelScope.launch {
             try {
                 val request = ChatRequest(screen.workspace.id, screen.chatId, question, language = Locale.getDefault().language,
@@ -372,6 +373,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 }
             } finally {
                 _state.update { it.copy(answeringFor = null) }
+                AnswerService.stop(getApplication())
             }
         }
     }

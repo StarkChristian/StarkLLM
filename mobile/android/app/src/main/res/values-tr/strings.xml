@@ -138,6 +138,8 @@
     <string name="widget_name">StarkLLM son tarihleri</string>
     <string name="widget_description">Mektuplarınızdaki sıradaki son tarihler</string>
     <string name="answer_running">Başka bir yanıt hâlâ geliyor. Birazdan tekrar sorun.</string>
+    <string name="answer_notification">StarkLLM bir yanıt yazıyor…</string>
+    <string name="channel_answers">Süren yanıtlar</string>
     <string name="tile_ask">StarkLLM\'e sor</string>
     <plurals name="deadline_in_days">
         <item quantity="one">%d gün sonra</item>

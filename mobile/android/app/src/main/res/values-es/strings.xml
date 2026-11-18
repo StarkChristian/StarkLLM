@@ -138,6 +138,8 @@
     <string name="widget_name">Plazos de StarkLLM</string>
     <string name="widget_description">Los próximos plazos de sus cartas</string>
     <string name="answer_running">Todavía llega otra respuesta. Pregunte de nuevo en un momento.</string>
+    <string name="answer_notification">StarkLLM está escribiendo una respuesta…</string>
+    <string name="channel_answers">Respuestas en curso</string>
     <string name="tile_ask">Preguntar a StarkLLM</string>
     <plurals name="deadline_in_days">
         <item quantity="one">en %d día</item>

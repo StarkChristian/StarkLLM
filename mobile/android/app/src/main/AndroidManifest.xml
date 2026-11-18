@@ -12,6 +12,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- app lock and confirming actions on the PC -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- a short foreground service while an answer comes in (AnswerService), so it is not cut off in the background -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
@@ -60,6 +62,8 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <service android:name=".AnswerService" android:exported="false" android:foregroundServiceType="shortService" />
 
         <!-- home-screen widget: the next deadlines -->
         <receiver android:name=".widget.DeadlinesWidget" android:exported="false" android:label="@string/widget_name">

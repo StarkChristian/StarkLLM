@@ -138,6 +138,8 @@
     <string name="widget_name">Scadenze StarkLLM</string>
     <string name="widget_description">Le prossime scadenze dalle vostre lettere</string>
     <string name="answer_running">Un\'altra risposta è ancora in arrivo. Chiedete di nuovo tra un momento.</string>
+    <string name="answer_notification">StarkLLM sta scrivendo una risposta…</string>
+    <string name="channel_answers">Risposte in corso</string>
     <string name="tile_ask">Chiedi a StarkLLM</string>
     <plurals name="deadline_in_days">
         <item quantity="one">tra %d giorno</item>
