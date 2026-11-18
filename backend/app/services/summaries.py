@@ -292,6 +292,14 @@ def build(chunks, toc=None, name="the document", progress=lambda done, total: No
     """Summaries of a document: {version, model, created, sections, parts, document}. previous: an earlier, unfinished
     result whose section summaries are reused (same title and pages)."""
     sections = plan_sections(chunks, toc)
+    # the language of the document, named in every request: a small model wrote English summaries of a German novel
+    # although the instructions say "in the language of the text" (eval/large-docs, qwen2.5:3b)
+    try:
+        from app.api.chat import language_of
+        lang = language_of(" ".join(c["text"] for c in chunks[:40])[:6000])
+    except Exception:
+        lang = None
+    write_in = f" Write in {lang}." if lang else ""
     done_before = {(s["title"], tuple(s["pages"] or ())): s["summary"]
                    for s in ((previous or {}).get("sections") or []) if s.get("summary")}
     result = {"version": VERSION, "model": settings.DEFAULT_TEXT_MODEL, "created": datetime.utcnow().isoformat(timespec="seconds"),
@@ -303,7 +311,7 @@ def build(chunks, toc=None, name="the document", progress=lambda done, total: No
         key = (s["title"], tuple(s["pages"] or ()))
         summary = done_before.get(key) or _ask(
             f"Summarize this part of {name} ('{s['title']}', {_pages_text(s['pages'])}) in at most 120 words: what "
-            "happens or what it says, who appears (with names), and anything that is decided, found or ends here.",
+            "happens or what it says, who appears (with names), and anything that is decided, found or ends here." + write_in,
             s["text"], 120, stop)
         result["sections"].append({"title": s["title"], "pages": s["pages"], "summary": summary})
         progress(i + 1, total)
@@ -315,7 +323,7 @@ def build(chunks, toc=None, name="the document", progress=lambda done, total: No
         text = "\n\n".join(f"[{s['title']}, {_pages_text(s['pages'])}]\n{s['summary']}" for s in group)
         summary = group[0]["summary"] if len(group) == 1 else _ask(
             f"Here are summaries of consecutive parts of {name}. Combine them into one summary of at most 200 words, in "
-            "order, keeping every name that matters and how this stretch begins and ends.", text, 200, stop)
+            "order, keeping every name that matters and how this stretch begins and ends." + write_in, text, 200, stop)
         result["parts"].append({"titles": [group[0]["title"], group[-1]["title"]],
                                 "pages": [min(pages), max(pages)] if pages else None, "summary": summary})
         progress(len(sections) + g // GROUP + 1, total)
@@ -323,7 +331,7 @@ def build(chunks, toc=None, name="the document", progress=lambda done, total: No
     result["document"] = result["parts"][0]["summary"] if len(result["parts"]) == 1 else _ask(
         f"Here are summaries of all parts of {name}, in order. Write a summary of the whole document in at most 300 "
         "words: what it is, the main people, places or things, the course from beginning to end, and how it ends. "
-        "Then add one line that starts with 'Names:' and lists the main people (or parties) with their role.",
+        "Then add one line that starts with 'Names:' and lists the main people (or parties) with their role." + write_in,
         text, 330, stop)
     progress(total, total)
     return result

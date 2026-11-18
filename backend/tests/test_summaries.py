@@ -175,3 +175,12 @@ def test_the_overview_of_the_first_retrieved_document_with_summaries(tmp_path, m
     text = S.overview_for(ws_id, [str(note), str(book)])
     assert text.startswith("[Summary of effi-briest.pdf, the whole document (pages 1-284)]") and "Rollo (dog)" in text
     assert S.overview_for(ws_id, [str(note)]) == "" and S.overview_for(ws_id, []) == ""
+
+
+def test_every_summary_request_names_the_language_of_the_document(monkeypatch):
+    # a small model wrote English summaries of a German novel (eval/large-docs, qwen2.5:3b)
+    asked = []
+    monkeypatch.setattr(S, "_ask", lambda instruction, text, max_words, stop=None: asked.append(instruction) or "s")
+    text = "Effi Briest war die Tochter des Ritterschaftsrats von Briest. Sie und ihre Mutter saßen im Garten, und die Sonne schien auf das Haus. " * 30
+    S.build([chunk(text, p) for p in range(1, 31)], name="effi-briest.pdf")
+    assert asked and all(a.endswith("Write in German.") for a in asked)
