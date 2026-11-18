@@ -106,3 +106,20 @@ def test_first_lines_that_are_not_a_sender():
     for line in ["Stadtwerke Rheinstadt", "Finanzamt Rheinstadt - Vollstreckungsstelle", "Kurpfalz Direkt Versicherung AG",
                  "Dr. med. Anna Berger, Fachärztin für Innere Medizin", "Hausverwaltung Müller & Söhne GmbH"]:
         assert not _not_a_name(line), line
+
+
+def test_a_book_is_no_letter_and_gets_no_scam_badge():
+    # N30 (MSI test of 2.3.0): Moby-Dick was an "invoice" from "MOBY-DICK;" with a scam badge
+    from app.services.facts_service import is_long_document
+    page = ("MOBY-DICK; or, THE WHALE. Rechnung. The whale was worth 1,000,000 GBP, and the captain promised "
+            "20,000,000 USD to the man who raised him first; pay now, act immediately, transfer the reward. ") * 8
+    book = {p: page for p in range(1, 41)}
+    f = document_facts(book, "moby-dick.pdf")
+    assert is_long_document(book)
+    assert f["letter"] is False and f["type"] is None and f["amounts"] == [] and f["dates"] == []
+    assert "scam_signs" not in f["warnings"] and f["case"] is None
+    # an e-book has no page numbers: its length counts
+    assert is_long_document({None: "x" * 70_000})
+    # a two-page letter is still a letter
+    letter = {1: "Stadtwerke Musterstadt\nRechnung Nr. 2026-4471\nDatum: 03.11.2026\nBitte zahlen Sie 84,20 EUR bis zum 15.12.2026.", 2: "Seite 2"}
+    assert not is_long_document(letter) and document_facts(letter)["letter"]
