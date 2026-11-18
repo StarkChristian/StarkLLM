@@ -26,6 +26,7 @@ function featureLabel(key) {
     case 'engine_download': return t('Engine download');
     case 'engine_build': return t('Engine build (packages)');
     case 'ui': return t('Request of the app window');
+    case 'phone_link': return t('Paired phone (incoming)');
     case 'unattributed': return t('Not through the network layer');
     default: return key;
   }

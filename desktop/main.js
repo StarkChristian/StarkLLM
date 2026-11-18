@@ -18,6 +18,8 @@ const { t } = i18n;
 const { initShared } = require('./netguard');
 const { askOfflineChoice } = require('./offline-choice');
 const { desktopKey, setEngineOffline, switchOffline } = require('./engine-offline');
+const { createPhoneLink } = require('./phonelink');
+const { qrMatrix } = require('./qr');
 
 let mainWindow = null;
 let tray = null;
@@ -112,6 +114,7 @@ function initApp() {
     guard.clear();
     return { ok: true };
   });
+  registerPhoneLinkHandlers();
   registerProtectionHandlers();
   registerUnlockHandlers();
   lockEngineOnQuit();
@@ -443,6 +446,45 @@ function registerBackupHandlers() {
   ipcMain.handle('backup:disable', guard(() => backupScheduler().disable()));
 }
 
+// Settings > Phone (phonelink.js): the Android app on the home network. Off until the user turns it on; it starts once
+// the engine runs and stops while the app is fully offline.
+let phoneLink = null;
+function phone() {
+  if (!phoneLink) {
+    phoneLink = createPhoneLink({
+      dir: path.join(app.getPath('userData'), 'phone'),
+      guard,
+      getApi: () => ({ url: apiUrl(), token: localToken }),
+      refreshToken: fetchLocalSession,
+      log: logLine,
+      version: app.getVersion(),
+      onChange: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('phone:changed');
+      }
+    });
+  }
+  return phoneLink;
+}
+
+function registerPhoneLinkHandlers() {
+  const allowed = (fn) => async (event, ...args) => {
+    if (!fromAppPage(event)) return { error: 'not-allowed' };
+    try {
+      return await fn(...args);
+    } catch (e) {
+      return { error: 'failed', message: e.message };
+    }
+  };
+  ipcMain.handle('phone:status', allowed(() => phone().status()));
+  ipcMain.handle('phone:enable', allowed((on) => phone().setEnabled(Boolean(on))));
+  ipcMain.handle('phone:pair', allowed(() => {
+    const p = phone().startPairing();
+    return p.error ? p : { ...p, qr: qrMatrix(p.uri) };
+  }));
+  ipcMain.handle('phone:cancel-pair', allowed(() => phone().cancelPairing()));
+  ipcMain.handle('phone:remove', allowed((id) => phone().removeDevice(String(id || ''))));
+}
+
 let backupTimer = null;
 function startBackupSchedule() {
   if (backupTimer) return;
@@ -468,6 +510,7 @@ async function showApp() {
   await wait(SPLASH_FADE_MS);
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.loadURL(APP_URL);
   startBackupSchedule();
+  phone().start().catch((e) => logLine(`phone link: ${e.message}`));
 }
 
 // "Install Ollama for me" on the what-is-missing page: download, check the signature, install, start again.
@@ -525,6 +568,8 @@ async function switchAppAndEngineOffline(on, from) {
   logLine(`fully offline: ${r.offline ? 'on' : 'off'} (${from}); engine: ${r.engineError ? `${r.engineError} ${r.engineDetail || ''}`.trim() : (r.engine ? 'on' : 'off')}`);
   applyOffline();
   refreshTrayMenu();
+  // fully offline closes the phone link; back online, it opens again if the user turned it on
+  if (phoneLink) phoneLink.start().catch((e) => logLine(`phone link: ${e.message}`));
   return r;
 }
 
@@ -653,6 +698,7 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   isQuitting = true;
   if (updater) updater.installOnQuit();
+  if (phoneLink) phoneLink.stop();
   // the engine without Docker is a child of the app; Docker's engine keeps running as before
   stopNativeEngine();
 });

@@ -39,6 +39,20 @@ contextBridge.exposeInMainWorld('starkllmDesktop', {
     runNow: () => ipcRenderer.invoke('backup:run-now'),
     disable: () => ipcRenderer.invoke('backup:disable'),
   },
+  // Settings > Phone: the phone link (phonelink.js). The page gets the QR code as squares to draw; the device tokens
+  // never leave the desktop app.
+  phoneLink: {
+    status: () => ipcRenderer.invoke('phone:status'),
+    setEnabled: (on) => ipcRenderer.invoke('phone:enable', Boolean(on)),
+    startPairing: () => ipcRenderer.invoke('phone:pair'),
+    cancelPairing: () => ipcRenderer.invoke('phone:cancel-pair'),
+    removeDevice: (id) => ipcRenderer.invoke('phone:remove', String(id || '')),
+    onChange: (cb) => {
+      const handler = () => cb();
+      ipcRenderer.on('phone:changed', handler);
+      return () => ipcRenderer.removeListener('phone:changed', handler);
+    },
+  },
   protection: {
     status: () => ipcRenderer.invoke('protection:status'),
     createKey: () => ipcRenderer.invoke('protection:create-key'),

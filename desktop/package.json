@@ -102,6 +102,7 @@
     ]
   },
   "dependencies": {
-    "electron-updater": "6.8.10"
+    "electron-updater": "6.8.10",
+    "qrcode-generator": "1.4.4"
   }
 }

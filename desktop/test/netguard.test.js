@@ -177,7 +177,9 @@ const NETWORK_USERS = {
   'ollama-install.js': /guard\.begin\(/,
   'engine.js': /getShared\(\)\.wrapFetch|guard\.begin\(/,
   'native-engine.js': /guard\.begin\('engine_download'/,
-  'main.js': /guard\.wrapFetch/
+  'main.js': /guard\.wrapFetch/,
+  // incoming only (Settings > Phone); its calls to the engine stay on 127.0.0.1
+  'phonelink.js': /guard\.inbound\('phone_link'/
 };
 
 test('code that connects to the internet announces itself to the network layer', () => {
