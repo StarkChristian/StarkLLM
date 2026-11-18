@@ -1172,5 +1172,6 @@
   "Green code rain on black, in a monospace font.": "Siyah üzerinde, eş aralıklı yazı tipiyle yeşil kod yağmuru.",
   "Starry Night": "Yıldızlı Gece",
   "A quiet night sky full of small stars, with warm gold accents.": "Sıcak altın vurgularıyla, küçük yıldızlarla dolu sakin bir gece gökyüzü.",
-  "The preview and answers from this document are available once indexing is complete.": "Önizleme ve bu belgeden yanıtlar, dizinleme tamamlandığında kullanılabilir."
+  "The preview and answers from this document are available once indexing is complete.": "Önizleme ve bu belgeden yanıtlar, dizinleme tamamlandığında kullanılabilir.",
+  "This question has no answer: StarkLLM was closed or stopped while it was answering. Try again.": "Bu sorunun yanıtı yok: StarkLLM yanıt verirken kapatıldı veya durduruldu. Lütfen tekrar deneyin."
 }

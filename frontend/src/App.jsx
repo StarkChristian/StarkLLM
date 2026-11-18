@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { withInterruptedNotes } from './utils/interrupted';
 import Sidebar from './components/Sidebar';
 import ChatArea from './components/ChatArea';
 import InputBar from './components/InputBar';
@@ -302,7 +303,7 @@ export default function App() {
         data.messages && data.messages.length > 0
           // An empty saved answer (older versions stored them) would otherwise show the "thinking" dots forever;
           // saved source chips come back in the same shape the live response headers produce.
-          ? data.messages
+          ? withInterruptedNotes(data.messages, t('This question has no answer: StarkLLM was closed or stopped while it was answering. Try again.'))
               .map(m => (m.role === 'assistant' && !(m.content || '').trim() ? { ...m, content: NO_ANSWER_TEXT } : m))
               .map(m => (m.sources ? {
                 ...m,

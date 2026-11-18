@@ -183,3 +183,11 @@ def test_a_build_steps_aside_for_the_workspace_in_use_and_keeps_its_progress(mon
     assert S._should_yield(4) and not S._should_yield(6)
     monkeypatch.setattr(S, "_workspace_in_use", lambda: None)
     assert not S._should_yield(4)
+def test_after_a_restart_the_progress_starts_at_the_saved_sections(monkeypatch):
+    # N43: the status fell from 44 % to 2 % and climbed again while the saved sections were taken over
+    monkeypatch.setattr(S, "_ask", lambda instruction, text, max_words, stop=None: "s")
+    chunks = [chunk("x" * 3000, p) for p in range(1, 61)]
+    first = S.build(chunks, name="moby-dick.pdf")
+    seen = []
+    S.build(chunks, name="moby-dick.pdf", previous={"sections": first["sections"][:8]}, progress=lambda d, t: seen.append(d))
+    assert seen[0] == 8 and seen == sorted(seen)
