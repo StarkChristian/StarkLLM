@@ -81,6 +81,19 @@ class StarkApi(
             } catch (e: IOException) {
                 if (call.isCanceled()) throw e
                 last = e
+                // a read once more on the same address (a connection closed by the PC in between); never a question
+                if (method == "GET") {
+                    val again = client.newCall(build(address, method, path, body))
+                    register(again)
+                    try {
+                        val res = again.execute()
+                        current = address
+                        return res
+                    } catch (e2: IOException) {
+                        if (again.isCanceled()) throw e2
+                        last = e2
+                    }
+                }
             }
         }
         throw ApiException(Problem.UNREACHABLE, last?.message.orEmpty())
