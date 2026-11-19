@@ -121,6 +121,14 @@ internal fun HomeScreen(state: UiState, vm: AppViewModel, activity: FragmentActi
     var input by rememberSaveable { mutableStateOf("") }
     val focus = remember { FocusRequester() }
     LaunchedEffect(focusAsk) { if (focusAsk > 0) runCatching { focus.requestFocus() } }
+    // text shared from another app: in the field, so the user can ask about it
+    LaunchedEffect(state.draft) {
+        state.draft?.let {
+            input = it
+            vm.draftTaken()
+            runCatching { focus.requestFocus() }
+        }
+    }
     val greeting = stringResource(
         when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
             in 5..10 -> R.string.greeting_morning

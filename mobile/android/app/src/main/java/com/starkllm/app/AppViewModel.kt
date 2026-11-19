@@ -22,6 +22,7 @@ import com.starkllm.app.data.PairingInfo
 import com.starkllm.app.data.PcStatus
 import com.starkllm.app.data.Problem
 import com.starkllm.app.data.RecentChat
+import com.starkllm.app.data.SharedFiles
 import com.starkllm.app.data.StarkApi
 import com.starkllm.app.data.Workspace
 import com.starkllm.app.data.openDeadlines
@@ -87,6 +88,8 @@ data class UiState(
     val transcribing: Boolean = false,
     /** dictated text waiting to go into the input field (taken once) */
     val dictated: String? = null,
+    /** text shared from another app, waiting for the home screen's question field (taken once) */
+    val draft: String? = null,
     val appLock: Boolean = false,
     val reminders: Boolean = false,
     /** the look (ui/Themes.kt), as on the PC; "system" follows the phone's dark or light mode */
@@ -442,6 +445,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun dictationTaken() = _state.update { it.copy(dictated = null) }
+
+    // ---- shared from another app
+
+    /** Text shared to StarkLLM: the home screen's field gets it, for a question about it (nothing is sent yet) */
+    fun sharedText(text: String) {
+        if (_state.value.link == null) {
+            _state.update { it.copy(info = Info(R.string.share_not_paired)) }
+            return
+        }
+        go(Screen.Home)
+        _state.update { it.copy(draft = text.take(SharedFiles.MAX_TEXT)) }
+    }
+
+    fun draftTaken() = _state.update { it.copy(draft = null) }
+
+    fun refuseShared() = _state.update { it.copy(info = Info(R.string.share_refused)) }
 
     // ---- deadlines
 

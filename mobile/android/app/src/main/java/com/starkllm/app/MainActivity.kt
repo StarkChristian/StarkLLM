@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.IntentCompat
 import androidx.fragment.app.FragmentActivity
+import com.starkllm.app.data.SharedFiles
 import com.starkllm.app.ui.LockScreen
 import com.starkllm.app.ui.Photos
 import com.starkllm.app.ui.StarkApp
@@ -79,7 +80,13 @@ class MainActivity : FragmentActivity() {
         when {
             intent.action == Intent.ACTION_SEND -> {
                 val uri = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
-                if (uri != null) shared = Shared(uri, intent.type)
+                val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+                when {
+                    uri != null && SharedFiles.acceptable(uri.scheme, uri.authority, Photos.authority(this)) -> shared = Shared(uri, intent.type)
+                    uri != null -> vm.refuseShared()             // a file:// path, or the app's own files
+                    // shared text (a passage of a web page, a message): into the question field, to ask about it
+                    text != null -> vm.sharedText(text)
+                }
             }
             intent.getStringExtra(EXTRA_OPEN) == OPEN_DEADLINES -> if (vm.state.value.link != null) vm.go(Screen.Deadlines)
             intent.getStringExtra(EXTRA_OPEN) == OPEN_ASK -> if (vm.state.value.link != null) {

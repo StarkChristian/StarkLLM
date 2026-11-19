@@ -1,5 +1,6 @@
 package com.starkllm.app.ui
 
+import android.content.ContentResolver
 import android.content.Context
 import android.media.MediaRecorder
 import android.net.Uri
@@ -16,12 +17,15 @@ import okhttp3.RequestBody
 import okio.BufferedSink
 import okio.source
 import java.io.File
+import java.io.IOException
 
 /** A file chosen on the phone, sent as it is read (large PDFs are not loaded into memory). Re-readable for a retry. */
 class UriBody(private val context: Context, private val uri: Uri, private val mime: String?) : RequestBody() {
     override fun contentType() = (mime ?: context.contentResolver.getType(uri))?.toMediaTypeOrNull()
     override fun contentLength(): Long = sizeOf(context, uri) ?: -1L
     override fun writeTo(sink: BufferedSink) {
+        // only what another app offers through its provider: a file:// path could name the app's own private files
+        if (!uri.scheme.equals(ContentResolver.SCHEME_CONTENT, ignoreCase = true)) throw IOException("only content:// is sent")
         context.contentResolver.openInputStream(uri)?.use { sink.writeAll(it.source()) }
     }
 }
