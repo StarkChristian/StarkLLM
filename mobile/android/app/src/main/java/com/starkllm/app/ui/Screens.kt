@@ -377,7 +377,8 @@ private fun SharedDialog(state: UiState, vm: AppViewModel, shared: Shared, onDon
         title = { Text(stringResource(R.string.share_title), style = MaterialTheme.typography.titleLarge) },
         text = {
             Column {
-                val name = remember(shared) { nameOf(context, shared.uri) ?: context.getString(R.string.document_fallback) }
+                val fallback = stringResource(R.string.document_fallback)
+                val name = remember(shared, fallback) { nameOf(context, shared.uri) ?: fallback }
                 Text(name, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 when {
                     state.link == null -> Text(stringResource(R.string.share_not_paired), style = MaterialTheme.typography.bodyMedium)

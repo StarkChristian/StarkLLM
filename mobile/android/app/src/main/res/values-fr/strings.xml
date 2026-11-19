@@ -200,6 +200,7 @@
     </plurals>
     <plurals name="widget_locked">
         <item quantity="one">%d échéance ouverte</item>
+        <item quantity="many">%d d\'échéances ouvertes</item>
         <item quantity="other">%d échéances ouvertes</item>
     </plurals>
 </resources>

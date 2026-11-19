@@ -8,6 +8,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -60,7 +61,7 @@ internal val LocalTakePhoto = compositionLocalOf<(Workspace) -> Unit> { {} }
 internal fun rememberPhotoCamera(vm: AppViewModel): (Workspace) -> Unit {
     val context = LocalContext.current
     var path by rememberSaveable { mutableStateOf<String?>(null) }
-    var workspaceId by rememberSaveable { mutableStateOf(0) }
+    var workspaceId by rememberSaveable { mutableIntStateOf(0) }
     var workspaceName by rememberSaveable { mutableStateOf("") }
     var denied by rememberSaveable { mutableStateOf(false) }
     val take = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->

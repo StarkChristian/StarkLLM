@@ -200,6 +200,7 @@
     </plurals>
     <plurals name="widget_locked">
         <item quantity="one">%d plazo abierto</item>
+        <item quantity="many">%d de plazos abiertos</item>
         <item quantity="other">%d plazos abiertos</item>
     </plurals>
 </resources>

@@ -200,6 +200,7 @@
     </plurals>
     <plurals name="widget_locked">
         <item quantity="one">%d scadenza aperta</item>
+        <item quantity="many">%d di scadenze aperte</item>
         <item quantity="other">%d scadenze aperte</item>
     </plurals>
 </resources>
