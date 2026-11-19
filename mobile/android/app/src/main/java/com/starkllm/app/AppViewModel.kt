@@ -425,19 +425,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- deadlines
 
-    fun setDone(d: Deadline, done: Boolean) {
-        _state.update { s -> s.copy(deadlines = s.deadlines?.map { if (it.key == d.key) it.copy(done = done) else it }) }
-        request { a ->
-            try {
-                a.setDeadlineDone(d.key, done)
-                prefs.cachedDeadlines = openDeadlines(_state.value.deadlines.orEmpty())
-                DeadlinesWidget.update(getApplication())
-            } catch (e: Exception) {
-                // the PC refused or was not reached: show its list again (it is the authority), then the reason
-                runCatching { loadDashboard(a) }
-                throw e
-            }
+    // the card moves only after the PC agreed (moving it first and back left a refused one above the visible list)
+    fun setDone(d: Deadline, done: Boolean) = request { a ->
+        try {
+            a.setDeadlineDone(d.key, done)
+        } catch (e: Exception) {
+            runCatching { loadDashboard(a) }        // the PC is the authority
+            throw e
         }
+        _state.update { s -> s.copy(deadlines = s.deadlines?.map { if (it.key == d.key) it.copy(done = done) else it }) }
+        prefs.cachedDeadlines = openDeadlines(_state.value.deadlines.orEmpty())
+        DeadlinesWidget.update(getApplication())
     }
 
     // ---- this PC
