@@ -460,6 +460,25 @@ function phone() {
       version: app.getVersion(),
       onChange: () => {
         if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('phone:changed');
+      },
+      // what the phone's "This PC" page shows; no paths, keys or file names
+      pcStatus: () => {
+        const b = backupScheduler().status();
+        const p = keyManager().status();
+        return {
+          backup: { enabled: Boolean(b.enabled), running: Boolean(b.running), lastSuccess: b.lastSuccess || null, nextDue: b.nextDue || null,
+            lastError: b.lastError ? { code: b.lastError.code || 'failed', at: b.lastError.at || null } : null },
+          protection: { enabled: Boolean(p.hasKey), passphrase: Boolean(p.passphrase) },
+          offline: guard.isOffline()
+        };
+      },
+      // phones at the level "manage" (Settings > Phone)
+      actions: {
+        'backup-now': async () => {
+          const r = await backupScheduler().runNow();
+          return r && r.ok === false ? { ok: false, code: r.code || 'failed' } : { ok: true };
+        },
+        'go-offline': () => switchAppAndEngineOffline(true, 'phone')
       }
     });
   }
@@ -483,6 +502,7 @@ function registerPhoneLinkHandlers() {
   }));
   ipcMain.handle('phone:cancel-pair', allowed(() => phone().cancelPairing()));
   ipcMain.handle('phone:remove', allowed((id) => phone().removeDevice(String(id || ''))));
+  ipcMain.handle('phone:set-level', allowed((id, level) => phone().setLevel(String(id || ''), String(level || ''))));
 }
 
 let backupTimer = null;

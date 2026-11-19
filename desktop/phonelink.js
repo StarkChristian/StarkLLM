@@ -5,9 +5,11 @@
 //    certificate (selfcert.js); the phone trusts it because the QR code it scanned holds the certificate's fingerprint.
 //  * Pairing: Settings > Phone shows a QR code with the PC's addresses, the port, that fingerprint and a one-time code
 //    (5 minutes, single use). The phone trades the code for a device token; only a hash of the token is kept here.
-//  * Every request needs a device token and must be on the allow-list (ALLOWED): chat, workspaces, documents, upload,
-//    inbox and deadlines. No settings, backup, protection, models, tools or system calls. A chat request cannot pick an
-//    online provider: the phone always uses the local model.
+//  * Every request needs a device token and must be on the allow-list (ALLOWED) at the phone's level (LEVELS: ask,
+//    work, manage; set per phone in Settings > Phone): chat, workspaces, documents, upload, inbox, deadlines, the list
+//    of models, dictation. No engine settings, backup, protection, model downloads, tools or system calls. A chat
+//    request cannot pick an online provider: the phone always uses the local model. Phones at "manage" may also run a
+//    few actions of the desktop app (PHONE_ACTIONS: back up now, go fully offline).
 //  * Only devices of the home network (and this PC) may connect. Every phone connection is recorded by the network
 //    layer (netguard.js, feature "phone_link") and refused while the app is fully offline.
 //
@@ -31,32 +33,49 @@ const BLOCK_MS = 10 * 60 * 1000;
 const SMALL_BODY = 1024 * 1024;        // chat questions and pairing requests are read whole; uploads are streamed
 const DEVICE_HEADER = 'x-starkllm-device';
 
-// What a paired phone may ask the engine. Everything else gets 404.
+// What a phone may do, set per phone in Settings > Phone (owner's plan 2026-11-18, "permission like the Claude app"):
+//   ask    - read workspaces, chats, documents, inbox and deadlines; ask questions; dictate (the PC's speech model)
+//   work   - also send documents and photos, delete chats, mark deadlines done (the default of a new pairing)
+//   manage - also run actions on this PC: back up now, go fully offline (PHONE_ACTIONS)
+const LEVELS = ['ask', 'work', 'manage'];
+const DEFAULT_LEVEL = 'work';
+const atLeast = (level, needed) => LEVELS.indexOf(level) >= LEVELS.indexOf(needed);
+
+// What a paired phone may ask the engine, and the level it needs. Everything else gets 404.
 const ALLOWED = [
-  ['GET', /^\/api\/v1\/auth\/me$/],
-  ['POST', /^\/api\/v1\/auth\/login$/],
-  ['GET', /^\/api\/v1\/workspaces\/?$/],
-  ['GET', /^\/api\/v1\/chat\/sessions\/\d+$/],
-  ['POST', /^\/api\/v1\/chat\/sessions\/\d+$/],
-  ['GET', /^\/api\/v1\/chat\/session\/\d+$/],
-  ['DELETE', /^\/api\/v1\/chat\/session\/\d+$/],
-  ['GET', /^\/api\/v1\/chat\/messages\/\d+$/],
-  ['POST', /^\/api\/v1\/chat\/?$/],
-  ['POST', /^\/api\/v1\/chat\/save-partial$/],
-  ['GET', /^\/api\/v1\/documents\/\d+$/],
-  ['GET', /^\/api\/v1\/documents\/\d+\/documents\/\d+\/status$/],
-  ['POST', /^\/api\/v1\/documents\/\d+\/upload$/],
-  ['GET', /^\/api\/v1\/dashboard\/(home|inbox|inbox\/count|deadlines)$/]
+  ['GET', /^\/api\/v1\/auth\/me$/, 'ask'],
+  ['POST', /^\/api\/v1\/auth\/login$/, 'ask'],
+  ['GET', /^\/api\/v1\/workspaces\/?$/, 'ask'],
+  ['GET', /^\/api\/v1\/chat\/sessions\/\d+$/, 'ask'],
+  ['POST', /^\/api\/v1\/chat\/sessions\/\d+$/, 'ask'],
+  ['GET', /^\/api\/v1\/chat\/session\/\d+$/, 'ask'],
+  ['GET', /^\/api\/v1\/chat\/messages\/\d+$/, 'ask'],
+  ['GET', /^\/api\/v1\/chat\/models$/, 'ask'],
+  ['POST', /^\/api\/v1\/chat\/?$/, 'ask'],
+  ['POST', /^\/api\/v1\/chat\/save-partial$/, 'ask'],
+  ['POST', /^\/api\/v1\/voice\/transcribe$/, 'ask'],
+  ['GET', /^\/api\/v1\/documents\/\d+$/, 'ask'],
+  ['GET', /^\/api\/v1\/documents\/\d+\/documents\/\d+\/status$/, 'ask'],
+  ['GET', /^\/api\/v1\/dashboard\/(home|inbox|inbox\/count|deadlines|system-status)$/, 'ask'],
+  ['DELETE', /^\/api\/v1\/chat\/session\/\d+$/, 'work'],
+  ['POST', /^\/api\/v1\/documents\/\d+\/upload$/, 'work'],
+  ['PUT', /^\/api\/v1\/dashboard\/deadlines\/done$/, 'work']
 ];
+// Actions on this PC itself (not the engine), for phones at the level "manage": POST /phone/v1/actions/<name>
+const PHONE_ACTIONS = ['backup-now', 'go-offline'];
 const CHAT = /^\/api\/v1\/chat\/?$/;
 // fields of a chat request the phone may not set: they would send the question to an online provider
 const CHAT_FIELDS_DROPPED = ['provider', 'api_key', 'base_url'];
 const FORWARDED_HEADERS = ['content-type', 'content-length', 'accept', 'accept-language', 'authorization'];
 const HOP_HEADERS = new Set(['connection', 'keep-alive', 'transfer-encoding', 'upgrade', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer', 'set-cookie']);
 
-function isAllowed(method, pathname) {
-  return ALLOWED.some(([m, re]) => m === method && re.test(pathname));
+// The level an engine call needs, or null when no phone may make it
+function neededLevel(method, pathname) {
+  const hit = ALLOWED.find(([m, re]) => m === method && re.test(pathname));
+  return hit ? hit[2] : null;
 }
+const isAllowed = (method, pathname) => neededLevel(method, pathname) !== null;
+const levelOf = (device) => (LEVELS.includes(device && device.level) ? device.level : DEFAULT_LEVEL);
 
 const plainAddress = (a) => String(a || '').replace(/^::ffff:/i, '');
 const hash = (s) => crypto.createHash('sha256').update(String(s)).digest();
@@ -119,10 +138,13 @@ function send(res, status, body) {
  * dir: folder for phone-link.json and the certificate; guard: the network layer (netguard.js);
  * getApi(): { url, token } of the engine on this PC (token: the local user's session, or null when accounts exist);
  * refreshToken(): signs in the local user again (after the engine said 401).
+ * pcStatus(): what the desktop app knows about this PC for the phone (backup, protection); no secrets.
+ * actions: { name: async () => result } for PHONE_ACTIONS, run for phones at the level "manage".
  */
 function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, log = () => {}, version = '', pcName = os.hostname(),
   interfaces = () => os.networkInterfaces(), now = () => Date.now(), firstPort = FIRST_PORT, listenHost = '0.0.0.0',
-  remoteAllowed = (address) => ['lan', 'this_pc'].includes(classify(plainAddress(address))), onChange = () => {} }) {
+  remoteAllowed = (address) => ['lan', 'this_pc'].includes(classify(plainAddress(address))), onChange = () => {},
+  pcStatus = () => ({}), actions = {} }) {
   const statePath = path.join(dir, 'phone-link.json');
   const keyPath = path.join(dir, 'phone-link-key.pem');
   const certPath = path.join(dir, 'phone-link-cert.pem');
@@ -223,12 +245,33 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, lo
     }
     const token = crypto.randomBytes(32).toString('base64url');
     const at = new Date(now()).toISOString();
-    const device = { id: crypto.randomBytes(8).toString('hex'), name: cleanName(body.name) || 'Phone', created: at, lastSeen: at, tokenHash: hash(token).toString('hex') };
+    const device = { id: crypto.randomBytes(8).toString('hex'), name: cleanName(body.name) || 'Phone', created: at, lastSeen: at,
+      tokenHash: hash(token).toString('hex'), level: DEFAULT_LEVEL };
     state.devices.push(device);
     save();
     log(`phone link: "${device.name}" paired`);
     onChange();
-    return send(res, 200, { device_id: device.id, token, pc_name: pcName, version });
+    return send(res, 200, { device_id: device.id, token, pc_name: pcName, version, level: device.level });
+  }
+
+  // POST /phone/v1/actions/<name>: an action on this PC (level "manage"). The answer comes before the action takes
+  // effect where the action closes the link itself (going fully offline).
+  async function runAction(res, name, device) {
+    const fn = PHONE_ACTIONS.includes(name) ? actions[name] : null;
+    if (!fn) return send(res, 404, { error: 'not-available-on-phone' });
+    log(`phone link: "${device.name}" asked for "${name}"`);
+    if (name === 'go-offline') {
+      send(res, 202, { ok: true, action: name });
+      setTimeout(() => Promise.resolve().then(fn).catch((e) => log(`phone link: ${name} failed (${e.message})`)), 300);
+      return undefined;
+    }
+    try {
+      const result = await fn();
+      return send(res, 200, { ok: !(result && result.ok === false), action: name, result: result || null });
+    } catch (e) {
+      log(`phone link: ${name} failed (${e.message})`);
+      return send(res, 500, { error: 'action-failed', message: String(e.message || e).slice(0, 200) });
+    }
   }
 
   async function forward(req, res, url, device) {
@@ -304,11 +347,28 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, lo
       sockets.set(req.socket, device.id);
     }
     seen(device);
+    const level = levelOf(device);
     if (req.method === 'GET' && url.pathname === '/phone/v1/hello') {
       const api = getApi() || {};
-      return send(res, 200, { pc_name: pcName, version, device_id: device.id, signed_in: Boolean(api.token) });
+      return send(res, 200, { pc_name: pcName, version, device_id: device.id, signed_in: Boolean(api.token), level });
     }
-    if (!isAllowed(req.method, url.pathname)) return send(res, 404, { error: 'not-available-on-phone' });
+    if (req.method === 'GET' && url.pathname === '/phone/v1/status') {
+      let pc = {};
+      try {
+        pc = pcStatus() || {};
+      } catch (e) {
+        log(`phone link: status (${e.message})`);
+      }
+      return send(res, 200, { pc_name: pcName, version, level, actions: atLeast(level, 'manage') ? PHONE_ACTIONS : [], ...pc });
+    }
+    const action = url.pathname.match(/^\/phone\/v1\/actions\/([a-z-]{1,40})$/);
+    if (action && req.method === 'POST') {
+      if (!atLeast(level, 'manage')) return send(res, 403, { error: 'not-allowed', needs: 'manage', level });
+      return runAction(res, action[1], device);
+    }
+    const needs = neededLevel(req.method, url.pathname);
+    if (!needs) return send(res, 404, { error: 'not-available-on-phone' });
+    if (!atLeast(level, needs)) return send(res, 403, { error: 'not-allowed', needs, level });
     return forward(req, res, url, device);
   }
 
@@ -415,7 +475,7 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, lo
       offline: guard.isOffline(),
       error: lastError,
       pairing: pairing ? { expiresAt: pairing.expires } : null,
-      devices: state.devices.map(({ id, name, created, lastSeen }) => ({ id, name, created, lastSeen }))
+      devices: state.devices.map((d) => ({ id: d.id, name: d.name, created: d.created, lastSeen: d.lastSeen, level: levelOf(d) }))
     };
   }
 
@@ -443,6 +503,17 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, lo
       pairing = null;
       return status();
     },
+    // Settings > Phone: what this phone may do (LEVELS)
+    setLevel(id, level) {
+      const device = state.devices.find((d) => d.id === id);
+      if (!device || !LEVELS.includes(level)) return { error: 'bad-request' };
+      if (device.level !== level) {
+        device.level = level;
+        save();
+        log(`phone link: "${device.name}" may now ${level}`);
+      }
+      return status();
+    },
     removeDevice(id) {
       const before = state.devices.length;
       state.devices = state.devices.filter((d) => d.id !== id);
@@ -456,4 +527,5 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, lo
   };
 }
 
-module.exports = { createPhoneLink, isAllowed, homeAddresses, pairingUri, ALLOWED, CHAT_FIELDS_DROPPED, DEVICE_HEADER, FIRST_PORT };
+module.exports = { createPhoneLink, isAllowed, neededLevel, homeAddresses, pairingUri, ALLOWED, LEVELS, DEFAULT_LEVEL, PHONE_ACTIONS,
+  CHAT_FIELDS_DROPPED, DEVICE_HEADER, FIRST_PORT };

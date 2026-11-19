@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld('starkllmDesktop', {
     startPairing: () => ipcRenderer.invoke('phone:pair'),
     cancelPairing: () => ipcRenderer.invoke('phone:cancel-pair'),
     removeDevice: (id) => ipcRenderer.invoke('phone:remove', String(id || '')),
+    setLevel: (id, level) => ipcRenderer.invoke('phone:set-level', String(id || ''), String(level || '')),
     onChange: (cb) => {
       const handler = () => cb();
       ipcRenderer.on('phone:changed', handler);

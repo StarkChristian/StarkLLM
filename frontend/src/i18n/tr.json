@@ -1201,5 +1201,12 @@
   "Paired phones": "Eşlenen telefonlar",
   "Paired {time}": "Eşlenme: {time}",
   "last seen {time}": "son görülme {time}",
-  "Paired phone (incoming)": "Eşlenen telefon (gelen)"
+  "Paired phone (incoming)": "Eşlenen telefon (gelen)",
+  "This phone may:": "Bu telefon şunları yapabilir:",
+  "Ask only": "Yalnızca soru sormak",
+  "Ask and send documents": "Soru sormak ve belge göndermek",
+  "Ask, send and manage this PC": "Soru sormak, göndermek ve bu bilgisayarı yönetmek",
+  "Reads workspaces, chats, the inbox and deadlines, and asks questions. Changes nothing.": "Çalışma alanlarını, sohbetleri, gelen kutusunu ve son tarihleri okur, soru sorar. Hiçbir şeyi değiştirmez.",
+  "Also sends photos and documents, deletes chats and marks deadlines as done.": "Ayrıca fotoğraf ve belge gönderir, sohbetleri siler ve son tarihleri tamamlandı olarak işaretler.",
+  "Also starts a backup now and can switch StarkLLM fully offline. The phone asks for your fingerprint first.": "Ayrıca hemen bir yedekleme başlatır ve StarkLLM'i tamamen çevrimdışı yapabilir. Telefon önce parmak izinizi ister."
 }
