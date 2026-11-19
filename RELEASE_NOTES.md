@@ -6,9 +6,15 @@
 - **E-books and presentations.** EPUB e-books are read chapter by chapter (citations name the chapter), PowerPoint presentations (.pptx) slide by slide with the speaker notes (citations name the slide). Copy-protected (DRM) e-books are refused with a clear message.
 - **Faster on PCs without an NVIDIA card.** On PCs with integrated graphics (AMD Radeon, Intel Arc/Iris), StarkLLM now lets Ollama use them: on a Radeon 780M a long document answer took 5 seconds instead of 19. You are told once; "Use the integrated graphics for AI" in the tray menu turns it off. The model choice counts this graphics memory too.
 - **Up to date underneath.** The app runs on Electron 45 (the version before no longer received security fixes).
-- **Small fixes.** Settings → About says "StarkLLM is up to date" right away instead of "Checking..." until the dialog is closed. The engine's log marks every start with the time. The knowledge base no longer logs an old Docker hint every 30 seconds for a folder that is not there. The "Install Ollama for me" text gives the right size (about 2 GB).
+- **Answers you can check more easily.** The sources under an answer list only the documents it used. A quotation that is not in your documents is flagged under the answer. When nothing is found, the answer no longer quotes StarkLLM's internal note, and general knowledge is kept short and marked as such.
+- **More on large documents.** Every question about a large document also gets a short overview of it, summaries are written in the document's language, the workspace you are using is summarized first, and a summary that was interrupted keeps its progress.
+- **Books are not letters.** Books get no invoice or scam badge, and the start page stays fast with many books.
+- **Interrupted work is picked up.** A document that was being read when you closed the app is read again at the next start (and can always be deleted). An answer that was cut off gets a note with "Try again".
+- **Small fixes.** Settings → About says "StarkLLM is up to date" right away instead of "Checking..." until the dialog is closed. The engine's log marks every start with the time. The knowledge base no longer logs an old Docker hint every 30 seconds for a folder that is not there. The "Install Ollama for me" text gives the right size (about 2 GB). A damaged or renamed file gets a clear message. A new document no longer takes over the inbox decision of a deleted one. On PCs with a graphics card of their own, the integrated graphics stay off. Document embeddings are sent to Ollama in batches. Settings and dashboard texts are translated and current.
 
 **From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install".
+
+Pull requests: #121, #122, #123, #124, #125, #126, #127, #129, #130, #131, #132, #133, #134, #135, #136, #137, #138, #139, #140, #141, #142.
 
 ## Version 2.2.1 — No Docker needed
 
@@ -24,6 +30,8 @@
 - **Running code in the chat** ("Run" on Python code blocks) is off in the engine without Docker until StarkLLM has its own sandbox: it would run with your rights on the PC itself. With Docker Desktop it works as before.
 
 **From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install". The installer is larger than before because it contains the engine.
+
+Pull requests: #51, #52, #53, #54, #61, #115, #116, #117, #118, #119, #120.
 
 ## Version 2.1.2 — Signed by its publisher, protected data, deadlines, more languages
 
@@ -294,11 +302,15 @@ StarkLLM transitions from a browser-hosted interface to a **dedicated native des
 
 ---
 
-## Phase 2 — Local Tools (Local MCP Host) *(branch: phase-2-mcp-host)*
+## Before 2.0: the research beta
+
+*Historical notes of the research beta of 2025, kept for reference. They do not describe current versions: StarkLLM no longer needs Docker or WSL2, and most limitations listed here are solved (backup and restore, web search, indexing progress).*
+
+### Phase 2 — Local Tools (Local MCP Host) *(branch: phase-2-mcp-host)*
 
 StarkLLM provides in-process local read-only tool calling for the running FastAPI backend and React frontend. (Note: this is an in-process local host, not a third-party JSON-RPC network client; no third-party MCP servers are supported).
 
-### A. Scope & Built-in Read-Only Tools
+#### A. Scope & Built-in Read-Only Tools
 
 1. **`list_workspace_files`**:
    - Inspects and lists document metadata (filename, size, type, chunk count, timestamp) in the active workspace only (tenant-isolated).
@@ -312,7 +324,7 @@ StarkLLM provides in-process local read-only tool calling for the running FastAP
    - Fetches the exact text passage for a specific document citation locator from Chroma vector collections.
    - Strict vector boundary; rejects raw filesystem traversal.
 
-### B. Security, Execution Gate & User Confirmation
+#### B. Security, Execution Gate & User Confirmation
 
 - **Server-Side Execution Gate**: `POST /api/v1/mcp/execute` requires a valid single-use `call_id` registered server-side from parsed assistant output. Direct invocation without an authorized pending ID is rejected with HTTP 403 Forbidden.
 - **Explicit UI Confirmation**: Every tool call requires manual user confirmation in the UI before execution.
@@ -322,7 +334,7 @@ StarkLLM provides in-process local read-only tool calling for the running FastAP
 - **Local Persistence Only**: Tool toggles, host enablement, and local server configs persist exclusively in `data/mcp_config.json`. No cloud or external registry is contacted.
 - **RAG Prompt Injection Defence**: Fenced ` ```tool_call ``` ` blocks found inside retrieved document chunks are stripped before the context reaches the LLM prompt, so adversarial document content cannot trigger interactive tool cards.
 
-### C. Explicit Non-Goals (Out of Scope for Phase 2)
+#### C. Explicit Non-Goals (Out of Scope for Phase 2)
 - No write tools (`write_file`, shell execution, system commands).
 - No internet access or web search tool execution in MCP host.
 - No third-party external MCP server installer or marketplace.
@@ -331,9 +343,9 @@ StarkLLM provides in-process local read-only tool calling for the running FastAP
 
 ---
 
-## Phase 1.5 — Honest Citations + Live KB Folder Watcher *(branch: phase-1.5-citations-and-gkb-sync)*
+### Phase 1.5 — Honest Citations + Live KB Folder Watcher *(branch: phase-1.5-citations-and-gkb-sync)*
 
-### A. Citations — page / section locators
+#### A. Citations — page / section locators
 
 - **PDF**: Source headers now show `filename (Page N)` using the 1-indexed PDF page number stored in Chroma metadata.
 - **DOCX**: Parser groups paragraphs by heading style (Heading 1/2, Title). Each group emits a `Section: 'Title' ChunkN` locator — no invented paragraph numbers.
@@ -343,7 +355,7 @@ StarkLLM provides in-process local read-only tool calling for the running FastAP
 - Source headers in the UI now display `filename (Page 4)` instead of bare filenames.
 - WS and KB source labels are delimited with `|` (not `,`) in HTTP headers to avoid ambiguity with locator text that may itself contain commas.
 
-### B. Global Knowledge Base — Real Windows folder mapping & interval-poll sync
+#### B. Global Knowledge Base — Real Windows folder mapping & interval-poll sync
 
 - **Windows folder mapping (Phase 1.5B)**:
   - The native Windows launcher (`start.exe`) allows mapping local Windows folders via `start.exe --add-folder` or the `[A]` command.
@@ -366,13 +378,13 @@ StarkLLM provides in-process local read-only tool calling for the running FastAP
 
 ---
 
-## Overview
+### Overview
 
 This is an official frozen research-beta snapshot of StarkLLM, designed for local-first privacy, document RAG, and personal knowledge base exploration using Docker and native Ollama on Windows.
 
 ---
 
-## What Works
+### What Works
 
 - **Clean Docker Startup**: Automatic database initialization on clean volume creation without Alembic schema collision.
 - **Pre-Configured Environment**: Ready-to-run `.env` shipped directly in the distribution archive with secure research defaults.
@@ -390,7 +402,7 @@ This is an official frozen research-beta snapshot of StarkLLM, designed for loca
 
 ---
 
-## Required Host Software & Prerequisites
+### Required Host Software & Prerequisites
 
 1. **Operating System**: Windows 10 / 11 with WSL2 enabled.
 2. **Docker Desktop**: Installed and running in the system tray.
@@ -403,7 +415,7 @@ This is an official frozen research-beta snapshot of StarkLLM, designed for loca
 
 ---
 
-## Known Limitations
+### Known Limitations
 
 - **Backup / Restore UI**: Full automated database and vector backup/restore UI is not yet implemented (manual volume backups supported).
 - **TTS Languages**: High-quality local Piper TTS models are included for English and German.
@@ -415,4 +427,4 @@ This is an official frozen research-beta snapshot of StarkLLM, designed for loca
 
 ## Disclaimer
 
-StarkLLM is provided "as is" as an open-source Research Beta without commercial warranty or SLA.
+StarkLLM is provided "as is" under the Apache License 2.0, without warranty of any kind.

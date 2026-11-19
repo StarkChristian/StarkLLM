@@ -20,7 +20,10 @@ those too, so you can switch them off yourself.
 1. Press `Win + R`, type `resmon`, press Enter. Open the **Network** tab.
 2. Open **TCP Connections** and **Listening Ports**. Sort **Remote Address**.
 3. Use StarkLLM: ask a question, add a document, open Settings. Look at rows whose **Image** is `StarkLLM.exe`,
-   `com.docker.backend.exe`, `ollama.exe`, `ollama app.exe`, `docker.exe`, `wsl.exe`.
+   `python.exe` (StarkLLM's engine; it lives in `%LOCALAPPDATA%\Programs\StarkLLM\resources\engine-native\runtime\`,
+   hover over the row or use the Details tab of Task Manager to see the path), `tesseract.exe` (reads photos and scans),
+   `ollama.exe`, `ollama app.exe`, and only if you chose Docker Desktop for the engine `com.docker.backend.exe`,
+   `docker.exe`, `wsl.exe`.
 4. What you should see with Fully offline **on**: only `127.0.0.1`, `::1`, `localhost` (and for Docker Desktop,
    `host.docker.internal` / `192.168.65.x`, which is your own PC). Any other remote address is a finding: please report it
    (see the end of this page).
@@ -85,6 +88,7 @@ The strongest offline switch is one that StarkLLM cannot turn off: a firewall ru
 ```powershell
 # block outgoing connections of the programs (change the paths to yours); remove the rules to allow them again
 New-NetFirewallRule -DisplayName "StarkLLM offline" -Direction Outbound -Action Block -Program "$env:LOCALAPPDATA\Programs\StarkLLM\StarkLLM.exe"
+New-NetFirewallRule -DisplayName "StarkLLM engine offline" -Direction Outbound -Action Block -Program "$env:LOCALAPPDATA\Programs\StarkLLM\resources\engine-native\runtime\python.exe"
 New-NetFirewallRule -DisplayName "Ollama offline"   -Direction Outbound -Action Block -Program "$env:LOCALAPPDATA\Programs\Ollama\ollama app.exe"
 New-NetFirewallRule -DisplayName "Ollama server offline" -Direction Outbound -Action Block -Program "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe"
 ```
@@ -94,6 +98,9 @@ models on your PC. Docker Desktop needs its own rule if you want it blocked too 
 engine and a model are installed, the app runs with these rules.
 
 ## 5. Docker: the engine with no network at all
+
+This part is for the source code. The installed app runs its engine without Docker; to cut that engine off from the
+network, use the firewall rule for its `python.exe` in step 4.
 
 The engine is a container. You can run it with **no network device**: it then cannot connect even if it wanted to, and
 the proof does not depend on any of StarkLLM's code.

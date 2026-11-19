@@ -266,7 +266,7 @@ function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null,
       type: 'warning',
       title: t('StarkLLM update'),
       message: t('Windows has not started the StarkLLM {version} installer yet.', { version: latest }),
-      detail: t('Windows checks a program it does not know yet before it lets it run (Smart App Control). StarkLLM is not signed yet, so a new version can be held back for a few hours after its release.\n\nStarkLLM keeps running with version {current}; nothing was changed. StarkLLM tries again when you quit it, or try it later with "Check for updates" (the update is already downloaded).', { current }),
+      detail: t('Windows checks a new program before it lets it run (Smart App Control, or your antivirus program). This can hold back a new version for a while after its release.\n\nStarkLLM keeps running with version {current}; nothing was changed. StarkLLM tries again when you quit it, or try it later with "Check for updates" (the update is already downloaded).', { current }),
       buttons: [t('OK'), t('Open download page')],
       defaultId: 0,
       cancelId: 0
