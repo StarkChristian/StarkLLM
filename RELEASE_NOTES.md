@@ -1,5 +1,15 @@
 # StarkLLM Release Notes
 
+## Version 2.4.0 — Your phone joins in (preview)
+
+- **Your Android phone (preview).** Settings → Phone pairs the StarkLLM app for Android with this PC through a QR code. From the phone you ask about your documents, send photos of letters, see your deadlines and mark them done. The documents and the AI model stay on this PC: the phone connects over your home network only, encrypted with a certificate it checks, and only after you paired it. Off by default; per phone you choose what it may do (ask only; also send documents; also start a backup or switch fully offline). A question from the phone never goes online: no web search and no cloud models. "Fully offline" closes the link. The Android app is in a closed test on Google Play: www.starkllm.com/android.
+- **First start.** The update check now waits for your answer to "stay online or go fully offline", so the two questions no longer appear at once.
+- **Texts that are true.** When Windows holds back a new version, the message no longer says StarkLLM is unsigned (it is signed since 2.1.2). README, release notes, security and privacy documents describe the app as it is today.
+
+**From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install".
+
+Pull requests: #143, #145, #148, #149, #150, #152. The Android app: #144, #146, #147, #151.
+
 ## Version 2.3.0 — Whole books, e-books and faster answers on more PCs
 
 - **Questions about a whole document.** For large documents (about 30 pages and more) StarkLLM now writes short summaries in the background: one per chapter, one per group of chapters and one of the whole document. Questions like "Summarize the book", "How does it end?" or "Who are the main characters?" are answered from them, with the pages they cover. Before, an answer saw only a few passages and often said it could not tell. The summaries are built one document at a time, at a gentle pace so a laptop does not get hot: they rest after every step, wait while a laptop runs on battery, take a break when an NVIDIA graphics card gets hot, and pause while you chat. The document list shows the progress ("Summary 40 %"). With protection at rest they are encrypted like the document.
