@@ -15,7 +15,7 @@ user paired it in Settings > Phone on the PC.
 | Add | Camera (photo of a letter), photos, files (PDF, EPUB, Word, PowerPoint, text, images) into a workspace; the PC reads them, also the text in photos. "Share" from other apps does the same. |
 | Dictation | Hold the microphone button; the recording is turned into text by the speech model on the PC (not an online service) and lands in the question field. |
 | Deadlines | Overdue, today, this week, later, done; "Done" marks it on the PC. Reminders (off by default) check the PC every few hours while the phone is at home; no cloud push. A home-screen widget shows the next three. |
-| This PC | Connection, StarkLLM version, AI model, automatic backup, protection at rest, what this phone may do; at "manage": back up now and switch fully offline, each confirmed with the fingerprint (or face, or the phone's PIN). |
+| This PC | Connection, StarkLLM version, AI model, automatic backup, protection at rest, what this phone may do; at "manage": back up now and switch fully offline, each confirmed with the fingerprint (or face, or the phone's PIN) on the phone. The PC trusts the phone's token for these actions; the fingerprint protects against someone else picking up the unlocked phone, not against a copied token. |
 | Settings | App lock (fingerprint when the app opens), reminders, shortcuts (Quick Settings tile "Ask StarkLLM", widget, share). |
 | Languages | The languages of the desktop app: English, German, Spanish, French, Italian, Turkish. Larger system text is followed by half. |
 
@@ -51,15 +51,19 @@ small HTTPS server in the desktop app (Electron main process) in front of it:
    | Level | Method | Path (`/api/v1/...`) |
    |---|---|---|
    | ask | GET | `auth/me`, `workspaces/`, `chat/sessions/{ws}`, `chat/session/{id}`, `chat/messages/{id}`, `chat/models`, `documents/{ws}`, `documents/{ws}/documents/{id}/status`, `dashboard/home`, `dashboard/inbox`, `dashboard/inbox/count`, `dashboard/deadlines`, `dashboard/system-status` |
-   | ask | POST | `auth/login`, `chat/`, `chat/save-partial`, `chat/sessions/{ws}`, `voice/transcribe` (dictation with the PC's speech model) |
-   | work | POST, PUT, DELETE | `documents/{ws}/upload`, `dashboard/deadlines/done`, `chat/session/{id}` |
-   | manage | POST | `/phone/v1/actions/backup-now`, `/phone/v1/actions/go-offline`: actions of the desktop app, not of the engine; the app asks for the fingerprint first |
+   | ask | POST | `auth/login`, `chat/`, `chat/sessions/{ws}`, `voice/transcribe` (dictation with the PC's speech model) |
+   | work | POST, PUT, DELETE | `documents/{ws}/upload`, `dashboard/deadlines/done`, `chat/session/{id}`, `chat/save-partial` |
+   | manage | POST | `/phone/v1/actions/backup-now`, `/phone/v1/actions/go-offline`: actions of the desktop app, not of the engine; the phone app asks for the fingerprint first (checked on the phone, not on the PC) |
 
    `GET /phone/v1/status` tells every paired phone its level and what the desktop app knows about the PC (backup,
    protection; no paths, keys or file names). Not reachable from the phone: engine settings, model downloads,
    backup files, protection keys, knowledge base, tools (MCP), the OpenAI compatible API, imports from the web, and
-   everything of the system. A chat request loses `provider`, `api_key` and `base_url`: the phone always uses the
-   local model.
+   everything of the system. A phone question stays on the PC: a chat request loses `provider`, `api_key`,
+   `base_url` and `use_web_search`, a request for one of Ollama's cloud models is refused, and `chat/models` lists no
+   cloud models.
+   Limits: request bodies up to 1 MB (documents 110 MB, dictation 25 MB); 20 wrong pairing codes or 5 wrong passwords
+   block the address for 10 minutes; wrong codes do not close the pairing of the person at the PC. A device without a
+   pairing that tries the port is listed as refused in Settings > Privacy & network (once per 10 minutes).
 7. **Who is signed in.** With one user on the PC (the usual case) the phone link adds the local user's session, so the
    phone needs no password. Where StarkLLM has several accounts, the app shows the login and sends its own sign-in.
 8. **Only the home network.** Connections from addresses that are not private (RFC 1918, link-local, this PC) are

@@ -7,8 +7,9 @@
 //    (5 minutes, single use). The phone trades the code for a device token; only a hash of the token is kept here.
 //  * Every request needs a device token and must be on the allow-list (ALLOWED) at the phone's level (LEVELS: ask,
 //    work, manage; set per phone in Settings > Phone): chat, workspaces, documents, upload, inbox, deadlines, the list
-//    of models, dictation. No engine settings, backup, protection, model downloads, tools or system calls. A chat
-//    request cannot pick an online provider: the phone always uses the local model. Phones at "manage" may also run a
+//    of models, dictation. No engine settings, backup, protection, model downloads, tools or system calls. A phone
+//    question stays on the PC: a chat request cannot pick an online provider, web search or one of Ollama's cloud
+//    models, and the list of models the phone sees has no cloud models. Phones at "manage" may also run a
 //    few actions of the desktop app (PHONE_ACTIONS: back up now, go fully offline).
 //  * Only devices of the home network (and this PC) may connect. Every phone connection is recorded by the network
 //    layer (netguard.js, feature "phone_link") and refused while the app is fully offline.
@@ -26,11 +27,14 @@ const { classify } = require('./netguard');
 const FIRST_PORT = 47615;
 const PORT_TRIES = 10;
 const PAIR_MS = 5 * 60 * 1000;
-const MAX_PAIR_FAILURES = 10;
 const MAX_DEVICES = 10;
 const FAILURES_BEFORE_BLOCK = 20;
 const BLOCK_MS = 10 * 60 * 1000;
 const SMALL_BODY = 1024 * 1024;        // chat questions and pairing requests are read whole; uploads are streamed
+const MAX_UPLOAD = 110 * 1024 * 1024;  // a document (the engine refuses more than 100 MB) with its form fields
+const MAX_VOICE = 25 * 1024 * 1024;    // a dictation: the engine reads it whole into memory
+const LOGIN_WEIGHT = 4;                // a wrong password counts as 4 failures: an address is blocked after 5
+const PROBE_LOG_MS = 10 * 60 * 1000;   // a device without a pairing is listed once per 10 minutes and address
 const DEVICE_HEADER = 'x-starkllm-device';
 
 // What a phone may do, set per phone in Settings > Phone (owner's plan 2026-11-18, "permission like the Claude app"):
@@ -52,11 +56,11 @@ const ALLOWED = [
   ['GET', /^\/api\/v1\/chat\/messages\/\d+$/, 'ask'],
   ['GET', /^\/api\/v1\/chat\/models$/, 'ask'],
   ['POST', /^\/api\/v1\/chat\/?$/, 'ask'],
-  ['POST', /^\/api\/v1\/chat\/save-partial$/, 'ask'],
   ['POST', /^\/api\/v1\/voice\/transcribe$/, 'ask'],
   ['GET', /^\/api\/v1\/documents\/\d+$/, 'ask'],
   ['GET', /^\/api\/v1\/documents\/\d+\/documents\/\d+\/status$/, 'ask'],
   ['GET', /^\/api\/v1\/dashboard\/(home|inbox|inbox\/count|deadlines|system-status)$/, 'ask'],
+  ['POST', /^\/api\/v1\/chat\/save-partial$/, 'work'],
   ['DELETE', /^\/api\/v1\/chat\/session\/\d+$/, 'work'],
   ['POST', /^\/api\/v1\/documents\/\d+\/upload$/, 'work'],
   ['PUT', /^\/api\/v1\/dashboard\/deadlines\/done$/, 'work']
@@ -64,8 +68,12 @@ const ALLOWED = [
 // Actions on this PC itself (not the engine), for phones at the level "manage": POST /phone/v1/actions/<name>
 const PHONE_ACTIONS = ['backup-now', 'go-offline'];
 const CHAT = /^\/api\/v1\/chat\/?$/;
-// fields of a chat request the phone may not set: they would send the question to an online provider
-const CHAT_FIELDS_DROPPED = ['provider', 'api_key', 'base_url'];
+// fields of a chat request the phone may not set: they would send the question to an online provider or the web
+const CHAT_FIELDS_DROPPED = ['provider', 'api_key', 'base_url', 'use_web_search'];
+const MODELS = /^\/api\/v1\/chat\/models$/;
+const LOGIN = /^\/api\/v1\/auth\/login$/;
+const UPLOAD = /^\/api\/v1\/documents\/\d+\/upload$/;
+const VOICE = /^\/api\/v1\/voice\/transcribe$/;
 const FORWARDED_HEADERS = ['content-type', 'content-length', 'accept', 'accept-language', 'authorization'];
 const HOP_HEADERS = new Set(['connection', 'keep-alive', 'transfer-encoding', 'upgrade', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer', 'set-cookie']);
 
@@ -75,6 +83,21 @@ function neededLevel(method, pathname) {
   return hit ? hit[2] : null;
 }
 const isAllowed = (method, pathname) => neededLevel(method, pathname) !== null;
+
+// The largest body a phone may send with an engine call
+function bodyLimit(pathname) {
+  if (UPLOAD.test(pathname)) return MAX_UPLOAD;
+  if (VOICE.test(pathname)) return MAX_VOICE;
+  return SMALL_BODY;
+}
+
+// Ollama's cloud models run on Ollama's servers although StarkLLM talks to the local Ollama. The same rule as
+// is_cloud_model in backend/app/core/netguard.py.
+function isCloudModel(name) {
+  const n = String(name || '').toLowerCase();
+  if (!n) return false;
+  return n.endsWith(':cloud') || n.endsWith('-cloud') || n.split('/').pop().includes(':cloud') || n.split(':').pop().includes('-cloud');
+}
 const levelOf = (device) => (LEVELS.includes(device && device.level) ? device.level : DEFAULT_LEVEL);
 
 const plainAddress = (a) => String(a || '').replace(/^::ffff:/i, '');
@@ -163,6 +186,7 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, lo
   const sockets = new Map();     // open TLS connection -> device id (once it showed a token)
   const rawSockets = new Set();  // every open connection, also during the handshake (closed by stop())
   const failures = new Map();    // address -> { count, until }
+  const probes = new Map();      // address -> when a device without a pairing from there was last listed
 
   function save() {
     try {
@@ -192,16 +216,30 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, lo
     const f = failures.get(address);
     return Boolean(f && f.until > now());
   };
-  const failed = (address) => {
+  const failed = (address, weight = 1) => {
     const f = failures.get(address) || { count: 0, until: 0 };
-    f.count += 1;
+    f.count += weight;
     if (f.count >= FAILURES_BEFORE_BLOCK) {
       f.until = now() + BLOCK_MS;
       f.count = 0;
-      log(`phone link: ${address} blocked for 10 minutes after repeated wrong codes`);
+      log(`phone link: ${address} blocked for 10 minutes after repeated wrong codes or passwords`);
     }
     failures.set(address, f);
   };
+
+  // A device without a pairing (or with a removed one) is listed in Settings > Privacy & network as refused, at most
+  // once per 10 minutes and address, so someone trying the port on the home network is visible.
+  function probed(address) {
+    const t = now();
+    if (t - (probes.get(address) || 0) < PROBE_LOG_MS) return;
+    if (probes.size > 256) probes.clear();
+    probes.set(address, t);
+    try {
+      guard.record({ feature: 'phone_link', host: address, purpose: 'A device without a pairing tried the phone link', method: 'IN', scheme: 'https', outcome: 'blocked', error: 'not paired' });
+    } catch (e) {
+      // the list is not essential here
+    }
+  }
 
   function deviceFor(token) {
     if (!token) return null;
@@ -228,14 +266,10 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, lo
       pairing = null;
       return send(res, 410, { error: 'pairing-closed' });
     }
+    // A wrong code blocks only the address that sent it (after 20). It does not close the pairing: with a 128-bit
+    // code that would protect nothing, and anyone on the network could close the pairing of the person at the PC.
     if (typeof body.code !== 'string' || !sameSecret(body.code, pairing.code)) {
       failed(address);
-      pairing.failures += 1;
-      if (pairing.failures >= MAX_PAIR_FAILURES) {
-        pairing = null;
-        log('phone link: pairing closed after wrong codes');
-        onChange();
-      }
       return send(res, 401, { error: 'wrong-code' });
     }
     pairing = null;
@@ -274,24 +308,29 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, lo
     }
   }
 
-  async function forward(req, res, url, device) {
+  async function forward(req, res, url, address) {
     const api = getApi() || {};
     if (!api.url) return send(res, 503, { error: 'engine-not-ready' });
+    const limit = bodyLimit(url.pathname);
+    if (Number(req.headers['content-length']) > limit) return send(res, 413, { error: 'too-large' });
     const target = new URL(api.url);
     const headers = {};
     for (const h of FORWARDED_HEADERS) if (req.headers[h] !== undefined) headers[h] = req.headers[h];
     const injected = !headers.authorization && api.token;
     if (injected) headers.authorization = `Bearer ${api.token}`;
     let body = null;
+    let model = null;
     if (req.method === 'POST' && CHAT.test(url.pathname)) {
       try {
         const data = JSON.parse((await readBody(req, SMALL_BODY)).toString('utf8'));
         if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('not an object');
         for (const f of CHAT_FIELDS_DROPPED) delete data[f];
+        model = data.model;
         body = Buffer.from(JSON.stringify(data));
       } catch (e) {
         return send(res, e.status || 400, { error: 'bad-request' });
       }
+      if (isCloudModel(model)) return send(res, 403, { error: 'cloud-model-not-on-phone' });
       headers['content-type'] = 'application/json';
       headers['content-length'] = String(body.length);
     }
@@ -300,19 +339,60 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, lo
       headers: { ...headers, host: target.host }
     }, (up) => {
       if (up.statusCode === 401 && injected) refreshToken().catch(() => {});
+      if (up.statusCode === 401 && LOGIN.test(url.pathname)) failed(address, LOGIN_WEIGHT);
+      if (up.statusCode === 200 && req.method === 'GET' && MODELS.test(url.pathname)) return withoutCloudModels(up, res);
       const out = {};
       for (const [k, v] of Object.entries(up.headers)) if (!HOP_HEADERS.has(k)) out[k] = v;
       res.writeHead(up.statusCode, out);
       up.pipe(res);
     });
+    let tooLarge = false;
     upstream.on('error', (e) => {
+      if (tooLarge) return;
       log(`phone link: engine not reached (${e.code || e.message})`);
       send(res, 502, { error: 'engine-not-reached' });
     });
     res.on('close', () => upstream.destroy());
-    if (body) upstream.end(body);
-    else req.pipe(upstream);
+    if (body) {
+      upstream.end(body);
+      return undefined;
+    }
+    // a body without a length (chunked) is counted too
+    let size = 0;
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > limit && !tooLarge) {
+        tooLarge = true;
+        req.unpipe(upstream);
+        upstream.destroy();
+        send(res, 413, { error: 'too-large' });
+        req.destroy();
+      }
+    });
+    req.pipe(upstream);
     return undefined;
+  }
+
+  // GET /api/v1/chat/models: the list without Ollama's cloud models (a small JSON answer, read whole)
+  function withoutCloudModels(up, res) {
+    const chunks = [];
+    let size = 0;
+    up.on('data', (c) => {
+      size += c.length;
+      if (size <= SMALL_BODY) chunks.push(c);
+    });
+    up.on('end', () => {
+      try {
+        if (size > SMALL_BODY) throw new Error('too large');
+        const data = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        if (Array.isArray(data.models)) data.models = data.models.filter((m) => !isCloudModel(typeof m === 'string' ? m : m && m.name));
+        send(res, 200, data);
+      } catch (e) {
+        log(`phone link: list of models not read (${e.message})`);
+        send(res, 502, { error: 'engine-not-reached' });
+      }
+    });
+    up.on('error', () => send(res, 502, { error: 'engine-not-reached' }));
   }
 
   async function handle(req, res) {
@@ -336,6 +416,7 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, lo
     const device = deviceFor(req.headers[DEVICE_HEADER]);
     if (!device) {
       failed(address);
+      probed(address);
       return send(res, 401, { error: 'not-paired' });
     }
     if (!sockets.get(req.socket)) {
@@ -369,7 +450,7 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, lo
     const needs = neededLevel(req.method, url.pathname);
     if (!needs) return send(res, 404, { error: 'not-available-on-phone' });
     if (!atLeast(level, needs)) return send(res, 403, { error: 'not-allowed', needs, level });
-    return forward(req, res, url, device);
+    return forward(req, res, url, address);
   }
 
   function listenOn(p, tls) {
@@ -496,7 +577,7 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, lo
       const addresses = homeAddresses(interfaces());
       if (!addresses.length) return { error: 'no-network' };
       if (state.devices.length >= MAX_DEVICES) return { error: 'too-many-devices' };
-      pairing = { code: crypto.randomBytes(16).toString('base64url'), expires: now() + PAIR_MS, failures: 0 };
+      pairing = { code: crypto.randomBytes(16).toString('base64url'), expires: now() + PAIR_MS };
       return { uri: pairingUri({ pcName, addresses, port, fingerprint, code: pairing.code }), expiresAt: pairing.expires, addresses, port };
     },
     cancelPairing() {
@@ -527,5 +608,5 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, lo
   };
 }
 
-module.exports = { createPhoneLink, isAllowed, neededLevel, homeAddresses, pairingUri, ALLOWED, LEVELS, DEFAULT_LEVEL, PHONE_ACTIONS,
-  CHAT_FIELDS_DROPPED, DEVICE_HEADER, FIRST_PORT };
+module.exports = { createPhoneLink, isAllowed, neededLevel, homeAddresses, pairingUri, isCloudModel, bodyLimit, ALLOWED, LEVELS,
+  DEFAULT_LEVEL, PHONE_ACTIONS, CHAT_FIELDS_DROPPED, DEVICE_HEADER, FIRST_PORT };
