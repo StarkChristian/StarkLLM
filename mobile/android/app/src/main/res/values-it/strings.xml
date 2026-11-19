@@ -47,7 +47,7 @@
     <string name="stop">Interrompi</string>
     <string name="thinking">Lettura dei documenti…</string>
     <string name="answer_failed">La risposta si è interrotta.</string>
-    <string name="unverified_quotes">StarkLLM non ha trovato queste parole citate nei documenti. Le verifichi prima di farvi affidamento:</string>
+    <string name="unverified_quotes">StarkLLM non ha trovato queste parole citate nei documenti. Verificatele prima di farvi affidamento:</string>
     <string name="pc_version">StarkLLM %1$s sul PC</string>
     <string name="unpair">Dissocia questo telefono</string>
     <string name="unpair_confirm">Per usare di nuovo StarkLLM vi servirà un nuovo codice QR dal PC. Rimuovete anche questo telefono sul PC in Impostazioni &gt; Telefono.</string>
@@ -129,7 +129,7 @@
     <string name="app_lock_hint">Chiedere impronta, volto o PIN all\'apertura</string>
     <string name="app_lock_unavailable">Impostate prima un blocco schermo sul telefono</string>
     <string name="reminders">Promemoria delle scadenze</string>
-    <string name="reminders_hint">Quando il telefono è a casa, controlla il PC ogni poche ore. Nessun servizio cloud.</string>
+    <string name="reminders_hint">Quando il telefono è a casa, controlla il PC ogni qualche ora. Nessun servizio cloud.</string>
     <string name="shortcuts">Scorciatoie</string>
     <string name="shortcuts_hint">Aggiungete il riquadro «Chiedi a StarkLLM» alle impostazioni rapide e il widget «Scadenze StarkLLM» alla schermata home. Condividete PDF e foto da altre app con StarkLLM.</string>
     <string name="about">Informazioni</string>
@@ -177,7 +177,7 @@
     <string name="help_dictate_title">Dettare</string>
     <string name="help_dictate">• Tenete premuto il microfono mentre parlate, poi rilasciate.\n• La registrazione va al PC; il suo modello vocale scrive il testo nel campo. Nessun servizio online.\n• La prima volta il PC scarica una sola volta il suo modello vocale.</string>
     <string name="help_deadlines_title">Scadenze e promemoria</string>
-    <string name="help_deadlines">• Il PC legge scadenze e importi dalle lettere con regole fisse (nessuna ipotesi dell\'IA).\n• «Fatto» segna una scadenza come pagata o sbrigata, anche sul PC.\n• Impostazioni &gt; Promemoria delle scadenze: a casa il telefono controlla il PC ogni poche ore.\n• Widget «Scadenze StarkLLM»: tenete premuta la schermata home &gt; Widget.</string>
+    <string name="help_deadlines">• Il PC legge scadenze e importi dalle lettere con regole fisse (nessuna ipotesi dell\'IA).\n• «Fatto» segna una scadenza come pagata o sbrigata, anche sul PC.\n• Impostazioni &gt; Promemoria delle scadenze: a casa il telefono controlla il PC ogni qualche ora.\n• Widget «Scadenze StarkLLM»: tenete premuta la schermata home &gt; Widget.</string>
     <string name="help_pcs_title">PC e permessi del telefono</string>
     <string name="help_pcs">• Sul PC, Impostazioni &gt; Telefono stabilisce per ogni telefono: solo domande, domande e invio di documenti, oppure anche gestione del PC.\n• «Questo PC» mostra modello, backup e protezione e con «gestire» offre Esegui backup ora e Passa offline, ogni volta dopo la vostra impronta.\n• Più PC: cambiate dal menu.</string>
     <string name="help_privacy_title">Privacy e sicurezza</string>

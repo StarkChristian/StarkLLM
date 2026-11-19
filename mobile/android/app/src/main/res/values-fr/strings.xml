@@ -129,7 +129,7 @@
     <string name="app_lock_hint">Demander l\'empreinte, le visage ou le code à l\'ouverture</string>
     <string name="app_lock_unavailable">Configurez d\'abord un verrouillage d\'écran sur le téléphone</string>
     <string name="reminders">Rappels d\'échéances</string>
-    <string name="reminders_hint">Quand le téléphone est à la maison, il consulte le PC toutes les quelques heures. Aucun service cloud.</string>
+    <string name="reminders_hint">Quand le téléphone est à la maison, il consulte régulièrement le PC. Aucun service cloud.</string>
     <string name="shortcuts">Raccourcis</string>
     <string name="shortcuts_hint">Ajoutez la tuile « Demander à StarkLLM » aux réglages rapides et le widget « Échéances StarkLLM » à l\'écran d\'accueil. Partagez des PDF et des photos d\'autres apps vers StarkLLM.</string>
     <string name="about">À propos</string>
@@ -177,7 +177,7 @@
     <string name="help_dictate_title">Dicter</string>
     <string name="help_dictate">• Maintenez le bouton micro pendant que vous parlez, puis relâchez.\n• L\'enregistrement va à votre PC ; son modèle vocal écrit le texte dans le champ. Aucun service en ligne.\n• La première fois, le PC télécharge son modèle vocal une seule fois.</string>
     <string name="help_deadlines_title">Échéances et rappels</string>
-    <string name="help_deadlines">• Le PC lit échéances et montants dans vos courriers selon des règles fixes (aucune devinette d\'IA).\n• « Fait » marque une échéance comme payée ou traitée, aussi sur le PC.\n• Paramètres &gt; Rappels d\'échéances : à la maison, le téléphone consulte le PC toutes les quelques heures.\n• Widget « Échéances StarkLLM » : appui long sur l\'écran d\'accueil &gt; Widgets.</string>
+    <string name="help_deadlines">• Le PC lit échéances et montants dans vos courriers selon des règles fixes (aucune devinette d\'IA).\n• « Fait » marque une échéance comme payée ou traitée, aussi sur le PC.\n• Paramètres &gt; Rappels d\'échéances : à la maison, le téléphone consulte régulièrement le PC.\n• Widget « Échéances StarkLLM » : appui long sur l\'écran d\'accueil &gt; Widgets.</string>
     <string name="help_pcs_title">PC et droits du téléphone</string>
     <string name="help_pcs">• Sur le PC, Paramètres &gt; Téléphone fixe pour chaque téléphone : seulement demander, demander et envoyer, ou aussi gérer le PC.\n• « Ce PC » montre modèle, sauvegarde et protection, et avec « gérer » propose Sauvegarder maintenant et Passer hors ligne, chaque fois après votre empreinte.\n• Plusieurs PC : changez dans le menu.</string>
     <string name="help_privacy_title">Confidentialité et sécurité</string>
