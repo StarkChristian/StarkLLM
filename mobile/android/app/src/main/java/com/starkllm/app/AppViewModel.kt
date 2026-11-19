@@ -131,6 +131,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             ?: listOf(Build.MANUFACTURER.replaceFirstChar { it.uppercase() }, Build.MODEL).joinToString(" ")
 
     private fun failed(e: Exception) {
+        android.util.Log.w("StarkLLM", "request failed", e)   // only the phone's own log (logcat); no network
         val problem = (e as? ApiException)?.problem ?: Problem.UNREACHABLE
         if (problem == Problem.UNPAIRED || problem == Problem.WRONG_PC) forgetCurrent()
         _state.update { it.copy(notice = Notice(problem)) }

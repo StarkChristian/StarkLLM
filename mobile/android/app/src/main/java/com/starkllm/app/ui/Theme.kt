@@ -5,7 +5,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import android.app.Activity
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
@@ -49,6 +53,18 @@ fun StarkTheme(themeId: String = SYSTEM_THEME, content: @Composable () -> Unit) 
         LocalDensity provides Density(density.density, dampedFontScale(density.fontScale)),
         LocalStarkTheme provides theme,
     ) {
+        // dark status bar icons on the light themes, light ones on the dark themes
+        val view = LocalView.current
+        if (!view.isInEditMode) {
+            SideEffect {
+                (view.context as? Activity)?.window?.let { w ->
+                    WindowCompat.getInsetsController(w, view).apply {
+                        isAppearanceLightStatusBars = theme.light
+                        isAppearanceLightNavigationBars = theme.light
+                    }
+                }
+            }
+        }
         MaterialTheme(colorScheme = colorSchemeOf(theme), typography = Compact, content = content)
     }
 }

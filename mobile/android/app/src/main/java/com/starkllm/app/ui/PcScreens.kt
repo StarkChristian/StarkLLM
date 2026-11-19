@@ -367,7 +367,7 @@ private val THEME_NAMES = mapOf(
 @Composable
 private fun ThemePicker(selected: String, onSelect: (String) -> Unit) {
     val systemDark = isSystemInDarkTheme()
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         ThemeTile(themeFor(SYSTEM_THEME, systemDark), stringResource(R.string.theme_system), selected == SYSTEM_THEME, split = true) { onSelect(SYSTEM_THEME) }
         THEMES.forEach { t ->
             ThemeTile(t, stringResource(THEME_NAMES[t.id] ?: R.string.theme_dark), selected == t.id) { onSelect(t.id) }
@@ -379,9 +379,9 @@ private fun ThemePicker(selected: String, onSelect: (String) -> Unit) {
 @Composable
 private fun ThemeTile(t: AppTheme, name: String, selected: Boolean, split: Boolean = false, onClick: () -> Unit) {
     val border = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-    Column(Modifier.width(100.dp).clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.width(90.dp).clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
-            Modifier.fillMaxWidth().height(70.dp).clip(RoundedCornerShape(14.dp))
+            Modifier.fillMaxWidth().height(62.dp).clip(RoundedCornerShape(14.dp))
                 .border(if (selected) 2.dp else 1.dp, border, RoundedCornerShape(14.dp)),
         ) {
             if (split) {
@@ -393,9 +393,9 @@ private fun ThemeTile(t: AppTheme, name: String, selected: Boolean, split: Boole
                 ThemeBackground(t, Modifier.fillMaxSize())
             }
             Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Box(Modifier.size(width = 54.dp, height = 12.dp).clip(RoundedCornerShape(4.dp)).background(if (split) THEMES.first().card else t.card))
-                Box(Modifier.align(Alignment.End).size(width = 40.dp, height = 12.dp).clip(RoundedCornerShape(4.dp)).background(gradientOf(t)))
-                Box(Modifier.size(width = 64.dp, height = 12.dp).clip(RoundedCornerShape(4.dp)).background(if (split) THEMES.first { it.id == "light" }.card else t.card))
+                Box(Modifier.size(width = 48.dp, height = 10.dp).clip(RoundedCornerShape(4.dp)).background(if (split) THEMES.first().card else t.card))
+                Box(Modifier.align(Alignment.End).size(width = 36.dp, height = 10.dp).clip(RoundedCornerShape(4.dp)).background(gradientOf(t)))
+                Box(Modifier.size(width = 56.dp, height = 10.dp).clip(RoundedCornerShape(4.dp)).background(if (split) THEMES.first { it.id == "light" }.card else t.card))
             }
             if (selected) {
                 Box(Modifier.align(Alignment.TopEnd).padding(5.dp).size(18.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary),
@@ -404,7 +404,7 @@ private fun ThemeTile(t: AppTheme, name: String, selected: Boolean, split: Boole
                 }
             }
         }
-        Text(name, style = MaterialTheme.typography.labelMedium, maxLines = 2, textAlign = TextAlign.Center,
+        Text(name, style = MaterialTheme.typography.labelSmall, maxLines = 2, textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 5.dp, bottom = 2.dp))
     }
 }
