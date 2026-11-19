@@ -12,6 +12,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import okhttp3.Call
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
@@ -23,7 +24,7 @@ import java.security.cert.CertificateException
 import javax.net.ssl.SSLException
 
 /** Why a request failed, in words the screens can show (strings.xml) */
-enum class Problem { UNREACHABLE, WRONG_PC, CODE_CLOSED, WRONG_CODE, TOO_MANY_DEVICES, UNPAIRED, PC_OFFLINE, NOT_SIGNED_IN, SERVER }
+enum class Problem { UNREACHABLE, WRONG_PC, CODE_CLOSED, WRONG_CODE, TOO_MANY_DEVICES, UNPAIRED, PC_OFFLINE, NOT_SIGNED_IN, NOT_ALLOWED, SERVER }
 
 class ApiException(val problem: Problem, val detail: String = "") : IOException("$problem $detail")
 
@@ -97,6 +98,7 @@ class StarkApi(
                 code == "pairing-closed" -> Problem.CODE_CLOSED
                 code == "wrong-code" -> Problem.WRONG_CODE
                 code == "too-many-devices" -> Problem.TOO_MANY_DEVICES
+                code == "not-allowed" -> Problem.NOT_ALLOWED
                 res.code == 401 -> Problem.NOT_SIGNED_IN
                 else -> Problem.SERVER
             },
@@ -129,11 +131,45 @@ class StarkApi(
         check(execute("DELETE", "/api/v1/chat/session/$chatId")).close()
     }
 
+    suspend fun models(): List<String> = get("/api/v1/chat/models", ModelList.serializer()).models.filter(::isChatModel)
+
+    suspend fun deadlines(): Deadlines = get("/api/v1/dashboard/deadlines", Deadlines.serializer())
+
+    suspend fun setDeadlineDone(key: String, done: Boolean) = withContext(Dispatchers.IO) {
+        val body = json.encodeToString(DoneRequest.serializer(), DoneRequest(key, done)).toRequestBody(JSON_TYPE)
+        check(execute("PUT", "/api/v1/dashboard/deadlines/done", body)).close()
+    }
+
+    suspend fun home(): Home = get("/api/v1/dashboard/home", Home.serializer())
+
+    suspend fun inboxCount(): Int = get("/api/v1/dashboard/inbox/count", InboxCount.serializer()).newCount
+
+    suspend fun engineStatus(): EngineStatus = get("/api/v1/dashboard/system-status", EngineStatus.serializer())
+
+    suspend fun pcStatus(): PcStatus = get("/phone/v1/status", PcStatus.serializer())
+
+    suspend fun action(name: String): ActionResult = post("/phone/v1/actions/$name", "{}", ActionResult.serializer())
+
+    /** A photo or document into a workspace; the PC reads it (OCR for photos) like any other upload. */
+    suspend fun upload(workspaceId: Int, fileName: String, file: RequestBody): UploadResult = withContext(Dispatchers.IO) {
+        val form = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("file", fileName, file).build()
+        check(execute("POST", "/api/v1/documents/$workspaceId/upload", form)).use { json.decodeFromString(UploadResult.serializer(), it.body.string()) }
+    }
+
+    /** Dictation: the recording is turned into text by the speech model on the PC, not by an online service. */
+    suspend fun transcribe(audio: ByteArray, fileName: String, mime: String, language: String?): String = withContext(Dispatchers.IO) {
+        val form = MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("file", fileName, audio.toRequestBody(mime.toMediaType()))
+            .apply { if (language != null) addFormDataPart("language", language) }
+            .build()
+        check(execute("POST", "/api/v1/voice/transcribe", form)).use { json.decodeFromString(Transcription.serializer(), it.body.string()).text.trim() }
+    }
+
     /**
      * Sends a question and streams the answer: onText gets the whole answer so far after every piece. Returns the chat's
      * id (new chats get one from the PC). Cancelling the coroutine stops the answer.
      */
-    suspend fun ask(request: ChatRequest, onText: (String) -> Unit): Int = withContext(Dispatchers.IO) {
+    suspend fun ask(request: ChatRequest, onChat: (Int) -> Unit = {}, onText: (String) -> Unit): Int = withContext(Dispatchers.IO) {
         var call: Call? = null
         val body = json.encodeToString(ChatRequest.serializer(), request).toRequestBody(JSON_TYPE)
         // "Stop": the coroutine is cancelled; closing the call ends the blocking read below
@@ -141,6 +177,7 @@ class StarkApi(
         try {
             check(execute("POST", "/api/v1/chat/", body) { call = it }).use { res ->
                 val chatId = res.header("X-Chat-ID")?.toIntOrNull() ?: request.chatId ?: 0
+                onChat(chatId)
                 val text = StringBuilder()
                 InputStreamReader(res.body.byteStream(), Charsets.UTF_8).use { reader ->
                     val buf = CharArray(1024)

@@ -4,19 +4,27 @@ StarkLLM for Android is a companion of StarkLLM on a Windows PC. The phone asks,
 and the AI model stay on the PC. The phone reaches the PC over the home network only, encrypted, and only after the
 user paired it in Settings > Phone on the PC.
 
-## What the phone does (first version)
+## What the phone does
 
 | Feature | How |
 |---|---|
-| Pair with the PC | Settings > Phone on the PC shows a QR code; the app scans it once. |
-| Ask about documents | Workspaces, chats, streaming answers with the same source line and the warning for quotations that are not in the documents. |
-| Photograph a letter | Camera, then upload into a workspace; the PC reads it (OCR) like any other upload. |
-| Share to StarkLLM | PDF, image, EPUB or PPTX from other apps into a workspace. |
-| Deadlines and inbox | Read from the PC while the phone is on the home network. No cloud push service. |
-| Languages | The languages of the desktop app, strings generated from `frontend/src/i18n/*.json`. |
+| Pair with PCs | Settings > Phone on the PC shows a QR code; the app scans it once. Several PCs (home, office) can be paired; the drawer switches between them. |
+| Home | A greeting, the next deadlines, new documents and example questions; a question asked here starts a chat in the chosen workspace. |
+| Drawer | Home, workspaces, deadlines, This PC, settings, and the latest chats of all workspaces. |
+| Ask about documents | Workspaces, chats, answers that stream in, formatted (headings, lists, bold, code), with the documents used as chips, the warning for quotations that are not in the documents, and Copy. Choice of the AI model (the PC's chat models) and of the knowledge base. An answer goes on when the chat or the app is left (a short foreground service while it comes in). |
+| Add | Camera (photo of a letter), photos, files (PDF, EPUB, Word, PowerPoint, text, images) into a workspace; the PC reads them, also the text in photos. "Share" from other apps does the same. |
+| Dictation | Hold the microphone button; the recording is turned into text by the speech model on the PC (not an online service) and lands in the question field. |
+| Deadlines | Overdue, today, this week, later, done; "Done" marks it on the PC. Reminders (off by default) check the PC every few hours while the phone is at home; no cloud push. A home-screen widget shows the next three. |
+| This PC | Connection, StarkLLM version, AI model, automatic backup, protection at rest, what this phone may do; at "manage": back up now and switch fully offline, each confirmed with the fingerprint (or face, or the phone's PIN). |
+| Settings | App lock (fingerprint when the app opens), reminders, shortcuts (Quick Settings tile "Ask StarkLLM", widget, share). |
+| Languages | The languages of the desktop app: English, German, Spanish, French, Italian, Turkish. Larger system text is followed by half. |
 
-The phone keeps only what it shows (chat list, the open chat) and a cache the user can clear. No analytics, no crash
-reporting service, no Firebase, no Google Play services: the app can also be offered outside Google Play.
+The phone keeps only what it shows (chat list, the open chat, the next deadlines for the widget) and settings. No
+analytics, no crash reporting service, no Firebase, no Google Play services: the app can also be offered outside
+Google Play.
+
+Permissions: internet (the home network), camera (QR code and photos, only after a tap), microphone (only while the
+button is held), notifications (reminders, and while an answer comes in), biometrics (app lock, actions on the PC).
 
 ## The phone link on the PC (`desktop/phonelink.js`)
 

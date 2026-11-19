@@ -16,7 +16,7 @@ import androidx.compose.ui.graphics.Color
 // The colours of StarkLLM on the PC (frontend/src/index.css: --accent #4f46e5, --accent-bright #818cf8, dark #07060b)
 private val Indigo = Color(0xFF4F46E5)
 private val IndigoBright = Color(0xFF818CF8)
-private val Night = Color(0xFF07060B)
+internal val Night = Color(0xFF07060B)
 
 private val Dark = darkColorScheme(
     primary = IndigoBright,

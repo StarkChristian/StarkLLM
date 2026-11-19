@@ -1,36 +1,95 @@
 package com.starkllm.app
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import android.os.SystemClock
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.core.content.IntentCompat
+import androidx.fragment.app.FragmentActivity
+import com.starkllm.app.ui.LockScreen
 import com.starkllm.app.ui.StarkApp
 import com.starkllm.app.ui.StarkTheme
 
-class MainActivity : ComponentActivity() {
+/** A file shared to StarkLLM from another app, waiting for the user to choose the workspace */
+data class Shared(val uri: Uri, val mime: String?)
+
+class MainActivity : FragmentActivity() {
     private val vm: AppViewModel by viewModels()
+    private var locked by mutableStateOf(false)
+    private var shared by mutableStateOf<Shared?>(null)
+    private var focusAsk by mutableStateOf(0)
+    private var stoppedAt = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        if (savedInstanceState == null) pairingLink(intent)
+        locked = vm.state.value.appLock
+        if (savedInstanceState == null) handle(intent)
         setContent {
             StarkTheme {
-                StarkApp(vm, onExit = { finish() })
+                if (locked) {
+                    LockScreen(this) { locked = false }
+                } else {
+                    StarkApp(
+                        vm,
+                        activity = this,
+                        shared = shared,
+                        onSharedDone = { shared = null },
+                        focusAsk = focusAsk,
+                        // back on the start screen: into the background, as Android does for apps; an answer that is
+                        // still coming in goes on (closing the app would cut it off)
+                        onExit = { moveTaskToBack(true) },
+                    )
+                }
             }
         }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        pairingLink(intent)
+        handle(intent)
     }
 
-    // Debug builds only (src/debug/AndroidManifest.xml): a starkllm://pair link opened with adb. The app still asks first.
-    private fun pairingLink(intent: Intent?) {
-        val data = intent?.data ?: return
-        if (BuildConfig.DEBUG && data.scheme == "starkllm" && vm.state.value.link == null) vm.scanned(data.toString())
+    override fun onStop() {
+        super.onStop()
+        stoppedAt = SystemClock.elapsedRealtime()
+    }
+
+    // App lock: after half a minute in the background the app asks for the fingerprint again
+    override fun onStart() {
+        super.onStart()
+        if (vm.state.value.appLock && stoppedAt > 0 && SystemClock.elapsedRealtime() - stoppedAt > 30_000) locked = true
+    }
+
+    private fun handle(intent: Intent?) {
+        intent ?: return
+        when {
+            intent.action == Intent.ACTION_SEND -> {
+                val uri = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
+                if (uri != null) shared = Shared(uri, intent.type)
+            }
+            intent.getStringExtra(EXTRA_OPEN) == OPEN_DEADLINES -> if (vm.state.value.link != null) vm.go(Screen.Deadlines)
+            intent.getStringExtra(EXTRA_OPEN) == OPEN_ASK -> if (vm.state.value.link != null) {
+                vm.go(Screen.Home)
+                focusAsk++
+            }
+            // Debug builds only (src/debug/AndroidManifest.xml): a starkllm://pair link opened with adb. The app asks first.
+            BuildConfig.DEBUG && intent.data?.scheme == "starkllm" -> {
+                if (vm.state.value.link != null) vm.addPc()
+                vm.scanned(intent.data.toString())
+            }
+        }
+    }
+
+    companion object {
+        const val EXTRA_OPEN = "open"
+        const val OPEN_DEADLINES = "deadlines"
+        const val OPEN_ASK = "ask"
     }
 }
