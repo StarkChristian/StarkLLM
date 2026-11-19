@@ -133,7 +133,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private fun failed(e: Exception) {
         android.util.Log.w("StarkLLM", "request failed", e)   // only the phone's own log (logcat); no network
         val problem = (e as? ApiException)?.problem ?: Problem.UNREACHABLE
-        if (problem == Problem.UNPAIRED || problem == Problem.WRONG_PC) forgetCurrent()
+        // only the paired PC's own "not-paired" removes the pairing; another device at its address (WRONG_PC) does not
+        if (problem.removesPairing) forgetCurrent()
         _state.update { it.copy(notice = Notice(problem)) }
     }
 

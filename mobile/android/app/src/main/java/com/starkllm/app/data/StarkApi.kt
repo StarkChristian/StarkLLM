@@ -26,8 +26,14 @@ import java.io.InputStreamReader
 import java.security.cert.CertificateException
 import javax.net.ssl.SSLException
 
-/** Why a request failed, in words the screens can show (strings.xml) */
-enum class Problem { UNREACHABLE, WRONG_PC, CODE_CLOSED, WRONG_CODE, TOO_MANY_DEVICES, UNPAIRED, PC_OFFLINE, NOT_SIGNED_IN, NOT_ALLOWED, SERVER }
+/**
+ * Why a request failed, in words the screens can show (strings.xml). removesPairing: the phone forgets the PC. Only the
+ * paired PC itself can say that, over the pinned connection with the phone's token ("not-paired"); a device with
+ * another certificate (WRONG_PC) cannot, or anyone in the Wi-Fi could unpair the phone.
+ */
+enum class Problem(val removesPairing: Boolean = false) {
+    UNREACHABLE, WRONG_PC, CODE_CLOSED, WRONG_CODE, TOO_MANY_DEVICES, UNPAIRED(removesPairing = true), PC_OFFLINE, NOT_SIGNED_IN, NOT_ALLOWED, SERVER
+}
 
 class ApiException(val problem: Problem, val detail: String = "") : IOException("$problem $detail")
 
@@ -60,10 +66,14 @@ class StarkApi(
             header("Accept", "application/json")
         }.build()
 
-    /** Runs the request on the first address that answers. Throws ApiException. */
+    /**
+     * Runs the request on the first address that answers with the pinned certificate. Throws ApiException: WRONG_PC when
+     * only devices with another certificate answered (none of the PC's addresses is the paired PC now), else UNREACHABLE.
+     */
     private fun execute(method: String, path: String, body: RequestBody? = null, register: (Call) -> Unit = {}): Response {
         val order = listOfNotNull(current) + (addresses - setOfNotNull(current))
         var last: Exception? = null
+        var otherDevice: SSLException? = null
         for (address in order) {
             val call = client.newCall(build(address, method, path, body))
             register(call)
@@ -75,12 +85,10 @@ class StarkApi(
                 }
                 return res
             } catch (e: SSLException) {
-                // the certificate is not the pinned one: a device that is not the paired PC (or a PC with a new certificate)
-                if (generateSequence<Throwable>(e) { it.cause }.any { it is CertificateException }) {
-                    throw ApiException(Problem.WRONG_PC, e.message.orEmpty())
-                }
                 if (call.isCanceled()) throw e
-                last = e                                // closed during the handshake: try the next address
+                // the certificate is not the pinned one: another device has this address now (another network, a
+                // router that gave the address away); nothing was sent to it. The PC may still be at its other address.
+                if (isPinMismatch(e)) otherDevice = e else last = e      // or closed during the handshake
             } catch (e: IOException) {
                 if (call.isCanceled()) throw e
                 last = e
@@ -99,8 +107,11 @@ class StarkApi(
                 }
             }
         }
+        if (otherDevice != null) throw ApiException(Problem.WRONG_PC, otherDevice.message.orEmpty())
         throw ApiException(Problem.UNREACHABLE, last?.message.orEmpty())
     }
+
+    private fun isPinMismatch(e: SSLException) = generateSequence<Throwable>(e) { it.cause }.any { it is CertificateException }
 
     private fun check(res: Response): Response {
         if (res.isSuccessful) return res
