@@ -33,7 +33,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -62,11 +62,13 @@ internal fun PairScreen(state: UiState, vm: AppViewModel) {
     val context = LocalContext.current
     var scanning by rememberSaveable { mutableStateOf(false) }
     var denied by rememberSaveable { mutableStateOf(false) }
+    var cameraFailed by rememberSaveable { mutableStateOf(false) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         scanning = granted
         denied = !granted
     }
     val startScan: () -> Unit = {
+        cameraFailed = false
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             scanning = true
         } else {
@@ -83,15 +85,25 @@ internal fun PairScreen(state: UiState, vm: AppViewModel) {
                 }
             },
             onCancel = { scanning = false },
+            onCameraError = { scanning = false; cameraFailed = true },
             notACode = state.notice?.notACode == true,
         )
         scanned != null -> ConfirmPair(state, vm, scanned.pcName, scanned.addresses.joinToString(", "))
-        else -> Scaffold(
+        else -> StarkScaffold(
             topBar = { if (state.link != null) Bar(stringResource(R.string.add_pc), onBack = { vm.back() }) },
             bottomBar = {
                 Column(Modifier.navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
                     if (denied) {
                         Text(stringResource(R.string.camera_permission_needed), color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall)
+                        // after two refusals Android no longer asks: the app's settings are the way back
+                        TextButton(onClick = { openAppSettings(context) }, modifier = Modifier.padding(bottom = 4.dp)) {
+                            Text(stringResource(R.string.open_settings))
+                        }
+                    }
+                    if (cameraFailed) {
+                        // there is no other way to pair than the QR code: the PC's code holds the certificate's fingerprint
+                        Text(stringResource(R.string.camera_unavailable), color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))
                     }
                     Button(onClick = startScan, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)) {
@@ -141,9 +153,9 @@ private fun Step(n: Int, text: String) {
 }
 
 @Composable
-private fun ScanView(onCode: (String) -> Unit, onCancel: () -> Unit, notACode: Boolean) {
+private fun ScanView(onCode: (String) -> Unit, onCancel: () -> Unit, onCameraError: () -> Unit, notACode: Boolean) {
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        QrScanner(onCode = onCode, modifier = Modifier.fillMaxSize())
+        QrScanner(onCode = onCode, onError = onCameraError, modifier = Modifier.fillMaxSize())
         Box(Modifier.align(Alignment.Center).size(240.dp).border(BorderStroke(2.dp, Color.White.copy(alpha = 0.9f)), RoundedCornerShape(24.dp)))
         IconButton(
             onClick = onCancel,
@@ -168,7 +180,7 @@ private fun ScanView(onCode: (String) -> Unit, onCancel: () -> Unit, notACode: B
 
 @Composable
 private fun ConfirmPair(state: UiState, vm: AppViewModel, pcName: String, addresses: String) {
-    Scaffold(
+    StarkScaffold(
         bottomBar = {
             Column(Modifier.navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (state.busy) {
@@ -206,7 +218,8 @@ fun LockScreen(activity: FragmentActivity, onUnlocked: () -> Unit) {
         verticalArrangement = Arrangement.Center,
     ) {
         Mark(64.dp)
-        Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 20.dp, bottom = 20.dp))
+        Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.padding(top = 20.dp, bottom = 20.dp))
         Button(onClick = unlock, shape = RoundedCornerShape(14.dp)) {
             Icon(Icons.Filled.Lock, null, Modifier.size(18.dp))
             Text(stringResource(R.string.unlock), Modifier.padding(start = 8.dp))

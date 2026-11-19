@@ -1,9 +1,12 @@
 package com.starkllm.app.data
 
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
@@ -23,8 +26,14 @@ import java.io.InputStreamReader
 import java.security.cert.CertificateException
 import javax.net.ssl.SSLException
 
-/** Why a request failed, in words the screens can show (strings.xml) */
-enum class Problem { UNREACHABLE, WRONG_PC, CODE_CLOSED, WRONG_CODE, TOO_MANY_DEVICES, UNPAIRED, PC_OFFLINE, NOT_SIGNED_IN, NOT_ALLOWED, SERVER }
+/**
+ * Why a request failed, in words the screens can show (strings.xml). removesPairing: the phone forgets the PC. Only the
+ * paired PC itself can say that, over the pinned connection with the phone's token ("not-paired"); a device with
+ * another certificate (WRONG_PC) cannot, or anyone in the Wi-Fi could unpair the phone.
+ */
+enum class Problem(val removesPairing: Boolean = false) {
+    UNREACHABLE, WRONG_PC, CODE_CLOSED, WRONG_CODE, TOO_MANY_DEVICES, UNPAIRED(removesPairing = true), PC_OFFLINE, NOT_SIGNED_IN, NOT_ALLOWED, SERVER
+}
 
 class ApiException(val problem: Problem, val detail: String = "") : IOException("$problem $detail")
 
@@ -57,10 +66,14 @@ class StarkApi(
             header("Accept", "application/json")
         }.build()
 
-    /** Runs the request on the first address that answers. Throws ApiException. */
+    /**
+     * Runs the request on the first address that answers with the pinned certificate. Throws ApiException: WRONG_PC when
+     * only devices with another certificate answered (none of the PC's addresses is the paired PC now), else UNREACHABLE.
+     */
     private fun execute(method: String, path: String, body: RequestBody? = null, register: (Call) -> Unit = {}): Response {
         val order = listOfNotNull(current) + (addresses - setOfNotNull(current))
         var last: Exception? = null
+        var otherDevice: SSLException? = null
         for (address in order) {
             val call = client.newCall(build(address, method, path, body))
             register(call)
@@ -72,19 +85,33 @@ class StarkApi(
                 }
                 return res
             } catch (e: SSLException) {
-                // the certificate is not the pinned one: a device that is not the paired PC (or a PC with a new certificate)
-                if (generateSequence<Throwable>(e) { it.cause }.any { it is CertificateException }) {
-                    throw ApiException(Problem.WRONG_PC, e.message.orEmpty())
-                }
                 if (call.isCanceled()) throw e
-                last = e                                // closed during the handshake: try the next address
+                // the certificate is not the pinned one: another device has this address now (another network, a
+                // router that gave the address away); nothing was sent to it. The PC may still be at its other address.
+                if (isPinMismatch(e)) otherDevice = e else last = e      // or closed during the handshake
             } catch (e: IOException) {
                 if (call.isCanceled()) throw e
                 last = e
+                // a read once more on the same address (a connection closed by the PC in between); never a question
+                if (method == "GET") {
+                    val again = client.newCall(build(address, method, path, body))
+                    register(again)
+                    try {
+                        val res = again.execute()
+                        current = address
+                        return res
+                    } catch (e2: IOException) {
+                        if (again.isCanceled()) throw e2
+                        last = e2
+                    }
+                }
             }
         }
+        if (otherDevice != null) throw ApiException(Problem.WRONG_PC, otherDevice.message.orEmpty())
         throw ApiException(Problem.UNREACHABLE, last?.message.orEmpty())
     }
+
+    private fun isPinMismatch(e: SSLException) = generateSequence<Throwable>(e) { it.cause }.any { it is CertificateException }
 
     private fun check(res: Response): Response {
         if (res.isSuccessful) return res
@@ -169,32 +196,68 @@ class StarkApi(
      * Sends a question and streams the answer: onText gets the whole answer so far after every piece. Returns the chat's
      * id (new chats get one from the PC). Cancelling the coroutine stops the answer.
      */
-    suspend fun ask(request: ChatRequest, onChat: (Int) -> Unit = {}, onText: (String) -> Unit): Int = withContext(Dispatchers.IO) {
-        var call: Call? = null
-        val body = json.encodeToString(ChatRequest.serializer(), request).toRequestBody(JSON_TYPE)
-        // "Stop": the coroutine is cancelled; closing the call ends the blocking read below
-        val stop = currentCoroutineContext()[Job]?.invokeOnCompletion { if (it != null) call?.cancel() }
-        try {
-            check(execute("POST", "/api/v1/chat/", body) { call = it }).use { res ->
-                val chatId = res.header("X-Chat-ID")?.toIntOrNull() ?: request.chatId ?: 0
-                onChat(chatId)
-                val text = StringBuilder()
-                InputStreamReader(res.body.byteStream(), Charsets.UTF_8).use { reader ->
-                    val buf = CharArray(1024)
-                    while (true) {
-                        val n = reader.read(buf)
-                        if (n < 0) break
-                        text.appendRange(buf, 0, n)
-                        onText(text.toString())
-                    }
-                }
-                chatId
+    suspend fun ask(request: ChatRequest, onChat: (Int) -> Unit = {}, onText: (String) -> Unit): Int = coroutineScope {
+        val calls = Calls()
+        // "Stop": the coroutine is cancelled, but a thread blocked in a read does not notice that (and a completion
+        // handler of the job runs only after the read ended). This watcher is cancelled with it at once and closes the
+        // connection, which ends the read with an IOException.
+        val watcher = launch(Dispatchers.IO, start = CoroutineStart.UNDISPATCHED) {
+            try {
+                awaitCancellation()
+            } finally {
+                calls.cancel()
             }
-        } catch (e: IOException) {
-            currentCoroutineContext().ensureActive()     // stopped: a CancellationException, not an error
-            throw e
+        }
+        try {
+            withContext(Dispatchers.IO) {
+                val body = json.encodeToString(ChatRequest.serializer(), request).toRequestBody(JSON_TYPE)
+                try {
+                    check(execute("POST", "/api/v1/chat/", body, calls::add)).use { res ->
+                        val chatId = res.header("X-Chat-ID")?.toIntOrNull() ?: request.chatId ?: 0
+                        onChat(chatId)
+                        val text = StringBuilder()
+                        InputStreamReader(res.body.byteStream(), Charsets.UTF_8).use { reader ->
+                            val buf = CharArray(1024)
+                            while (true) {
+                                val n = reader.read(buf)
+                                if (n < 0) break
+                                text.appendRange(buf, 0, n)
+                                onText(text.toString())
+                            }
+                        }
+                        chatId
+                    }
+                } catch (e: IOException) {
+                    currentCoroutineContext().ensureActive()     // stopped: a CancellationException, not an error
+                    throw e
+                }
+            }
         } finally {
-            stop?.dispose()
+            calls.done()            // a complete answer: nothing left to close (a finished call is not touched)
+            watcher.cancel()
+        }
+    }
+
+    /** The calls of one answer, so that "Stop" can close them from another thread */
+    internal class Calls {
+        private val calls = mutableListOf<Call>()
+        private var closed = false
+
+        @Synchronized
+        fun add(call: Call) {
+            if (closed) call.cancel() else calls += call
+        }
+
+        @Synchronized
+        fun cancel() {
+            calls.forEach { it.cancel() }
+            calls.clear()
+            closed = true
+        }
+
+        @Synchronized
+        fun done() {
+            calls.clear()
         }
     }
 }

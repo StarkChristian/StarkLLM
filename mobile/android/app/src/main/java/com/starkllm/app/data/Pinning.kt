@@ -1,5 +1,6 @@
 package com.starkllm.app.data
 
+import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -49,6 +50,9 @@ object Pinning {
             .readTimeout(5, TimeUnit.MINUTES)
             .writeTimeout(2, TimeUnit.MINUTES)
             .retryOnConnectionFailure(false)
+            // the PC's phone link closes idle connections after 30 s: drop them here first, so a request after a pause
+            // does not meet a connection the PC already closed (seen on the Flip5 as "not reachable")
+            .connectionPool(ConnectionPool(4, 20, TimeUnit.SECONDS))
             .build()
     }
 }

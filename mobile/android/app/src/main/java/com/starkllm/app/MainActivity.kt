@@ -4,15 +4,20 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
+import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.IntentCompat
 import androidx.fragment.app.FragmentActivity
+import com.starkllm.app.data.SharedFiles
 import com.starkllm.app.ui.LockScreen
+import com.starkllm.app.ui.Photos
 import com.starkllm.app.ui.StarkApp
 import com.starkllm.app.ui.StarkTheme
 
@@ -30,9 +35,16 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         locked = vm.state.value.appLock
-        if (savedInstanceState == null) handle(intent)
+        secure(vm.state.value.appLock)
+        if (savedInstanceState == null) {
+            // a fresh start: photos left from an earlier run (after a restore, one may still be on its way)
+            Photos.clear(this)
+            handle(intent)
+        }
         setContent {
-            StarkTheme {
+            val ui by vm.state.collectAsStateWithLifecycle()
+            LaunchedEffect(ui.appLock) { secure(ui.appLock) }
+            StarkTheme(themeId = ui.theme) {
                 if (locked) {
                     LockScreen(this) { locked = false }
                 } else {
@@ -49,6 +61,14 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * With the app lock on, the app's content is not shown in the list of recent apps and cannot be captured in a
+     * screenshot or a screen recording (FLAG_SECURE): the lock would be pointless if the last screen showed there.
+     */
+    private fun secure(on: Boolean) {
+        if (on) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE) else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -72,7 +92,13 @@ class MainActivity : FragmentActivity() {
         when {
             intent.action == Intent.ACTION_SEND -> {
                 val uri = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
-                if (uri != null) shared = Shared(uri, intent.type)
+                val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+                when {
+                    uri != null && SharedFiles.acceptable(uri.scheme, uri.authority, Photos.authority(this)) -> shared = Shared(uri, intent.type)
+                    uri != null -> vm.refuseShared()             // a file:// path, or the app's own files
+                    // shared text (a passage of a web page, a message): into the question field, to ask about it
+                    text != null -> vm.sharedText(text)
+                }
             }
             intent.getStringExtra(EXTRA_OPEN) == OPEN_DEADLINES -> if (vm.state.value.link != null) vm.go(Screen.Deadlines)
             intent.getStringExtra(EXTRA_OPEN) == OPEN_ASK -> if (vm.state.value.link != null) {

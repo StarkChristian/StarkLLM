@@ -1,5 +1,6 @@
 package com.starkllm.app.ui
 
+import android.content.ContentResolver
 import android.content.Context
 import android.media.MediaRecorder
 import android.net.Uri
@@ -16,12 +17,15 @@ import okhttp3.RequestBody
 import okio.BufferedSink
 import okio.source
 import java.io.File
+import java.io.IOException
 
 /** A file chosen on the phone, sent as it is read (large PDFs are not loaded into memory). Re-readable for a retry. */
 class UriBody(private val context: Context, private val uri: Uri, private val mime: String?) : RequestBody() {
     override fun contentType() = (mime ?: context.contentResolver.getType(uri))?.toMediaTypeOrNull()
     override fun contentLength(): Long = sizeOf(context, uri) ?: -1L
     override fun writeTo(sink: BufferedSink) {
+        // only what another app offers through its provider: a file:// path could name the app's own private files
+        if (!uri.scheme.equals(ContentResolver.SCHEME_CONTENT, ignoreCase = true)) throw IOException("only content:// is sent")
         context.contentResolver.openInputStream(uri)?.use { sink.writeAll(it.source()) }
     }
 }
@@ -45,34 +49,48 @@ class Dictation(private val context: Context) {
     private val file = File(context.cacheDir, "dictation.ogg")
     private var started = 0L
 
-    fun start(): Boolean = runCatching {
+    fun start(): Boolean {
+        cancel()                // a recording that was not ended (it would keep the microphone)
         file.delete()
-        val r = if (Build.VERSION.SDK_INT >= 31) MediaRecorder(context) else @Suppress("DEPRECATION") MediaRecorder()
-        r.setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION)
-        r.setOutputFormat(MediaRecorder.OutputFormat.OGG)
-        r.setAudioEncoder(MediaRecorder.AudioEncoder.OPUS)
-        r.setAudioSamplingRate(16000)
-        r.setAudioEncodingBitRate(24000)
-        r.setOutputFile(file.absolutePath)
-        r.prepare()
-        r.start()
-        recorder = r
-        started = System.currentTimeMillis()
-        true
-    }.getOrElse { recorder = null; false }
+        var r: MediaRecorder? = null
+        return try {
+            r = if (Build.VERSION.SDK_INT >= 31) MediaRecorder(context) else @Suppress("DEPRECATION") MediaRecorder()
+            r.setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION)
+            r.setOutputFormat(MediaRecorder.OutputFormat.OGG)
+            r.setAudioEncoder(MediaRecorder.AudioEncoder.OPUS)
+            r.setAudioSamplingRate(16000)
+            r.setAudioEncodingBitRate(24000)
+            r.setOutputFile(file.absolutePath)
+            r.prepare()
+            r.start()
+            recorder = r
+            started = System.currentTimeMillis()
+            true
+        } catch (e: Exception) {
+            // the microphone is busy or the recorder failed: release it, or the microphone stays taken
+            runCatching { r?.release() }
+            recorder = null
+            file.delete()
+            false
+        }
+    }
 
-    /** the recording, or null when it was too short (a tap, not a hold) or failed */
+    /** the recording, or null when it was too short (a tap, not a hold) or failed. Always releases the microphone. */
     fun stop(): ByteArray? {
         val r = recorder ?: return null
         recorder = null
-        val ok = runCatching { r.stop() }.isSuccess
-        r.release()
+        val ok = try {
+            runCatching { r.stop() }.isSuccess
+        } finally {
+            runCatching { r.release() }
+        }
         val long = System.currentTimeMillis() - started > 600
-        val bytes = if (ok && long && file.exists()) file.readBytes() else null
+        val bytes = if (ok && long && file.exists()) runCatching { file.readBytes() }.getOrNull() else null
         file.delete()
         return bytes
     }
 
+    /** ends a recording without using it (the screen was left while the button was held) */
     fun cancel() {
         stop()
     }

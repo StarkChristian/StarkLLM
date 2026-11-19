@@ -133,8 +133,18 @@ data class DoneRequest(val key: String, val done: Boolean)
 @Serializable
 data class UploadResult(val id: Int = 0, val filename: String = "", val status: String = "")
 
-/** Embedding models only turn text into numbers for the search; they cannot answer (as on the PC) */
-fun isChatModel(name: String) = !name.contains("embed", ignoreCase = true)
+/**
+ * The models the phone offers: not embedding models (they only turn text into numbers for the search and cannot answer),
+ * and not Ollama's cloud models, which run on Ollama's servers: a question from the phone would leave the home (as on
+ * the PC, backend/app/core/netguard.py is_cloud_model).
+ */
+fun isChatModel(name: String) = !name.contains("embed", ignoreCase = true) && !isCloudModel(name)
+
+/** The same rule as is_cloud_model in backend/app/core/netguard.py: "gpt-oss:120b-cloud", "kimi-k2:1t-cloud", "x:cloud" */
+fun isCloudModel(name: String): Boolean {
+    val n = name.lowercase()
+    return n.isNotEmpty() && (n.endsWith(":cloud") || n.endsWith("-cloud") || ":cloud" in n.substringAfterLast('/') || "-cloud" in n.substringAfterLast(':'))
+}
 
 @Serializable
 data class NewChat(val id: Int, val title: String = "")

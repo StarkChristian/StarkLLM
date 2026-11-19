@@ -1,5 +1,13 @@
 package com.starkllm.app.ui
 
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -40,7 +48,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
+
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -82,7 +90,7 @@ internal fun DeadlinesScreen(state: UiState, vm: AppViewModel, openDrawer: () ->
         R.string.state_upcoming to all.filter { !it.done && it.state == "upcoming" },
         R.string.state_done to all.filter { it.done },
     ).filter { it.second.isNotEmpty() }
-    Scaffold(topBar = {
+    StarkScaffold(topBar = {
         Bar(stringResource(R.string.nav_deadlines), subtitle = state.link?.pcName, onMenu = openDrawer) {
             IconButton(onClick = { vm.go(com.starkllm.app.Screen.Deadlines) }) { Icon(Icons.Filled.Refresh, stringResource(R.string.refresh)) }
         }
@@ -149,7 +157,7 @@ internal fun ThisPcScreen(state: UiState, vm: AppViewModel, activity: FragmentAc
     val link = state.link
     val pc = state.pc
     val confirmTitle = stringResource(R.string.confirm_action)
-    Scaffold(topBar = {
+    StarkScaffold(topBar = {
         Bar(stringResource(R.string.nav_this_pc), onMenu = openDrawer) {
             IconButton(onClick = vm::refreshPc) { Icon(Icons.Filled.Refresh, stringResource(R.string.refresh)) }
         }
@@ -294,10 +302,19 @@ internal fun SettingsScreen(state: UiState, vm: AppViewModel, activity: Fragment
             else BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL
         ) == BiometricManager.BIOMETRIC_SUCCESS
     }
-    val notifyPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> if (granted) vm.setReminders(true) }
+    var notifyDenied by remember { mutableStateOf(false) }
+    val notifyPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) vm.setReminders(true) else {
+            notifyDenied = true
+        }
+    }
+    if (notifyDenied) PermissionDialog(stringResource(R.string.permission_notifications)) { notifyDenied = false }
     val lockTitle = stringResource(R.string.app_lock)
-    Scaffold(topBar = { Bar(stringResource(R.string.nav_settings), onMenu = openDrawer) }) { pad ->
+    StarkScaffold(topBar = { Bar(stringResource(R.string.nav_settings), onMenu = openDrawer) }) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SectionLabel(stringResource(R.string.appearance), start = 4.dp)
+            ThemePicker(state.theme, vm::setTheme)
+            SectionLabel(stringResource(R.string.nav_settings), start = 4.dp)
             SettingSwitch(Icons.Filled.Lock, lockTitle, stringResource(if (canLock) R.string.app_lock_hint else R.string.app_lock_unavailable),
                 state.appLock, enabled = canLock) { on ->
                 // turning it on is confirmed once, so nobody is locked out by a sensor that does not work
@@ -340,5 +357,60 @@ private fun SettingSwitch(icon: ImageVector, title: String, hint: String, checke
             }
             Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
         }
+    }
+}
+
+// ---- the look (themes of the PC, ui/Themes.kt)
+
+private val THEME_NAMES = mapOf(
+    "dark" to R.string.theme_dark, "pink" to R.string.theme_pink, "black" to R.string.theme_black, "glass" to R.string.theme_glass,
+    "emerald" to R.string.theme_emerald, "amber" to R.string.theme_amber, "nord" to R.string.theme_nord, "light" to R.string.theme_light,
+    "doodle" to R.string.theme_doodle, "doodle-night" to R.string.theme_doodle_night, "flowers" to R.string.theme_flowers,
+    "matrix" to R.string.theme_matrix, "stars" to R.string.theme_stars,
+)
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ThemePicker(selected: String, onSelect: (String) -> Unit) {
+    val systemDark = isSystemInDarkTheme()
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        ThemeTile(themeFor(SYSTEM_THEME, systemDark), stringResource(R.string.theme_system), selected == SYSTEM_THEME, split = true) { onSelect(SYSTEM_THEME) }
+        THEMES.forEach { t ->
+            ThemeTile(t, stringResource(THEME_NAMES[t.id] ?: R.string.theme_dark), selected == t.id) { onSelect(t.id) }
+        }
+    }
+}
+
+/** A small picture of the theme: its background (and pattern), a card, a question bubble in its gradient */
+@Composable
+private fun ThemeTile(t: AppTheme, name: String, selected: Boolean, split: Boolean = false, onClick: () -> Unit) {
+    val border = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+    Column(Modifier.width(90.dp).clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier.fillMaxWidth().height(62.dp).clip(RoundedCornerShape(14.dp))
+                .border(if (selected) 2.dp else 1.dp, border, RoundedCornerShape(14.dp)),
+        ) {
+            if (split) {
+                Row(Modifier.fillMaxSize()) {
+                    Box(Modifier.weight(1f).fillMaxHeight().background(THEMES.first { it.id == "light" }.bg))
+                    Box(Modifier.weight(1f).fillMaxHeight().background(THEMES.first().bg))
+                }
+            } else {
+                ThemeBackground(t, Modifier.fillMaxSize())
+            }
+            Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Box(Modifier.size(width = 48.dp, height = 10.dp).clip(RoundedCornerShape(4.dp)).background(if (split) THEMES.first().card else t.card))
+                Box(Modifier.align(Alignment.End).size(width = 36.dp, height = 10.dp).clip(RoundedCornerShape(4.dp)).background(gradientOf(t)))
+                Box(Modifier.size(width = 56.dp, height = 10.dp).clip(RoundedCornerShape(4.dp)).background(if (split) THEMES.first { it.id == "light" }.card else t.card))
+            }
+            if (selected) {
+                Box(Modifier.align(Alignment.TopEnd).padding(5.dp).size(18.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Check, null, Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                }
+            }
+        }
+        Text(name, style = MaterialTheme.typography.labelSmall, maxLines = 2, textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 5.dp, bottom = 2.dp))
     }
 }

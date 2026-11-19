@@ -1,17 +1,23 @@
 package com.starkllm.app.data
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import okhttp3.tls.HandshakeCertificates
 import okhttp3.tls.HeldCertificate
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import java.net.InetAddress
+import java.util.concurrent.TimeUnit
 
 /** The phone's side of the phone link against a test server with its own self-signed certificate, like the PC. */
 class PinnedApiTest {
@@ -99,6 +105,68 @@ class PinnedApiTest {
         assertTrue(hello.signedIn)
         assertEquals("GEEKOM", hello.pcName)
         assertEquals(listOf("127.0.0.1"), worked)
+    }
+
+    @Test
+    fun stopClosesAnAnswerThatIsStillComingIn() = runBlocking {
+        // 10 000 bytes at 200 bytes a second: 50 seconds, unless Stop really closes the connection (the throttle also
+        // slows the status line and headers, so the first words need a moment)
+        server.enqueue(
+            MockResponse.Builder().body("word ".repeat(2000)).addHeader("X-Chat-ID", "7")
+                .throttleBody(200, 1, TimeUnit.SECONDS).build()
+        )
+        val firstWords = CompletableDeferred<Unit>()
+        val answer = launch(Dispatchers.Default) {
+            api().ask(ChatRequest(workspaceId = 3, message = "A long answer, please")) { firstWords.complete(Unit) }
+        }
+        withTimeout(10_000) { firstWords.await() }
+        answer.cancel()
+        withTimeout(3_000) { answer.join() }
+        assertTrue(answer.isCancelled)
+    }
+
+    /** A device in the Wi-Fi with its own certificate, at the same port as the PC */
+    private fun otherDevice(address: String): MockWebServer {
+        val other = MockWebServer()
+        other.useHttps(HandshakeCertificates.Builder().heldCertificate(HeldCertificate.Builder().build()).build().sslSocketFactory())
+        other.start(InetAddress.getByName(address), server.port)
+        return other
+    }
+
+    @Test
+    fun anotherDeviceAtOneAddressIsSkippedForThePcAtTheNext() = runBlocking {
+        val other = otherDevice("127.0.0.3")
+        try {
+            reply("""{"pc_name":"GEEKOM","version":"2.4.0","device_id":"d1","signed_in":true}""")
+            val worked = mutableListOf<String>()
+            val api = StarkApi(listOf("127.0.0.3", "127.0.0.1"), server.port, pin, "TOKEN", onAddressWorked = { worked += it })
+            assertEquals("GEEKOM", api.hello().pcName)
+            assertEquals(listOf("127.0.0.1"), worked)
+            assertEquals(0, other.requestCount)        // the token never went to the other device
+        } finally {
+            other.close()
+        }
+    }
+
+    @Test
+    fun onlyOtherDevicesAnsweringIsWrongPcNotUnreachable() = runBlocking {
+        // the PC does not answer at 127.0.0.2; another device has its other address
+        val other = otherDevice("127.0.0.3")
+        try {
+            api(addresses = listOf("127.0.0.2", "127.0.0.3")).hello()
+            fail("another device was trusted")
+        } catch (e: ApiException) {
+            assertEquals(Problem.WRONG_PC, e.problem)
+            assertEquals(0, other.requestCount)
+        } finally {
+            other.close()
+        }
+    }
+
+    @Test
+    fun onlyTheDeviceItselfSayingNotPairedRemovesThePairing() {
+        assertTrue(Problem.UNPAIRED.removesPairing)
+        Problem.entries.filter { it != Problem.UNPAIRED }.forEach { assertFalse(it.name, it.removesPairing) }
     }
 
     @Test

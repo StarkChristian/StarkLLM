@@ -75,6 +75,12 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
             Intent(applicationContext, MainActivity::class.java).putExtra(MainActivity.EXTRA_OPEN, MainActivity.OPEN_DEADLINES),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
+        // on the lock screen only "a deadline reminder": sender, amount and text are seen after unlocking the phone
+        val redacted = NotificationCompat.Builder(applicationContext, Reminders.CHANNEL)
+            .setSmallIcon(R.drawable.ic_stat_starkllm)
+            .setContentTitle(applicationContext.getString(R.string.reminder_public_title))
+            .setContentText(applicationContext.getString(R.string.reminder_public_text))
+            .build()
         for (d in open.filter { it.state in setOf("overdue", "today", "soon") }.take(5)) {
             if (prefs.alreadyReminded(d.key, deadlines.today)) continue
             val whenText = when (d.state) {
@@ -90,6 +96,8 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 .setStyle(NotificationCompat.BigTextStyle().bigText(d.text))
                 .setContentIntent(open_)
                 .setAutoCancel(true)
+                .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+                .setPublicVersion(redacted)
                 .build()
             runCatching { NotificationManagerCompat.from(applicationContext).notify(d.key.hashCode(), n) }
             prefs.markReminded(d.key, deadlines.today)

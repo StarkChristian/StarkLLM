@@ -1,6 +1,7 @@
 name: android
 
-# StarkLLM for Android (mobile/android): unit tests and a debug APK for every change of the app.
+# StarkLLM for Android (mobile/android): unit tests, a debug APK and an unsigned release bundle (AAB) for every change
+# of the app.
 on:
   pull_request:
     paths:
@@ -32,13 +33,21 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Unit tests
         run: ./gradlew --no-daemon testDebugUnitTest
-      - name: Debug APK and release build (unsigned)
-        run: ./gradlew --no-daemon assembleDebug assembleRelease lintDebug
+      - name: Debug APK, release build and release bundle (unsigned)
+        run: ./gradlew --no-daemon assembleDebug assembleRelease bundleRelease lintDebug
       - name: Upload the debug APK
         uses: actions/upload-artifact@v4
         with:
           name: starkllm-android-debug
           path: mobile/android/app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+      # the Play Store takes a bundle (AAB); this one is unsigned: Play App Signing and the owner's upload key sign it
+      - name: Upload the release bundle (unsigned)
+        uses: actions/upload-artifact@v4
+        with:
+          name: starkllm-android-release-aab
+          path: mobile/android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
           retention-days: 14
       - name: Upload test and lint reports
         if: always()
