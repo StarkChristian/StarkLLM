@@ -400,4 +400,8 @@ internal fun StarkScaffold(
     bottomBar: @Composable () -> Unit = {},
     floatingActionButton: @Composable () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
-) = Scaffold(topBar = topBar, bottomBar = bottomBar, floatingActionButton = floatingActionButton, containerColor = Color.Transparent, content = content)
+) = Scaffold(
+    topBar = topBar, bottomBar = bottomBar, floatingActionButton = floatingActionButton,
+    // transparent, so the theme's pattern shows; the text colour must then be given (it would be black)
+    containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.onBackground, content = content,
+)
