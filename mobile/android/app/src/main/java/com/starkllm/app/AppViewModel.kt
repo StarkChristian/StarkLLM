@@ -441,8 +441,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // ---- this PC
 
     fun refreshPc() = request { a ->
-        val pc = a.pcStatus()
-        _state.update { it.copy(pc = pc, hello = it.hello?.copy(level = pc.level)) }
+        // a PC with the first phone link (StarkLLM before the levels) has no status page: the screen shows what it knows
+        val pc = try {
+            a.pcStatus()
+        } catch (e: ApiException) {
+            if (e.problem != Problem.SERVER) throw e
+            null
+        }
+        if (pc != null) _state.update { it.copy(pc = pc, hello = it.hello?.copy(level = pc.level)) }
         runCatching { a.engineStatus() }.getOrNull()?.let { e -> _state.update { it.copy(engine = e) } }
     }
 
