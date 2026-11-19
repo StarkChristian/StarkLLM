@@ -56,6 +56,12 @@ if (!gotTheLock) {
 // "fully offline" switch. Created first, so that nothing below can connect before it exists.
 let guard = null;
 
+// The first-start question "stay online or go fully offline" comes before the update check: the update check asks its
+// own question on the first start, and two questions at once (or an update check before the answer "offline") must
+// not happen. Resolved when the question was answered, or was not needed.
+let offlineQuestionDone = null;
+const offlineQuestionAnswered = new Promise((resolve) => { offlineQuestionDone = resolve; });
+
 // What the switch changes besides the rules of the network layer: Chromium downloads spell-check dictionaries from
 // Google's servers on Windows, which is a connection the page's request hook does not see, so spell check is off while
 // the app is fully offline.
@@ -133,7 +139,11 @@ function initApp() {
   createMainWindow();
   createTray();
   // Also when the engine cannot start: an old version is often the reason.
-  setTimeout(() => updater.onStart().catch((e) => logLine(`update check: ${e.message}`)), 3000);
+  // After the offline question of the first start (see offlineQuestionAnswered).
+  offlineQuestionAnswered
+    .then(() => new Promise((resolve) => setTimeout(resolve, 3000)))
+    .then(() => updater.onStart())
+    .catch((e) => logLine(`update check: ${e.message}`));
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -187,6 +197,7 @@ function createMainWindow() {
     } catch (e) {
       logLine(`offline question: ${e.message}`);
     }
+    offlineQuestionDone();
     startAndLoad();
   };
   mainWindow.once('ready-to-show', begin);
