@@ -78,6 +78,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -495,6 +496,8 @@ internal fun InputBar(
     var sheet by remember { mutableStateOf(false) }
     var recording by remember { mutableStateOf(false) }
     val dictation = remember { Dictation(context) }
+    // leaving the screen while the button is held: the recorder is released, not left holding the microphone
+    DisposableEffect(dictation) { onDispose { dictation.cancel() } }
     val haptics = LocalHapticFeedback.current
     val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     val holdHint = stringResource(R.string.hold_to_talk)
@@ -550,9 +553,14 @@ internal fun InputBar(
                                     if (!dictation.start()) return@detectTapGestures
                                     recording = true
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    tryAwaitRelease()
-                                    recording = false
-                                    val audio = dictation.stop()
+                                    val audio = try {
+                                        tryAwaitRelease()
+                                        dictation.stop()
+                                    } finally {
+                                        // also when the gesture is cut off (the screen changed): no recorder is left running
+                                        recording = false
+                                        dictation.cancel()
+                                    }
                                     if (audio == null) {
                                         Toast.makeText(context, holdHint, Toast.LENGTH_SHORT).show()
                                     } else {
