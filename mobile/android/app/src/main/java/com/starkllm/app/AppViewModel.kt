@@ -49,6 +49,7 @@ sealed interface Screen {
     data object Deadlines : Screen
     data object ThisPc : Screen
     data object Settings : Screen
+    data object Guide : Screen
 }
 
 /** A problem to show; notACode is the phone's own (the camera saw another QR code). */
@@ -88,6 +89,9 @@ data class UiState(
     val dictated: String? = null,
     val appLock: Boolean = false,
     val reminders: Boolean = false,
+    /** the look (ui/Themes.kt), as on the PC; "system" follows the phone's dark or light mode */
+    val theme: String = "system",
+    val introSeen: Boolean = true,
 ) {
     val level: String get() = hello?.level ?: "work"
     val answering: Boolean get() = answeringFor != null && (screen as? Screen.Chat)?.nonce == answeringFor
@@ -108,6 +112,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     init {
         _state.update {
             it.copy(appLock = prefs.appLock, reminders = prefs.reminders, model = prefs.model, workspaceId = prefs.workspaceId,
+                theme = prefs.theme, introSeen = prefs.introSeen,
                 useKnowledgeBase = prefs.useKnowledgeBase)
         }
         store.current()?.let { link ->
@@ -186,7 +191,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         answer?.cancel()
         connect(link)
         _state.update {
-            UiState(link = link, links = store.all(), screen = Screen.Home, appLock = it.appLock, reminders = it.reminders,
+            UiState(link = link, links = store.all(), screen = Screen.Home, appLock = it.appLock, reminders = it.reminders, theme = it.theme,
                 model = null, workspaceId = 0, useKnowledgeBase = it.useKnowledgeBase)
         }
         prefs.model = null
@@ -216,7 +221,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             switchTo(next)
         } else {
             api = null
-            _state.update { UiState(notice = it.notice, appLock = it.appLock, reminders = it.reminders) }
+            _state.update { UiState(notice = it.notice, appLock = it.appLock, reminders = it.reminders, theme = it.theme) }
         }
     }
 
@@ -480,6 +485,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(appLock = on) }
     }
 
+    fun setTheme(id: String) {
+        prefs.theme = id
+        _state.update { it.copy(theme = id) }
+    }
+
+    fun introDone() {
+        prefs.introSeen = true
+        _state.update { it.copy(introSeen = true) }
+    }
+
     fun setReminders(on: Boolean) {
         prefs.reminders = on
         _state.update { it.copy(reminders = on) }
@@ -503,7 +518,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             is Screen.Chats -> _state.update { it.copy(screen = Screen.Workspaces) }
-            Screen.Workspaces, Screen.Deadlines, Screen.ThisPc, Screen.Settings -> _state.update { it.copy(screen = Screen.Home) }
+            Screen.Workspaces, Screen.Deadlines, Screen.ThisPc, Screen.Settings, Screen.Guide -> _state.update { it.copy(screen = Screen.Home) }
             Screen.Pair -> when {
                 s.scanned != null -> cancelPairing()
                 s.link != null -> _state.update { it.copy(screen = Screen.Home) }

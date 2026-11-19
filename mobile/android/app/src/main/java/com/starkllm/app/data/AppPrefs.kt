@@ -15,6 +15,15 @@ class AppPrefs(context: Context) {
         get() = prefs.getBoolean("appLock", false)
         set(v) { prefs.edit().putBoolean("appLock", v).apply() }
 
+    var theme: String
+        get() = prefs.getString("theme", "system") ?: "system"
+        set(v) { prefs.edit().putString("theme", v).apply() }
+
+    /** the short introduction was shown (first start) */
+    var introSeen: Boolean
+        get() = prefs.getBoolean("introSeen", false)
+        set(v) { prefs.edit().putBoolean("introSeen", v).apply() }
+
     var reminders: Boolean
         get() = prefs.getBoolean("reminders", false)
         set(v) { prefs.edit().putBoolean("reminders", v).apply() }

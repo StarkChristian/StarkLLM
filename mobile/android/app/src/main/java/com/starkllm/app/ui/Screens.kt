@@ -5,7 +5,15 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Scaffold
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -83,23 +91,45 @@ fun StarkApp(vm: AppViewModel, activity: FragmentActivity, shared: Shared?, onSh
         if (drawer.isOpen) scope.launch { drawer.close() } else if (!vm.back()) onExit()
     }
     val openDrawer: () -> Unit = { scope.launch { drawer.open() } }
-    val topLevel = state.screen in setOf(Screen.Home, Screen.Workspaces, Screen.Deadlines, Screen.ThisPc, Screen.Settings)
-    ModalNavigationDrawer(
-        drawerState = drawer,
-        gesturesEnabled = topLevel && state.link != null,
-        drawerContent = {
-            if (state.link != null) Drawer(state, vm) { scope.launch { drawer.close() } }
-        },
-    ) {
-        when (val screen = state.screen) {
-            Screen.Pair -> PairScreen(state, vm)
-            Screen.Home -> HomeScreen(state, vm, activity, openDrawer, focusAsk)
-            Screen.Workspaces -> WorkspacesScreen(state, vm, openDrawer)
-            is Screen.Chats -> ChatsScreen(state, vm, screen)
-            is Screen.Chat -> ChatScreen(state, vm, screen, activity)
-            Screen.Deadlines -> DeadlinesScreen(state, vm, openDrawer)
-            Screen.ThisPc -> ThisPcScreen(state, vm, activity, openDrawer)
-            Screen.Settings -> SettingsScreen(state, vm, activity, openDrawer)
+    val topLevel = state.screen in setOf(Screen.Home, Screen.Workspaces, Screen.Deadlines, Screen.ThisPc, Screen.Settings, Screen.Guide)
+    if (!state.introSeen && state.link == null) {
+        IntroScreen(onDone = vm::introDone)
+        return
+    }
+    Box(Modifier.fillMaxSize()) {
+        // the theme's background (and pattern) behind every screen, as on the PC
+        ThemeBackground(LocalStarkTheme.current)
+        ModalNavigationDrawer(
+            drawerState = drawer,
+            gesturesEnabled = topLevel && state.link != null,
+            drawerContent = {
+                if (state.link != null) Drawer(state, vm) { scope.launch { drawer.close() } }
+            },
+        ) {
+            AnimatedContent(
+                targetState = state.screen,
+                contentKey = { s ->
+                    when (s) {
+                        is Screen.Chat -> "chat-${s.nonce}"
+                        is Screen.Chats -> "chats-${s.workspace.id}"
+                        else -> s.toString()
+                    }
+                },
+                transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(140)) },
+                label = "screens",
+            ) { screen ->
+                when (screen) {
+                    Screen.Pair -> PairScreen(state, vm)
+                    Screen.Home -> HomeScreen(state, vm, activity, openDrawer, focusAsk)
+                    Screen.Workspaces -> WorkspacesScreen(state, vm, openDrawer)
+                    is Screen.Chats -> ChatsScreen(state, vm, screen)
+                    is Screen.Chat -> ChatScreen(state, vm, (state.screen as? Screen.Chat)?.takeIf { it.nonce == screen.nonce } ?: screen, activity)
+                    Screen.Deadlines -> DeadlinesScreen(state, vm, openDrawer)
+                    Screen.ThisPc -> ThisPcScreen(state, vm, activity, openDrawer)
+                    Screen.Settings -> SettingsScreen(state, vm, activity, openDrawer)
+                    Screen.Guide -> GuideScreen(openDrawer)
+                }
+            }
         }
     }
     if (shared != null) SharedDialog(state, vm, shared, onSharedDone)
@@ -162,6 +192,7 @@ private fun Drawer(state: UiState, vm: AppViewModel, close: () -> Unit) {
                 DrawerItem(Icons.Filled.DateRange, stringResource(R.string.nav_deadlines), state.screen == Screen.Deadlines) { close(); vm.go(Screen.Deadlines) }
                 DrawerItem(StarkIcons.Computer, stringResource(R.string.nav_this_pc), state.screen == Screen.ThisPc) { close(); vm.go(Screen.ThisPc) }
                 DrawerItem(Icons.Filled.Settings, stringResource(R.string.nav_settings), state.screen == Screen.Settings) { close(); vm.go(Screen.Settings) }
+                DrawerItem(StarkIcons.Help, stringResource(R.string.nav_guide), state.screen == Screen.Guide) { close(); vm.go(Screen.Guide) }
                 if (state.recent.isNotEmpty()) {
                     HorizontalDivider(Modifier.padding(horizontal = 20.dp, vertical = 10.dp))
                     SectionLabel(stringResource(R.string.recent))
@@ -288,7 +319,7 @@ internal fun Bar(
             }
         },
         actions = { actions() },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent, scrolledContainerColor = Color.Transparent),
     )
 }
 
@@ -361,3 +392,12 @@ private fun SharedDialog(state: UiState, vm: AppViewModel, shared: Shared, onDon
         dismissButton = { TextButton(onClick = onDone) { Text(stringResource(R.string.cancel)) } },
     )
 }
+
+/** A screen on the theme's background (ThemeBackground under the whole app shows through) */
+@Composable
+internal fun StarkScaffold(
+    topBar: @Composable () -> Unit = {},
+    bottomBar: @Composable () -> Unit = {},
+    floatingActionButton: @Composable () -> Unit = {},
+    content: @Composable (PaddingValues) -> Unit,
+) = Scaffold(topBar = topBar, bottomBar = bottomBar, floatingActionButton = floatingActionButton, containerColor = Color.Transparent, content = content)

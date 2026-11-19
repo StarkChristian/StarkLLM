@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.IntentCompat
@@ -32,7 +33,8 @@ class MainActivity : FragmentActivity() {
         locked = vm.state.value.appLock
         if (savedInstanceState == null) handle(intent)
         setContent {
-            StarkTheme {
+            val ui by vm.state.collectAsStateWithLifecycle()
+            StarkTheme(themeId = ui.theme) {
                 if (locked) {
                     LockScreen(this) { locked = false }
                 } else {

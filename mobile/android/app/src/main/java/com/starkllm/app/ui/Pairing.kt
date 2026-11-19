@@ -33,7 +33,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -86,7 +86,7 @@ internal fun PairScreen(state: UiState, vm: AppViewModel) {
             notACode = state.notice?.notACode == true,
         )
         scanned != null -> ConfirmPair(state, vm, scanned.pcName, scanned.addresses.joinToString(", "))
-        else -> Scaffold(
+        else -> StarkScaffold(
             topBar = { if (state.link != null) Bar(stringResource(R.string.add_pc), onBack = { vm.back() }) },
             bottomBar = {
                 Column(Modifier.navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
@@ -168,7 +168,7 @@ private fun ScanView(onCode: (String) -> Unit, onCancel: () -> Unit, notACode: B
 
 @Composable
 private fun ConfirmPair(state: UiState, vm: AppViewModel, pcName: String, addresses: String) {
-    Scaffold(
+    StarkScaffold(
         bottomBar = {
             Column(Modifier.navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (state.busy) {

@@ -1,5 +1,17 @@
 package com.starkllm.app.ui
 
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.clickable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.FastOutSlowInEasing
 import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -58,7 +70,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Scaffold
+
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -107,6 +119,7 @@ import java.util.Locale
 
 // ---- home
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun HomeScreen(state: UiState, vm: AppViewModel, activity: FragmentActivity, openDrawer: () -> Unit, focusAsk: Int) {
     var input by rememberSaveable { mutableStateOf("") }
@@ -119,16 +132,17 @@ internal fun HomeScreen(state: UiState, vm: AppViewModel, activity: FragmentActi
             else -> R.string.greeting_evening
         }
     )
-    Scaffold(topBar = {
+    StarkScaffold(topBar = {
         Bar(state.link?.pcName ?: stringResource(R.string.app_name), subtitle = if (state.hello != null) stringResource(R.string.connected) else null,
             dot = state.hello != null, onMenu = openDrawer) {
             IconButton(onClick = vm::refreshAll) { Icon(Icons.Filled.Refresh, stringResource(R.string.refresh)) }
         }
     }) { pad ->
         Column(Modifier.padding(pad).consumeWindowInsets(pad).fillMaxSize().imePadding()) {
-            if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             NoticeCard(state, vm)
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
+            // pull down to read everything from the PC again
+            PullToRefreshBox(isRefreshing = state.busy, onRefresh = vm::refreshAll, modifier = Modifier.weight(1f)) {
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
                 Spacer(Modifier.height(12.dp))
                 Text(greeting, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(horizontal = 4.dp))
                 Text(stringResource(R.string.home_subtitle), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -149,6 +163,7 @@ internal fun HomeScreen(state: UiState, vm: AppViewModel, activity: FragmentActi
                     ) { Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp)) }
                 }
                 Spacer(Modifier.height(12.dp))
+            }
             }
             WorkspaceChip(state, vm)
             InputBar(
@@ -250,7 +265,7 @@ private fun WorkspaceChip(state: UiState, vm: AppViewModel) {
 
 @Composable
 internal fun WorkspacesScreen(state: UiState, vm: AppViewModel, openDrawer: () -> Unit) {
-    Scaffold(topBar = {
+    StarkScaffold(topBar = {
         Bar(stringResource(R.string.workspaces), subtitle = state.link?.pcName, onMenu = openDrawer) {
             IconButton(onClick = vm::refreshAll) { Icon(Icons.Filled.Refresh, stringResource(R.string.refresh)) }
         }
@@ -259,7 +274,10 @@ internal fun WorkspacesScreen(state: UiState, vm: AppViewModel, openDrawer: () -
             if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth()) else Spacer(Modifier.height(4.dp))
             NoticeCard(state, vm)
             val list = state.workspaces
-            if (list != null && list.isEmpty()) EmptyHint(stringResource(R.string.no_workspaces))
+            if (list != null && list.isEmpty()) {
+                Lucy(Modifier.width(120.dp).align(Alignment.CenterHorizontally).padding(top = 24.dp), description = stringResource(R.string.lucy))
+                EmptyHint(stringResource(R.string.no_workspaces))
+            }
             LazyColumn(contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)) {
                 items(list.orEmpty(), key = { it.id }) { ws ->
                     ListCard(StarkIcons.Folder, ws.name, onClick = { vm.openWorkspace(ws) }) {
@@ -274,7 +292,7 @@ internal fun WorkspacesScreen(state: UiState, vm: AppViewModel, openDrawer: () -
 @Composable
 internal fun ChatsScreen(state: UiState, vm: AppViewModel, screen: Screen.Chats) {
     var toDelete by remember { mutableStateOf<ChatSummary?>(null) }
-    Scaffold(
+    StarkScaffold(
         topBar = { Bar(screen.workspace.name, subtitle = state.link?.pcName, onBack = { vm.back() }) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
@@ -328,7 +346,7 @@ internal fun ChatScreen(state: UiState, vm: AppViewModel, screen: Screen.Chat, a
     LaunchedEffect(state.lines.size, state.lines.lastOrNull()?.text?.length) {
         if (state.lines.isNotEmpty()) listState.scrollToItem(state.lines.size - 1, Int.MAX_VALUE / 2)
     }
-    Scaffold(topBar = {
+    StarkScaffold(topBar = {
         Bar(screen.title.ifBlank { stringResource(R.string.new_chat) }, subtitle = screen.workspace.name, onBack = { vm.back() })
     }) { pad ->
         // the bar insets are in pad already: without consumeWindowInsets the keyboard height counted twice
@@ -365,7 +383,7 @@ private fun EmptyChat(modifier: Modifier, onAsk: (String) -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Mark(48.dp)
+        Lucy(Modifier.width(120.dp), description = stringResource(R.string.lucy))
         Text(stringResource(R.string.empty_chat_hint), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 14.dp, bottom = 18.dp))
         examples.forEach { example ->
@@ -383,13 +401,12 @@ private fun EmptyChat(modifier: Modifier, onAsk: (String) -> Unit) {
 private fun Question(line: ChatLine) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Box(Modifier.fillMaxWidth(0.85f), contentAlignment = Alignment.CenterEnd) {
-            Surface(
-                color = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 4.dp),
-            ) {
+            // the question in the theme's gradient, as the send button on the PC
+            val shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 4.dp)
+            Box(Modifier.clip(shape).background(gradientOf(LocalStarkTheme.current))) {
                 SelectionContainer {
-                    Text(line.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
+                    Text(line.text, style = MaterialTheme.typography.bodyLarge, color = Color.White,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
                 }
             }
         }
@@ -405,8 +422,8 @@ private fun Answer(line: ChatLine) {
         Column(Modifier.weight(1f).padding(start = 10.dp)) {
             if (line.text.isEmpty() && line.streaming) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 3.dp)) {
-                    CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
-                    Text(stringResource(R.string.thinking), Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodyMedium,
+                    TypingDots()
+                    Text(stringResource(R.string.thinking), Modifier.padding(start = 10.dp), style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else {
@@ -477,6 +494,7 @@ internal fun InputBar(
     var sheet by remember { mutableStateOf(false) }
     var recording by remember { mutableStateOf(false) }
     val dictation = remember { Dictation(context) }
+    val haptics = LocalHapticFeedback.current
     val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     val holdHint = stringResource(R.string.hold_to_talk)
     LaunchedEffect(state.dictated) {
@@ -530,6 +548,7 @@ internal fun InputBar(
                                     }
                                     if (!dictation.start()) return@detectTapGestures
                                     recording = true
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                     tryAwaitRelease()
                                     recording = false
                                     val audio = dictation.stop()
@@ -548,8 +567,18 @@ internal fun InputBar(
                 } else if (state.answering) {
                     FilledIconButton(onClick = vm::stop, modifier = Modifier.size(40.dp)) { Icon(StarkIcons.Stop, stringResource(R.string.stop), Modifier.size(16.dp)) }
                 } else {
-                    FilledIconButton(onClick = onSend, enabled = value.isNotBlank() && target != null, modifier = Modifier.size(40.dp)) {
-                        Icon(StarkIcons.ArrowUp, stringResource(R.string.send), Modifier.size(20.dp))
+                    val canSend = value.isNotBlank() && target != null
+                    Box(
+                        Modifier.padding(bottom = 2.dp).size(40.dp).clip(CircleShape)
+                            .background(if (canSend) gradientOf(LocalStarkTheme.current) else androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.surfaceContainer))
+                            .clickable(enabled = canSend) {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onSend()
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(StarkIcons.ArrowUp, stringResource(R.string.send), Modifier.size(20.dp),
+                            tint = if (canSend) Color.White else MaterialTheme.colorScheme.outline)
                     }
                 }
             }
@@ -674,6 +703,25 @@ private fun SheetRow(icon: ImageVector, title: String, value: String, onClick: (
                 Text(value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** Three dots that rise one after the other while the PC reads the documents */
+@Composable
+private fun TypingDots() {
+    val motion = rememberInfiniteTransition(label = "dots")
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        repeat(3) { i ->
+            val lift by motion.animateFloat(
+                0f, 1f,
+                infiniteRepeatable(tween(420, delayMillis = i * 140, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+                label = "dot$i",
+            )
+            Box(
+                Modifier.offset(y = (-4 * lift).dp).size(7.dp).clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f + 0.55f * lift)),
+            )
         }
     }
 }

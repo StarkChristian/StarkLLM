@@ -3,50 +3,16 @@ package com.starkllm.app.ui
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.graphics.Color
 
-// The colours of StarkLLM on the PC (frontend/src/index.css: --accent #4f46e5, --accent-bright #818cf8, dark #07060b)
-private val Indigo = Color(0xFF4F46E5)
-private val IndigoBright = Color(0xFF818CF8)
+// The dark tile of the StarkLLM mark (launcher icon), the same in every theme
 internal val Night = Color(0xFF07060B)
-
-private val Dark = darkColorScheme(
-    primary = IndigoBright,
-    onPrimary = Color(0xFF0B0A1A),
-    primaryContainer = Color(0xFF2E2A7A),
-    onPrimaryContainer = Color(0xFFE0E0FF),
-    secondary = Color(0xFFB4B2E8),
-    background = Night,
-    onBackground = Color(0xFFE7E5F0),
-    surface = Night,
-    onSurface = Color(0xFFE7E5F0),
-    surfaceVariant = Color(0xFF1D1B29),
-    onSurfaceVariant = Color(0xFFC6C4D6),
-    surfaceContainer = Color(0xFF14121E),
-    surfaceContainerHigh = Color(0xFF1D1B29),
-    outline = Color(0xFF6E6C80),
-)
-
-private val Light = lightColorScheme(
-    primary = Indigo,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFE0E0FF),
-    onPrimaryContainer = Color(0xFF14105C),
-    secondary = Color(0xFF5A5980),
-    background = Color(0xFFFBFAFF),
-    surface = Color(0xFFFBFAFF),
-    surfaceVariant = Color(0xFFE6E4F2),
-    surfaceContainer = Color(0xFFF1F0F8),
-    surfaceContainerHigh = Color(0xFFEAE8F4),
-)
 
 /** Amber of the "check this quotation" note, as on the PC */
 val Amber = Color(0xFFB45309)
@@ -76,9 +42,13 @@ private val Compact = Typography().let { d ->
 fun dampedFontScale(system: Float): Float = if (system > 1f) 1f + (system - 1f) / 2f else system
 
 @Composable
-fun StarkTheme(content: @Composable () -> Unit) {
+fun StarkTheme(themeId: String = SYSTEM_THEME, content: @Composable () -> Unit) {
     val density = LocalDensity.current
-    CompositionLocalProvider(LocalDensity provides Density(density.density, dampedFontScale(density.fontScale))) {
-        MaterialTheme(colorScheme = if (isSystemInDarkTheme()) Dark else Light, typography = Compact, content = content)
+    val theme = themeFor(themeId, isSystemInDarkTheme())
+    CompositionLocalProvider(
+        LocalDensity provides Density(density.density, dampedFontScale(density.fontScale)),
+        LocalStarkTheme provides theme,
+    ) {
+        MaterialTheme(colorScheme = colorSchemeOf(theme), typography = Compact, content = content)
     }
 }
