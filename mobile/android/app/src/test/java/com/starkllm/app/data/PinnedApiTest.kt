@@ -109,10 +109,11 @@ class PinnedApiTest {
 
     @Test
     fun stopClosesAnAnswerThatIsStillComingIn() = runBlocking {
-        // 200 bytes at 5 bytes a second: 40 seconds, unless Stop really closes the connection
+        // 10 000 bytes at 200 bytes a second: 50 seconds, unless Stop really closes the connection (the throttle also
+        // slows the status line and headers, so the first words need a moment)
         server.enqueue(
-            MockResponse.Builder().body("word ".repeat(40)).addHeader("X-Chat-ID", "7")
-                .throttleBody(5, 1, TimeUnit.SECONDS).build()
+            MockResponse.Builder().body("word ".repeat(2000)).addHeader("X-Chat-ID", "7")
+                .throttleBody(200, 1, TimeUnit.SECONDS).build()
         )
         val firstWords = CompletableDeferred<Unit>()
         val answer = launch(Dispatchers.Default) {
