@@ -1,9 +1,12 @@
 package com.starkllm.app.data
 
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
@@ -182,32 +185,68 @@ class StarkApi(
      * Sends a question and streams the answer: onText gets the whole answer so far after every piece. Returns the chat's
      * id (new chats get one from the PC). Cancelling the coroutine stops the answer.
      */
-    suspend fun ask(request: ChatRequest, onChat: (Int) -> Unit = {}, onText: (String) -> Unit): Int = withContext(Dispatchers.IO) {
-        var call: Call? = null
-        val body = json.encodeToString(ChatRequest.serializer(), request).toRequestBody(JSON_TYPE)
-        // "Stop": the coroutine is cancelled; closing the call ends the blocking read below
-        val stop = currentCoroutineContext()[Job]?.invokeOnCompletion { if (it != null) call?.cancel() }
-        try {
-            check(execute("POST", "/api/v1/chat/", body) { call = it }).use { res ->
-                val chatId = res.header("X-Chat-ID")?.toIntOrNull() ?: request.chatId ?: 0
-                onChat(chatId)
-                val text = StringBuilder()
-                InputStreamReader(res.body.byteStream(), Charsets.UTF_8).use { reader ->
-                    val buf = CharArray(1024)
-                    while (true) {
-                        val n = reader.read(buf)
-                        if (n < 0) break
-                        text.appendRange(buf, 0, n)
-                        onText(text.toString())
-                    }
-                }
-                chatId
+    suspend fun ask(request: ChatRequest, onChat: (Int) -> Unit = {}, onText: (String) -> Unit): Int = coroutineScope {
+        val calls = Calls()
+        // "Stop": the coroutine is cancelled, but a thread blocked in a read does not notice that (and a completion
+        // handler of the job runs only after the read ended). This watcher is cancelled with it at once and closes the
+        // connection, which ends the read with an IOException.
+        val watcher = launch(Dispatchers.IO, start = CoroutineStart.UNDISPATCHED) {
+            try {
+                awaitCancellation()
+            } finally {
+                calls.cancel()
             }
-        } catch (e: IOException) {
-            currentCoroutineContext().ensureActive()     // stopped: a CancellationException, not an error
-            throw e
+        }
+        try {
+            withContext(Dispatchers.IO) {
+                val body = json.encodeToString(ChatRequest.serializer(), request).toRequestBody(JSON_TYPE)
+                try {
+                    check(execute("POST", "/api/v1/chat/", body, calls::add)).use { res ->
+                        val chatId = res.header("X-Chat-ID")?.toIntOrNull() ?: request.chatId ?: 0
+                        onChat(chatId)
+                        val text = StringBuilder()
+                        InputStreamReader(res.body.byteStream(), Charsets.UTF_8).use { reader ->
+                            val buf = CharArray(1024)
+                            while (true) {
+                                val n = reader.read(buf)
+                                if (n < 0) break
+                                text.appendRange(buf, 0, n)
+                                onText(text.toString())
+                            }
+                        }
+                        chatId
+                    }
+                } catch (e: IOException) {
+                    currentCoroutineContext().ensureActive()     // stopped: a CancellationException, not an error
+                    throw e
+                }
+            }
         } finally {
-            stop?.dispose()
+            calls.done()            // a complete answer: nothing left to close (a finished call is not touched)
+            watcher.cancel()
+        }
+    }
+
+    /** The calls of one answer, so that "Stop" can close them from another thread */
+    internal class Calls {
+        private val calls = mutableListOf<Call>()
+        private var closed = false
+
+        @Synchronized
+        fun add(call: Call) {
+            if (closed) call.cancel() else calls += call
+        }
+
+        @Synchronized
+        fun cancel() {
+            calls.forEach { it.cancel() }
+            calls.clear()
+            closed = true
+        }
+
+        @Synchronized
+        fun done() {
+            calls.clear()
         }
     }
 }

@@ -1,6 +1,10 @@
 package com.starkllm.app.data
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import okhttp3.tls.HandshakeCertificates
@@ -12,6 +16,7 @@ import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import java.net.InetAddress
+import java.util.concurrent.TimeUnit
 
 /** The phone's side of the phone link against a test server with its own self-signed certificate, like the PC. */
 class PinnedApiTest {
@@ -99,6 +104,23 @@ class PinnedApiTest {
         assertTrue(hello.signedIn)
         assertEquals("GEEKOM", hello.pcName)
         assertEquals(listOf("127.0.0.1"), worked)
+    }
+
+    @Test
+    fun stopClosesAnAnswerThatIsStillComingIn() = runBlocking {
+        // 200 bytes at 5 bytes a second: 40 seconds, unless Stop really closes the connection
+        server.enqueue(
+            MockResponse.Builder().body("word ".repeat(40)).addHeader("X-Chat-ID", "7")
+                .throttleBody(5, 1, TimeUnit.SECONDS).build()
+        )
+        val firstWords = CompletableDeferred<Unit>()
+        val answer = launch(Dispatchers.Default) {
+            api().ask(ChatRequest(workspaceId = 3, message = "A long answer, please")) { firstWords.complete(Unit) }
+        }
+        withTimeout(10_000) { firstWords.await() }
+        answer.cancel()
+        withTimeout(3_000) { answer.join() }
+        assertTrue(answer.isCancelled)
     }
 
     @Test
