@@ -95,6 +95,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -318,7 +319,7 @@ internal fun ChatsScreen(state: UiState, vm: AppViewModel, screen: Screen.Chats)
                 items(list.orEmpty(), key = { it.id }) { chat ->
                     ListCard(StarkIcons.Chat, chat.title.ifBlank { stringResource(R.string.new_chat) }, onClick = { vm.openChat(screen.workspace, chat) }) {
                         if (state.canSend) {
-                            IconButton(onClick = { toDelete = chat }, modifier = Modifier.size(36.dp)) {
+                            IconButton(onClick = { toDelete = chat }) {
                                 Icon(Icons.Filled.Delete, stringResource(R.string.delete_chat), Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
@@ -472,7 +473,7 @@ private fun Answer(line: ChatLine) {
                         Toast.makeText(context, copied, Toast.LENGTH_SHORT).show()
                     },
                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
-                    modifier = Modifier.padding(top = 2.dp).height(32.dp),
+                    modifier = Modifier.padding(top = 2.dp),
                 ) {
                     Icon(StarkIcons.Copy, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(stringResource(R.string.copy), Modifier.padding(start = 6.dp), style = MaterialTheme.typography.labelMedium,
@@ -546,8 +547,8 @@ internal fun InputBar(
                 if (value.isBlank() && !state.answering) {
                     // hold to talk: the recording goes to the PC's speech model when the button is let go
                     Box(
-                        Modifier.padding(bottom = 2.dp).size(40.dp).clip(CircleShape)
-                            .background(if (recording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.surfaceContainer)
+                        // 48 dp to touch (Android's minimum touch target); the circle drawn inside is 40 dp
+                        Modifier.size(48.dp)
                             .pointerInput(Unit) {
                                 detectTapGestures(onPress = {
                                     if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -574,24 +575,36 @@ internal fun InputBar(
                             },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(StarkIcons.Mic, stringResource(R.string.hold_to_talk), Modifier.size(20.dp),
-                            tint = if (recording) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onSurface)
+                        Box(
+                            Modifier.size(40.dp).clip(CircleShape)
+                                .background(if (recording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.surfaceContainer),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(StarkIcons.Mic, stringResource(R.string.hold_to_talk), Modifier.size(20.dp),
+                                tint = if (recording) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onSurface)
+                        }
                     }
                 } else if (state.answering) {
-                    FilledIconButton(onClick = vm::stop, modifier = Modifier.size(40.dp)) { Icon(StarkIcons.Stop, stringResource(R.string.stop), Modifier.size(16.dp)) }
+                    // Material's own size: a 40 dp button with a 48 dp touch target
+                    FilledIconButton(onClick = vm::stop) { Icon(StarkIcons.Stop, stringResource(R.string.stop), Modifier.size(16.dp)) }
                 } else {
                     val canSend = value.isNotBlank() && target != null
                     Box(
-                        Modifier.padding(bottom = 2.dp).size(40.dp).clip(CircleShape)
-                            .background(if (canSend) textGradientOf(LocalStarkTheme.current) else androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.surfaceContainer))
-                            .clickable(enabled = canSend) {
+                        Modifier.size(48.dp).clip(CircleShape)
+                            .clickable(enabled = canSend, role = Role.Button) {
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 onSend()
                             },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(StarkIcons.ArrowUp, stringResource(R.string.send), Modifier.size(20.dp),
-                            tint = if (canSend) onGradientOf(LocalStarkTheme.current) else MaterialTheme.colorScheme.outline)
+                        Box(
+                            Modifier.size(40.dp).clip(CircleShape)
+                                .background(if (canSend) textGradientOf(LocalStarkTheme.current) else androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.surfaceContainer)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(StarkIcons.ArrowUp, stringResource(R.string.send), Modifier.size(20.dp),
+                                tint = if (canSend) onGradientOf(LocalStarkTheme.current) else MaterialTheme.colorScheme.outline)
+                        }
                     }
                 }
             }
