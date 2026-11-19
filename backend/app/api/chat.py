@@ -334,12 +334,21 @@ def _safety_section(warnings: list) -> str:
 # The instructions and many documents are in English or German; a small model then often answers in their language
 # instead of the user's. The language of the message is named at the end of the prompt, where it weighs most.
 _LANGUAGE_HINTS = {
-    "German": (r"\b(ich|du|wer|hallo|und|der|die|das|ist|nicht|mein\w*|wie|was|wann|bis|kann|muss|habe|bitte|für|mir|mich|ein\w*)\b", r"[äöüß]"),
-    "English": (r"\b(i|the|and|is|my|what|when|how|can|do|does|have|please|you|to|of|by|which)\b", None),
-    "Turkish": (r"\b(ve|bir|bu|ne|nedir|zaman|mı|mi|mu|mü|için|ile|benim|gitmezsem|olur|nasıl)\b", r"[çğışı]"),
-    "French": (r"\b(je|le|la|les|est|et|mon|ma|mes|quand|comment|pourquoi|que|une|des|pour)\b", r"[éèêàç]"),
-    "Spanish": (r"\b(yo|el|la|los|las|es|y|mi|cuándo|cómo|qué|una|para|tengo|puedo)\b", r"[ñ¿¡]"),
-    "Italian": (r"\b(io|il|lo|gli|è|e|mio|mia|quando|come|che|una|per|ho|posso)\b", None),
+    # (function words, letters/marks counted twice). Words shared by several Romance languages ("la", "en") are left
+    # out: in "La lettera del pacco è autentica?" the French "la" and "è" outweighed Italian (N52). "è" alone is
+    # Italian (French writes "est"); French "ç" only before a/o/u, Turkish "ç" anywhere ("gerçek").
+    "German": (r"\b(ich|du|wer|hallo|und|der|die|das|ist|nicht|mein\w*|wie|was|wann|bis|kann|muss|habe|bitte|für|mir|"
+               r"mich|ein\w*|im|von|mit|zu|echt|bezahlen)\b", r"[äöüß]"),
+    "English": (r"\b(i|the|and|is|my|what|when|how|can|do|does|have|please|you|to|of|by|which|until|are|it|will)\b",
+                None),
+    "Turkish": (r"\b(ve|bir|bu|ne|nedir|zaman|mı|mi|mu|mü|için|ile|benim|gitmezsem|olur|nasıl|kadar|gerekiyor|"
+                r"edebilirim|var|yok|geç)\b", r"[çğışöü]"),
+    "French": (r"\b(je|j|le|les|est|et|mon|ma|mes|quand|comment|pourquoi|que|qu|une|des|pour|du|dois|puis|peux|elle|"
+               r"au|aux|jusqu|où|quel|quelle|cette|avec|ici)\b", r"[êâîûœë]|ç[aou]|(?<!\w)à(?!\w)"),
+    "Spanish": (r"\b(yo|el|los|las|es|y|mi|cuándo|cómo|qué|una|para|tengo|puedo|del|hasta|cuánto|cuál|dónde|por|"
+                r"con|está|debo|año)\b", r"[ñ¿¡]"),
+    "Italian": (r"\b(io|il|lo|gli|è|e|mio|mia|quando|come|che|una|per|ho|posso|del|della|dello|delle|sono|entro|cosa|"
+                r"devo|non|questo|questa|quale|perché)\b", r"(?<!\w)è(?!\w)|\w[àìò](?!\w)"),
     "Dutch": (r"\b(ik|het|een|en|is|mijn|wanneer|hoe|wat|niet|moet|kan)\b", None),
     "Polish": (r"\b(ja|jest|i|mój|moja|kiedy|jak|co|nie|czy|muszę)\b", r"[ąęłńśźż]"),
     "Portuguese": (r"\b(eu|os|as|meu|minha|quando|como|uma|para|tenho|posso|não|você|está)\b", r"[ãõ]"),
