@@ -19,14 +19,14 @@
     <string name="privacy_note">Belgeleriniz ve yapay zekâ modeli bilgisayarınızda kalır. Telefon ev ağınız üzerinden şifreli bağlanır ve yalnızca yanıtları gösterir.</string>
     <string name="scan_button">QR kodunu tara</string>
     <string name="scan_hint">Kamerayı bilgisayarınızın ekranındaki QR koduna doğrultun.</string>
-    <string name="camera_permission_needed">StarkLLM kamerayı yalnızca QR kodunu okumak için kullanır. Hiçbir şey kaydedilmez.</string>
+    <string name="camera_permission_needed">StarkLLM kamerayı yalnızca siz dokunduğunuzda kullanır: bilgisayarınızın QR kodunu okumak ya da bilgisayarınız için bir mektubu fotoğraflamak için. Arka planda hiçbir şey kaydedilmez.</string>
     <string name="not_a_starkllm_code">Bu bir StarkLLM eşleme kodu değil.</string>
     <string name="confirm_pair_title">%1$s ile eşlensin mi?</string>
     <string name="confirm_pair_body">StarkLLM ev ağınızdaki bu bilgisayara bağlanacak (%1$s). Yalnızca kod kendi bilgisayarınızda gösteriliyorsa devam edin.</string>
     <string name="pair_button">Eşle</string>
     <string name="pairing_progress">Bağlanıyor…</string>
     <string name="error_unreachable">Bilgisayara ulaşılamıyor. Açık mı, StarkLLM çalışıyor mu, telefon ve bilgisayar aynı Wi-Fi ağında mı?</string>
-    <string name="error_wrong_pc">Yanıt veren cihaz eşlenen bilgisayar değil (sertifikası farklı). Hiçbir şey gönderilmedi. StarkLLM bilgisayara yeniden yüklendiyse yeni bir QR koduyla tekrar eşleyin.</string>
+    <string name="error_wrong_pc">Bilgisayarın adresinde eşlenen bilgisayar değil, başka bir cihaz yanıt verdi (sertifikası farklı). Hiçbir şey gönderilmedi ve eşleme korunuyor. StarkLLM bilgisayara yeniden yüklendiyse yeni bir QR koduyla tekrar eşleyin.</string>
     <string name="error_code_closed">Bu kodun süresi doldu ya da zaten kullanıldı. Bilgisayarda yeni bir QR kodu gösterin.</string>
     <string name="error_wrong_code">Bilgisayar kodu kabul etmedi. Bilgisayarda yeni bir QR kodu gösterin.</string>
     <string name="error_too_many">Bu bilgisayarla zaten on telefon eşlendi. Önce bilgisayarda birini kaldırın (Ayarlar &gt; Telefon).</string>
@@ -184,8 +184,22 @@
     <string name="help_privacy">• Belgeler ve yapay zekâ modeli bilgisayarınızdan hiç çıkmaz; telefon yalnızca yanıtları gösterir.\n• Bağlantı şifrelidir ve telefon yalnızca QR kodunu taradığı bilgisayara güvenir.\n• Telefonun anahtarı Android Keystore\'da kilitlidir; uygulamada bulut yedeği, reklam ve izleme yoktur.\n• Ayarlar &gt; Uygulama kilidi, uygulama açılırken parmak izinizi ister.</string>
     <string name="help_trouble_title">Bir şey çalışmazsa</string>
     <string name="help_trouble">• \"Bilgisayara ulaşılamıyor\": bilgisayar açık mı, StarkLLM çalışıyor mu, telefon aynı Wi-Fi ağında mı ve Windows özel ağlara izin verdi mi?\n• \"Eşlenen bilgisayar değil\": StarkLLM yeniden yüklendi veya yeni bir sertifikası var; yeni bir QR koduyla yeniden eşleyin.\n• \"Bilgisayar buna izin vermiyor\": bilgisayarda Ayarlar &gt; Telefon bölümünden seviyeyi değiştirin.\n• \"Tamamen çevrimdışı\": bilgisayarda Ayarlar &gt; Gizlilik ve ağ bölümünden geri açın.</string>
+    <string name="camera_unavailable">Kamera şu anda kullanılamıyor (bu telefonda kamera yok veya başka bir uygulama kullanıyor). Diğer kamera uygulamalarını kapatıp yeniden deneyin.</string>
+    <string name="permission_title">İzin gerekli</string>
+    <string name="open_settings">Ayarları aç</string>
+    <string name="permission_mic">Dikte için mikrofon gerekir. Android izin vermedi; uygulamanın ayarlarından izin verebilirsiniz.</string>
+    <string name="permission_notifications">Hatırlatıcıların bildirim gösterme iznine ihtiyacı var. Bu izni uygulamanın ayarlarından verebilirsiniz.</string>
+    <string name="photo_file_prefix">Fotoğraf</string>
+    <string name="document_fallback">Belge</string>
+    <string name="share_refused">StarkLLM bu dosyayı gönderemez. Dosyayı belge olarak sunan bir uygulamadan paylaşın.</string>
+    <string name="reminder_public_title">Son tarih hatırlatıcısı</string>
+    <string name="reminder_public_text">Görmek için StarkLLM\'i açın.</string>
     <plurals name="deadline_in_days">
         <item quantity="one">%d gün sonra</item>
         <item quantity="other">%d gün sonra</item>
+    </plurals>
+    <plurals name="widget_locked">
+        <item quantity="one">%d açık son tarih</item>
+        <item quantity="other">%d açık son tarih</item>
     </plurals>
 </resources>

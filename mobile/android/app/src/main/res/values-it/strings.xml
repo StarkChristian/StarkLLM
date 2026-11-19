@@ -19,14 +19,14 @@
     <string name="privacy_note">I vostri documenti e il modello di IA restano sul vostro PC. Il telefono si collega cifrato tramite la rete di casa e mostra solo le risposte.</string>
     <string name="scan_button">Scansiona codice QR</string>
     <string name="scan_hint">Inquadrate il codice QR sullo schermo del vostro PC.</string>
-    <string name="camera_permission_needed">StarkLLM usa la fotocamera solo per leggere il codice QR. Non viene registrato nulla.</string>
+    <string name="camera_permission_needed">StarkLLM usa la fotocamera solo quando toccate: per leggere il codice QR del vostro PC o fotografare una lettera per il PC. Non viene registrato nulla in background.</string>
     <string name="not_a_starkllm_code">Questo non è un codice di associazione di StarkLLM.</string>
     <string name="confirm_pair_title">Associare a %1$s?</string>
     <string name="confirm_pair_body">StarkLLM si collegherà a questo PC nella rete di casa (%1$s). Continuate solo se il codice è mostrato sul vostro PC.</string>
     <string name="pair_button">Associa</string>
     <string name="pairing_progress">Connessione…</string>
     <string name="error_unreachable">Il PC non è raggiungibile. È acceso, StarkLLM è in funzione, e telefono e PC sono sulla stessa Wi-Fi?</string>
-    <string name="error_wrong_pc">Il dispositivo che ha risposto non è il PC associato (il suo certificato è diverso). Non è stato inviato nulla. Associate di nuovo con un nuovo codice QR se StarkLLM è stato reinstallato sul PC.</string>
+    <string name="error_wrong_pc">All\'indirizzo del PC ha risposto un altro dispositivo, non il PC associato (il suo certificato è diverso). Non è stato inviato nulla e l\'associazione resta. Se StarkLLM è stato reinstallato sul PC, associate di nuovo con un nuovo codice QR.</string>
     <string name="error_code_closed">Questo codice è scaduto o è già stato usato. Mostrate un nuovo codice QR sul PC.</string>
     <string name="error_wrong_code">Il PC non ha accettato il codice. Mostrate un nuovo codice QR sul PC.</string>
     <string name="error_too_many">Questo PC ha già dieci telefoni associati. Rimuovetene prima uno sul PC (Impostazioni &gt; Telefono).</string>
@@ -184,8 +184,22 @@
     <string name="help_privacy">• Documenti e modello di IA non lasciano mai il PC; il telefono mostra solo le risposte.\n• La connessione è cifrata e il telefono si fida solo del PC di cui ha scansionato il codice QR.\n• La chiave del telefono è custodita nell\'Android Keystore; l\'app non ha backup nel cloud, pubblicità né tracciamento.\n• Impostazioni &gt; Blocco dell\'app chiede l\'impronta all\'apertura.</string>
     <string name="help_trouble_title">Se qualcosa non funziona</string>
     <string name="help_trouble">• «PC non raggiungibile»: il PC è acceso, StarkLLM è in funzione, il telefono è sulla stessa Wi-Fi e Windows ha consentito le reti private?\n• «Non è il PC associato»: StarkLLM è stato reinstallato o ha un nuovo certificato; associate di nuovo con un nuovo codice QR.\n• «Il PC non lo consente»: cambiate il livello sul PC in Impostazioni &gt; Telefono.\n• «Completamente offline»: riattivatelo sul PC in Impostazioni &gt; Privacy e rete.</string>
+    <string name="camera_unavailable">Al momento la fotocamera non si può usare (il telefono non ne ha una, oppure la sta usando un\'altra app). Chiudete le altre app della fotocamera e riprovate.</string>
+    <string name="permission_title">Autorizzazione necessaria</string>
+    <string name="open_settings">Apri impostazioni</string>
+    <string name="permission_mic">La dettatura ha bisogno del microfono. Android non l\'ha consentito; potete consentirlo nelle impostazioni dell\'app.</string>
+    <string name="permission_notifications">I promemoria hanno bisogno del permesso di mostrare notifiche. Potete concederlo nelle impostazioni dell\'app.</string>
+    <string name="photo_file_prefix">Foto</string>
+    <string name="document_fallback">Documento</string>
+    <string name="share_refused">StarkLLM non può inviare questo file. Condividetelo da un\'app che lo offre come documento.</string>
+    <string name="reminder_public_title">Promemoria di scadenza</string>
+    <string name="reminder_public_text">Aprite StarkLLM per vederla.</string>
     <plurals name="deadline_in_days">
         <item quantity="one">tra %d giorno</item>
         <item quantity="other">tra %d giorni</item>
+    </plurals>
+    <plurals name="widget_locked">
+        <item quantity="one">%d scadenza aperta</item>
+        <item quantity="other">%d scadenze aperte</item>
     </plurals>
 </resources>
