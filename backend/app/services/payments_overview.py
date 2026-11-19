@@ -4,8 +4,13 @@ Six-language test of 2.3.0 (19 Nov 2026, N50/N51): "What do I have to pay by the
 letters got four retrieved passages. In Spanish and French the scam letter took a slot and a real bill (local tax
 142 EUR, service charges 96,50 EUR) was missing from the answer; in Italian a deadline twelve days ahead was called
 "already expired". Such a question is about every letter, so the engine lists every letter's deadlines and amounts
-itself (read by rules: facts_service, dates_service), each with its status counted here ("in 12 days",
-"overdue by 3 days"), and scam letters as "probable scam, do not pay". The passages follow as usual.
+itself (read by rules: facts_service, dates_service), each with its status counted here ("days_left=12",
+"overdue_days=3"), and scam letters as a likely fraud not to pay. The passages follow as usual.
+
+Six-language test, 20 Nov 2026: Italian and French answers copied the block's English working words ("(today + 12
+days)") and ISO dates (2026-12-01), and Turkish and French answers wrote the English word "scam". The block now writes
+dates the way the answer language writes them, gives the status as data the model rewords (days_left=12), names the
+fraud in the answer language and tells the model never to copy field names, ISO dates or English words.
 """
 import re
 from datetime import date, timedelta
@@ -58,15 +63,48 @@ def relative_time(when: date, today: date) -> str:
     return f"in {days} days" if days > 0 else f"overdue by {-days} days"
 
 
-def status(when: date, today: date) -> str:
-    """The status of a date for the model, in words it can copy: "in 12 days, still ahead", "overdue by 3 days, past"."""
+def status_data(when: date, today: date) -> str:
+    """The status of a date as data the model rewords in the answer language, never words to copy:
+    "days_left=12", "due_today=yes", "overdue_days=3"."""
     days = (when - today).days
-    rel = relative_time(when, today)
     if days < 0:
-        return f"{rel}, past"
+        return f"overdue_days={-days}"
     if days == 0:
-        return "today, due today"
-    return f"{rel}, still ahead, not overdue"
+        return "due_today=yes"
+    return f"days_left={days}"
+
+
+_MONTHS_EN = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+              "November", "December")
+
+
+def _code(lang: Optional[str]) -> str:
+    return (lang or "").lower().replace("_", "-").split("-")[0]
+
+
+def format_date(when: date, lang: Optional[str]) -> str:
+    """A date the way the answer language writes it: 01.12.2026 (de, tr), 01/12/2026 (es, fr, it, pt),
+    1 December 2026 (en and any other). Never ISO: a small model copied 2026-12-01 into Italian answers."""
+    code = _code(lang)
+    if code in ("de", "tr"):
+        return f"{when.day:02d}.{when.month:02d}.{when.year}"
+    if code in ("es", "fr", "it", "pt"):
+        return f"{when.day:02d}/{when.month:02d}/{when.year}"
+    return f"{when.day} {_MONTHS_EN[when.month - 1]} {when.year}"
+
+
+def _iso_to_local(value, lang: Optional[str]) -> str:
+    try:
+        return format_date(date.fromisoformat(str(value)[:10]), lang)
+    except ValueError:
+        return str(value)
+
+
+# "Scam" in the answer language: a 7B model wrote the English word in Turkish and French answers.
+FRAUD_WORDS = {
+    "en": "likely fraud", "de": "wahrscheinlich Betrug", "es": "probable fraude", "fr": "fraude probable",
+    "it": "probabile truffa", "tr": "muhtemelen dolandırıcılık", "pt": "provável fraude",
+}
 
 
 # Words of a question that never name a letter: question words, pronouns, verbs and time words of the six languages.
@@ -130,56 +168,66 @@ def letter_rows(items: List[Dict], dates: List[Dict]) -> List[Dict]:
     return rows
 
 
-def _what(d: Dict) -> str:
+def _what(d: Dict, lang: Optional[str]) -> str:
     if d.get("notice"):
-        return (f"last day to give notice ({d['notice']['count']} {d['notice']['unit']} before the contract end "
-                f"{d['notice']['base']})")
-    return d.get("kind") or "date"
+        return (f"item=notice_deadline | notice_period={d['notice']['count']} {d['notice']['unit']} | "
+                f"contract_end={_iso_to_local(d['notice']['base'], lang)}")
+    return f"item={d.get('kind') or 'date'}"
 
 
-def overview_block(today: date, rows: List[Dict], max_lines: int = 40) -> str:
-    """The prompt block: every letter with its amounts and dates, each date with its status counted by the engine."""
+def overview_block(today: date, rows: List[Dict], lang: Optional[str] = None, max_lines: int = 40) -> str:
+    """The prompt block: every letter with its amounts and dates, each date with its status counted by the engine.
+    lang is the answer language code ("it"): dates are written as that language writes them and the fraud is named
+    in it. today is the user's day (the PC's local date), the same as "Today is" in the prompt."""
     if not rows:
         return ""
+    fraud = FRAUD_WORDS.get(_code(lang))
     month_end = (today.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
     year_end = date(today.year, 12, 31)
     lines = []
     for r in rows:
-        head = f"{r['filename']} | sender: {r.get('sender') or 'unknown'} | {(r.get('kind') or 'letter').replace('_', ' ')}"
+        head = (f"file={r['filename']} | sender={r.get('sender') or 'unknown'} | "
+                f"type={(r.get('kind') or 'letter')}")
         if r["scam"]:
-            asked = f" It asks for {r['asked_amount']}." if r.get("asked_amount") else ""
-            lines.append(f"- {head} | PROBABLE SCAM, DO NOT PAY.{asked} Never list it as a payment; name it only as a "
-                         f"probable scam the user should not pay.")
+            asked = f" | asks_for={r['asked_amount']}" if r.get("asked_amount") else ""
+            lines.append(f"- {head} | LIKELY FRAUD, DO NOT PAY{asked}")
             continue
         if not r["dates"]:
-            lines.append(f"- {head} | no due date or amount to pay found")
+            lines.append(f"- {head} | no_due_date=yes")
             continue
         for d in r["dates"]:
+            amount = f" | amount={d['amount']}" if d.get("amount") else ""
             if d.get("ambiguous"):
-                amount = f" | amount: {d['amount']}" if d.get("amount") else ""
-                lines.append(f"- {head} | {_what(d)}{amount} | AMBIGUOUS date {d.get('literal')}: {d['readings']['dmy']} "
-                             f"(day first) or {d['readings']['mdy']} (month first); the user has to check the letter, "
-                             f"do not pick one")
+                lines.append(f"- {head} | {_what(d, lang)}{amount} | date=AMBIGUOUS \"{d.get('literal')}\": "
+                             f"{_iso_to_local(d['readings']['dmy'], lang)} (day first) or "
+                             f"{_iso_to_local(d['readings']['mdy'], lang)} (month first); the user has to check the "
+                             f"letter, do not pick one")
                 continue
             when = date.fromisoformat(d["date"])
-            amount = f" | amount: {d['amount']}" if d.get("amount") else ""
-            lines.append(f"- {head} | {_what(d)}{amount} | date: {when.isoformat()} ({when:%a}) | status: "
-                         f"{status(when, today)} | letter says: \"{(d.get('text') or '')[:150]}\"")
+            lines.append(f"- {head} | {_what(d, lang)}{amount} | date={format_date(when, lang)} | "
+                         f"{status_data(when, today)} | quote=\"{(d.get('text') or '')[:150]}\"")
     if len(lines) > max_lines:
         lines = lines[:max_lines] + [f"- ... and {len(lines) - max_lines} more"]
+    fraud_rule = (f"call it \"{fraud}\" (or the same in your own words)" if fraud else
+                  "call it a likely fraud in the language of the answer")
     return (
         "\n═══════════════════════════════════════\n"
-        "ALL LETTERS OF THIS WORKSPACE: AMOUNTS AND DATES (read by StarkLLM's rules from every letter, not only from "
-        "the passages below; letters replaced by a correction are left out)\n"
+        "ALL LETTERS OF THIS WORKSPACE: AMOUNTS AND DATES (data read by StarkLLM's rules from every letter, not only "
+        "from the passages below; letters replaced by a correction are left out; internal, do not quote)\n"
         "═══════════════════════════════════════\n"
-        f"Today: {today:%A} {today.isoformat()}. End of this month: {month_end.isoformat()} "
-        f"({relative_time(month_end, today)}). End of this year: {year_end.isoformat()} ({relative_time(year_end, today)}).\n"
+        f"current_date={format_date(today, lang)} | month_end={format_date(month_end, lang)} "
+        f"({status_data(month_end, today)}) | year_end={format_date(year_end, lang)} ({status_data(year_end, today)})\n"
         + "\n".join(lines)
         + "\nThis question is about all letters: answer from this list and go through every letter in it, naming its "
-          "file. Use the passages below only for details. Take each status (\"in 12 days, still ahead\", \"overdue by "
-          "3 days, past\") exactly as written: it was counted by StarkLLM from today's date; never compare dates or "
-          "count days yourself. A date \"still ahead\" is not expired or overdue. Only list items that fit the "
-          "question's time span (a date up to the end of the year fits \"by the end of the year\"). A cancellation or "
-          "notice deadline is not a payment: say what the letter asks. A letter marked PROBABLE SCAM is never a "
-          "payment: tell the user not to pay it.\n"
+          "file. Use the passages below only for details. The list is data, not text: write the answer in your own "
+          "words, in the language of the user's message. days_left=N means the date is N days ahead, still open, not "
+          "expired and not overdue; overdue_days=N means it passed N days ago; due_today=yes means it is due today. "
+          "StarkLLM counted these from the current date: never compare dates or count days yourself. Write every date "
+          "the way the user writes dates, as the dates in this list are written. Never copy field names (file=, "
+          "sender=, type=, item=, days_left, overdue_days, due_today, current_date, quote=), the English word "
+          "\"today\", ISO dates such as 2026-12-01 or any other English word of this list into an answer in another "
+          "language. Only list items that fit the question's time span (a date up to year_end fits \"by the end of "
+          "the year\"). A notice_deadline is not a payment: say what the letter asks. A letter marked LIKELY FRAUD is "
+          f"never a payment: {fraud_rule} and tell the user not to pay it; never write the English word \"scam\" in "
+          "an answer in another language.\n"
     )

@@ -18,7 +18,7 @@ from app.services.payments_overview import (
     is_payment_question, letter_rows, named_letters, overview_block, relative_time,
 )
 from app.services.document_checks import fact_block, findings, note, ibans, sender_key
-from app.services.locale_rules import language_name
+from app.services.locale_rules import LANGUAGE_NAMES, language_name
 from app.services.memory_service import memory_service
 from app.services.mcp_service import mcp_service
 from app.core import netguard
@@ -254,25 +254,47 @@ SMALL_WORKSPACE_CHUNKS = 20
 SMALL_WORKSPACE_CHARS = 14000
 
 
+def local_today(sent: Optional[str] = None) -> date:
+    """The user's day: the PC's local date the app sends with the message, else the engine's date (its time zone is
+    the PC's, STARKLLM_TZ). Just after midnight the overview counted one day off (N52 test, 20 Nov 2026), so the chat
+    takes this date once and uses it for "Today is" and for every day count. A sent date more than a day away from the
+    engine's is ignored."""
+    engine = date.today()
+    try:
+        sent_day = date.fromisoformat((sent or "").strip()[:10])
+    except ValueError:
+        return engine
+    return sent_day if abs((sent_day - engine).days) <= 1 else engine
+
+
+_LANGUAGE_CODES = {name: code for code, name in reversed(list(LANGUAGE_NAMES.items()))}
+
+
+def answer_language_code(message: str, ui_language: Optional[str] = None) -> Optional[str]:
+    """The code of the answer language: the language of the message ("it"), else the interface language."""
+    return _LANGUAGE_CODES.get(language_of(message) or "") or ((ui_language or "").lower().split("-")[0] or None)
+
+
 def _dates_section(db, user_id: int, workspace_id: int, include_kb: bool, message: str = "",
-                   payment_question: bool = False):
+                   payment_question: bool = False, today: Optional[date] = None, lang: Optional[str] = None):
     """(prompt block, letters listed): the deadlines, payments and appointments in the user's letters.
     A question about what to pay or what is due over all letters ("What do I have to pay by the end of the year?")
     gets every letter with its amounts, dates, status and scam flag (payments_overview.overview_block); its letters
     are returned so they become sources of the answer. Any other date question gets the dates list."""
     from app.api.dashboard import document_dates
     try:
-        today, items, dates = document_dates(db, user_id, workspace_id=workspace_id, include_kb=include_kb)
+        engine_today, items, dates = document_dates(db, user_id, workspace_id=workspace_id, include_kb=include_kb)
     except Exception as e:
         logger.warning(f"dates for the prompt skipped: {e}")
         return "", []
+    today = today or engine_today
     rows = letter_rows(items, dates)
     # "Wie viel muss ich ans Finanzamt nachzahlen und bis wann?": only the dates of the letters the question names
     # (by sender or file name); a small model otherwise took another letter's date from the list. Question words
     # never name a letter: "antes" and "payer" did, and a French and a Spanish answer missed two bills (N50).
     named = named_letters(message, rows) if message else []
     if payment_question and rows and not (named and len(named) < len(rows)):
-        return overview_block(today, rows), rows
+        return overview_block(today, rows, lang), rows
     if not dates:
         return "", []
     if named:
@@ -560,6 +582,7 @@ class ChatRequest(BaseModel):
     max_tokens: Optional[int] = None
     provider: Optional[str] = "ollama"
     language: Optional[str] = None  # the interface language ("de", "en", ...): the answer language when the message is too short to tell
+    today: Optional[str] = None  # the PC's local date (YYYY-MM-DD): "today" and every day count follow the user's day
 
     @field_validator("message")
     @classmethod
@@ -753,9 +776,10 @@ async def chat(
                              "Never take a number from a document about something else.\n"
                            if missing_terms else "")
         payment_question = is_payment_question(req.message)
+        _today = local_today(req.today)  # one date for "Today is" and every day count in the prompt
         dates_section, overview_rows = (
             _dates_section(db, current_user.id, req.workspace_id, bool(req.use_knowledge_base), req.message,
-                           payment_question)
+                           payment_question, _today, answer_language_code(req.message, req.language))
             if docs_available and (payment_question or DATE_QUESTION.search(req.message)) else ("", []))
         # a question about what to pay over all letters: the list of every letter goes in front of the passages
         overview_section = dates_section if overview_rows else ""
@@ -1196,7 +1220,6 @@ WEB SEARCH RESULTS (LIVE DATA)
                          + (f"; when the message is too short to tell (one word, a number), answer in {_ui_lang}" if _ui_lang else
                             "; when the message is too short to tell, answer in the language of the documents")
                          + ". Names, amounts, dates and reference numbers from a document stay exactly as written in it.\n")
-        _today = date.today()
         safety_section = _safety_section(warnings)
         system_prompt = f"""You are StarkLLM, a premium private AI assistant with Retrieval-Augmented Generation (RAG) capabilities.
 {custom_instructions_section}

@@ -1,17 +1,21 @@
 """Six-language test of 2.3.0 (N50/N51): "What do I have to pay by the end of the year?" over five letters got four
 passages; in Spanish and French a real bill was missing and the scam letter took its place, in Italian a deadline twelve
 days ahead was called expired. Such a question now gets every letter with its amount, date, status counted by the
-engine and scam flag, in front of the passages, and those letters become sources of the answer."""
+engine and scam flag, in front of the passages, and those letters become sources of the answer.
+
+20 Nov 2026: answers in it/fr copied "(today + 12 days)" and ISO dates, tr/fr answers wrote "scam", and a day count was
+one day off just after midnight. Dates are now written in the answer language's format, the status is data
+(days_left=12), the fraud is named in the answer language, and the PC's local date is used for every count."""
 import uuid
 from datetime import date, timedelta
 
 import app.main  # noqa: F401  (creates the tables)
 from app.api.auth import get_password_hash
-from app.api.chat import _dates_section, _letter_evidence
+from app.api.chat import _dates_section, _letter_evidence, answer_language_code, local_today
 from app.db import models
 from app.db.session import SessionLocal
 from app.services.payments_overview import (
-    is_payment_question, letter_rows, named_letters, overview_block, relative_time, status,
+    format_date, is_payment_question, letter_rows, named_letters, overview_block, relative_time, status_data,
 )
 from app.services.rag_service import rag_service
 
@@ -86,31 +90,87 @@ def _row(filename, sender, kind, dates, scam=False, asked=None):
             "scope": "ws", "document_id": 1, "dates": dates}
 
 
+ROWS = [
+    _row("TARI-Comune.pdf", "Comune di Borgonuovo", "tax_notice",
+         [{"date": "2026-12-01", "kind": "deadline", "amount": "142,00 EUR", "text": "2ª rata, scadenza 1° dicembre 2026", "page": 1}]),
+    _row("Vecchia.pdf", "Comune", None, [{"date": "2026-11-16", "kind": "payment", "amount": "10,00 EUR", "text": "pagare entro il 16/11/2026"}]),
+    _row("Oggi.pdf", "Comune", None, [{"date": "2026-11-19", "kind": "deadline", "text": "entro oggi"}]),
+    _row("Polizza.pdf", "Assicurazioni", "contract", [{"date": "2026-12-31", "kind": "deadline", "text": "disdetta",
+                                                      "notice": {"count": 3, "unit": "months", "base": "2027-03-31"}}]),
+    _row("Dogana-pacco.pdf", "Dogana Pacchi Express", "reminder", [], scam=True, asked="2,99 EUR"),
+]
+
+
 def test_every_item_has_its_status_counted_by_the_engine():
-    rows = [
-        _row("TARI-Comune.pdf", "Comune di Borgonuovo", "tax_notice",
-             [{"date": "2026-12-01", "kind": "deadline", "amount": "142,00 EUR", "text": "2ª rata, scadenza 1° dicembre 2026", "page": 1}]),
-        _row("Vecchia.pdf", "Comune", None, [{"date": "2026-11-16", "kind": "payment", "amount": "10,00 EUR", "text": "pagare entro il 16/11/2026"}]),
-        _row("Oggi.pdf", "Comune", None, [{"date": "2026-11-19", "kind": "deadline", "text": "entro oggi"}]),
-        _row("Dogana-pacco.pdf", "Dogana Pacchi Express", "reminder", [], scam=True, asked="2,99 EUR"),
-    ]
-    block = overview_block(TODAY, rows)
+    block = overview_block(TODAY, ROWS, "it")
     # N51: 1 Dec 2026 seen on 19 Nov 2026 is ahead, not "già scaduta"
-    assert ("TARI-Comune.pdf | sender: Comune di Borgonuovo | tax notice | deadline | amount: 142,00 EUR | "
-            "date: 2026-12-01 (Tue) | status: in 12 days, still ahead, not overdue") in block
-    assert "status: overdue by 3 days, past" in block
-    assert "status: today, due today" in block
-    assert "Dogana-pacco.pdf | sender: Dogana Pacchi Express | reminder | PROBABLE SCAM, DO NOT PAY. It asks for 2,99 EUR." in block
-    assert "End of this month: 2026-11-30 (in 11 days). End of this year: 2026-12-31 (in 42 days)." in block
+    assert ("file=TARI-Comune.pdf | sender=Comune di Borgonuovo | type=tax_notice | item=deadline | amount=142,00 EUR | "
+            "date=01/12/2026 | days_left=12 | quote=") in block
+    assert "date=16/11/2026 | overdue_days=3" in block
+    assert "date=19/11/2026 | due_today=yes" in block
+    assert "item=notice_deadline | notice_period=3 months | contract_end=31/03/2027" in block
+    assert ("file=Dogana-pacco.pdf | sender=Dogana Pacchi Express | type=reminder | LIKELY FRAUD, DO NOT PAY | "
+            "asks_for=2,99 EUR") in block
+    assert ("current_date=19/11/2026 | month_end=30/11/2026 (days_left=11) | year_end=31/12/2026 (days_left=42)"
+            in block)
     assert "never compare dates or count days yourself" in block and "is never a payment" in block
     assert "PASSED" not in block
 
 
+def test_the_block_has_no_iso_dates_and_no_english_status_words_to_copy():
+    # it/fr answers copied "(today + 12 days)" and 2026-12-01 (20 Nov 2026)
+    import re
+    for lang in ("it", "fr", "es", "de", "tr"):
+        block = overview_block(TODAY, ROWS, lang)
+        data = block.split("\nThis question is about all letters")[0]
+        assert not re.search(r"\d{4}-\d{2}-\d{2}", data), lang
+        for words in ("in 12 days", "still ahead", "overdue by", "(Tue)", "today,", "scam"):
+            assert words not in data, (lang, words)
+        rule = block.split("\nThis question is about all letters")[1]
+        assert "Never copy field names" in rule and "ISO dates" in rule and "the way the user writes dates" in rule
+
+
+def test_dates_in_the_format_of_the_answer_language():
+    d = date(2026, 12, 1)
+    assert format_date(d, "de") == "01.12.2026" and format_date(d, "tr") == "01.12.2026"
+    assert format_date(d, "es") == format_date(d, "fr") == format_date(d, "it") == "01/12/2026"
+    assert format_date(d, "en") == "1 December 2026" and format_date(d, None) == "1 December 2026"
+    assert "date=01.12.2026 | days_left=12" in overview_block(TODAY, ROWS, "de")
+    assert "date=1 December 2026 | days_left=12" in overview_block(TODAY, ROWS, "en")
+
+
+def test_the_fraud_is_named_in_the_answer_language():
+    # tr/fr answers wrote the English word "scam"
+    assert 'call it "muhtemelen dolandırıcılık"' in overview_block(TODAY, ROWS, "tr")
+    assert 'call it "fraude probable"' in overview_block(TODAY, ROWS, "fr")
+    assert 'call it "probabile truffa"' in overview_block(TODAY, ROWS, "it")
+    for lang in ("tr", "fr", "en"):
+        assert 'never write the English word "scam"' in overview_block(TODAY, ROWS, lang)
+
+
 def test_status_words():
-    assert status(date(2026, 12, 1), TODAY) == "in 12 days, still ahead, not overdue"
-    assert status(date(2026, 11, 20), TODAY) == "tomorrow, still ahead, not overdue"
-    assert status(date(2026, 11, 16), TODAY) == "overdue by 3 days, past"
+    assert status_data(date(2026, 12, 1), TODAY) == "days_left=12"
+    assert status_data(date(2026, 11, 20), TODAY) == "days_left=1"
+    assert status_data(date(2026, 11, 19), TODAY) == "due_today=yes"
+    assert status_data(date(2026, 11, 16), TODAY) == "overdue_days=3"
     assert relative_time(date(2026, 11, 18), TODAY) == "overdue by 1 days"
+
+
+def test_the_pcs_local_date_is_used_after_midnight():
+    # the engine's date and the PC's may differ by a day around midnight: the PC's date counts
+    engine = date.today()
+    assert local_today((engine + timedelta(days=1)).isoformat()) == engine + timedelta(days=1)
+    assert local_today((engine - timedelta(days=1)).isoformat()) == engine - timedelta(days=1)
+    # a missing, broken or far-off date falls back to the engine's date
+    assert local_today(None) == engine and local_today("not a date") == engine
+    assert local_today((engine + timedelta(days=40)).isoformat()) == engine
+
+
+def test_the_answer_language_is_the_message_language_else_the_interface_language():
+    assert answer_language_code("Quando devo pagare la fattura e quanto?", "de") == "it"
+    assert answer_language_code("Quand dois-je payer la facture ?", None) == "fr"
+    assert answer_language_code("ok", "tr") == "tr"
+    assert answer_language_code("ok", None) is None
 
 
 def test_rows_leave_out_replaced_copies_and_non_letters_and_put_scams_last():
@@ -182,17 +242,23 @@ def test_a_payment_question_gets_every_letter_with_status_and_the_scam_flag(tmp_
     user_id, ws_id = _workspace(tmp_path)
     db = SessionLocal()
     try:
-        block, rows = _dates_section(db, user_id, ws_id, False, "¿Qué tengo que pagar antes de fin de año?", True)
+        block, rows = _dates_section(db, user_id, ws_id, False, "¿Qué tengo que pagar antes de fin de año?", True,
+                                     lang="es")
+        pc_block, _ = _dates_section(db, user_id, ws_id, False, "¿Qué tengo que pagar antes de fin de año?", True,
+                                     date.today() + timedelta(days=1), "es")
         named_block, named_rows = _dates_section(db, user_id, ws_id, False, "¿Cuánto tengo que pagar al Ayuntamiento?", True)
         other_block, other_rows = _dates_section(db, user_id, ws_id, False, "¿Cuándo vence el IBI?", False)
     finally:
         db.close()
         rag_service.chroma_client.delete_collection(f"user_{user_id}_workspace_{ws_id}")
     assert "ALL LETTERS OF THIS WORKSPACE" in block
-    assert "IBI-Ayuntamiento.pdf | sender: Ayuntamiento de Villanueva del Río" in block and "142,00 EUR" in block
+    assert "file=IBI-Ayuntamiento.pdf | sender=Ayuntamiento de Villanueva del Río" in block and "142,00 EUR" in block
     assert "Derrama-comunidad.pdf" in block and "96,50 EUR" in block
-    assert "status: in 12 days, still ahead, not overdue" in block and "status: in 21 days, still ahead, not overdue" in block
-    assert "Tasa-aduana-paquete.pdf | sender: Aduanas Paquetería" in block and "PROBABLE SCAM, DO NOT PAY" in block
+    assert "days_left=12" in block and "days_left=21" in block
+    assert "file=Tasa-aduana-paquete.pdf | sender=Aduanas Paquetería" in block and "LIKELY FRAUD, DO NOT PAY" in block
+    assert f"date={_when(12)} | days_left=12" in block  # Spanish: dd/mm/yyyy
+    # just after midnight the PC is a day ahead of the engine: the counts follow the PC's date
+    assert "days_left=11" in pc_block and "days_left=20" in pc_block and "days_left=12" not in pc_block
     assert [r["filename"] for r in rows] == ["IBI-Ayuntamiento.pdf", "Derrama-comunidad.pdf", "Tasa-aduana-paquete.pdf"]
     evidence = _letter_evidence(rows)
     assert [e["label"] for e in evidence] == ["IBI-Ayuntamiento.pdf (Page 1)", "Derrama-comunidad.pdf (Page 1)",
