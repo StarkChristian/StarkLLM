@@ -81,7 +81,7 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 "overdue" -> applicationContext.getString(R.string.deadline_overdue)
                 "today" -> applicationContext.getString(R.string.deadline_today)
                 else -> applicationContext.resources.getQuantityString(R.plurals.deadline_in_days, d.days, d.days)
-            }
+            }.replaceFirstChar { it.uppercase() }       // "In 4 Tagen: ..." at the start of the title
             val title = listOfNotNull(d.sender ?: d.title ?: d.filename, d.amount).joinToString(" · ")
             val n = NotificationCompat.Builder(applicationContext, Reminders.CHANNEL)
                 .setSmallIcon(R.drawable.ic_stat_starkllm)

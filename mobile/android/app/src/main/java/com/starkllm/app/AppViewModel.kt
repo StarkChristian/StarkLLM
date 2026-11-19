@@ -433,7 +433,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 prefs.cachedDeadlines = openDeadlines(_state.value.deadlines.orEmpty())
                 DeadlinesWidget.update(getApplication())
             } catch (e: Exception) {
-                _state.update { s -> s.copy(deadlines = s.deadlines?.map { if (it.key == d.key) it.copy(done = !done) else it }) }
+                // the PC refused or was not reached: show its list again (it is the authority), then the reason
+                runCatching { loadDashboard(a) }
                 throw e
             }
         }
