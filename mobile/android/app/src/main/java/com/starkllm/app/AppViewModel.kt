@@ -517,6 +517,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setAppLock(on: Boolean) {
         prefs.appLock = on
         _state.update { it.copy(appLock = on) }
+        DeadlinesWidget.update(getApplication())      // the widget shows only a count while the lock is on
     }
 
     fun setTheme(id: String) {

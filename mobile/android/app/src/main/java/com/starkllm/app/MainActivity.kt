@@ -4,9 +4,11 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
+import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
@@ -33,6 +35,7 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         locked = vm.state.value.appLock
+        secure(vm.state.value.appLock)
         if (savedInstanceState == null) {
             // a fresh start: photos left from an earlier run (after a restore, one may still be on its way)
             Photos.clear(this)
@@ -40,6 +43,7 @@ class MainActivity : FragmentActivity() {
         }
         setContent {
             val ui by vm.state.collectAsStateWithLifecycle()
+            LaunchedEffect(ui.appLock) { secure(ui.appLock) }
             StarkTheme(themeId = ui.theme) {
                 if (locked) {
                     LockScreen(this) { locked = false }
@@ -57,6 +61,14 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * With the app lock on, the app's content is not shown in the list of recent apps and cannot be captured in a
+     * screenshot or a screen recording (FLAG_SECURE): the lock would be pointless if the last screen showed there.
+     */
+    private fun secure(on: Boolean) {
+        if (on) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE) else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
     }
 
     override fun onNewIntent(intent: Intent) {
