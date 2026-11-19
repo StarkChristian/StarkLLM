@@ -10,7 +10,7 @@ Two layers do the work, and a test fails when code goes around them:
 | Layer | Where | Test |
 |---|---|---|
 | **Desktop app** (Electron main process and the app window) | `desktop/netguard.js`: every request of the main process is announced to it; `webRequest` hook on the window's session | `desktop/test/netguard.test.js`: reads all desktop sources, fails on a new way to connect and on a web address that is not listed here |
-| **Engine** (Python backend in Docker) | `backend/app/core/netguard.py`: the only module that may use an HTTP client; a check in `socket` as second line of defence | `backend/tests/test_network_layer.py`: greps the backend for `requests`, `httpx`, `urllib`, raw sockets, and for libraries with their own client that run outside the guard |
+| **Engine** (Python backend; since 2.2.1 it runs directly on Windows with its own Python, in Docker Desktop only when the user chooses that in the tray menu) | `backend/app/core/netguard.py`: the only module that may use an HTTP client; a check in `socket` as second line of defence | `backend/tests/test_network_layer.py`: greps the backend for `requests`, `httpx`, `urllib`, raw sockets, and for libraries with their own client that run outside the guard |
 
 The log (`network-log.jsonl` in the app's profile folder, `data/network_log.jsonl` in the engine's data folder) holds
 **time, host, port, purpose (feature), bytes sent and received, result**. It never holds a path, a query, a search
@@ -30,8 +30,8 @@ offline" switch does to it. Feature = the key shown in the list.
 | D2 | Update download | `github.com` and the release file host it redirects to | only after "Download and install" | replace the app | yes, every time | off | refused | `update_download` |
 | D3 | Link "download page" | `www.starkllm.com` | only when the user clicks it | open in the user's own browser | yes | - | opens the browser (not a connection of the app) | - |
 | D4 | Ollama installer | `ollama.com`, then the release file host it redirects to | only after "Install Ollama for me" | install the local AI runtime | yes | off | refused | `ollama_install` |
-| D5 | Engine images | `ghcr.io` (token, manifests: by the app; layers: by Docker) | start of an installed app when the engine is missing or older than the app | get the engine of this version | not optional for a first start (the app cannot run without the engine); one time per version | on, when needed | skipped: the engine files already on the PC are used; without them the app says what to do | `engine_download` |
-| D5b | Engine package (without Docker) | `github.com` (release of the app's version) and the release file host it redirects to | start of an installed app on Windows when Docker Desktop cannot run StarkLLM and the package of this version is not on the PC yet | get the engine of this version with its own Python (about 380 MB download, 870 MB unpacked) | not optional for a first start without Docker; one time per version | on, when needed | refused before anything is sent; the app says to start once online | `engine_download` |
+| D5 | Engine images (only when the engine runs in Docker Desktop) | `ghcr.io` (token, manifests: by the app; layers: by Docker) | start of an installed app when the engine is missing or older than the app | get the engine of this version | not optional for a first start (the app cannot run without the engine); one time per version | on, when needed | skipped: the engine files already on the PC are used; without them the app says what to do | `engine_download` |
+| D5b | Engine package (without Docker) | `github.com` (release of the app's version) and the release file host it redirects to | start of an installed app when the engine package of this version is neither inside the installer nor on the PC yet (installers since 2.2.1 bring it, so this happens only with builds without it) | get the engine of this version with its own Python (about 380 MB download, 870 MB unpacked) | not optional for a first start without Docker; one time per version | on, when needed | refused before anything is sent; the app says to start once online | `engine_download` |
 | D6 | Engine build | `registry-1.docker.io`, `pypi.org`, `deb.debian.org` (by Docker) | only when D5 fails, or in a run from source | build the engine on this PC | no (fallback) | on, when needed | skipped | `engine_build` |
 | D7 | AI model download | `registry.ollama.ai` (by the local Ollama, on the app's request) | first start for models that are missing (`qwen2.5:7b`, `nomic-embed-text`, `llava`, or ones that fit the PC) | the models StarkLLM needs | not for the first start (chat needs a model); later yes (Model Hub is a click) | on, when needed | refused; the start continues with what is installed and says which model is missing | `model_download` |
 | D8 | App window requests | any host the page asks for | none by StarkLLM's own page (no CDN, no web fonts, no analytics; images of other sites are blocked in answers) | - | - | none | cancelled | `ui` |
@@ -42,7 +42,7 @@ offline" switch does to it. Feature = the key shown in the list.
 Not present: crash reports, telemetry, usage statistics, advertising or feature flags. Electron's `crashReporter` is
 not started; the code has no analytics library.
 
-### Engine (backend in Docker)
+### Engine (backend)
 
 | # | What | Host | When | Why | User-controlled | Default | Offline | Feature |
 |---|---|---|---|---|---|---|---|---|
@@ -67,7 +67,7 @@ Any new online feature must use `app/core/netguard.py` (the backend test then co
 | What | Connections it makes by itself | What StarkLLM does |
 |---|---|---|
 | **Ollama** (local AI runtime) | its own update check and model downloads (`ollama.com`, `registry.ollama.ai`) | StarkLLM does not control the Ollama program. It refuses to ask Ollama for downloads or cloud models while offline. To stop Ollama's own update check, turn it off in Ollama's settings or block it in the firewall (see verify-privacy.md). |
-| **Docker Desktop** | updates, telemetry of Docker, image pulls | Same: not controlled by StarkLLM. The "Fully offline" start uses `docker compose up --no-build` and pulls nothing. |
+| **Docker Desktop** (only when the user chose it for the engine) | updates, telemetry of Docker, image pulls | Same: not controlled by StarkLLM. The "Fully offline" start uses `docker compose up --no-build` and pulls nothing. |
 | **Chromium inside Electron** | system proxy auto-detection (WPAD), certificate revocation checks, spell-check dictionary download | The app window's spell-check dictionary download is off while the switch is on. Proxy detection and revocation checks go to your own network or certificate servers when a page is HTTPS; StarkLLM's own page is `http://localhost` and needs none. |
 | **Windows** | its own services | out of scope |
 
@@ -98,5 +98,5 @@ Any new online feature must use `app/core/netguard.py` (the backend test then co
 Limits, honestly: the guard cannot stop a client that is written in another language and does not go through
 `socket` (the search library's own client is wrapped by `netguard.external()`, so it is stopped before it starts), and
 it cannot control other programs (Ollama, Docker, Windows). The proof that the engine itself makes no connection is the
-Docker run without a network in [verify-privacy.md](verify-privacy.md) (`docker run --network none`), which the
-test suite also does.
+run without a network in [verify-privacy.md](verify-privacy.md): for the installed engine a firewall rule for its own
+`python.exe`, for the source code `docker run --network none`, which the test suite also does.

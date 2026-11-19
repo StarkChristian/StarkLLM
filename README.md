@@ -1,28 +1,36 @@
-# StarkLLM Desktop (v2.2.0)
+# StarkLLM Desktop (v2.3.0)
 
-**Version:** StarkLLM Desktop v2.2.0  
+**Version:** StarkLLM Desktop v2.3.0  
 **License:** Apache 2.0 (Open Source)  
-**Package:** `StarkLLM-v2.2.0-Setup.exe` (SHA-256: published with the release)  
+**Package:** `StarkLLM-v2.3.0-Setup.exe`, signed by "Open Source Developer Christian Stark" (SHA-256: published with the release)  
 **Official Website:** [https://www.starkllm.com](https://www.starkllm.com)  
 **Documentation & Manual:** [https://www.starkllm.com/manual.html](https://www.starkllm.com/manual.html)
 
-**StarkLLM Desktop** is a private, local-first native desktop AI assistant designed for Windows developers, researchers, and technical professionals. It runs in its own **standalone native desktop application window** (similar to Cursor and Claude Desktop—no web browser tabs or address bar needed).
+**StarkLLM** is a free, open source assistant for your own documents and letters on Windows. It runs in its own desktop
+window, reads your PDFs, Word files, e-books, presentations, photos and scans on your PC, answers questions about them
+with the page it found the answer on, and lists the deadlines and amounts in your letters. The AI models run on your PC
+through Ollama.
 
-StarkLLM is **completely free** and **open source** under Apache 2.0. It features an integrated Retrieval-Augmented Generation (RAG) engine, in-process local tool calling (MCP Host), folder chat organization, 8 handcrafted visual themes, universal conversation export, and real-time hardware VRAM monitoring—all running on your own PC by default.
-
-With its own engine and Ollama on this PC, StarkLLM is local-first: your files, documents and chats stay on your machine. A few optional features go online only when you turn them on or start them: web search (DuckDuckGo), a cloud model provider in Settings (DeepSeek, OpenRouter, Groq, ...), YouTube and GitHub import, market prices, and the update check. The chat shows when a question leaves your PC.
+Your files, documents and chats stay on your machine. A few optional features go online only when you turn them on or
+start them: web search (DuckDuckGo), a cloud model provider in Settings (DeepSeek, OpenRouter, Groq, ...), YouTube and
+GitHub import, market prices, and the update check. The chat shows when a question leaves your PC, Settings > Privacy &
+network lists every connection, and the "Fully offline" switch refuses all of them.
 
 ---
 
-## What's New in v2.0.0
+## What it does
 
-- 🖥️ **Standalone Native Desktop App**: Runs as an independent desktop window with dark theme framing, tray menu, and launch splash screen—not as a browser tab.
-- 📁 **Chat Folders & Organization**: Organize sessions into custom collapsible folders (e.g., "Research", "Legal Briefs", "Code Reviews").
-- 💾 **Universal 4-Format Export**: Export any conversation into Markdown (`.md`), clean JSON (`.json`), standalone styled HTML (`.html`), or plain text (`.txt`) with preserved citations and timestamps.
-- 🎨 **8 Curated Visual Themes**: Instant hot-swapping between Midnight Indigo, OLED Pitch Black, Liquid Glass, Cyberpunk Rose, Matrix Emerald, Sunset Amber, Arctic Frost, and Daylight Minimal.
-- 🌐 **Languages**: English, German and French interface (a new language is one translation file, see [docs/adding-a-language.md](docs/adding-a-language.md)). Answers follow the language of your question. Letters in English, German, French, Spanish, Italian and Turkish are read for dates, amounts and numbers; photos and scans are read in the languages you choose.
-- 📊 **Hardware Telemetry & Live VRAM Dashboard**: Real-time GPU video memory tracking, container status monitor, indexed chunk counters, and recent chats quick jump list.
-- 🛡️ **Safe In-Process Local Tools (MCP Host)**: Read-only local tools (`list_workspace_files`, `search_local_kb`, `fetch_cited_chunk`) with human confirmation cards, single-use invocation tokens, and prompt injection defense.
+- 📄 **Questions about your documents** with the page and line each answer comes from; quotations that are not in your documents are flagged.
+- 📚 **Whole documents and books:** summaries per chapter are built in the background, so "Summarize the book" works too. EPUB e-books by chapter, PowerPoint by slide.
+- 📬 **Inbox:** kind of letter, sender, reference numbers, amounts and deadlines of every letter, found word for word; warnings for possible scam letters.
+- 📅 **Deadlines** with reminders and calendar export (.ics).
+- 🔒 **Protection at rest (optional)** for documents, chats and the search index, and an **encrypted backup** you can keep anywhere.
+- 🛡️ **Safe local tools (MCP host)** that run only after your click; text inside documents is treated as data, never as instructions.
+- 🎨 **13 themes**, among them five with drawn patterns, and **Lucy**, a helper robot you can switch off.
+- 🌐 **Languages:** the app speaks English, German, Spanish, French, Italian and Turkish (a new language is one translation file, see [docs/adding-a-language.md](docs/adding-a-language.md)). Answers follow the language of your question.
+- ⚡ Runs on NVIDIA graphics cards and on integrated AMD Radeon / Intel Arc graphics; no Docker needed.
+
+What changed in each version: [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
 ---
 
@@ -42,7 +50,8 @@ To run StarkLLM smoothly, you need:
 
 ## Recommended Models
 
-Before launching StarkLLM, pull the recommended local models via terminal:
+StarkLLM picks and downloads models that fit your PC on the first start; you do not need a terminal. To choose
+yourself, Settings has a model list, or pull them with Ollama:
 
 ```bash
 # Recommended default model pair:
@@ -64,7 +73,7 @@ ollama pull nomic-embed-text
 Nothing to install beforehand. If Ollama is missing, StarkLLM offers "Install Ollama for me" and installs the official, signed version itself. You do not need to open a terminal: StarkLLM starts its engine and Ollama and downloads the AI models itself.
 
 ### Option A: Windows Installer (Recommended)
-1. Download `StarkLLM-v2.2.0-Setup.exe` from [starkllm.com/download](https://www.starkllm.com/download) or the GitHub release. It is signed by "Open Source Developer Christian Stark".
+1. Download `StarkLLM-v2.3.0-Setup.exe` from [starkllm.com/download](https://www.starkllm.com/download) or the GitHub release. It is signed by "Open Source Developer Christian Stark".
 2. Run the setup wizard and start StarkLLM from the desktop shortcut.
 3. **The first start downloads the AI models** (about 5 GB, depending on your graphics card; the splash screen shows the progress). The engine itself comes with the installer. Later starts take seconds.
 4. If something is missing (Ollama, a busy port, ...), the window says what and how to fix it; the log is in `%APPDATA%\StarkLLM\engine.log`.
@@ -85,7 +94,7 @@ Nothing to install beforehand. If Ollama is missing, StarkLLM offers "Install Ol
 To verify file integrity before running, compare the SHA-256 hash in PowerShell:
 
 ```powershell
-Get-FileHash -Algorithm SHA256 StarkLLM-v2.2.0-Setup.exe
+Get-FileHash -Algorithm SHA256 StarkLLM-v2.3.0-Setup.exe
 # compare with the SHA-256 listed on the GitHub release page
 ```
 
