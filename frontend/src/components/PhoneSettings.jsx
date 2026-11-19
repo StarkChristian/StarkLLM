@@ -134,9 +134,14 @@ export default function PhoneSettings() {
       <div className={styles.panelHeader}>
         <Smartphone size={18} />
         <h2>{t('Phone')}</h2>
+        <span className="badge badge-accent">{t('Preview')}</span>
       </div>
       <p className={styles.panelDesc}>
         {t('Ask about your documents and send photos of letters from your Android phone. The documents and the AI model stay on this PC: the phone connects over your home network, encrypted, and only after you paired it here.')}
+      </p>
+      <p className={styles.hint}>
+        {t('The StarkLLM app for Android is in a closed test on Google Play before everyone can download it. How to take part:')}{' '}
+        <a href="https://www.starkllm.com/android" target="_blank" rel="noreferrer">www.starkllm.com/android</a>
       </p>
 
       {error && <div style={note(false)}><AlertTriangle size={18} style={{ flexShrink: 0 }} />{error}</div>}
