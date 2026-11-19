@@ -408,9 +408,10 @@ private fun Question(line: ChatLine) {
         Box(Modifier.fillMaxWidth(0.85f), contentAlignment = Alignment.CenterEnd) {
             // the question in the theme's gradient, as the send button on the PC
             val shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 4.dp)
-            Box(Modifier.clip(shape).background(gradientOf(LocalStarkTheme.current))) {
+            val theme = LocalStarkTheme.current
+            Box(Modifier.clip(shape).background(textGradientOf(theme))) {
                 SelectionContainer {
-                    Text(line.text, style = MaterialTheme.typography.bodyLarge, color = Color.White,
+                    Text(line.text, style = MaterialTheme.typography.bodyLarge, color = onGradientOf(theme),
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
                 }
             }
@@ -582,7 +583,7 @@ internal fun InputBar(
                     val canSend = value.isNotBlank() && target != null
                     Box(
                         Modifier.padding(bottom = 2.dp).size(40.dp).clip(CircleShape)
-                            .background(if (canSend) gradientOf(LocalStarkTheme.current) else androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.surfaceContainer))
+                            .background(if (canSend) textGradientOf(LocalStarkTheme.current) else androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.surfaceContainer))
                             .clickable(enabled = canSend) {
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 onSend()
@@ -590,7 +591,7 @@ internal fun InputBar(
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(StarkIcons.ArrowUp, stringResource(R.string.send), Modifier.size(20.dp),
-                            tint = if (canSend) Color.White else MaterialTheme.colorScheme.outline)
+                            tint = if (canSend) onGradientOf(LocalStarkTheme.current) else MaterialTheme.colorScheme.outline)
                     }
                 }
             }
