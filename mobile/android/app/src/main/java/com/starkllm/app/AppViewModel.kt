@@ -329,22 +329,32 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- asking
 
-    /** From the home screen: a new chat in the chosen workspace */
-    fun askNew(text: String) {
-        val ws = _state.value.workspace ?: return
+    /**
+     * From the home screen: a new chat in the chosen workspace. false: the question was not sent (another answer is
+     * still coming in, no PC, no workspace); the screen stays and the field keeps the text.
+     */
+    fun askNew(text: String): Boolean {
+        val ws = _state.value.workspace ?: return false
+        if (!mayAsk(text)) return false
         _state.update { it.copy(screen = Screen.Chat(ws, null, "", Screen.Home), lines = emptyList()) }
-        ask(text)
+        return ask(text)
     }
 
-    fun ask(text: String) {
-        val question = text.trim()
-        val screen = _state.value.screen as? Screen.Chat ?: return
-        val a = api ?: return
-        if (question.isEmpty()) return
+    private fun mayAsk(text: String): Boolean {
+        if (text.isBlank() || api == null) return false
         if (_state.value.answeringFor != null) {
             _state.update { it.copy(info = Info(R.string.answer_running)) }
-            return
+            return false
         }
+        return true
+    }
+
+    /** false: the question was not sent, and the field keeps it */
+    fun ask(text: String): Boolean {
+        val question = text.trim()
+        val screen = _state.value.screen as? Screen.Chat ?: return false
+        val a = api ?: return false
+        if (!mayAsk(question)) return false
         val s0 = _state.value
         val nonce = screen.nonce
         // changes of the chat on the screen, only while it is still the chat of this answer
@@ -383,6 +393,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 AnswerService.stop(getApplication())
             }
         }
+        return true
     }
 
     fun stop() {

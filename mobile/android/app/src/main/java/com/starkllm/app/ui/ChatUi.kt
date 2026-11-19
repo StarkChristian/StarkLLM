@@ -170,7 +170,8 @@ internal fun HomeScreen(state: UiState, vm: AppViewModel, activity: FragmentActi
                 state = state, vm = vm, activity = activity,
                 value = input, onChange = { input = it },
                 target = state.workspace,
-                onSend = { vm.askNew(input); input = "" },
+                // the text stays in the field when the question was not sent (another answer is still coming in)
+                onSend = { if (vm.askNew(input)) input = "" },
                 focus = focus,
             )
         }
@@ -369,7 +370,7 @@ internal fun ChatScreen(state: UiState, vm: AppViewModel, screen: Screen.Chat, a
                 state = state, vm = vm, activity = activity,
                 value = input, onChange = { input = it },
                 target = screen.workspace,
-                onSend = { vm.ask(input); input = "" },
+                onSend = { if (vm.ask(input)) input = "" },
             )
         }
     }
