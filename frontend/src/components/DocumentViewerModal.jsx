@@ -3,6 +3,7 @@ import styles from './DocumentViewerModal.module.css';
 import { FileText, Download, Search, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 import { t } from '../i18n';
 import { useEscape } from '../utils/useEscape';
+import { answerLineRange } from '../utils/sourceLine';
 
 // The cited passage in the page text, found even when line breaks differ (the index joins sentences with spaces).
 function passageRange(text, passage) {
@@ -22,6 +23,7 @@ export default function DocumentViewerModal({
   initialFilename,
   initialPage = 1,
   highlight,
+  answer,
   token
 }) {
   const [docData, setDocData] = useState(null);
@@ -115,7 +117,12 @@ export default function DocumentViewerModal({
   const totalPages = docData?.pages?.length || 1;
   const currentText = docData?.pages?.find(p => p.page === currentPage)?.text || docData?.full_text || '';
 
-  const cited = !searchQuery ? passageRange(currentText, highlight) : null;
+  // N48: within the cited chunk, the line(s) the answer took its fact from (amount, date); else the chunk start
+  const chunk = !searchQuery ? passageRange(currentText, highlight) : null;
+  const focus = !searchQuery && answer
+    ? answerLineRange(currentText, answer, chunk && [chunk[0], chunk[0] + Math.max(String(highlight).length * 2, 1500)])
+    : null;
+  const cited = focus || chunk;
 
   useEffect(() => {
     if (cited && markRef.current) markRef.current.scrollIntoView({ block: 'center' });

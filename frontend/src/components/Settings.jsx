@@ -17,6 +17,7 @@ import { t, language, setLanguage } from '../i18n';
 import { languageName } from '../i18n/locales';
 import { SUPPORTED_LANGUAGES } from '../utils/languages';
 import { cloudHostFor } from '../utils/cloud';
+import { shownSection } from '../utils/settingsNav';
 
 const SECTIONS = [
   { id: 'account',  label: t('Account'),       icon: User },
@@ -66,7 +67,7 @@ const isEmbeddingModel = (m) => /embed/i.test(m);
 
 const FONT_SIZES = [['small', t('Small')], ['medium', t('Medium')], ['large', t('Large')]];
 
-export default function Settings({ token, username, activeWorkspace, currentModel }) {
+export default function Settings({ token, username, activeWorkspace, currentModel, section }) {
   // The About page showed a fixed "v1.0.0-beta"; the engine reports its real version.
   const [appVersion, setAppVersion] = useState('');
   // Only in the desktop app (preload.js): starts the same update check as the tray menu.
@@ -358,7 +359,11 @@ print(response.choices[0].message.content)`;
   const isLocal = username === 'local';
   // the phone link exists only in the desktop app
   const sections = SECTIONS.filter((s) => !(isLocal && s.id === 'account') && !(s.id === 'phone' && !hasPhoneLink()));
-  const [activeSection, setActiveSection] = useState(sections[0].id);
+  const [activeSection, setActiveSection] = useState(section || sections[0].id);
+  // a page opened directly from elsewhere (section) is shown and marked like a clicked one
+  useEffect(() => { if (section) setActiveSection(section); }, [section]);
+  // the page shown and the tab marked are one value (N49)
+  const shown = shownSection(sections.map((s) => s.id), activeSection);
 
   const getHeaders = (extra = {}) => ({
     Authorization: `Bearer ${token}`,
@@ -436,7 +441,8 @@ print(response.choices[0].message.content)`;
           {sections.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
-              className={`${styles.sideNavItem} ${activeSection === id ? styles.sideNavActive : ''}`}
+              className={`${styles.sideNavItem} ${shown === id ? styles.sideNavActive : ''}`}
+              aria-current={shown === id ? 'page' : undefined}
               onClick={() => setActiveSection(id)}
             >
               <Icon size={15} />
@@ -450,7 +456,7 @@ print(response.choices[0].message.content)`;
         <div className={styles.content}>
 
           {/* ───── Account ───── */}
-          {activeSection === 'account' && (
+          {shown === 'account' && (
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <User size={18} />
@@ -510,7 +516,7 @@ print(response.choices[0].message.content)`;
           )}
 
           {/* ───── Custom Instructions ───── */}
-          {activeSection === 'instructions' && (
+          {shown === 'instructions' && (
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <FileText size={18} />
@@ -556,7 +562,7 @@ print(response.choices[0].message.content)`;
           )}
 
           {/* ───── Workspace AI Persona ───── */}
-          {activeSection === 'workspace-prompt' && (
+          {shown === 'workspace-prompt' && (
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <BrainCircuit size={18} />
@@ -615,7 +621,7 @@ print(response.choices[0].message.content)`;
           )}
 
           {/* ───── Model & Generation ───── */}
-          {activeSection === 'model' && (
+          {shown === 'model' && (
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <Cpu size={18} />
@@ -855,7 +861,7 @@ print(response.choices[0].message.content)`;
           )}
 
           {/* ───── RAG ───── */}
-          {activeSection === 'rag' && (
+          {shown === 'rag' && (
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <Cpu size={18} />
@@ -903,7 +909,7 @@ print(response.choices[0].message.content)`;
           )}
 
           {/* ───── KB ───── */}
-          {activeSection === 'kb' && (
+          {shown === 'kb' && (
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <Database size={18} />
@@ -939,7 +945,7 @@ print(response.choices[0].message.content)`;
           )}
 
           {/* ───── MCP Host ───── */}
-          {activeSection === 'mcp' && (
+          {shown === 'mcp' && (
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <Terminal size={18} />
@@ -1019,15 +1025,15 @@ print(response.choices[0].message.content)`;
           )}
 
           {/* ───── Local API Server (OpenAI-Compatible) ───── */}
-          {activeSection === 'dev-api' && <OtherAppsPanel token={token} />}
+          {shown === 'dev-api' && <OtherAppsPanel token={token} />}
 
           {/* ───── Privacy: fully offline switch and the list of connections ───── */}
-          {activeSection === 'privacy' && <PrivacyPanel token={token} />}
+          {shown === 'privacy' && <PrivacyPanel token={token} />}
 
-          {activeSection === 'phone' && <PhoneSettings />}
+          {shown === 'phone' && <PhoneSettings />}
 
           {/* ───── UI ───── */}
-          {activeSection === 'ui' && (
+          {shown === 'ui' && (
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <Palette size={18} />
@@ -1132,7 +1138,7 @@ print(response.choices[0].message.content)`;
           )}
 
           {/* ───── Language & Locale ───── */}
-          {activeSection === 'language' && (
+          {shown === 'language' && (
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <Globe size={24} className={styles.panelIcon} />
@@ -1182,10 +1188,10 @@ print(response.choices[0].message.content)`;
           )}
 
           {/* ───── Reading photos and scans (OCR languages) ───── */}
-          {activeSection === 'ocr' && <OcrSettings token={token} />}
+          {shown === 'ocr' && <OcrSettings token={token} />}
 
           {/* ───── Keyboard Shortcuts ───── */}
-          {activeSection === 'shortcuts' && (
+          {shown === 'shortcuts' && (
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <Keyboard size={18} />
@@ -1280,9 +1286,9 @@ print(response.choices[0].message.content)`;
           )}
 
           {/* ───── System ───── */}
-          {activeSection === 'protection' && <ProtectionSettings token={token} />}
+          {shown === 'protection' && <ProtectionSettings token={token} />}
 
-          {activeSection === 'system' && isAdmin === false && (
+          {shown === 'system' && isAdmin === false && (
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <Archive size={18} />
@@ -1291,7 +1297,7 @@ print(response.choices[0].message.content)`;
               <p className={styles.panelDesc}>{t('Only the administrator of this StarkLLM can make or restore backups.')}</p>
             </div>
           )}
-          {activeSection === 'system' && isAdmin && (
+          {shown === 'system' && isAdmin && (
             <>
               <EncryptedBackupSettings token={token} />
               <AutomaticBackupSettings />
@@ -1300,7 +1306,7 @@ print(response.choices[0].message.content)`;
           )}
 
           {/* ───── About ───── */}
-          {activeSection === 'about' && (
+          {shown === 'about' && (
             <div className={styles.panel}>
               <div className={styles.panelHeader}>
                 <Info size={18} />
