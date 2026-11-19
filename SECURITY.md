@@ -17,7 +17,12 @@ Only the latest release gets security fixes. StarkLLM updates itself; please kee
 
 ## What StarkLLM is designed to do
 
-- The engine listens on `127.0.0.1` only; other computers cannot connect.
+- The engine listens on `127.0.0.1` only; other computers cannot connect to it.
+- The phone link (Settings > Phone, off by default; not in 2.3.0) is the one exception: when the user turns it on, the
+  desktop app accepts connections from the home network, for paired phones only. TLS with the app's own certificate,
+  pinned by the phone from the QR code; a single-use pairing code; a random token per phone, stored as a hash; and an
+  allow-list of engine calls per access level. "Fully offline" closes it. Design and limits:
+  [docs/android-companion.md](docs/android-companion.md).
 - Other programs on the same PC can use StarkLLM only after the user turns this on and creates a key
   (Settings > Other apps); keys are stored as hashes.
 - No internet connection is made without the user's choice (model downloads, update check, web search).
