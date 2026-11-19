@@ -53,6 +53,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -96,38 +97,41 @@ fun StarkApp(vm: AppViewModel, activity: FragmentActivity, shared: Shared?, onSh
         IntroScreen(onDone = vm::introDone)
         return
     }
-    Box(Modifier.fillMaxSize()) {
-        // the theme's background (and pattern) behind every screen, as on the PC
-        ThemeBackground(LocalStarkTheme.current)
-        ModalNavigationDrawer(
-            drawerState = drawer,
-            gesturesEnabled = topLevel && state.link != null,
-            drawerContent = {
-                if (state.link != null) Drawer(state, vm) { scope.launch { drawer.close() } }
-            },
-        ) {
-            AnimatedContent(
-                targetState = state.screen,
-                contentKey = { s ->
-                    when (s) {
-                        is Screen.Chat -> "chat-${s.nonce}"
-                        is Screen.Chats -> "chats-${s.workspace.id}"
-                        else -> s.toString()
-                    }
+    val takePhoto = rememberPhotoCamera(vm)
+    CompositionLocalProvider(LocalTakePhoto provides takePhoto) {
+        Box(Modifier.fillMaxSize()) {
+            // the theme's background (and pattern) behind every screen, as on the PC
+            ThemeBackground(LocalStarkTheme.current)
+            ModalNavigationDrawer(
+                drawerState = drawer,
+                gesturesEnabled = topLevel && state.link != null,
+                drawerContent = {
+                    if (state.link != null) Drawer(state, vm) { scope.launch { drawer.close() } }
                 },
-                transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(140)) },
-                label = "screens",
-            ) { screen ->
-                when (screen) {
-                    Screen.Pair -> PairScreen(state, vm)
-                    Screen.Home -> HomeScreen(state, vm, activity, openDrawer, focusAsk)
-                    Screen.Workspaces -> WorkspacesScreen(state, vm, openDrawer)
-                    is Screen.Chats -> ChatsScreen(state, vm, screen)
-                    is Screen.Chat -> ChatScreen(state, vm, (state.screen as? Screen.Chat)?.takeIf { it.nonce == screen.nonce } ?: screen, activity)
-                    Screen.Deadlines -> DeadlinesScreen(state, vm, openDrawer)
-                    Screen.ThisPc -> ThisPcScreen(state, vm, activity, openDrawer)
-                    Screen.Settings -> SettingsScreen(state, vm, activity, openDrawer)
-                    Screen.Guide -> GuideScreen(openDrawer)
+            ) {
+                AnimatedContent(
+                    targetState = state.screen,
+                    contentKey = { s ->
+                        when (s) {
+                            is Screen.Chat -> "chat-${s.nonce}"
+                            is Screen.Chats -> "chats-${s.workspace.id}"
+                            else -> s.toString()
+                        }
+                    },
+                    transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(140)) },
+                    label = "screens",
+                ) { screen ->
+                    when (screen) {
+                        Screen.Pair -> PairScreen(state, vm)
+                        Screen.Home -> HomeScreen(state, vm, activity, openDrawer, focusAsk)
+                        Screen.Workspaces -> WorkspacesScreen(state, vm, openDrawer)
+                        is Screen.Chats -> ChatsScreen(state, vm, screen)
+                        is Screen.Chat -> ChatScreen(state, vm, (state.screen as? Screen.Chat)?.takeIf { it.nonce == screen.nonce } ?: screen, activity)
+                        Screen.Deadlines -> DeadlinesScreen(state, vm, openDrawer)
+                        Screen.ThisPc -> ThisPcScreen(state, vm, activity, openDrawer)
+                        Screen.Settings -> SettingsScreen(state, vm, activity, openDrawer)
+                        Screen.Guide -> GuideScreen(openDrawer)
+                    }
                 }
             }
         }
@@ -373,7 +377,7 @@ private fun SharedDialog(state: UiState, vm: AppViewModel, shared: Shared, onDon
         title = { Text(stringResource(R.string.share_title), style = MaterialTheme.typography.titleLarge) },
         text = {
             Column {
-                val name = remember(shared) { nameOf(context, shared.uri) ?: "Document" }
+                val name = remember(shared) { nameOf(context, shared.uri) ?: context.getString(R.string.document_fallback) }
                 Text(name, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 when {
                     state.link == null -> Text(stringResource(R.string.share_not_paired), style = MaterialTheme.typography.bodyMedium)

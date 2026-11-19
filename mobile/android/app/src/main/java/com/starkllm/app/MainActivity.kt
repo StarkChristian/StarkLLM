@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.IntentCompat
 import androidx.fragment.app.FragmentActivity
 import com.starkllm.app.ui.LockScreen
+import com.starkllm.app.ui.Photos
 import com.starkllm.app.ui.StarkApp
 import com.starkllm.app.ui.StarkTheme
 
@@ -31,7 +32,11 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         locked = vm.state.value.appLock
-        if (savedInstanceState == null) handle(intent)
+        if (savedInstanceState == null) {
+            // a fresh start: photos left from an earlier run (after a restore, one may still be on its way)
+            Photos.clear(this)
+            handle(intent)
+        }
         setContent {
             val ui by vm.state.collectAsStateWithLifecycle()
             StarkTheme(themeId = ui.theme) {

@@ -402,8 +402,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- sending documents and photos
 
-    fun upload(ws: Workspace, fileName: String, body: RequestBody) {
-        val a = api ?: return
+    /** onDone: after the upload, sent or not (a photo taken for it is deleted then) */
+    fun upload(ws: Workspace, fileName: String, body: RequestBody, onDone: () -> Unit = {}) {
+        val a = api ?: return onDone()
         viewModelScope.launch {
             _state.update { it.copy(uploading = true, notice = null, info = null) }
             try {
@@ -415,6 +416,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 failed(e)
             } finally {
                 _state.update { it.copy(uploading = false) }
+                onDone()
             }
         }
     }

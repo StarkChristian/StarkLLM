@@ -100,7 +100,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.fragment.app.FragmentActivity
 import com.starkllm.app.AppViewModel
 import com.starkllm.app.R
@@ -112,11 +111,7 @@ import com.starkllm.app.data.Deadline
 import com.starkllm.app.data.Workspace
 import com.starkllm.app.data.openDeadlines
 import com.starkllm.app.widget.DeadlinesWidget
-import java.io.File
-import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 
 // ---- home
 
@@ -600,25 +595,16 @@ internal fun InputBar(
 @Composable
 private fun AttachSheet(state: UiState, vm: AppViewModel, target: Workspace?, onClose: () -> Unit) {
     val context = LocalContext.current
-    var photoUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    val takePhoto = LocalTakePhoto.current
     var models by remember { mutableStateOf(false) }
     val send: (Uri, String?, String) -> Unit = { uri, mime, fallback ->
         if (target != null) vm.upload(target, nameOf(context, uri) ?: fallback, UriBody(context, uri, mime))
         onClose()
     }
-    val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
-        val uri = photoUri
-        if (ok && uri != null) send(uri, "image/jpeg", photoName()) else onClose()
-    }
-    val startCamera: () -> Unit = {
-        val file = File(File(context.cacheDir, "photos").apply { mkdirs() }, photoName())
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
-        photoUri = uri
-        takePicture.launch(uri)
-    }
-    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> if (granted) startCamera() }
-    val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) send(uri, null, "Photo.jpg") }
-    val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) send(uri, null, "Document") }
+    val photoFallback = stringResource(R.string.photo_file_prefix) + ".jpg"
+    val documentFallback = stringResource(R.string.document_fallback)
+    val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) send(uri, null, photoFallback) }
+    val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) send(uri, null, documentFallback) }
 
     ModalBottomSheet(onDismissRequest = onClose, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
         Column(Modifier.navigationBarsPadding().padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
@@ -626,8 +612,11 @@ private fun AttachSheet(state: UiState, vm: AppViewModel, target: Workspace?, on
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 val enabled = state.canSend && target != null
                 SheetTile(StarkIcons.Camera, stringResource(R.string.attach_camera), enabled, Modifier.weight(1f)) {
-                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) startCamera()
-                    else cameraPermission.launch(Manifest.permission.CAMERA)
+                    // the sheet closes; the photo is received at the top of the app (rememberPhotoCamera)
+                    if (target != null) {
+                        onClose()
+                        takePhoto(target)
+                    }
                 }
                 SheetTile(StarkIcons.Image, stringResource(R.string.attach_photos), enabled, Modifier.weight(1f)) {
                     pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
@@ -676,8 +665,6 @@ private fun AttachSheet(state: UiState, vm: AppViewModel, target: Workspace?, on
 
 @Composable
 private fun problemTextNotAllowed() = problemText(com.starkllm.app.data.Problem.NOT_ALLOWED)
-
-private fun photoName() = "Foto-" + SimpleDateFormat("yyyy-MM-dd-HHmmss", Locale.ROOT).format(Date()) + ".jpg"
 
 @Composable
 private fun ModelRow(name: String, selected: Boolean, onClick: () -> Unit) {
