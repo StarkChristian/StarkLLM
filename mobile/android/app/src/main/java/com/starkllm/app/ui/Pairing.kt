@@ -62,11 +62,13 @@ internal fun PairScreen(state: UiState, vm: AppViewModel) {
     val context = LocalContext.current
     var scanning by rememberSaveable { mutableStateOf(false) }
     var denied by rememberSaveable { mutableStateOf(false) }
+    var cameraFailed by rememberSaveable { mutableStateOf(false) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         scanning = granted
         denied = !granted
     }
     val startScan: () -> Unit = {
+        cameraFailed = false
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             scanning = true
         } else {
@@ -83,6 +85,7 @@ internal fun PairScreen(state: UiState, vm: AppViewModel) {
                 }
             },
             onCancel = { scanning = false },
+            onCameraError = { scanning = false; cameraFailed = true },
             notACode = state.notice?.notACode == true,
         )
         scanned != null -> ConfirmPair(state, vm, scanned.pcName, scanned.addresses.joinToString(", "))
@@ -92,6 +95,11 @@ internal fun PairScreen(state: UiState, vm: AppViewModel) {
                 Column(Modifier.navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
                     if (denied) {
                         Text(stringResource(R.string.camera_permission_needed), color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))
+                    }
+                    if (cameraFailed) {
+                        // there is no other way to pair than the QR code: the PC's code holds the certificate's fingerprint
+                        Text(stringResource(R.string.camera_unavailable), color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))
                     }
                     Button(onClick = startScan, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)) {
@@ -141,9 +149,9 @@ private fun Step(n: Int, text: String) {
 }
 
 @Composable
-private fun ScanView(onCode: (String) -> Unit, onCancel: () -> Unit, notACode: Boolean) {
+private fun ScanView(onCode: (String) -> Unit, onCancel: () -> Unit, onCameraError: () -> Unit, notACode: Boolean) {
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        QrScanner(onCode = onCode, modifier = Modifier.fillMaxSize())
+        QrScanner(onCode = onCode, onError = onCameraError, modifier = Modifier.fillMaxSize())
         Box(Modifier.align(Alignment.Center).size(240.dp).border(BorderStroke(2.dp, Color.White.copy(alpha = 0.9f)), RoundedCornerShape(24.dp)))
         IconButton(
             onClick = onCancel,
