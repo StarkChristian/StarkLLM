@@ -7,7 +7,7 @@ const path = require('path');
 const http = require('http');
 const https = require('https');
 const { createSelfSigned, fingerprintOf } = require('../selfcert');
-const { createPhoneLink, isAllowed, neededLevel, homeAddresses, DEVICE_HEADER, LEVELS } = require('../phonelink');
+const { createPhoneLink, isAllowed, neededLevel, homeAddresses, isCloudModel, bodyLimit, DEVICE_HEADER, LEVELS } = require('../phonelink');
 const { createGuard } = require('../netguard');
 const { qrMatrix } = require('../qr');
 
@@ -146,15 +146,20 @@ test('a phone pairs with the one-time code of the QR code, and the code works on
   assert.ok(saved.includes(crypto.createHash('sha256').update(ok.json.token).digest('hex')));
 });
 
-test('the pairing closes after ten wrong codes and after five minutes', async (t) => {
+test('wrong codes block the address that sent them, not the pairing; the pairing closes after five minutes', async (t) => {
   let clock = Date.now();
   const s = await setup(t, { link: { now: () => clock } });
   await s.link.setEnabled(true);
   const port = s.link.status().port;
   let q = new URL(s.link.startPairing().uri).searchParams;
   for (let i = 0; i < 10; i++) await request(port, { method: 'POST', path: '/phone/v1/pair', body: { code: `wrong${i}` } });
-  assert.strictEqual(s.link.status().pairing, null);
-  assert.strictEqual((await request(port, { method: 'POST', path: '/phone/v1/pair', body: { code: q.get('c') } })).status, 410);
+  assert.notStrictEqual(s.link.status().pairing, null);
+  assert.strictEqual((await request(port, { method: 'POST', path: '/phone/v1/pair', body: { code: q.get('c'), name: 'Phone' } })).status, 200);
+  // 20 failures block the address for 10 minutes, also with the right code
+  q = new URL(s.link.startPairing().uri).searchParams;
+  for (let i = 0; i < 20; i++) await request(port, { method: 'POST', path: '/phone/v1/pair', body: { code: `wrong${i}` } });
+  assert.strictEqual((await request(port, { method: 'POST', path: '/phone/v1/pair', body: { code: q.get('c') } })).status, 429);
+  clock += 5 * 60 * 1000 + 1;
   q = new URL(s.link.startPairing().uri).searchParams;
   clock += 5 * 60 * 1000 + 1;
   assert.strictEqual((await request(port, { method: 'POST', path: '/phone/v1/pair', body: { code: q.get('c') } })).status, 410);
@@ -351,7 +356,7 @@ test('a phone set to "ask" can read and ask, but not change anything', async (t)
   const s = await paired(t);
   s.link.setLevel(s.deviceId, 'ask');
   const seenBefore = s.engine.seen.length;
-  for (const [method, p] of [['POST', '/api/v1/documents/1/upload'], ['DELETE', '/api/v1/chat/session/4'], ['PUT', '/api/v1/dashboard/deadlines/done']]) {
+  for (const [method, p] of [['POST', '/api/v1/documents/1/upload'], ['DELETE', '/api/v1/chat/session/4'], ['PUT', '/api/v1/dashboard/deadlines/done'], ['POST', '/api/v1/chat/save-partial']]) {
     const r = await request(s.port, { method, path: p, headers: { [DEVICE_HEADER]: s.token }, body: method === 'DELETE' ? null : '{}' });
     assert.strictEqual(r.status, 403, `${method} ${p}`);
     assert.strictEqual(r.json.needs, 'work');
@@ -392,6 +397,7 @@ test('levels of the allow-list', () => {
   assert.strictEqual(neededLevel('POST', '/api/v1/chat/'), 'ask');
   assert.strictEqual(neededLevel('POST', '/api/v1/voice/transcribe'), 'ask');
   assert.strictEqual(neededLevel('POST', '/api/v1/documents/3/upload'), 'work');
+  assert.strictEqual(neededLevel('POST', '/api/v1/chat/save-partial'), 'work');
   assert.strictEqual(neededLevel('POST', '/api/v1/chat/models/pull'), null);
   assert.strictEqual(neededLevel('GET', '/api/v1/system/backup'), null);
 });
@@ -406,4 +412,102 @@ test('a phone paired before levels existed may "work"', async (t) => {
   const again = s.make();
   t.after(() => again.stop());
   assert.strictEqual(again.status().devices[0].level, 'work');
+});
+
+// ---- a phone question stays on the PC (outside review 2026-11-19)
+
+test('cloud models: the same rule as the engine', () => {
+  for (const n of ['gpt-oss:120b-cloud', 'deepseek-v3.1:671b-cloud', 'qwen3-coder:cloud', 'library/kimi-k2:1t-cloud', 'GLM-4.6:CLOUD']) assert.strictEqual(isCloudModel(n), true, n);
+  for (const n of ['qwen2.5:7b', 'nomic-embed-text', 'llama3.2:3b', '', null, 'cloudy-model:7b']) assert.strictEqual(isCloudModel(n), false, String(n));
+});
+
+test('a phone question cannot use web search or a cloud model, and the phone sees no cloud models', async (t) => {
+  const s = await paired(t, {
+    engine: (r, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      if (r.url === '/api/v1/chat/models') return res.end(JSON.stringify({ models: ['qwen2.5:7b', 'gpt-oss:120b-cloud', 'nomic-embed-text', 'qwen3-coder:cloud'] }));
+      return res.end('{"ok":true}');
+    }
+  });
+  const h = { [DEVICE_HEADER]: s.token, 'content-type': 'application/json' };
+  await request(s.port, { method: 'POST', path: '/api/v1/chat/', headers: h, body: { workspace_id: 1, message: 'x', use_web_search: true, model: 'qwen2.5:7b' } });
+  assert.deepStrictEqual(JSON.parse(s.engine.seen.at(-1).body), { workspace_id: 1, message: 'x', model: 'qwen2.5:7b' });
+  const before = s.engine.seen.length;
+  const cloud = await request(s.port, { method: 'POST', path: '/api/v1/chat/', headers: h, body: { workspace_id: 1, message: 'x', model: 'gpt-oss:120b-cloud' } });
+  assert.strictEqual(cloud.status, 403);
+  assert.strictEqual(cloud.json.error, 'cloud-model-not-on-phone');
+  assert.strictEqual(s.engine.seen.length, before);
+  const list = await request(s.port, { path: '/api/v1/chat/models', headers: { [DEVICE_HEADER]: s.token } });
+  assert.strictEqual(list.status, 200);
+  assert.deepStrictEqual(list.json, { models: ['qwen2.5:7b', 'nomic-embed-text'] });
+});
+
+test('requests through the phone link have size limits', async (t) => {
+  assert.strictEqual(bodyLimit('/api/v1/documents/3/upload'), 110 * 1024 * 1024);
+  assert.strictEqual(bodyLimit('/api/v1/voice/transcribe'), 25 * 1024 * 1024);
+  assert.strictEqual(bodyLimit('/api/v1/dashboard/deadlines/done'), 1024 * 1024);
+  const s = await paired(t);
+  // a declared length over the limit is refused before anything reaches the engine
+  const big = await new Promise((resolve) => {
+    const req = https.request({ host: '127.0.0.1', port: s.port, method: 'POST', path: '/api/v1/voice/transcribe', headers: { [DEVICE_HEADER]: s.token, 'content-length': String(26 * 1024 * 1024) }, rejectUnauthorized: false, agent: false }, (res) => {
+      res.resume();
+      resolve(res.statusCode);
+      req.destroy();
+    });
+    req.on('error', () => resolve('closed'));
+    req.write('x');
+  });
+  assert.strictEqual(big, 413);
+  assert.strictEqual(s.engine.seen.filter((r) => r.url === '/api/v1/voice/transcribe').length, 0);
+  // a body without a declared length is counted
+  const chunked = await new Promise((resolve) => {
+    const req = https.request({ host: '127.0.0.1', port: s.port, method: 'PUT', path: '/api/v1/dashboard/deadlines/done', headers: { [DEVICE_HEADER]: s.token, 'transfer-encoding': 'chunked' }, rejectUnauthorized: false, agent: false }, (res) => {
+      res.resume();
+      resolve(res.statusCode);
+    });
+    req.on('error', () => resolve('closed'));
+    const piece = Buffer.alloc(64 * 1024, 120);
+    let n = 0;
+    const more = () => {
+      while (n < 40) {
+        n += 1;
+        if (!req.write(piece)) return req.once('drain', more);
+      }
+      req.end();
+    };
+    more();
+  });
+  assert.ok(chunked === 413 || chunked === 'closed', String(chunked));
+  const done = s.engine.seen.filter((r) => r.url === '/api/v1/dashboard/deadlines/done');
+  assert.ok(done.every((r) => r.body.length <= 1024 * 1024));
+});
+
+test('wrong passwords through the phone link block the address after five', async (t) => {
+  const s = await paired(t, {
+    engine: (r, res) => {
+      res.writeHead(r.url === '/api/v1/auth/login' ? 401 : 200, { 'content-type': 'application/json' });
+      res.end('{}');
+    }
+  });
+  const h = { [DEVICE_HEADER]: s.token, 'content-type': 'application/json', authorization: 'Bearer x' };
+  for (let i = 0; i < 5; i++) {
+    const r = await request(s.port, { method: 'POST', path: '/api/v1/auth/login', headers: h, body: { username: 'anna', password: `guess${i}` } });
+    assert.strictEqual(r.status, 401);
+  }
+  const blocked = await request(s.port, { method: 'POST', path: '/api/v1/auth/login', headers: h, body: { username: 'anna', password: 'guess5' } });
+  assert.strictEqual(blocked.status, 429);
+});
+
+test('a device without a pairing is listed as refused, once per ten minutes', async (t) => {
+  const s = await paired(t);
+  const recorded = [];
+  const record = s.guard.record;
+  s.guard.record = (e) => {
+    recorded.push(e);
+    return record.call(s.guard, e);
+  };
+  for (let i = 0; i < 3; i++) await request(s.port, { path: '/api/v1/workspaces/', headers: { [DEVICE_HEADER]: 'not-a-token' } });
+  const refused = recorded.filter((e) => e.feature === 'phone_link' && e.outcome === 'blocked');
+  assert.strictEqual(refused.length, 1);
+  assert.strictEqual(refused[0].error, 'not paired');
 });
