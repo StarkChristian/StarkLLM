@@ -206,7 +206,8 @@ fun LockScreen(activity: FragmentActivity, onUnlocked: () -> Unit) {
         verticalArrangement = Arrangement.Center,
     ) {
         Mark(64.dp)
-        Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 20.dp, bottom = 20.dp))
+        Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.padding(top = 20.dp, bottom = 20.dp))
         Button(onClick = unlock, shape = RoundedCornerShape(14.dp)) {
             Icon(Icons.Filled.Lock, null, Modifier.size(18.dp))
             Text(stringResource(R.string.unlock), Modifier.padding(start = 8.dp))

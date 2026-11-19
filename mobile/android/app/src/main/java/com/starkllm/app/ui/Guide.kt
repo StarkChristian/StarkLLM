@@ -153,7 +153,8 @@ fun IntroScreen(onDone: () -> Unit) {
                 Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     Lucy(Modifier.width(190.dp), waving = p == 0, description = stringResource(R.string.lucy))
                     Spacer(Modifier.height(28.dp))
-                    Text(stringResource(pages[p].first), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+                    Text(stringResource(pages[p].first), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onBackground)
                     Text(stringResource(pages[p].second), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
                 }
