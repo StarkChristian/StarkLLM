@@ -20,14 +20,14 @@
     <string name="privacy_note">Your documents and the AI model stay on your PC. The phone connects over your home network, encrypted, and only shows the answers.</string>
     <string name="scan_button">Scan QR code</string>
     <string name="scan_hint">Point the camera at the QR code on your PC\'s screen.</string>
-    <string name="camera_permission_needed">StarkLLM needs the camera only to read the QR code. Nothing is recorded.</string>
+    <string name="camera_permission_needed">StarkLLM uses the camera only when you tap: to read your PC\'s QR code or to photograph a letter for your PC. Nothing is recorded in the background.</string>
     <string name="not_a_starkllm_code">This is not a StarkLLM pairing code.</string>
     <string name="confirm_pair_title">Pair with %1$s?</string>
     <string name="confirm_pair_body">StarkLLM will connect to this PC on your home network (%1$s). Only continue if the code is shown on your own PC.</string>
     <string name="pair_button">Pair</string>
     <string name="pairing_progress">Connecting…</string>
     <string name="error_unreachable">The PC cannot be reached. Is it on, is StarkLLM running, and are the phone and the PC on the same Wi-Fi?</string>
-    <string name="error_wrong_pc">The device that answered is not the paired PC (its certificate differs). Nothing was sent. Pair again with a new QR code if StarkLLM was reinstalled on the PC.</string>
+    <string name="error_wrong_pc">Another device answered at the PC\'s address, not the paired PC (its certificate differs). Nothing was sent, and the pairing is kept. If StarkLLM was reinstalled on the PC, pair again with a new QR code.</string>
     <string name="error_code_closed">This code has expired or was already used. Show a new QR code on the PC.</string>
     <string name="error_wrong_code">The PC did not accept the code. Show a new QR code on the PC.</string>
     <string name="error_too_many">Ten phones are paired with this PC already. Remove one on the PC first (Settings &gt; Phone).</string>
@@ -185,8 +185,22 @@
     <string name="help_privacy">• Documents and the AI model never leave your PC; the phone only shows answers.\n• The connection is encrypted, and the phone trusts only the PC whose QR code it scanned.\n• The phone\'s key is locked in the Android Keystore; the app has no cloud backup, no ads and no tracking.\n• Settings &gt; App lock asks for your fingerprint when the app opens.</string>
     <string name="help_trouble_title">If something does not work</string>
     <string name="help_trouble">• \"PC cannot be reached\": is the PC on, is StarkLLM running, is the phone on the same Wi-Fi, and did Windows allow private networks?\n• \"Not the paired PC\": StarkLLM was reinstalled or its certificate is new; pair again with a new QR code.\n• \"The PC does not allow this\": change the level on the PC under Settings &gt; Phone.\n• \"Fully offline\": switch it back on the PC under Settings &gt; Privacy &amp; network.</string>
+    <string name="camera_unavailable">The camera cannot be used right now (this phone has none, or another app is using it). Close other camera apps and try again.</string>
+    <string name="permission_title">Permission needed</string>
+    <string name="open_settings">Open settings</string>
+    <string name="permission_mic">Dictation needs the microphone. Android did not allow it; you can allow it in the app\'s settings.</string>
+    <string name="permission_notifications">Reminders need permission to show notifications. You can allow it in the app\'s settings.</string>
+    <string name="photo_file_prefix">Photo</string>
+    <string name="document_fallback">Document</string>
+    <string name="share_refused">StarkLLM cannot send this file. Share it from an app that offers it as a document.</string>
+    <string name="reminder_public_title">Deadline reminder</string>
+    <string name="reminder_public_text">Open StarkLLM to see it.</string>
     <plurals name="deadline_in_days">
         <item quantity="one">in %d day</item>
         <item quantity="other">in %d days</item>
+    </plurals>
+    <plurals name="widget_locked">
+        <item quantity="one">%d open deadline</item>
+        <item quantity="other">%d open deadlines</item>
     </plurals>
 </resources>

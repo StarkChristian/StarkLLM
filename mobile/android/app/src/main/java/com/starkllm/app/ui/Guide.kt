@@ -172,9 +172,9 @@ fun IntroScreen(onDone: () -> Unit) {
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                 contentPadding = PaddingValues(),
             ) {
-                Box(Modifier.fillMaxSize().background(gradientOf(theme)), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxSize().background(textGradientOf(theme)), contentAlignment = Alignment.Center) {
                     Text(stringResource(if (page < pages.size - 1) R.string.intro_next else R.string.intro_start),
-                        style = MaterialTheme.typography.labelLarge, color = Color.White)
+                        style = MaterialTheme.typography.labelLarge, color = onGradientOf(theme))
                 }
             }
         }

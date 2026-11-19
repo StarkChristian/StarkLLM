@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import kotlin.math.PI
 import kotlin.math.cos
@@ -92,6 +93,13 @@ fun colorSchemeOf(t: AppTheme): ColorScheme {
 }
 
 fun gradientOf(t: AppTheme) = Brush.linearGradient(t.gradient)
+
+/** The text (and icon) colour on the theme's gradient: white on the darker ones, dark ink on the light ones (Contrast) */
+fun onGradientOf(t: AppTheme): Color = Color(Contrast.textOn(t.gradient.map { it.toArgb() }))
+
+/** The gradient under text: its colours moved just enough for 4.5:1 with onGradientOf (WCAG AA) */
+fun textGradientOf(t: AppTheme): Brush =
+    Brush.linearGradient(Contrast.readableStops(t.gradient.map { it.toArgb() }).map { Color(it) })
 
 /** The theme's background: its colour and, for the pattern themes, the drawing (seeded, so it does not change) */
 @Composable

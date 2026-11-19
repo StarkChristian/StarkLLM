@@ -302,7 +302,13 @@ internal fun SettingsScreen(state: UiState, vm: AppViewModel, activity: Fragment
             else BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL
         ) == BiometricManager.BIOMETRIC_SUCCESS
     }
-    val notifyPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> if (granted) vm.setReminders(true) }
+    var notifyDenied by remember { mutableStateOf(false) }
+    val notifyPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) vm.setReminders(true) else {
+            notifyDenied = true
+        }
+    }
+    if (notifyDenied) PermissionDialog(stringResource(R.string.permission_notifications)) { notifyDenied = false }
     val lockTitle = stringResource(R.string.app_lock)
     StarkScaffold(topBar = { Bar(stringResource(R.string.nav_settings), onMenu = openDrawer) }) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {

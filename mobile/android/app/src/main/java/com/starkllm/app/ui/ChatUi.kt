@@ -78,6 +78,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -94,12 +95,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.fragment.app.FragmentActivity
 import com.starkllm.app.AppViewModel
 import com.starkllm.app.R
@@ -111,11 +112,7 @@ import com.starkllm.app.data.Deadline
 import com.starkllm.app.data.Workspace
 import com.starkllm.app.data.openDeadlines
 import com.starkllm.app.widget.DeadlinesWidget
-import java.io.File
-import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 
 // ---- home
 
@@ -125,6 +122,14 @@ internal fun HomeScreen(state: UiState, vm: AppViewModel, activity: FragmentActi
     var input by rememberSaveable { mutableStateOf("") }
     val focus = remember { FocusRequester() }
     LaunchedEffect(focusAsk) { if (focusAsk > 0) runCatching { focus.requestFocus() } }
+    // text shared from another app: in the field, so the user can ask about it
+    LaunchedEffect(state.draft) {
+        state.draft?.let {
+            input = it
+            vm.draftTaken()
+            runCatching { focus.requestFocus() }
+        }
+    }
     val greeting = stringResource(
         when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
             in 5..10 -> R.string.greeting_morning
@@ -170,7 +175,8 @@ internal fun HomeScreen(state: UiState, vm: AppViewModel, activity: FragmentActi
                 state = state, vm = vm, activity = activity,
                 value = input, onChange = { input = it },
                 target = state.workspace,
-                onSend = { vm.askNew(input); input = "" },
+                // the text stays in the field when the question was not sent (another answer is still coming in)
+                onSend = { if (vm.askNew(input)) input = "" },
                 focus = focus,
             )
         }
@@ -313,7 +319,7 @@ internal fun ChatsScreen(state: UiState, vm: AppViewModel, screen: Screen.Chats)
                 items(list.orEmpty(), key = { it.id }) { chat ->
                     ListCard(StarkIcons.Chat, chat.title.ifBlank { stringResource(R.string.new_chat) }, onClick = { vm.openChat(screen.workspace, chat) }) {
                         if (state.canSend) {
-                            IconButton(onClick = { toDelete = chat }, modifier = Modifier.size(36.dp)) {
+                            IconButton(onClick = { toDelete = chat }) {
                                 Icon(Icons.Filled.Delete, stringResource(R.string.delete_chat), Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
@@ -369,7 +375,7 @@ internal fun ChatScreen(state: UiState, vm: AppViewModel, screen: Screen.Chat, a
                 state = state, vm = vm, activity = activity,
                 value = input, onChange = { input = it },
                 target = screen.workspace,
-                onSend = { vm.ask(input); input = "" },
+                onSend = { if (vm.ask(input)) input = "" },
             )
         }
     }
@@ -403,9 +409,10 @@ private fun Question(line: ChatLine) {
         Box(Modifier.fillMaxWidth(0.85f), contentAlignment = Alignment.CenterEnd) {
             // the question in the theme's gradient, as the send button on the PC
             val shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 4.dp)
-            Box(Modifier.clip(shape).background(gradientOf(LocalStarkTheme.current))) {
+            val theme = LocalStarkTheme.current
+            Box(Modifier.clip(shape).background(textGradientOf(theme))) {
                 SelectionContainer {
-                    Text(line.text, style = MaterialTheme.typography.bodyLarge, color = Color.White,
+                    Text(line.text, style = MaterialTheme.typography.bodyLarge, color = onGradientOf(theme),
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
                 }
             }
@@ -466,7 +473,7 @@ private fun Answer(line: ChatLine) {
                         Toast.makeText(context, copied, Toast.LENGTH_SHORT).show()
                     },
                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
-                    modifier = Modifier.padding(top = 2.dp).height(32.dp),
+                    modifier = Modifier.padding(top = 2.dp),
                 ) {
                     Icon(StarkIcons.Copy, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(stringResource(R.string.copy), Modifier.padding(start = 6.dp), style = MaterialTheme.typography.labelMedium,
@@ -494,8 +501,11 @@ internal fun InputBar(
     var sheet by remember { mutableStateOf(false) }
     var recording by remember { mutableStateOf(false) }
     val dictation = remember { Dictation(context) }
+    // leaving the screen while the button is held: the recorder is released, not left holding the microphone
+    DisposableEffect(dictation) { onDispose { dictation.cancel() } }
     val haptics = LocalHapticFeedback.current
-    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    var micDenied by remember { mutableStateOf(false) }
+    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> if (!granted) micDenied = true }
     val holdHint = stringResource(R.string.hold_to_talk)
     LaunchedEffect(state.dictated) {
         state.dictated?.let {
@@ -538,8 +548,8 @@ internal fun InputBar(
                 if (value.isBlank() && !state.answering) {
                     // hold to talk: the recording goes to the PC's speech model when the button is let go
                     Box(
-                        Modifier.padding(bottom = 2.dp).size(40.dp).clip(CircleShape)
-                            .background(if (recording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.surfaceContainer)
+                        // 48 dp to touch (Android's minimum touch target); the circle drawn inside is 40 dp
+                        Modifier.size(48.dp)
                             .pointerInput(Unit) {
                                 detectTapGestures(onPress = {
                                     if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -549,9 +559,14 @@ internal fun InputBar(
                                     if (!dictation.start()) return@detectTapGestures
                                     recording = true
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    tryAwaitRelease()
-                                    recording = false
-                                    val audio = dictation.stop()
+                                    val audio = try {
+                                        tryAwaitRelease()
+                                        dictation.stop()
+                                    } finally {
+                                        // also when the gesture is cut off (the screen changed): no recorder is left running
+                                        recording = false
+                                        dictation.cancel()
+                                    }
                                     if (audio == null) {
                                         Toast.makeText(context, holdHint, Toast.LENGTH_SHORT).show()
                                     } else {
@@ -561,55 +576,59 @@ internal fun InputBar(
                             },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(StarkIcons.Mic, stringResource(R.string.hold_to_talk), Modifier.size(20.dp),
-                            tint = if (recording) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onSurface)
+                        Box(
+                            Modifier.size(40.dp).clip(CircleShape)
+                                .background(if (recording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.surfaceContainer),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(StarkIcons.Mic, stringResource(R.string.hold_to_talk), Modifier.size(20.dp),
+                                tint = if (recording) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onSurface)
+                        }
                     }
                 } else if (state.answering) {
-                    FilledIconButton(onClick = vm::stop, modifier = Modifier.size(40.dp)) { Icon(StarkIcons.Stop, stringResource(R.string.stop), Modifier.size(16.dp)) }
+                    // Material's own size: a 40 dp button with a 48 dp touch target
+                    FilledIconButton(onClick = vm::stop) { Icon(StarkIcons.Stop, stringResource(R.string.stop), Modifier.size(16.dp)) }
                 } else {
                     val canSend = value.isNotBlank() && target != null
                     Box(
-                        Modifier.padding(bottom = 2.dp).size(40.dp).clip(CircleShape)
-                            .background(if (canSend) gradientOf(LocalStarkTheme.current) else androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.surfaceContainer))
-                            .clickable(enabled = canSend) {
+                        Modifier.size(48.dp).clip(CircleShape)
+                            .clickable(enabled = canSend, role = Role.Button) {
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 onSend()
                             },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(StarkIcons.ArrowUp, stringResource(R.string.send), Modifier.size(20.dp),
-                            tint = if (canSend) Color.White else MaterialTheme.colorScheme.outline)
+                        Box(
+                            Modifier.size(40.dp).clip(CircleShape)
+                                .background(if (canSend) textGradientOf(LocalStarkTheme.current) else androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.surfaceContainer)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(StarkIcons.ArrowUp, stringResource(R.string.send), Modifier.size(20.dp),
+                                tint = if (canSend) onGradientOf(LocalStarkTheme.current) else MaterialTheme.colorScheme.outline)
+                        }
                     }
                 }
             }
         }
     }
     if (sheet) AttachSheet(state, vm, target, onClose = { sheet = false })
+    if (micDenied) PermissionDialog(stringResource(R.string.permission_mic)) { micDenied = false }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AttachSheet(state: UiState, vm: AppViewModel, target: Workspace?, onClose: () -> Unit) {
     val context = LocalContext.current
-    var photoUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    val takePhoto = LocalTakePhoto.current
     var models by remember { mutableStateOf(false) }
     val send: (Uri, String?, String) -> Unit = { uri, mime, fallback ->
         if (target != null) vm.upload(target, nameOf(context, uri) ?: fallback, UriBody(context, uri, mime))
         onClose()
     }
-    val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
-        val uri = photoUri
-        if (ok && uri != null) send(uri, "image/jpeg", photoName()) else onClose()
-    }
-    val startCamera: () -> Unit = {
-        val file = File(File(context.cacheDir, "photos").apply { mkdirs() }, photoName())
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
-        photoUri = uri
-        takePicture.launch(uri)
-    }
-    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> if (granted) startCamera() }
-    val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) send(uri, null, "Photo.jpg") }
-    val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) send(uri, null, "Document") }
+    val photoFallback = stringResource(R.string.photo_file_prefix) + ".jpg"
+    val documentFallback = stringResource(R.string.document_fallback)
+    val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) send(uri, null, photoFallback) }
+    val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) send(uri, null, documentFallback) }
 
     ModalBottomSheet(onDismissRequest = onClose, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
         Column(Modifier.navigationBarsPadding().padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
@@ -617,8 +636,11 @@ private fun AttachSheet(state: UiState, vm: AppViewModel, target: Workspace?, on
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 val enabled = state.canSend && target != null
                 SheetTile(StarkIcons.Camera, stringResource(R.string.attach_camera), enabled, Modifier.weight(1f)) {
-                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) startCamera()
-                    else cameraPermission.launch(Manifest.permission.CAMERA)
+                    // the sheet closes; the photo is received at the top of the app (rememberPhotoCamera)
+                    if (target != null) {
+                        onClose()
+                        takePhoto(target)
+                    }
                 }
                 SheetTile(StarkIcons.Image, stringResource(R.string.attach_photos), enabled, Modifier.weight(1f)) {
                     pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
@@ -667,8 +689,6 @@ private fun AttachSheet(state: UiState, vm: AppViewModel, target: Workspace?, on
 
 @Composable
 private fun problemTextNotAllowed() = problemText(com.starkllm.app.data.Problem.NOT_ALLOWED)
-
-private fun photoName() = "Foto-" + SimpleDateFormat("yyyy-MM-dd-HHmmss", Locale.ROOT).format(Date()) + ".jpg"
 
 @Composable
 private fun ModelRow(name: String, selected: Boolean, onClick: () -> Unit) {

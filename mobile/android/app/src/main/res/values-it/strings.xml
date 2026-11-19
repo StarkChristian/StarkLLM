@@ -19,14 +19,14 @@
     <string name="privacy_note">I vostri documenti e il modello di IA restano sul vostro PC. Il telefono si collega cifrato tramite la rete di casa e mostra solo le risposte.</string>
     <string name="scan_button">Scansiona codice QR</string>
     <string name="scan_hint">Inquadrate il codice QR sullo schermo del vostro PC.</string>
-    <string name="camera_permission_needed">StarkLLM usa la fotocamera solo per leggere il codice QR. Non viene registrato nulla.</string>
+    <string name="camera_permission_needed">StarkLLM usa la fotocamera solo quando toccate: per leggere il codice QR del vostro PC o fotografare una lettera per il PC. Non viene registrato nulla in background.</string>
     <string name="not_a_starkllm_code">Questo non è un codice di associazione di StarkLLM.</string>
     <string name="confirm_pair_title">Associare a %1$s?</string>
     <string name="confirm_pair_body">StarkLLM si collegherà a questo PC nella rete di casa (%1$s). Continuate solo se il codice è mostrato sul vostro PC.</string>
     <string name="pair_button">Associa</string>
     <string name="pairing_progress">Connessione…</string>
     <string name="error_unreachable">Il PC non è raggiungibile. È acceso, StarkLLM è in funzione, e telefono e PC sono sulla stessa Wi-Fi?</string>
-    <string name="error_wrong_pc">Il dispositivo che ha risposto non è il PC associato (il suo certificato è diverso). Non è stato inviato nulla. Associate di nuovo con un nuovo codice QR se StarkLLM è stato reinstallato sul PC.</string>
+    <string name="error_wrong_pc">All\'indirizzo del PC ha risposto un altro dispositivo, non il PC associato (il suo certificato è diverso). Non è stato inviato nulla e l\'associazione resta. Se StarkLLM è stato reinstallato sul PC, associate di nuovo con un nuovo codice QR.</string>
     <string name="error_code_closed">Questo codice è scaduto o è già stato usato. Mostrate un nuovo codice QR sul PC.</string>
     <string name="error_wrong_code">Il PC non ha accettato il codice. Mostrate un nuovo codice QR sul PC.</string>
     <string name="error_too_many">Questo PC ha già dieci telefoni associati. Rimuovetene prima uno sul PC (Impostazioni &gt; Telefono).</string>
@@ -47,7 +47,7 @@
     <string name="stop">Interrompi</string>
     <string name="thinking">Lettura dei documenti…</string>
     <string name="answer_failed">La risposta si è interrotta.</string>
-    <string name="unverified_quotes">StarkLLM non ha trovato queste parole citate nei documenti. Le verifichi prima di farvi affidamento:</string>
+    <string name="unverified_quotes">StarkLLM non ha trovato queste parole citate nei documenti. Verificatele prima di farvi affidamento:</string>
     <string name="pc_version">StarkLLM %1$s sul PC</string>
     <string name="unpair">Dissocia questo telefono</string>
     <string name="unpair_confirm">Per usare di nuovo StarkLLM vi servirà un nuovo codice QR dal PC. Rimuovete anche questo telefono sul PC in Impostazioni &gt; Telefono.</string>
@@ -129,7 +129,7 @@
     <string name="app_lock_hint">Chiedere impronta, volto o PIN all\'apertura</string>
     <string name="app_lock_unavailable">Impostate prima un blocco schermo sul telefono</string>
     <string name="reminders">Promemoria delle scadenze</string>
-    <string name="reminders_hint">Quando il telefono è a casa, controlla il PC ogni poche ore. Nessun servizio cloud.</string>
+    <string name="reminders_hint">Quando il telefono è a casa, controlla il PC ogni qualche ora. Nessun servizio cloud.</string>
     <string name="shortcuts">Scorciatoie</string>
     <string name="shortcuts_hint">Aggiungete il riquadro «Chiedi a StarkLLM» alle impostazioni rapide e il widget «Scadenze StarkLLM» alla schermata home. Condividete PDF e foto da altre app con StarkLLM.</string>
     <string name="about">Informazioni</string>
@@ -177,15 +177,30 @@
     <string name="help_dictate_title">Dettare</string>
     <string name="help_dictate">• Tenete premuto il microfono mentre parlate, poi rilasciate.\n• La registrazione va al PC; il suo modello vocale scrive il testo nel campo. Nessun servizio online.\n• La prima volta il PC scarica una sola volta il suo modello vocale.</string>
     <string name="help_deadlines_title">Scadenze e promemoria</string>
-    <string name="help_deadlines">• Il PC legge scadenze e importi dalle lettere con regole fisse (nessuna ipotesi dell\'IA).\n• «Fatto» segna una scadenza come pagata o sbrigata, anche sul PC.\n• Impostazioni &gt; Promemoria delle scadenze: a casa il telefono controlla il PC ogni poche ore.\n• Widget «Scadenze StarkLLM»: tenete premuta la schermata home &gt; Widget.</string>
+    <string name="help_deadlines">• Il PC legge scadenze e importi dalle lettere con regole fisse (nessuna ipotesi dell\'IA).\n• «Fatto» segna una scadenza come pagata o sbrigata, anche sul PC.\n• Impostazioni &gt; Promemoria delle scadenze: a casa il telefono controlla il PC ogni qualche ora.\n• Widget «Scadenze StarkLLM»: tenete premuta la schermata home &gt; Widget.</string>
     <string name="help_pcs_title">PC e permessi del telefono</string>
     <string name="help_pcs">• Sul PC, Impostazioni &gt; Telefono stabilisce per ogni telefono: solo domande, domande e invio di documenti, oppure anche gestione del PC.\n• «Questo PC» mostra modello, backup e protezione e con «gestire» offre Esegui backup ora e Passa offline, ogni volta dopo la vostra impronta.\n• Più PC: cambiate dal menu.</string>
     <string name="help_privacy_title">Privacy e sicurezza</string>
     <string name="help_privacy">• Documenti e modello di IA non lasciano mai il PC; il telefono mostra solo le risposte.\n• La connessione è cifrata e il telefono si fida solo del PC di cui ha scansionato il codice QR.\n• La chiave del telefono è custodita nell\'Android Keystore; l\'app non ha backup nel cloud, pubblicità né tracciamento.\n• Impostazioni &gt; Blocco dell\'app chiede l\'impronta all\'apertura.</string>
     <string name="help_trouble_title">Se qualcosa non funziona</string>
     <string name="help_trouble">• «PC non raggiungibile»: il PC è acceso, StarkLLM è in funzione, il telefono è sulla stessa Wi-Fi e Windows ha consentito le reti private?\n• «Non è il PC associato»: StarkLLM è stato reinstallato o ha un nuovo certificato; associate di nuovo con un nuovo codice QR.\n• «Il PC non lo consente»: cambiate il livello sul PC in Impostazioni &gt; Telefono.\n• «Completamente offline»: riattivatelo sul PC in Impostazioni &gt; Privacy e rete.</string>
+    <string name="camera_unavailable">Al momento la fotocamera non si può usare (il telefono non ne ha una, oppure la sta usando un\'altra app). Chiudete le altre app della fotocamera e riprovate.</string>
+    <string name="permission_title">Autorizzazione necessaria</string>
+    <string name="open_settings">Apri impostazioni</string>
+    <string name="permission_mic">La dettatura ha bisogno del microfono. Android non l\'ha consentito; potete consentirlo nelle impostazioni dell\'app.</string>
+    <string name="permission_notifications">I promemoria hanno bisogno del permesso di mostrare notifiche. Potete concederlo nelle impostazioni dell\'app.</string>
+    <string name="photo_file_prefix">Foto</string>
+    <string name="document_fallback">Documento</string>
+    <string name="share_refused">StarkLLM non può inviare questo file. Condividetelo da un\'app che lo offre come documento.</string>
+    <string name="reminder_public_title">Promemoria di scadenza</string>
+    <string name="reminder_public_text">Aprite StarkLLM per vederla.</string>
     <plurals name="deadline_in_days">
         <item quantity="one">tra %d giorno</item>
         <item quantity="other">tra %d giorni</item>
+    </plurals>
+    <plurals name="widget_locked">
+        <item quantity="one">%d scadenza aperta</item>
+        <item quantity="many">%d di scadenze aperte</item>
+        <item quantity="other">%d scadenze aperte</item>
     </plurals>
 </resources>

@@ -11,12 +11,12 @@ user paired it in Settings > Phone on the PC.
 | Pair with PCs | Settings > Phone on the PC shows a QR code; the app scans it once. Several PCs (home, office) can be paired; the drawer switches between them. |
 | Home | A greeting, the next deadlines, new documents and example questions; a question asked here starts a chat in the chosen workspace. |
 | Drawer | Home, workspaces, deadlines, This PC, settings, and the latest chats of all workspaces. |
-| Ask about documents | Workspaces, chats, answers that stream in, formatted (headings, lists, bold, code), with the documents used as chips, the warning for quotations that are not in the documents, and Copy. Choice of the AI model (the PC's chat models) and of the knowledge base. An answer goes on when the chat or the app is left (a short foreground service while it comes in). |
-| Add | Camera (photo of a letter), photos, files (PDF, EPUB, Word, PowerPoint, text, images) into a workspace; the PC reads them, also the text in photos. "Share" from other apps does the same. |
+| Ask about documents | Workspaces, chats, answers that stream in, formatted (headings, lists, bold, code), with the documents used as chips, the warning for quotations that are not in the documents, and Copy. Choice of the AI model (the PC's local chat models; Ollama's cloud models are not offered) and of the knowledge base. An answer goes on when the chat or the app is left (a short foreground service while it comes in). |
+| Add | Camera (photo of a letter), photos, files (PDF, EPUB, Word, PowerPoint, text, images) into a workspace; the PC reads them, also the text in photos. "Share" from other apps does the same (only `content://` files of other apps); shared text goes into the question field. Photos are deleted on the phone after sending. |
 | Dictation | Hold the microphone button; the recording is turned into text by the speech model on the PC (not an online service) and lands in the question field. |
 | Deadlines | Overdue, today, this week, later, done; "Done" marks it on the PC. Reminders (off by default) check the PC every few hours while the phone is at home; no cloud push. A home-screen widget shows the next three. |
 | This PC | Connection, StarkLLM version, AI model, automatic backup, protection at rest, what this phone may do; at "manage": back up now and switch fully offline, each confirmed with the fingerprint (or face, or the phone's PIN). |
-| Settings | App lock (fingerprint when the app opens), reminders, shortcuts (Quick Settings tile "Ask StarkLLM", widget, share). |
+| Settings | App lock (fingerprint when the app opens; while it is on, no screenshots or recent-apps preview, and the widget shows only how many deadlines are open), reminders (private on the lock screen), shortcuts (Quick Settings tile "Ask StarkLLM", widget, share). |
 | Languages | The languages of the desktop app: English, German, Spanish, French, Italian, Turkish. Larger system text is followed by half. |
 
 The phone keeps only what it shows (chat list, the open chat, the next deadlines for the widget) and settings. No
@@ -40,7 +40,9 @@ small HTTPS server in the desktop app (Electron main process) in front of it:
    `starkllm://pair?v=1&n=<PC name>&a=<addresses>&p=<port>&f=<SHA-256 of the certificate, base64url>&c=<code>`.
 4. **Certificate pinning.** The app connects to one of the addresses and accepts the TLS connection only if the
    server's certificate has the fingerprint `f`. No certificate authority is trusted, so nobody else in the Wi-Fi can
-   pose as the PC.
+   pose as the PC. A device with another certificate at one address is skipped (nothing is sent to it) and the next
+   address is tried; when none has the pinned certificate the app says that another device answered and keeps the
+   pairing. Only the PC's own `not-paired` answer over the pinned connection removes the pairing on the phone.
 5. **Device token.** `POST /phone/v1/pair {code, name}` returns a random 256-bit token. The app keeps it in the
    Android Keystore; the PC keeps only its SHA-256 hash (`phone/phone-link.json`). Every later request carries it in
    `X-StarkLLM-Device`. Settings > Phone lists the paired phones (at most 10) with "Remove", which takes effect at once.
@@ -61,7 +63,10 @@ small HTTPS server in the desktop app (Electron main process) in front of it:
    everything of the system. A chat request loses `provider`, `api_key` and `base_url`: the phone always uses the
    local model.
 7. **Who is signed in.** With one user on the PC (the usual case) the phone link adds the local user's session, so the
-   phone needs no password. Where StarkLLM has several accounts, the app shows the login and sends its own sign-in.
+   phone needs no password. Where StarkLLM has several accounts, the phone link cannot choose one: the PC answers
+   `signed_in: false` (or 401), and the app says that StarkLLM on this PC has several accounts and that signing in
+   from the phone comes in a later version (`Problem.NOT_SIGNED_IN`, text `several_accounts`). The app has no login
+   screen yet.
 8. **Only the home network.** Connections from addresses that are not private (RFC 1918, link-local, this PC) are
    closed before TLS. Each connection of a phone is recorded in Settings > Privacy & network as "Paired phone
    (incoming)" (feature `phone_link`, method `IN`); see [privacy-network.md](privacy-network.md), D11.

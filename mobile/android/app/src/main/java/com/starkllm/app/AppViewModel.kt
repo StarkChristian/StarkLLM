@@ -22,6 +22,7 @@ import com.starkllm.app.data.PairingInfo
 import com.starkllm.app.data.PcStatus
 import com.starkllm.app.data.Problem
 import com.starkllm.app.data.RecentChat
+import com.starkllm.app.data.SharedFiles
 import com.starkllm.app.data.StarkApi
 import com.starkllm.app.data.Workspace
 import com.starkllm.app.data.openDeadlines
@@ -87,6 +88,8 @@ data class UiState(
     val transcribing: Boolean = false,
     /** dictated text waiting to go into the input field (taken once) */
     val dictated: String? = null,
+    /** text shared from another app, waiting for the home screen's question field (taken once) */
+    val draft: String? = null,
     val appLock: Boolean = false,
     val reminders: Boolean = false,
     /** the look (ui/Themes.kt), as on the PC; "system" follows the phone's dark or light mode */
@@ -133,7 +136,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private fun failed(e: Exception) {
         android.util.Log.w("StarkLLM", "request failed", e)   // only the phone's own log (logcat); no network
         val problem = (e as? ApiException)?.problem ?: Problem.UNREACHABLE
-        if (problem == Problem.UNPAIRED || problem == Problem.WRONG_PC) forgetCurrent()
+        // only the paired PC's own "not-paired" removes the pairing; another device at its address (WRONG_PC) does not
+        if (problem.removesPairing) forgetCurrent()
         _state.update { it.copy(notice = Notice(problem)) }
     }
 
@@ -328,22 +332,32 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- asking
 
-    /** From the home screen: a new chat in the chosen workspace */
-    fun askNew(text: String) {
-        val ws = _state.value.workspace ?: return
+    /**
+     * From the home screen: a new chat in the chosen workspace. false: the question was not sent (another answer is
+     * still coming in, no PC, no workspace); the screen stays and the field keeps the text.
+     */
+    fun askNew(text: String): Boolean {
+        val ws = _state.value.workspace ?: return false
+        if (!mayAsk(text)) return false
         _state.update { it.copy(screen = Screen.Chat(ws, null, "", Screen.Home), lines = emptyList()) }
-        ask(text)
+        return ask(text)
     }
 
-    fun ask(text: String) {
-        val question = text.trim()
-        val screen = _state.value.screen as? Screen.Chat ?: return
-        val a = api ?: return
-        if (question.isEmpty()) return
+    private fun mayAsk(text: String): Boolean {
+        if (text.isBlank() || api == null) return false
         if (_state.value.answeringFor != null) {
             _state.update { it.copy(info = Info(R.string.answer_running)) }
-            return
+            return false
         }
+        return true
+    }
+
+    /** false: the question was not sent, and the field keeps it */
+    fun ask(text: String): Boolean {
+        val question = text.trim()
+        val screen = _state.value.screen as? Screen.Chat ?: return false
+        val a = api ?: return false
+        if (!mayAsk(question)) return false
         val s0 = _state.value
         val nonce = screen.nonce
         // changes of the chat on the screen, only while it is still the chat of this answer
@@ -382,6 +396,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 AnswerService.stop(getApplication())
             }
         }
+        return true
     }
 
     fun stop() {
@@ -390,8 +405,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- sending documents and photos
 
-    fun upload(ws: Workspace, fileName: String, body: RequestBody) {
-        val a = api ?: return
+    /** onDone: after the upload, sent or not (a photo taken for it is deleted then) */
+    fun upload(ws: Workspace, fileName: String, body: RequestBody, onDone: () -> Unit = {}) {
+        val a = api ?: return onDone()
         viewModelScope.launch {
             _state.update { it.copy(uploading = true, notice = null, info = null) }
             try {
@@ -403,6 +419,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 failed(e)
             } finally {
                 _state.update { it.copy(uploading = false) }
+                onDone()
             }
         }
     }
@@ -428,6 +445,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun dictationTaken() = _state.update { it.copy(dictated = null) }
+
+    // ---- shared from another app
+
+    /** Text shared to StarkLLM: the home screen's field gets it, for a question about it (nothing is sent yet) */
+    fun sharedText(text: String) {
+        if (_state.value.link == null) {
+            _state.update { it.copy(info = Info(R.string.share_not_paired)) }
+            return
+        }
+        go(Screen.Home)
+        _state.update { it.copy(draft = text.take(SharedFiles.MAX_TEXT)) }
+    }
+
+    fun draftTaken() = _state.update { it.copy(draft = null) }
+
+    fun refuseShared() = _state.update { it.copy(info = Info(R.string.share_refused)) }
 
     // ---- deadlines
 
@@ -484,6 +517,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setAppLock(on: Boolean) {
         prefs.appLock = on
         _state.update { it.copy(appLock = on) }
+        DeadlinesWidget.update(getApplication())      // the widget shows only a count while the lock is on
     }
 
     fun setTheme(id: String) {

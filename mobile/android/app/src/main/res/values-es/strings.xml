@@ -19,14 +19,14 @@
     <string name="privacy_note">Sus documentos y el modelo de IA se quedan en su PC. El teléfono se conecta cifrado por su red doméstica y solo muestra las respuestas.</string>
     <string name="scan_button">Escanear código QR</string>
     <string name="scan_hint">Apunte la cámara al código QR de la pantalla de su PC.</string>
-    <string name="camera_permission_needed">StarkLLM necesita la cámara solo para leer el código QR. No se graba nada.</string>
+    <string name="camera_permission_needed">StarkLLM usa la cámara solo cuando usted toca: para leer el código QR de su PC o fotografiar una carta para su PC. No se graba nada en segundo plano.</string>
     <string name="not_a_starkllm_code">Esto no es un código de vinculación de StarkLLM.</string>
     <string name="confirm_pair_title">¿Vincular con %1$s?</string>
     <string name="confirm_pair_body">StarkLLM se conectará a este PC en su red doméstica (%1$s). Continúe solo si el código se muestra en su propio PC.</string>
     <string name="pair_button">Vincular</string>
     <string name="pairing_progress">Conectando…</string>
     <string name="error_unreachable">No se puede acceder al PC. ¿Está encendido, funciona StarkLLM y están el teléfono y el PC en la misma wifi?</string>
-    <string name="error_wrong_pc">El dispositivo que respondió no es el PC vinculado (su certificado es distinto). No se envió nada. Vuelva a vincular con un código QR nuevo si se reinstaló StarkLLM en el PC.</string>
+    <string name="error_wrong_pc">En la dirección del PC respondió otro dispositivo, no el PC vinculado (su certificado es distinto). No se envió nada y la vinculación se mantiene. Si se reinstaló StarkLLM en el PC, vuelva a vincular con un código QR nuevo.</string>
     <string name="error_code_closed">Este código ha caducado o ya se usó. Muestre un código QR nuevo en el PC.</string>
     <string name="error_wrong_code">El PC no aceptó el código. Muestre un código QR nuevo en el PC.</string>
     <string name="error_too_many">Ya hay diez teléfonos vinculados con este PC. Quite uno primero en el PC (Ajustes &gt; Teléfono).</string>
@@ -184,8 +184,23 @@
     <string name="help_privacy">• Los documentos y el modelo de IA nunca salen de su PC; el teléfono solo muestra respuestas.\n• La conexión está cifrada y el teléfono solo confía en el PC cuyo código QR escaneó.\n• La clave del teléfono está guardada en el Android Keystore; la app no tiene copia en la nube, ni anuncios, ni rastreo.\n• Ajustes &gt; Bloqueo de la app pide su huella al abrirla.</string>
     <string name="help_trouble_title">Si algo no funciona</string>
     <string name="help_trouble">• «No se puede acceder al PC»: ¿está encendido, funciona StarkLLM, está el teléfono en la misma wifi y permitió Windows las redes privadas?\n• «No es el PC vinculado»: StarkLLM se reinstaló o tiene un certificado nuevo; vincule de nuevo con un código QR nuevo.\n• «El PC no lo permite»: cambie el nivel en el PC, en Ajustes &gt; Teléfono.\n• «Sin conexión»: vuelva a activarlo en el PC, en Ajustes &gt; Privacidad y red.</string>
+    <string name="camera_unavailable">Ahora no se puede usar la cámara (este teléfono no tiene o la está usando otra app). Cierre otras apps de cámara e inténtelo de nuevo.</string>
+    <string name="permission_title">Permiso necesario</string>
+    <string name="open_settings">Abrir ajustes</string>
+    <string name="permission_mic">El dictado necesita el micrófono. Android no lo permitió; puede permitirlo en los ajustes de la app.</string>
+    <string name="permission_notifications">Los recordatorios necesitan permiso para mostrar notificaciones. Puede concederlo en los ajustes de la app.</string>
+    <string name="photo_file_prefix">Foto</string>
+    <string name="document_fallback">Documento</string>
+    <string name="share_refused">StarkLLM no puede enviar este archivo. Compártalo desde una app que lo ofrezca como documento.</string>
+    <string name="reminder_public_title">Recordatorio de plazo</string>
+    <string name="reminder_public_text">Abra StarkLLM para verlo.</string>
     <plurals name="deadline_in_days">
         <item quantity="one">en %d día</item>
         <item quantity="other">en %d días</item>
+    </plurals>
+    <plurals name="widget_locked">
+        <item quantity="one">%d plazo abierto</item>
+        <item quantity="many">%d de plazos abiertos</item>
+        <item quantity="other">%d plazos abiertos</item>
     </plurals>
 </resources>

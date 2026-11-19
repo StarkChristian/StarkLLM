@@ -16,7 +16,10 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
-/** Home-screen widget: the next three open deadlines, from what the app last read from the PC (no network here). */
+/**
+ * Home-screen widget: the next three open deadlines, from what the app last read from the PC (no network here). With
+ * the app lock on it shows only how many are open: sender, amount and text would be readable without unlocking the app.
+ */
 class DeadlinesWidget : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) = render(context, manager, ids)
 
@@ -37,7 +40,13 @@ class DeadlinesWidget : AppWidgetProvider() {
         }
 
         private fun render(context: Context, manager: AppWidgetManager, ids: IntArray) {
-            val deadlines = AppPrefs(context).cachedDeadlines.take(3)
+            val prefs = AppPrefs(context)
+            val all = prefs.cachedDeadlines
+            val lines = if (prefs.appLock) {
+                if (all.isEmpty()) emptyList() else listOf(context.resources.getQuantityString(R.plurals.widget_locked, all.size, all.size))
+            } else {
+                all.take(3).map { line(context, it) }
+            }
             val open = PendingIntent.getActivity(
                 context, 2,
                 Intent(context, MainActivity::class.java).putExtra(MainActivity.EXTRA_OPEN, MainActivity.OPEN_DEADLINES),
@@ -46,11 +55,11 @@ class DeadlinesWidget : AppWidgetProvider() {
             for (id in ids) {
                 val views = RemoteViews(context.packageName, R.layout.widget_deadlines)
                 views.setOnClickPendingIntent(R.id.widget_root, open)
-                views.setViewVisibility(R.id.widget_empty, if (deadlines.isEmpty()) View.VISIBLE else View.GONE)
+                views.setViewVisibility(R.id.widget_empty, if (lines.isEmpty()) View.VISIBLE else View.GONE)
                 ROWS.forEachIndexed { i, row ->
-                    val d = deadlines.getOrNull(i)
-                    views.setViewVisibility(row, if (d == null) View.GONE else View.VISIBLE)
-                    if (d != null) views.setTextViewText(row, line(context, d))
+                    val text = lines.getOrNull(i)
+                    views.setViewVisibility(row, if (text == null) View.GONE else View.VISIBLE)
+                    if (text != null) views.setTextViewText(row, text)
                 }
                 manager.updateAppWidget(id, views)
             }
