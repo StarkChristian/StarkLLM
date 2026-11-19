@@ -304,7 +304,9 @@ internal fun SettingsScreen(state: UiState, vm: AppViewModel, activity: Fragment
     }
     var notifyDenied by remember { mutableStateOf(false) }
     val notifyPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) vm.setReminders(true) else notifyDenied = true
+        if (granted) vm.setReminders(true) else {
+            notifyDenied = true
+        }
     }
     if (notifyDenied) PermissionDialog(stringResource(R.string.permission_notifications)) { notifyDenied = false }
     val lockTitle = stringResource(R.string.app_lock)

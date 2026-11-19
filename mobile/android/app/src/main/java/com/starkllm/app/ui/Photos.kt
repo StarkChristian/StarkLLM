@@ -74,18 +74,24 @@ internal fun rememberPhotoCamera(vm: AppViewModel): (Workspace) -> Unit {
             }
         }
     }
-    val start = rememberUpdatedState {
+    val start = rememberUpdatedState<() -> Unit> {
         val file = Photos.newFile(context)
         path = file.absolutePath
-        runCatching { take.launch(FileProvider.getUriForFile(context, Photos.authority(context), file)) }
-            .onFailure { file.delete(); path = null }        // no camera app on the phone
+        try {
+            take.launch(FileProvider.getUriForFile(context, Photos.authority(context), file))
+        } catch (e: Exception) {
+            file.delete()       // no camera app on the phone
+            path = null
+        }
     }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) start.value() else denied = true
+        if (granted) start.value() else {
+            denied = true
+        }
     }
     if (denied) PermissionDialog(stringResource(R.string.camera_permission_needed)) { denied = false }
-    return remember {
-        { ws: Workspace ->
+    return remember<(Workspace) -> Unit> {
+        { ws ->
             workspaceId = ws.id
             workspaceName = ws.name
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) start.value()
