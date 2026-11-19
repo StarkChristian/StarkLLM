@@ -504,7 +504,8 @@ internal fun InputBar(
     // leaving the screen while the button is held: the recorder is released, not left holding the microphone
     DisposableEffect(dictation) { onDispose { dictation.cancel() } }
     val haptics = LocalHapticFeedback.current
-    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    var micDenied by remember { mutableStateOf(false) }
+    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> if (!granted) micDenied = true }
     val holdHint = stringResource(R.string.hold_to_talk)
     LaunchedEffect(state.dictated) {
         state.dictated?.let {
@@ -611,6 +612,7 @@ internal fun InputBar(
         }
     }
     if (sheet) AttachSheet(state, vm, target, onClose = { sheet = false })
+    if (micDenied) PermissionDialog(stringResource(R.string.permission_mic)) { micDenied = false }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

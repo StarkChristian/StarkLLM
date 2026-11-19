@@ -14,6 +14,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.starkllm.app.AppViewModel
@@ -61,6 +62,7 @@ internal fun rememberPhotoCamera(vm: AppViewModel): (Workspace) -> Unit {
     var path by rememberSaveable { mutableStateOf<String?>(null) }
     var workspaceId by rememberSaveable { mutableStateOf(0) }
     var workspaceName by rememberSaveable { mutableStateOf("") }
+    var denied by rememberSaveable { mutableStateOf(false) }
     val take = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
         val file = path?.let(::File)
         path = null
@@ -79,8 +81,9 @@ internal fun rememberPhotoCamera(vm: AppViewModel): (Workspace) -> Unit {
             .onFailure { file.delete(); path = null }        // no camera app on the phone
     }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) start.value()
+        if (granted) start.value() else denied = true
     }
+    if (denied) PermissionDialog(stringResource(R.string.camera_permission_needed)) { denied = false }
     return remember {
         { ws: Workspace ->
             workspaceId = ws.id

@@ -95,7 +95,11 @@ internal fun PairScreen(state: UiState, vm: AppViewModel) {
                 Column(Modifier.navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
                     if (denied) {
                         Text(stringResource(R.string.camera_permission_needed), color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))
+                            style = MaterialTheme.typography.bodySmall)
+                        // after two refusals Android no longer asks: the app's settings are the way back
+                        TextButton(onClick = { openAppSettings(context) }, modifier = Modifier.padding(bottom = 4.dp)) {
+                            Text(stringResource(R.string.open_settings))
+                        }
                     }
                     if (cameraFailed) {
                         // there is no other way to pair than the QR code: the PC's code holds the certificate's fingerprint
