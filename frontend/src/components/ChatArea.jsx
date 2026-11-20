@@ -846,7 +846,7 @@ export default function ChatArea({
           evidence={inspectingSource.msg.evidence}
           loadEvidence={() => loadEvidence(inspectingSource.msg)}
           onClose={() => setInspectingSource(null)}
-          onOpenDocument={(e) => setViewing({ documentId: e.document_id, page: e.page || 1, highlight: (e.passages || [])[0] })}
+          onOpenDocument={(e) => setViewing({ documentId: e.document_id, page: e.page || 1, highlight: (e.passages || [])[0], answer: inspectingSource.msg.content })}
         />
       )}
       {viewing && (
@@ -857,6 +857,7 @@ export default function ChatArea({
           documentId={viewing.documentId}
           initialPage={viewing.page}
           highlight={viewing.highlight}
+          answer={viewing.answer}
           token={token}
         />
       )}

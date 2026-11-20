@@ -73,9 +73,12 @@
   flex-shrink: 0;
 }
 
-.sideNavItem:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+/* hover only with a mouse: on a touch screen the hover colour stays on the last touched tab and looks marked */
+@media (hover: hover) {
+  .sideNavItem:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
 }
 .sideNavActive {
   background: var(--bg-active) !important;
