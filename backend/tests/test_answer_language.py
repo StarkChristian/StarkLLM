@@ -12,6 +12,29 @@ def test_the_language_of_typical_questions():
     assert language_of("Quand dois-je payer la facture ?") == "French"
 
 
+TOUR_QUESTIONS = {
+    "English": ("What do I have to pay by the end of the year?", "Is the parcel letter genuine?",
+                "Until when can I cancel the car insurance?"),
+    "German": ("Was muss ich bis Jahresende bezahlen?", "Ist der Paketbrief echt?",
+               "Bis wann kann ich die Kfz-Versicherung kündigen?"),
+    "Spanish": ("¿Qué tengo que pagar antes de fin de año?", "¿Es auténtica la carta del paquete?",
+                "¿Hasta cuándo puedo cancelar el seguro del coche?"),
+    "French": ("Que dois-je payer d'ici la fin de l'année ?", "La lettre du colis est-elle authentique ?",
+               "Jusqu'à quand puis-je résilier l'assurance auto ?"),
+    "Italian": ("Cosa devo pagare entro fine anno?", "La lettera del pacco è autentica?",
+                "Entro quando posso disdire l'assicurazione auto?"),
+    "Turkish": ("Yıl sonuna kadar ne ödemem gerekiyor?", "Kargo mektubu gerçek mi?",
+                "Kasko sigortasını en geç ne zaman iptal edebilirim?"),
+}
+
+
+def test_the_tour_questions_of_six_languages():
+    # N52: "La lettera del pacco è autentica?" was taken for French ("La", "è") and answered in French
+    for lang, questions in TOUR_QUESTIONS.items():
+        for q in questions:
+            assert language_of(q) == lang, (q, language_of(q))
+
+
 def test_unclear_messages_get_no_language():
     assert language_of("ok") is None
     assert language_of("") is None
