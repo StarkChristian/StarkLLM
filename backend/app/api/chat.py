@@ -14,8 +14,11 @@ from app.db import models
 from app.services.llm_service import llm_service, ModelNotFoundError, LLMBackendError, cloud_host
 from app.services.rag_service import rag_service
 from app.services import summaries
+from app.services.payments_overview import (
+    is_payment_question, letter_rows, named_letters, overview_block, relative_time,
+)
 from app.services.document_checks import fact_block, findings, note, ibans, sender_key
-from app.services.locale_rules import language_name
+from app.services.locale_rules import LANGUAGE_NAMES, language_name
 from app.services.memory_service import memory_service
 from app.services.mcp_service import mcp_service
 from app.core import netguard
@@ -245,34 +248,71 @@ DATE_QUESTION = re.compile(
 DATES_IN_PROMPT = 25
 
 
-def _dates_section(db, user_id: int, workspace_id: int, include_kb: bool, message: str = "") -> str:
-    """The deadlines, payments and appointments in the user's letters, as lines for the prompt."""
+# a question about what to pay over all letters of a small workspace gets every piece of it (five one-page letters are
+# about 15 pieces); a larger workspace keeps the normal retrieval
+SMALL_WORKSPACE_CHUNKS = 20
+SMALL_WORKSPACE_CHARS = 14000
+
+
+def local_today(sent: Optional[str] = None) -> date:
+    """The user's day: the PC's local date the app sends with the message, else the engine's date (its time zone is
+    the PC's, STARKLLM_TZ). Just after midnight the overview counted one day off (N52 test, 20 Nov 2026), so the chat
+    takes this date once and uses it for "Today is" and for every day count. A sent date more than a day away from the
+    engine's is ignored."""
+    engine = date.today()
+    try:
+        sent_day = date.fromisoformat((sent or "").strip()[:10])
+    except ValueError:
+        return engine
+    return sent_day if abs((sent_day - engine).days) <= 1 else engine
+
+
+_LANGUAGE_CODES = {name: code for code, name in reversed(list(LANGUAGE_NAMES.items()))}
+
+
+def answer_language_code(message: str, ui_language: Optional[str] = None) -> Optional[str]:
+    """The code of the answer language: the language of the message ("it"), else the interface language."""
+    return _LANGUAGE_CODES.get(language_of(message) or "") or ((ui_language or "").lower().split("-")[0] or None)
+
+
+def _dates_section(db, user_id: int, workspace_id: int, include_kb: bool, message: str = "",
+                   payment_question: bool = False, today: Optional[date] = None, lang: Optional[str] = None):
+    """(prompt block, letters listed): the deadlines, payments and appointments in the user's letters.
+    A question about what to pay or what is due over all letters ("What do I have to pay by the end of the year?")
+    gets every letter with its amounts, dates, status and scam flag (payments_overview.overview_block); its letters
+    are returned so they become sources of the answer. Any other date question gets the dates list."""
     from app.api.dashboard import document_dates
     try:
-        today, _, dates = document_dates(db, user_id, workspace_id=workspace_id, include_kb=include_kb)
+        engine_today, items, dates = document_dates(db, user_id, workspace_id=workspace_id, include_kb=include_kb)
     except Exception as e:
         logger.warning(f"dates for the prompt skipped: {e}")
-        return ""
+        return "", []
+    today = today or engine_today
+    rows = letter_rows(items, dates)
+    # "Wie viel muss ich ans Finanzamt nachzahlen und bis wann?": only the dates of the letters the question names
+    # (by sender or file name); a small model otherwise took another letter's date from the list. Question words
+    # never name a letter: "antes" and "payer" did, and a French and a Spanish answer missed two bills (N50).
+    named = named_letters(message, rows) if message else []
+    if payment_question and rows and not (named and len(named) < len(rows)):
+        return overview_block(today, rows, lang), rows
     if not dates:
-        return ""
-    # "Wie viel muss ich ans Finanzamt nachzahlen und bis wann?": only the dates of the letters the question names; a
-    # small model otherwise took another letter's date from the list
-    if message:
-        named = [d for d in dates if _about_words(message, d["filename"], d.get("text", ""), generic=False)]
-        if named:
-            dates = named
-    return _dates_block(today, dates[:DATES_IN_PROMPT])
+        return "", []
+    if named:
+        dates = [d for d in dates if d["filename"] in named] or dates
+    return _dates_block(today, dates[:DATES_IN_PROMPT]), []
 
 
-def relative_time(when: date, today: date) -> str:
-    """How far a date is from today, computed here and never by the model: "today", "tomorrow", "in 27 days",
-    "overdue by 3 days" (the same words as the inbox)."""
-    days = (when - today).days
-    if days == 0:
-        return "today"
-    if days == 1:
-        return "tomorrow"
-    return f"in {days} days" if days > 0 else f"overdue by {-days} days"
+def _letter_evidence(rows) -> list:
+    """Source entries for the letters of the overview: file, page and the sentence each amount and date was read from,
+    so the answer's sources include the letters it names and a click opens the line."""
+    out = []
+    for r in rows:
+        texts = [d.get("text") for d in r["dates"] if d.get("text")] or ([r.get("excerpt")] if r.get("excerpt") else [])
+        page = (r["dates"][0].get("page") if r["dates"] else None) or r.get("page") or 1
+        label = f"{r['filename']} (Page {page})"
+        out.append({"label": label, "ui": label, "file": r["filename"], "page": page, "scope": r.get("scope") or "ws",
+                    "document_id": r.get("document_id"), "passages": [t[:EVIDENCE_CHARS] for t in texts[:EVIDENCE_PER_SOURCE]]})
+    return out
 
 
 def _dates_block(today: date, dates: list) -> str:
@@ -551,6 +591,7 @@ class ChatRequest(BaseModel):
     max_tokens: Optional[int] = None
     provider: Optional[str] = "ollama"
     language: Optional[str] = None  # the interface language ("de", "en", ...): the answer language when the message is too short to tell
+    today: Optional[str] = None  # the PC's local date (YYYY-MM-DD): "today" and every day count follow the user's day
 
     @field_validator("message")
     @classmethod
@@ -743,8 +784,16 @@ async def chat(
                              "and add no names, numbers or details you are not sure of. "
                              "Never take a number from a document about something else.\n"
                            if missing_terms else "")
-        dates_section = (_dates_section(db, current_user.id, req.workspace_id, bool(req.use_knowledge_base), req.message)
-                         if docs_available and DATE_QUESTION.search(req.message) else "")
+        payment_question = is_payment_question(req.message)
+        _today = local_today(req.today)  # one date for "Today is" and every day count in the prompt
+        dates_section, overview_rows = (
+            _dates_section(db, current_user.id, req.workspace_id, bool(req.use_knowledge_base), req.message,
+                           payment_question, _today, answer_language_code(req.message, req.language))
+            if docs_available and (payment_question or DATE_QUESTION.search(req.message)) else ("", []))
+        # a question about what to pay over all letters: the list of every letter goes in front of the passages
+        overview_section = dates_section if overview_rows else ""
+        if overview_rows:
+            dates_section = ""
 
         # ---- Concurrent Data Fetching (RAG, Web, Memory)
         summary_sources = []   # labels of the layered summaries used (services/summaries.py)
@@ -770,13 +819,23 @@ async def chat(
                     except Exception as e:
                         logger.warning(f"Failed to parse active_kb_dir_ids for workspace {ws.id}: {e}")
 
+                n_results, max_ws_chars = 5, None
+                if overview_rows:
+                    # a question about all letters of a small workspace: every piece of it, not only the best five
+                    try:
+                        pieces = rag_service.get_or_create_collection(req.workspace_id, current_user.id).count()
+                        if 0 < pieces <= SMALL_WORKSPACE_CHUNKS:
+                            n_results, max_ws_chars = max(5, pieces), SMALL_WORKSPACE_CHARS
+                    except Exception as e:
+                        logger.warning(f"workspace size unknown: {e}")
                 ws_res, kb_res = await asyncio.to_thread(
                     rag_service.query_merged,
                     workspace_id=req.workspace_id,
                     user_id=current_user.id,
                     query_text=req.message,
                     use_kb=use_kb_for_this_request,
-                    n_results=5,
+                    n_results=n_results,
+                    max_ws_chars=max_ws_chars,
                     filters=rag_filters,
                     preferred_sources=matched_filepaths,
                     use_hybrid_search=req.use_hybrid_search,
@@ -904,6 +963,15 @@ async def chat(
                                                       models.Document.filepath.in_(ws_paths)).all():
                 doc_ids[d.filepath] = d.id
         evidence = _citation_evidence(ws_results, "ws", doc_ids) + _citation_evidence(kb_results, "kb", {})
+        if overview_rows:
+            # the letters of the overview are sources of the answer, also those no passage was retrieved from
+            known = {e["label"] for e in evidence}
+            for e in _letter_evidence(overview_rows):
+                if e["label"] not in known:
+                    evidence.append(e)
+                target = kb_sources if e["scope"] == "kb" else ws_sources
+                if e["ui"] not in target:
+                    target.append(e["ui"])
         warnings = (await asyncio.to_thread(_document_warnings, ws_results, kb_results, req.workspace_id, current_user.id,
                                         req.message)
                     if (ws_results or kb_results) else [])
@@ -1093,7 +1161,7 @@ GENERAL CONVERSATION MODE
         # The tools are for when the passages are not enough. With passages (or the dates list) in the prompt, small
         # models wrote a tool call instead of answering from them (scenario test: "what do I have to pay by the end of
         # the year?" got a search_local_kb call although every date was listed).
-        active_tools = mcp_service.get_active_tools() if not (ws_context or kb_context or dates_section) else []
+        active_tools = mcp_service.get_active_tools() if not (ws_context or kb_context or dates_section or overview_section) else []
         if active_tools:
             tool_descs = []
             for t in active_tools:
@@ -1161,7 +1229,6 @@ WEB SEARCH RESULTS (LIVE DATA)
                          + (f"; when the message is too short to tell (one word, a number), answer in {_ui_lang}" if _ui_lang else
                             "; when the message is too short to tell, answer in the language of the documents")
                          + ". Names, amounts, dates and reference numbers from a document stay exactly as written in it.\n")
-        _today = date.today()
         safety_section = _safety_section(warnings)
         system_prompt = f"""You are StarkLLM, a premium private AI assistant with Retrieval-Augmented Generation (RAG) capabilities.
 {custom_instructions_section}
@@ -1186,7 +1253,7 @@ LANGUAGE & WRITING QUALITY
 - Use correct, natural standard language (for German: Hochdeutsch; for Spanish, French, Portuguese or English: the standard written form, whichever country the user lives in).
 - Technical terms (e.g. React, API, Python, Docker) may appear in their Latin script naturally within non-English sentences — this is acceptable and expected.
 
-{web_block}{mode_instructions}{dates_section}{missing_section}{safety_section}{language_rule}
+{web_block}{overview_section}{mode_instructions}{dates_section}{missing_section}{safety_section}{language_rule}
 """
         logger.info(
             f"DEBUG: System prompt built. WS context: {len(ws_context)} chars, "

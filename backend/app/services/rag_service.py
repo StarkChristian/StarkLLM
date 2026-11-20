@@ -752,6 +752,7 @@ class RAGService :
     use_hybrid_search :Optional [bool ]=None ,
     use_query_rewriting :Optional [bool ]=None ,
     use_context_compression :Optional [bool ]=None ,
+    max_ws_chars :Optional [int ]=None ,
     )->Tuple [List [Dict ],List [Dict ]]:
         """
         Query workspace + (optionally) KB collections with Query Rewriting,
@@ -819,7 +820,7 @@ class RAGService :
 
             # 5. Apply context truncation to protect LLM context windows
         max_chars =getattr (settings ,"RAG_MAX_CONTEXT_CHARS",8000 )
-        ws_results =self ._truncate_context (ws_results ,max_chars //2 )
+        ws_results =self ._truncate_context (ws_results ,max_ws_chars or max_chars //2 )
         kb_results =self ._truncate_context (kb_results ,max_chars //2 )
 
         logger.info (

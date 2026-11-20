@@ -594,6 +594,8 @@ export default function App() {
             api_key: savedApiKey,
             stream: true,
             language: language(),
+            // the PC's local date: "today" and the day counts of the answer follow the user's day, also after midnight
+            today: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })(),
             use_knowledge_base: useKb,
             use_web_search: useWebSearch && !offline,
             use_hybrid_search: localStorage.getItem('rag_hybrid_search') !== 'false',

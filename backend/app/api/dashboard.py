@@ -393,6 +393,13 @@ def replaced_documents(pages_of) -> list:
     return [bool(letter[1] and letter in replaced) for letter in letters]
 
 
+def _describe_letter(item: dict, facts: dict, pages: dict):
+    """Sender, kind and first page of a letter, for the chat's list of all letters (services/payments_overview.py)."""
+    item["sender"] = (facts.get("sender") or {}).get("value")
+    item["letter_kind"] = (facts.get("type") or {}).get("value")
+    item["first_page"] = min(pages) if pages else 1
+
+
 def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool = True, past_days: int = HOME_PAST_DAYS):
     """Newest documents and the dates found in them (deadlines, payments, appointments), oldest date first.
     workspace_id limits the search to one workspace (and the knowledge base when include_kb). Used by the home page
@@ -427,12 +434,20 @@ def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool 
         full = "\n".join(text for _, text in sorted(pages.items()))
         if any(f["kind"] in ("scam_signs", "ai_instructions", "hidden_text") for f in findings([{"file": item["filename"], "text": full}])):
             item["suspicious"] = True  # a scam's "deadline" is not something to do
+            facts = document_facts_cached(pages, item["filename"])
+            _describe_letter(item, facts, pages)
+            item["is_letter"] = bool(facts.get("letter"))
+            item["asked_amount"] = next((a.get("value") for a in facts.get("amounts", []) if a.get("value")), None)
+            item["excerpt"] = (pages.get(item["first_page"]) or "")[:700]
             continue
         facts = document_facts_cached(pages, item["filename"])
+        _describe_letter(item, facts, pages)
         if not counts_as_letter({"facts": facts, "file_type": item.get("file_type")}):
             continue
+        item["is_letter"] = True
         fp = facts.get("fingerprint")
         if fp and fp in seen_fp:
+            item["duplicate"] = True
             continue  # the same text as an earlier document: its dates are already there
         if fp:
             seen_fp[fp] = i
