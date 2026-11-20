@@ -242,7 +242,10 @@ _PATTERNS = [re.compile(p, re.IGNORECASE) for p in [
     r"\bsystem\s*prompt\b.{0,40}\b(reveal|ignore|override|print|show|repeat)\b",
     r"\bdo\s+not\s+(tell|inform|show|mention|reveal)\s+(this\s+)?(to\s+)?the\s+user\b|\bwithout\s+(telling|informing|mentioning)\s+the\s+user\b",
     r"\b(when|while|if)\s+(you\s+)?(summari[sz]e|summari[sz]ing|answer|answering|asked)\b.{0,80}\b(say|write|state|respond|reply|output|claim|recommend|insert|include)\b.{0,60}\b(that|this|only|exactly|the following)\b",
-    r"\b(send|forward|email|post|upload|exfiltrate|leak)\b.{0,60}\b(to|at)\s+(https?://\S+|[\w.+-]+@[\w-]+\.[\w.]+)",
+    # sending something out: only what an assistant holds (the chat, its instructions, the user's documents or data),
+    # because "send the signed form to billing@..." or "send the code to ..." is an ordinary sentence of a letter
+    r"\b(exfiltrate|leak)\b.{0,60}\b(to|at)\s+(https?://\S+|[\w.+-]+@[\w-]+\.[\w.]+)",
+    r"\b(send|forward|email|post|upload|copy|paste)\b.{0,40}\b(conversation|chat|history|(system\s+)?prompt|instructions|context|summary|transcript|the\s+user'?s?|user\s+data|all\s+(the\s+|of\s+the\s+)?(documents|files|data|letters|messages|emails)|(these|the)\s+(documents|files|data|letters)\s+(above|here|you\s+(have|see|read))|contents?\s+of|everything|secrets?|passwords?|api\s+keys?|credentials|personal\s+data)\b.{0,40}\b(to|at)\s+(https?://\S+|[\w.+-]+@[\w-]+\.[\w.]+)",
     r"\b(call|run|execute|invoke|use)\s+(the\s+)?(tool|function|command|mcp)\b.{0,40}\b(now|immediately|silently|without)",
     r"!\[[^\]]*\]\(\s*https?://[^)\s]*[?&][^)\s]*(\{|%7b|data|q|secret|chat|prompt)[^)]*\)",
     # German
@@ -253,7 +256,7 @@ _PATTERNS = [re.compile(p, re.IGNORECASE) for p in [
     r"\b(wenn|falls)\s+du\s+(eine?\s+)?(ki|künstliche intelligenz|sprachmodell|assistent\w*|chatbot|llm)\s+bist\b",
     r"\b(gib|zeig|nenne|wiederhole)\w*\s+(mir\s+)?(deinen|den|die)\s+(system-?prompt|systemanweisung\w*|geheimen?\s+\w+)",
     r"\b(sag|sage|erzähl\w*|erwähn\w*|erwaehn\w*|verrate)\w*\s+(es\s+)?(dem|der)\s+(nutzer|benutzer|anwender)\w*\s+nicht\b|\bohne\s+(den|dem)\s+(nutzer|benutzer)\w*\s+zu\s+(informieren|sagen)",
-    r"\b(sende|schicke|leite|übermittle|uebermittle)\w*\b.{0,60}\b(an|nach)\s+(https?://\S+|[\w.+-]+@[\w-]+\.[\w.]+)",
+    r"\b(sende|schicke|leite|übermittle|uebermittle|kopiere|lade)\w*\b.{0,40}\b\w*(unterhaltung|chat|verlauf|gesprächsverlauf|(system)?prompt|anweisungen|kontext|zusammenfassung|alle\s+(dokumente|dateien|daten|briefe|nachrichten|e-?mails)|(diese|die)\s+(dokumente|dateien|daten|briefe)\s+(oben|hier)|inhalte?\s+(der|des|aller)|alles|passw(ö|oe)rter|zugangsdaten|schlüssel|geheimnisse|persönlichen\s+daten|daten\s+des\s+(nutzers|benutzers))\b.{0,40}\b(an|nach)\s+(https?://\S+|[\w.+-]+@[\w-]+\.[\w.]+)",
     r"\b(ruf|rufe|führe|fuehre)\w*\s+(das\s+|den\s+)?(tool|werkzeug|befehl|funktion)\b.{0,40}\b(sofort|jetzt|still|ohne)",
     r"\b(ki|ai)[- ]?(systeme|systems|assistent\w*|assistants?)\s*:",
     # French
