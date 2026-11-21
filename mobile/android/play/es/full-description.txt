@@ -1,0 +1,29 @@
+Pregunta a tus documentos desde el móvil. El móvil pregunta y tu PC responde: los documentos, el índice de búsqueda y el modelo de IA se quedan en tu PC con Windows.
+
+Esta aplicación acompaña en el móvil a StarkLLM, el asistente de documentos privado y gratuito para Windows. Necesita StarkLLM 2.4.0 o posterior en tu PC: www.starkllm.com
+
+CÓMO FUNCIONA
+• Actívalo en el PC: En StarkLLM en tu PC con Windows, abre Ajustes > Teléfono y activa la conexión con el móvil. Viene desactivada.
+• Empareja con un código QR: Elige «Mostrar código QR» en el PC y escanéalo una vez con la aplicación. Puedes emparejar varios PC, por ejemplo el de casa y el de la oficina.
+• Solo en la red de casa: El móvil solo llega al PC dentro de tu red doméstica. La conexión está cifrada con el certificado propio del PC, que el móvil fija, así que nadie más en la red puede hacerse pasar por tu PC.
+
+QUÉ HACE LA APLICACIÓN
+• Preguntas sobre tus documentos: Las preguntas van a StarkLLM en tu PC; la respuesta llega poco a poco, con los documentos que ha usado.
+• Enviar cartas y archivos: Haz una foto de una carta, elige fotos o archivos (PDF, EPUB, Word, PowerPoint, texto, imágenes) o usa «Compartir» en otras aplicaciones. El PC los lee, también el texto de las fotos; las fotos se borran del móvil tras enviarlas.
+• Dictado: Mantén pulsado el botón del micrófono. El modelo de voz de tu PC lo convierte en texto, no un servicio en línea.
+• Plazos: Vencidos, hoy, esta semana y más adelante, como en el PC. Los recordatorios opcionales consultan el PC mientras el móvil está en casa, y un widget en la pantalla de inicio muestra los tres próximos.
+• Tres niveles por móvil: En el PC eliges qué puede hacer cada móvil: solo preguntar; también enviar documentos; también hacer una copia de seguridad ahora y poner StarkLLM totalmente sin conexión, cada vez confirmado con tu huella en el móvil.
+• Bloqueo, temas e idiomas: Bloqueo de la aplicación con tu huella, 13 temas y los seis idiomas de StarkLLM: inglés, alemán, español, francés, italiano y turco.
+
+TUS DOCUMENTOS SE QUEDAN EN TU PC
+• Los documentos, el índice de búsqueda y el modelo de IA se quedan en el PC. El móvil solo guarda lo que muestra (la lista de chats, el chat abierto, los próximos plazos) y sus ajustes.
+• Sin cuenta, sin nube, sin servicio de notificaciones push, sin analítica.
+• Una pregunta desde el móvil nunca sale a internet: ni búsqueda web ni modelos en la nube.
+
+REQUISITOS
+• Móvil: Android 10 o posterior
+• PC: StarkLLM 2.4.0 o posterior en Windows 10 u 11
+• Red: El móvil y el PC en la misma red doméstica
+Aún no en esta primera versión: acceso fuera de casa, una aplicación para iPhone e iniciar sesión desde el móvil cuando StarkLLM en el PC tiene varias cuentas.
+
+Gratis y de código abierto. Sin cuenta, sin anuncios, sin compras dentro de la aplicación.

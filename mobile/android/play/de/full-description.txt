@@ -1,0 +1,29 @@
+Fragen Sie Ihre Dokumente vom Handy aus. Das Handy fragt, Ihr PC antwortet: Dokumente, Suchindex und KI-Modell bleiben auf Ihrem Windows-PC.
+
+Diese App ist die Handy-Begleit-App von StarkLLM, dem kostenlosen privaten Dokumenten-Assistenten für Windows. Sie braucht StarkLLM 2.4.0 oder neuer auf Ihrem PC: www.starkllm.com
+
+SO FUNKTIONIERT ES
+• Am PC einschalten: Öffnen Sie in StarkLLM auf Ihrem Windows-PC Einstellungen > Telefon und schalten Sie die Verbindung zum Handy ein. Ab Werk ist sie aus.
+• Mit einem QR-Code koppeln: Wählen Sie am PC „QR-Code anzeigen“ und scannen Sie ihn einmal mit der App. Sie können mehrere PCs koppeln, zum Beispiel zu Hause und im Büro.
+• Nur im Heimnetz: Das Handy erreicht den PC nur in Ihrem Heimnetz. Die Verbindung ist mit dem eigenen Zertifikat des PCs verschlüsselt, das sich das Handy merkt; so kann sich niemand anderes im Netz als Ihr PC ausgeben.
+
+WAS DIE APP KANN
+• Fragen zu Ihren Dokumenten: Fragen gehen an StarkLLM auf Ihrem PC; die Antwort läuft Wort für Wort ein, mit den Dokumenten, die sie genutzt hat.
+• Briefe und Dateien senden: Fotografieren Sie einen Brief, wählen Sie Fotos oder Dateien (PDF, EPUB, Word, PowerPoint, Text, Bilder) oder nutzen Sie „Teilen“ in anderen Apps. Der PC liest sie, auch den Text in Fotos; Fotos werden nach dem Senden auf dem Handy gelöscht.
+• Diktieren: Halten Sie die Mikrofontaste gedrückt. Das Sprachmodell auf Ihrem PC macht Text daraus, kein Online-Dienst.
+• Fristen: Überfällig, heute, diese Woche und später, wie am PC. Erinnerungen (wahlweise) fragen den PC, während das Handy zu Hause ist, und ein Widget auf dem Startbildschirm zeigt die nächsten drei.
+• Drei Stufen je Handy: Am PC legen Sie fest, was jedes Handy darf: nur fragen; auch Dokumente senden; auch sofort sichern und StarkLLM vollständig offline schalten, jeweils mit Ihrem Fingerabdruck auf dem Handy bestätigt.
+• App-Sperre, Themes, Sprachen: App-Sperre mit Fingerabdruck, 13 Themes und die sechs Sprachen von StarkLLM: Englisch, Deutsch, Spanisch, Französisch, Italienisch und Türkisch.
+
+IHRE DOKUMENTE BLEIBEN AUF IHREM PC
+• Dokumente, Suchindex und KI-Modell bleiben auf dem PC. Das Handy behält nur, was es anzeigt (die Chatliste, den offenen Chat, die nächsten Fristen), und seine Einstellungen.
+• Kein Konto, keine Cloud, kein Push-Dienst, keine Analyse.
+• Eine Frage vom Handy geht nie ins Internet: keine Websuche und keine Cloud-Modelle.
+
+VORAUSSETZUNGEN
+• Handy: Android 10 oder neuer
+• PC: StarkLLM 2.4.0 oder neuer unter Windows 10 oder 11
+• Netz: Handy und PC im selben Heimnetz
+Noch nicht in dieser ersten Version: Zugriff von unterwegs, eine App fürs iPhone und die Anmeldung vom Handy aus, wenn StarkLLM auf dem PC mehrere Konten hat.
+
+Kostenlos und quelloffen. Kein Konto, keine Werbung, keine In-App-Käufe.
