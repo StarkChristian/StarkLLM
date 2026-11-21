@@ -127,5 +127,7 @@
   "StarkLLM turned on the integrated graphics of this PC ({gpu}) for the AI models, so answers come faster. To turn it off, use \"Use the integrated graphics for AI\" in the tray menu.": "StarkLLM, yanıtlar daha hızlı gelsin diye bu bilgisayarın tümleşik grafik birimini ({gpu}) yapay zeka modelleri için açtı. Kapatmak için sistem tepsisi menüsündeki \"Yapay zeka için tümleşik grafiği kullan\" seçeneğini kullanın.",
   "Use the integrated graphics for AI": "Yapay zeka için tümleşik grafiği kullan",
   "Restart StarkLLM to change this?": "Bunu değiştirmek için StarkLLM yeniden başlatılsın mı?",
-  "StarkLLM restarts Ollama (the local AI runtime) with the new setting. Your chats and documents are not affected.": "StarkLLM, Ollama'yı (yerel yapay zeka çalışma ortamı) yeni ayarla yeniden başlatır. Sohbetleriniz ve belgeleriniz etkilenmez."
+  "StarkLLM restarts Ollama (the local AI runtime) with the new setting. Your chats and documents are not affected.": "StarkLLM, Ollama'yı (yerel yapay zeka çalışma ortamı) yeni ayarla yeniden başlatır. Sohbetleriniz ve belgeleriniz etkilenmez.",
+  "StarkLLM web task": "StarkLLM web görevi",
+  "StarkLLM is fully offline: web tasks are off.": "StarkLLM tamamen çevrimdışı: web görevleri kapalı."
 }

@@ -12,7 +12,7 @@ const { BrowserWindow, session } = require('electron');
 const { runTask } = require('./webtask-core');
 const { PAGE_SCRIPT } = require('./webtask-page');
 const { getShared } = require('./netguard');
-const i18n = require('./i18n');
+const { t } = require('./i18n');
 
 const OLLAMA_URL = process.env.STARKLLM_OLLAMA_URL || 'http://127.0.0.1:11434';
 const PARTITION = 'persist:starkllm-web';
@@ -51,7 +51,7 @@ function openWindow() {
   win = new BrowserWindow({
     width: 1180,
     height: 860,
-    title: i18n.t('StarkLLM web task'),
+    title: t('StarkLLM web task'),
     autoHideMenuBar: true,
     webPreferences: { partition: PARTITION, sandbox: true, contextIsolation: true, nodeIntegration: false, spellcheck: false },
   });
@@ -64,7 +64,7 @@ function openWindow() {
   wc.on('will-navigate', (event, url) => { if (!isWeb(url)) event.preventDefault(); });
   win.on('page-title-updated', (event, title) => {
     event.preventDefault();
-    if (!win.isDestroyed()) win.setTitle(`${title} · ${i18n.t('StarkLLM web task')}`);
+    if (!win.isDestroyed()) win.setTitle(`${title} · ${t('StarkLLM web task')}`);
   });
   win.on('closed', () => {
     win = null;
@@ -104,7 +104,7 @@ function electronBrowser() {
       await wc.loadURL(url).catch((e) => {
         // a page that redirects or stops early still counts; a blocked request (offline) does not
         if (getShared().isOffline()) {
-          const err = new Error(i18n.t('StarkLLM is fully offline: web tasks are off.'));
+          const err = new Error(t('StarkLLM is fully offline: web tasks are off.'));
           err.code = 'STARKLLM_OFFLINE';
           throw err;
         }
