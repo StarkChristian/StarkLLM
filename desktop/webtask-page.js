@@ -116,10 +116,14 @@ function pageScript() {
       if (!inView(el)) item.below = true;
       return item;
     });
+    // the text around what the window shows: after a scroll the model reads further down, not the top again
     const textRoot = document.querySelector('main') || document.body;
-    const text = clean(textRoot ? textRoot.innerText : '', MAX_TEXT);
-    const more = document.documentElement.scrollHeight > window.scrollY + vh * 2.5;
-    return { url: location.href, title: clean(document.title, 150), elements, text, more };
+    const pageText = textRoot ? String(textRoot.innerText || '').replace(/\s+/g, ' ').trim() : '';
+    const height = Math.max(document.documentElement.scrollHeight, 1);
+    const from = pageText.length <= MAX_TEXT ? 0 : Math.max(0, Math.min(pageText.length - MAX_TEXT, Math.floor((window.scrollY / height) * pageText.length) - 300));
+    const text = (from > 0 ? '… ' : '') + pageText.slice(from, from + MAX_TEXT) + (from + MAX_TEXT < pageText.length ? ' …' : '');
+    const more = document.documentElement.scrollHeight > window.scrollY + vh * 1.05;
+    return { url: location.href, title: clean(document.title, 150), elements, text, more, scroll: Math.round(window.scrollY) };
   }
 
   // centre of element i in the window's coordinates, scrolled into view first; null when it is gone

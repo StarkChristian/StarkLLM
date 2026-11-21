@@ -226,7 +226,7 @@ async function runTask({ task, language = 'English', browser, llm, ask, emit = (
       try { snap = await browser.snapshot(); } catch (e) { snap = null; }
     }
     // what the last step did to the page: small models repeat a step that changes nothing unless they are told
-    const sig = snap ? `${snap.url}|${snap.title}|${snap.text.length}|${snap.elements.map((e) => e.label + (e.value || '') + (e.checked ? 1 : 0)).join(',').length}|${snap.text.slice(0, 400)}` : '';
+    const sig = snap ? `${snap.url}|${snap.title}|${snap.scroll || 0}|${snap.text.length}|${snap.elements.map((e) => e.label + (e.value || '') + (e.checked ? 1 : 0)).join(',').length}|${snap.text.slice(0, 400)}` : '';
     if (lastAction && history.length && lastSig === sig && !/^(read|asked|refused|user)/.test(history[history.length - 1])) {
       history[history.length - 1] += ' (nothing changed on the page)';
     }
@@ -252,7 +252,8 @@ async function runTask({ task, language = 'English', browser, llm, ask, emit = (
       continue;
     }
     invalid = 0;
-    const key = `${call.name} ${JSON.stringify(call.args || {})} @${snap ? snap.url : ''}`;
+    // scrolling is the same call each time but a different place on the page: its key has the scroll position
+    const key = `${call.name} ${JSON.stringify(call.args || {})} @${snap ? snap.url : ''}${call.name === 'scroll' && snap ? '#' + (snap.scroll || 0) : ''}`;
     repeats = key === lastAction ? repeats + 1 : 0;
     lastAction = key;
     // the same step on the same page, also when the model alternates between two of them
