@@ -107,7 +107,12 @@ function pageScript() {
       if (kind) item.kind = kind;
       if (role === 'textbox' && el.value) item.value = clean(el.value, 60);
       if (role === 'checkbox' || role === 'radio') item.checked = !!(el.checked || el.getAttribute('aria-checked') === 'true');
-      if (el.tagName.toLowerCase() === 'select') item.options = [...el.options].slice(0, 25).map((o) => clean(o.text, 40));
+      if (el.tagName.toLowerCase() === 'select') {
+        item.options = [...el.options].slice(0, 25).map((o) => clean(o.text, 40));
+        // which option is chosen now: without it the model chooses the same option again and again
+        const chosenOption = el.options[el.selectedIndex];
+        if (chosenOption) item.value = clean(chosenOption.text, 40);
+      }
       if (el.tagName.toLowerCase() === 'a') {
         try {
           item.host = new URL(el.href, location.href).host;

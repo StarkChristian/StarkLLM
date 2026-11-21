@@ -1247,5 +1247,6 @@
   "Web task stopped": "Web-Aufgabe angehalten",
   "Web task not finished": "Web-Aufgabe nicht abgeschlossen",
   "Show the window": "Fenster zeigen",
-  "{count} steps": "{count} Schritte"
+  "{count} steps": "{count} Schritte",
+  "Web tasks work much better with a larger local model (14B or more, for example qwen3:14b).": "Web-Aufgaben gelingen mit einem größeren lokalen Modell viel besser (14B oder mehr, zum Beispiel qwen3:14b)."
 }
