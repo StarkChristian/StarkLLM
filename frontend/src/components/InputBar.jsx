@@ -1,13 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import styles from './InputBar.module.css';
-import { Paperclip, Mic, Send, Square, Loader, Database, Globe, FileCode, Settings, Cloud } from 'lucide-react';
+import { Paperclip, Mic, Send, Square, Loader, Database, Globe, FileCode, Settings, Cloud, Compass } from 'lucide-react';
 import PromptTemplateModal from './PromptTemplateModal';
 import { useToast } from './Toast';
 import { UPLOAD_ACCEPT } from '../utils/uploadTypes';
 import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
 
-export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleKb, useWebSearch, onToggleWebSearch, offline, cloudHost, onOpenSettings, isGenerating, onStopGeneration, token, activeWorkspace, onOpenKbSettings }) {
+export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleKb, useWebSearch, onToggleWebSearch, webTaskAvailable, useWebTask, onToggleWebTask, offline, cloudHost, onOpenSettings, isGenerating, onStopGeneration, token, activeWorkspace, onOpenKbSettings }) {
   const toast = useToast();
   const [text, setText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -188,6 +188,21 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
         </button>
         {useWebSearch && (
           <span className={styles.onlineNote} role="status">{t('Your question is sent to DuckDuckGo.')}</span>
+        )}
+        {webTaskAvailable && (
+          <button
+            className={`${styles.kbToggle} ${useWebTask ? styles.kbToggleOn : ''}`}
+            onClick={onToggleWebTask}
+            disabled={offline}
+            title={offline ? t('Web tasks are off while StarkLLM is fully offline') : t('StarkLLM does the task on websites in its own browser window')}
+            type="button"
+          >
+            <Compass size={16} />
+            {useWebTask ? t('Web task ON') : t('Web task')}
+          </button>
+        )}
+        {useWebTask && (
+          <span className={styles.onlineNote} role="status">{t('StarkLLM opens its own browser window and works on websites. It asks you before buying, booking or sending anything.')}</span>
         )}
         {cloudHost && (
           <button

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import WebTaskCard from './WebTaskCard';
 import styles from './ChatArea.module.css';
 import { 
   User, Bot, Volume2, Square, Database, Copy, Check, Globe, RefreshCw, 
@@ -182,7 +183,9 @@ const ChatMessageRenderer = React.memo(({
   token,
   onSendToolResult,
   onFeedback,
-  onInspectSources
+  onInspectSources,
+  onWebTaskReply,
+  onShowWebTaskWindow
 }) => {
   const contentSegments = msg.role === 'assistant' ? parseContentWithToolCalls(msg.content) : null;
   const [localFeedback, setLocalFeedback] = useState(msg.feedback || null);
@@ -232,6 +235,8 @@ const ChatMessageRenderer = React.memo(({
                 <button className={styles.editSaveBtn} onClick={() => handleSaveEdit(i)}>{t('Save & Submit')}</button>
               </div>
             </div>
+          ) : msg.webTask && msg.content === '' ? (
+            <WebTaskCard task={msg.webTask} onReply={onWebTaskReply} onShowWindow={onShowWebTaskWindow} />
           ) : msg.role === 'assistant' && msg.content === '' ? (
             <div className={styles.thinking}>
               <span className={styles.dot}></span>
@@ -240,6 +245,7 @@ const ChatMessageRenderer = React.memo(({
             </div>
           ) : (
             <>
+              {msg.webTask && <WebTaskCard task={msg.webTask} onReply={onWebTaskReply} onShowWindow={onShowWebTaskWindow} />}
               {msg.role === 'assistant' && msg.warnings && msg.warnings.length > 0 && (
                 <DocumentWarnings warnings={msg.warnings} />
               )}
@@ -461,7 +467,9 @@ export default function ChatArea({
   chatId,
   onUpload,
   newestDocument,
-  token
+  token,
+  onWebTaskReply,
+  onShowWebTaskWindow
 }) {
   const toast = useToast();
   const starterFileRef = useRef(null);
@@ -833,6 +841,8 @@ export default function ChatArea({
               onSendToolResult={onRetryMessage}
               onFeedback={null}
               onInspectSources={(source, labels) => setInspectingSource({ msg: source, labels })}
+              onWebTaskReply={onWebTaskReply}
+              onShowWebTaskWindow={onShowWebTaskWindow}
             />
           ))}
           <div ref={messagesEndRef} />
