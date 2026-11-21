@@ -16,6 +16,7 @@ const { autoUpdater } = require('electron-updater');
 const i18n = require('./i18n');
 const { t } = i18n;
 const { initShared } = require('./netguard');
+const webtask = require('./webtask');
 const { askOfflineChoice } = require('./offline-choice');
 const { desktopKey, setEngineOffline, switchOffline } = require('./engine-offline');
 const { createPhoneLink } = require('./phonelink');
@@ -121,6 +122,7 @@ function initApp() {
     return { ok: true };
   });
   registerPhoneLinkHandlers();
+  webtask.register(ipcMain, { fromApp, log: logLine });
   registerProtectionHandlers();
   registerUnlockHandlers();
   lockEngineOnQuit();
@@ -591,6 +593,7 @@ function createTray() {
 // The switch lives in the app and in the engine; Settings and the tray menu set both (engine-offline.js: "offline"
 // wins, and the engine accepts the desktop app with the key derived from its SECRET_KEY, whoever is signed in).
 async function switchAppAndEngineOffline(on, from) {
+  if (on) webtask.stopForOffline(); // a web task that runs ends with the switch
   const setEngine = (value) => setEngineOffline({
     fetchFn: guard.wrapFetch((u, o) => net.fetch(u, o), 'local_engine', 'Fully offline switch of the engine on this PC'),
     apiUrl: apiUrl(), key: desktopKey(engineSecret()), on: value
