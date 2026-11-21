@@ -108,6 +108,10 @@ export default function WebTaskCard({ task, onReply, onShowWindow }) {
       )}
       {task.ask && <AskBox key={task.ask.qid} ask={task.ask} onReply={onReply} />}
       {task.error && <p className={styles.error}>{task.error}</p>}
+      {task.status === 'error' && (
+        // measured (docs/web-tasks.md): 7B models finish few web tasks, 14B and larger finish them
+        <p className={styles.hint}>{t('Web tasks work much better with a larger local model (14B or more, for example qwen3:14b).')}</p>
+      )}
     </div>
   );
 }

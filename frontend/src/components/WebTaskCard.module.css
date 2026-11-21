@@ -34,3 +34,4 @@
 .error { margin: 8px 0 0; color: #dc2626; }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+.hint { margin: 6px 0 0; font-size: 0.9em; color: var(--text-secondary, inherit); }
