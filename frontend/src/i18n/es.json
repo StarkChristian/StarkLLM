@@ -1248,5 +1248,11 @@
   "Web task not finished": "Tarea web sin terminar",
   "Show the window": "Mostrar la ventana",
   "{count} steps": "{count} pasos",
-  "Web tasks work much better with a larger local model (14B or more, for example qwen3:14b).": "Las tareas web salen mucho mejor con un modelo local más grande (14B o más, por ejemplo qwen3:14b)."
+  "Web tasks work much better with a larger local model (14B or more, for example qwen3:14b).": "Las tareas web salen mucho mejor con un modelo local más grande (14B o más, por ejemplo qwen3:14b).",
+  "Web task (StarkLLM browser window)": "Tarea web (ventana de navegador de StarkLLM)",
+  "Delete the cookies, sign-ins and stored pages of the StarkLLM browser window? Your own browser is not affected.": "¿Borrar las cookies, los inicios de sesión y las páginas guardadas de la ventana de navegador de StarkLLM? Tu propio navegador no se ve afectado.",
+  "StarkLLM browser window (web tasks)": "Ventana de navegador de StarkLLM (tareas web)",
+  "Web tasks run in a separate browser window with its own storage, never in your own browser. Sites you visited there may have stored cookies or a sign-in.": "Las tareas web se hacen en una ventana de navegador aparte con su propio almacenamiento, nunca en tu navegador. Los sitios visitados pueden haber guardado cookies o un inicio de sesión.",
+  "Delete its cookies and sign-ins": "Borrar sus cookies e inicios de sesión",
+  "Deleted.": "Borrado."
 }

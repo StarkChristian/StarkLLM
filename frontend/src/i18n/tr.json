@@ -1248,5 +1248,11 @@
   "Web task not finished": "Web görevi tamamlanmadı",
   "Show the window": "Pencereyi göster",
   "{count} steps": "{count} adım",
-  "Web tasks work much better with a larger local model (14B or more, for example qwen3:14b).": "Web görevleri daha büyük bir yerel modelle çok daha iyi olur (14B veya daha büyük, örneğin qwen3:14b)."
+  "Web tasks work much better with a larger local model (14B or more, for example qwen3:14b).": "Web görevleri daha büyük bir yerel modelle çok daha iyi olur (14B veya daha büyük, örneğin qwen3:14b).",
+  "Web task (StarkLLM browser window)": "Web görevi (StarkLLM tarayıcı penceresi)",
+  "Delete the cookies, sign-ins and stored pages of the StarkLLM browser window? Your own browser is not affected.": "StarkLLM tarayıcı penceresinin çerezleri, oturumları ve kayıtlı sayfaları silinsin mi? Kendi tarayıcınız etkilenmez.",
+  "StarkLLM browser window (web tasks)": "StarkLLM tarayıcı penceresi (web görevleri)",
+  "Web tasks run in a separate browser window with its own storage, never in your own browser. Sites you visited there may have stored cookies or a sign-in.": "Web görevleri kendi depolaması olan ayrı bir tarayıcı penceresinde yapılır, asla kendi tarayıcınızda değil. Ziyaret edilen siteler orada çerez ya da oturum saklamış olabilir.",
+  "Delete its cookies and sign-ins": "Çerezlerini ve oturumlarını sil",
+  "Deleted.": "Silindi."
 }
