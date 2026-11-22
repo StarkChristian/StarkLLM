@@ -1,7 +1,7 @@
 // Chats and answers as PDF (docs/roadmap-2026-12.md, R1): the chat page builds a printable HTML page, this file
 // prints it with Electron's own PDF printer and asks where to save it. No new library and no network: the page is
 // loaded in a hidden window without scripts, and its session refuses every request that is not the page itself.
-const { BrowserWindow, dialog, session } = require('electron');
+const { app, BrowserWindow, dialog, session } = require('electron');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -56,7 +56,7 @@ function register(ipcMain, { fromApp }) {
       const base = String(name).replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim().slice(0, 120) || `StarkLLM.${ext}`;
       const r = await dialog.showSaveDialog(parent, {
         title: t('Save'),
-        defaultPath: base,
+        defaultPath: path.join(app.getPath('documents'), base), // not the folder of the last dialog (the terminal folder)
         filters: [{ name: SAVE_TYPES[ext], extensions: [ext] }],
       });
       if (r.canceled || !r.filePath) return { canceled: true };
@@ -75,7 +75,7 @@ function register(ipcMain, { fromApp }) {
       const parent = BrowserWindow.fromWebContents(event.sender);
       const r = await dialog.showSaveDialog(parent, {
         title: t('Save as PDF'),
-        defaultPath: safeName(name),
+        defaultPath: path.join(app.getPath('documents'), safeName(name)),
         filters: [{ name: 'PDF', extensions: ['pdf'] }],
       });
       if (r.canceled || !r.filePath) return { canceled: true };
