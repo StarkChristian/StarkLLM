@@ -1,0 +1,29 @@
+Interroga i tuoi documenti dal telefono. Il telefono chiede, il tuo PC risponde: i documenti, l’indice di ricerca e il modello di IA restano sul tuo PC Windows.
+
+Questa app accompagna sul telefono StarkLLM, l’assistente per documenti privato e gratuito per Windows. Richiede StarkLLM 2.4.0 o successivo sul tuo PC: www.starkllm.com
+
+COME FUNZIONA
+• Attivala sul PC: In StarkLLM sul tuo PC Windows apri Impostazioni > Telefono e attiva il collegamento con il telefono. Di serie è disattivato.
+• Abbina con un codice QR: Scegli «Mostra codice QR» sul PC e scansionalo una volta con l’app. Puoi abbinare più PC, per esempio quello di casa e quello dell’ufficio.
+• Solo nella rete di casa: Il telefono raggiunge il PC solo nella tua rete domestica. La connessione è cifrata con il certificato del PC, che il telefono memorizza e verifica: nessun altro nella rete può fingersi il tuo PC.
+
+COSA FA L’APP
+• Domande sui tuoi documenti: Le domande vanno a StarkLLM sul tuo PC; la risposta arriva man mano, con i documenti che ha usato.
+• Inviare lettere e file: Fotografa una lettera, scegli foto o file (PDF, EPUB, Word, PowerPoint, testo, immagini) oppure usa «Condividi» in altre app. Il PC li legge, anche il testo nelle foto; le foto vengono cancellate dal telefono dopo l’invio.
+• Dettatura: Tieni premuto il pulsante del microfono. Il modello vocale del tuo PC lo trasforma in testo, non un servizio online.
+• Scadenze: Scadute, oggi, questa settimana e più avanti, come sul PC. I promemoria facoltativi interrogano il PC mentre il telefono è a casa, e un widget sulla schermata Home mostra le prossime tre.
+• Tre livelli per telefono: Sul PC scegli cosa può fare ogni telefono: solo chiedere; anche inviare documenti; anche avviare subito un backup e mettere StarkLLM completamente offline, ogni volta confermato con la tua impronta sul telefono.
+• Blocco, temi, lingue: Blocco dell’app con l’impronta, 13 temi e le sei lingue di StarkLLM: inglese, tedesco, spagnolo, francese, italiano e turco.
+
+I TUOI DOCUMENTI RESTANO SUL TUO PC
+• I documenti, l’indice di ricerca e il modello di IA restano sul PC. Il telefono conserva solo ciò che mostra (l’elenco delle chat, la chat aperta, le prossime scadenze) e le sue impostazioni.
+• Nessun account, nessun cloud, nessun servizio di notifiche push, nessuna analisi.
+• Una domanda dal telefono non va mai su internet: niente ricerca web e niente modelli cloud.
+
+REQUISITI
+• Telefono: Android 10 o successivo
+• PC: StarkLLM 2.4.0 o successivo su Windows 10 o 11
+• Rete: Telefono e PC nella stessa rete domestica
+Non ancora in questa prima versione: l’accesso fuori casa, un’app per iPhone e l’accesso dal telefono quando StarkLLM sul PC ha più account.
+
+Gratuita e open source. Nessun account, nessuna pubblicità, nessun acquisto in-app.

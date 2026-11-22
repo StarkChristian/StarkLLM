@@ -1,0 +1,29 @@
+Interrogez vos documents depuis votre téléphone. Le téléphone pose la question, votre PC répond : les documents, l’index de recherche et le modèle d’IA restent sur votre PC Windows.
+
+Cette application accompagne sur le téléphone StarkLLM, l’assistant de documents privé et gratuit pour Windows. Elle nécessite StarkLLM 2.4.0 ou plus récent sur votre PC : www.starkllm.com
+
+COMMENT ÇA MARCHE
+• L’activer sur le PC: Dans StarkLLM sur votre PC Windows, ouvrez Paramètres > Téléphone et activez la liaison avec le téléphone. Elle est désactivée par défaut.
+• Associer avec un code QR: Choisissez « Afficher le code QR » sur le PC et scannez-le une fois avec l’application. Vous pouvez associer plusieurs PC, par exemple à la maison et au bureau.
+• Réseau de la maison uniquement: Le téléphone n’atteint le PC que dans votre réseau domestique. La connexion est chiffrée avec le certificat propre du PC, que le téléphone épingle : personne d’autre sur le réseau ne peut se faire passer pour votre PC.
+
+CE QUE FAIT L’APPLICATION
+• Questions sur vos documents: Les questions partent vers StarkLLM sur votre PC ; la réponse s’affiche au fur et à mesure, avec les documents utilisés.
+• Envoyer des courriers et des fichiers: Photographiez un courrier, choisissez des photos ou des fichiers (PDF, EPUB, Word, PowerPoint, texte, images) ou utilisez « Partager » dans d’autres applications. Le PC les lit, y compris le texte des photos ; les photos sont supprimées du téléphone après l’envoi.
+• Dictée: Maintenez le bouton du micro. Le modèle vocal de votre PC transforme la voix en texte, pas un service en ligne.
+• Échéances: En retard, aujourd’hui, cette semaine et plus tard, comme sur le PC. Des rappels facultatifs interrogent le PC tant que le téléphone est à la maison, et un widget sur l’écran d’accueil affiche les trois prochaines.
+• Trois niveaux par téléphone: Sur le PC, vous choisissez ce que chaque téléphone peut faire : seulement poser des questions ; aussi envoyer des documents ; aussi lancer une sauvegarde immédiate et passer StarkLLM entièrement hors ligne, chaque fois confirmé par votre empreinte sur le téléphone.
+• Verrouillage, thèmes, langues: Verrouillage de l’application par empreinte, 13 thèmes et les six langues de StarkLLM : anglais, allemand, espagnol, français, italien et turc.
+
+VOS DOCUMENTS RESTENT SUR VOTRE PC
+• Les documents, l’index de recherche et le modèle d’IA restent sur le PC. Le téléphone ne garde que ce qu’il affiche (la liste des discussions, la discussion ouverte, les prochaines échéances) et ses réglages.
+• Pas de compte, pas de cloud, pas de service de notifications push, pas de mesure d’audience.
+• Une question posée depuis le téléphone ne part jamais sur Internet : ni recherche web ni modèles dans le cloud.
+
+CONFIGURATION REQUISE
+• Téléphone: Android 10 ou plus récent
+• PC: StarkLLM 2.4.0 ou plus récent sous Windows 10 ou 11
+• Réseau: Le téléphone et le PC sur le même réseau domestique
+Pas encore dans cette première version : l’accès hors de la maison, une application pour iPhone et la connexion depuis le téléphone quand StarkLLM sur le PC a plusieurs comptes.
+
+Gratuite et open source. Pas de compte, pas de publicité, pas d’achats intégrés.

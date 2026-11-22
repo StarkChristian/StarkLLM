@@ -1,0 +1,29 @@
+Belgelerinizi telefonunuzdan sorun. Telefon sorar, bilgisayarınız yanıtlar: belgeler, arama dizini ve yapay zekâ modeli Windows bilgisayarınızda kalır.
+
+Bu uygulama, Windows için ücretsiz ve gizlilik odaklı belge asistanı StarkLLM’in telefon tamamlayıcısıdır. Bilgisayarınızda StarkLLM 2.4.0 veya üstü gerekir: www.starkllm.com
+
+NASIL ÇALIŞIR
+• Bilgisayarda açın: Windows bilgisayarınızdaki StarkLLM’de Ayarlar > Telefon’u açın ve telefon bağlantısını etkinleştirin. Varsayılan olarak kapalıdır.
+• QR koduyla eşleştirin: Bilgisayarda “QR kodunu göster”i seçin ve uygulamayla bir kez tarayın. Birden çok bilgisayarı eşleştirebilirsiniz, örneğin evdekini ve ofistekini.
+• Yalnızca ev ağında: Telefon bilgisayara yalnızca ev ağınızda ulaşır. Bağlantı, telefonun sabitlediği bilgisayarın kendi sertifikasıyla şifrelenir; böylece ağdaki başka biri bilgisayarınız gibi davranamaz.
+
+UYGULAMA NELER YAPAR
+• Belgeleriniz hakkında sorular: Sorular bilgisayarınızdaki StarkLLM’e gider; yanıt, kullandığı belgelerle birlikte akarak gelir.
+• Mektup ve dosya gönderme: Bir mektubun fotoğrafını çekin, fotoğraf ya da dosya seçin (PDF, EPUB, Word, PowerPoint, metin, görseller) veya diğer uygulamalarda “Paylaş”ı kullanın. Bilgisayar bunları, fotoğraflardaki metinle birlikte okur; fotoğraflar gönderildikten sonra telefondan silinir.
+• Dikte: Mikrofon düğmesini basılı tutun. Sesi metne bir çevrimiçi hizmet değil, bilgisayarınızdaki konuşma modeli çevirir.
+• Son tarihler: Bilgisayardaki gibi gecikmiş, bugün, bu hafta ve daha sonra. İsteğe bağlı hatırlatıcılar telefon evdeyken bilgisayarı yoklar, ana ekrandaki bir widget sonraki üç tarihi gösterir.
+• Telefon başına üç düzey: Her telefonun ne yapabileceğini bilgisayarda seçersiniz: yalnızca sormak; belge de göndermek; ayrıca hemen yedek almak ve StarkLLM’i tamamen çevrimdışı yapmak; her biri telefondaki parmak izinizle onaylanır.
+• Kilit, temalar, diller: Parmak iziyle uygulama kilidi, 13 tema ve StarkLLM’in altı dili: İngilizce, Almanca, İspanyolca, Fransızca, İtalyanca ve Türkçe.
+
+BELGELERINIZ BILGISAYARINIZDA KALIR
+• Belgeler, arama dizini ve yapay zekâ modeli bilgisayarda kalır. Telefon yalnızca gösterdiğini (sohbet listesi, açık sohbet, yaklaşan son tarihler) ve kendi ayarlarını saklar.
+• Hesap yok, bulut yok, anlık bildirim hizmeti yok, analiz yok.
+• Telefondan sorulan bir soru asla internete çıkmaz: web araması da bulut modeli de yok.
+
+GEREKSINIMLER
+• Telefon: Android 10 veya üstü
+• Bilgisayar: Windows 10 veya 11’de StarkLLM 2.4.0 veya üstü
+• Ağ: Telefon ve bilgisayar aynı ev ağında
+Bu ilk sürümde henüz yok: evin dışından erişim, iPhone uygulaması ve bilgisayardaki StarkLLM’de birden çok hesap varken telefondan oturum açma.
+
+Ücretsiz ve açık kaynak. Hesap yok, reklam yok, uygulama içi satın alma yok.
