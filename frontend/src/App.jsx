@@ -50,6 +50,7 @@ export default function App() {
   // Multi-chat state
   const [chats, setChats] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
+  useEffect(() => { activeChatIdRef.current = activeChatId; }, [activeChatId]);
   const [chatSearchQuery, setChatSearchQuery] = useState('');
   const chatSearchQueryRef = useRef(chatSearchQuery);
   useEffect(() => {
@@ -94,6 +95,8 @@ export default function App() {
     try { const k = terminalFolderKey(terminalWsRef.current); if (f) localStorage.setItem(k, JSON.stringify(f)); else localStorage.removeItem(k); } catch (e) { /* private window */ }
   };
   const webTaskRunningRef = useRef(false);
+  const liveWebTaskRef = useRef(null); // the running web task: { id, chatId, user, card }
+  const activeChatIdRef = useRef(null);
   const offline = useOffline(token); // the fully offline switch (Settings > Privacy & network)
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(false);
   const [workspacesError, setWorkspacesError] = useState(null);
@@ -321,7 +324,9 @@ export default function App() {
       if (!res.ok) return;
       const data = await res.json();
       setActiveChatId(data.chat_id);
-      setMessages(
+      const live = liveWebTaskRef.current;
+      const withLive = (msgs) => (live && live.chatId === data.chat_id ? [...msgs.filter(m => !m.greeting), live.user, live.card] : msgs);
+      setMessages(withLive(
         data.messages && data.messages.length > 0
           // An empty saved answer (older versions stored them) would otherwise show the "thinking" dots forever;
           // saved source chips come back in the same shape the live response headers produce.
@@ -340,8 +345,8 @@ export default function App() {
                 webSources: m.sources.web || [],
                 cloudHost: m.sources.cloud || null,
               } : m))
-          : [{ role: 'assistant', content: 'Chat loaded. How can I help you?', timestamp: new Date() }]
-      );
+          : [{ role: 'assistant', content: t('Chat loaded. How can I help you?'), timestamp: new Date(), greeting: true }]
+      ));
     } catch (err) {
       console.error('Error loading chat:', err);
     }
@@ -562,13 +567,28 @@ export default function App() {
   };
 
   // ── Web task: StarkLLM does the task on websites in its own browser window (desktop app) ──
-  const updateWebTask = (fn) => setMessages(prev => {
-    const msgs = [...prev];
-    const k = msgs.length - 1;
-    if (k < 0 || !msgs[k].webTask) return prev;
-    msgs[k] = { ...msgs[k], webTask: fn(msgs[k].webTask) };
-    return msgs;
-  });
+  const updateWebTask = (fn) => {
+    const live = liveWebTaskRef.current;
+    if (live) {
+      live.card = { ...live.card, webTask: fn(live.card.webTask) };
+      setMessages(prev => (prev.some(m => m.liveId === live.id) ? prev.map(m => (m.liveId === live.id ? { ...m, webTask: live.card.webTask } : m)) : prev));
+      return;
+    }
+    setMessages(prev => {
+      const msgs = [...prev];
+      const k = msgs.length - 1;
+      if (k < 0 || !msgs[k].webTask) return prev;
+      msgs[k] = { ...msgs[k], webTask: fn(msgs[k].webTask) };
+      return msgs;
+    });
+  };
+  // the answer text of the running web task, only on its own card (the user may be in another chat)
+  const setWebTaskContent = (content) => {
+    const live = liveWebTaskRef.current;
+    if (!live) return;
+    live.card = { ...live.card, content };
+    setMessages(prev => prev.map(m => (m.liveId === live.id ? { ...m, content } : m)));
+  };
 
   const handleWebTaskReply = async (qid, answer) => {
     const bridge = webTaskBridge();
@@ -642,15 +662,32 @@ export default function App() {
   const handleWebTask = async (text) => {
     const bridge = webTaskBridge();
     const messagesBefore = messages;
-    setMessages(prev => [...prev.map(m => (m.compare ? { ...m, compare: null } : m)), { role: 'user', content: text, timestamp: new Date() },
-      { role: 'assistant', content: '', timestamp: new Date(), webTask: initialWebTask(text) }]);
+    let taskChatId = activeChatId;
+    if (!taskChatId && activeWorkspace) {
+      // the task gets its chat right away, so the user can leave it and come back to the running task
+      try {
+        const res = await fetch(`/api/v1/chat/sessions/${activeWorkspace.id}`, { method: 'POST', headers: getHeaders() });
+        if (res.ok) {
+          const newChat = await res.json();
+          taskChatId = newChat.id;
+          setChats(prev => [newChat, ...prev]);
+          setActiveChatId(newChat.id);
+        }
+      } catch (e) { /* the task still runs; it gets its chat when it is saved */ }
+    }
+    const live = {
+      id: `webtask-${Date.now()}`,
+      chatId: taskChatId,
+      user: { role: 'user', content: text, timestamp: new Date() },
+      card: null,
+    };
+    live.card = { role: 'assistant', content: '', timestamp: new Date(), webTask: initialWebTask(text), liveId: live.id };
+    liveWebTaskRef.current = live;
+    setMessages(prev => [...prev.filter(m => !m.greeting).map(m => (m.compare ? { ...m, compare: null } : m)), live.user, live.card]);
     const fail = (message) => {
       updateWebTask(w => ({ ...w, status: 'error', error: message }));
-      setMessages(prev => {
-        const msgs = [...prev];
-        msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: message };
-        return msgs;
-      });
+      setWebTaskContent(message);
+      liveWebTaskRef.current = null;
     };
     if ((localStorage.getItem('llm_provider') || 'ollama') !== 'ollama' || !currentModel) {
       fail(t('Web tasks use a local AI model on this PC. Choose a local model (Ollama) in the model list.'));
@@ -684,21 +721,18 @@ export default function App() {
       const content = state.status === 'done' ? state.answer + pageLink
         : state.status === 'stopped' ? t('The web task was stopped.')
           : t('The web task was not finished.') + (state.error ? ` ${webTaskErrorText(state.error)}` : '');
-      setMessages(prev => {
-        const msgs = [...prev];
-        msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content };
-        return msgs;
-      });
+      setWebTaskContent(content);
       if (state.status === 'done' && activeWorkspace) {
         // keep it in the chat history, with the page it came from
         const res = await fetch('/api/v1/chat/web-task', {
           method: 'POST',
           headers: getHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ workspace_id: activeWorkspace.id, chat_id: activeChatId, task: text, answer: state.answer, url: state.url, title: state.title }),
+          body: JSON.stringify({ workspace_id: activeWorkspace.id, chat_id: taskChatId, task: text, answer: state.answer, url: state.url, title: state.title }),
         });
         if (res.ok) {
           const { chat_id } = await res.json();
-          if (!activeChatId && chat_id) setActiveChatId(chat_id);
+          // only when the user is still on the task's chat
+          if (!taskChatId && chat_id && !activeChatIdRef.current) setActiveChatId(chat_id);
           refreshChatList(activeWorkspace.id).catch(() => {});
         }
       }
@@ -707,6 +741,7 @@ export default function App() {
       console.error('Web task error:', err);
     } finally {
       off();
+      liveWebTaskRef.current = null;
       webTaskRunningRef.current = false;
       setIsGenerating(false);
     }
