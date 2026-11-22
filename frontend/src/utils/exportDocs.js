@@ -148,10 +148,16 @@ ${body}
 </html>`;
 }
 
+// the title of an exported chat: no picture icons (an image question starts its chat title with "🖼 name")
+export function exportTitle(title) {
+  return String(title || '').replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, '').replace(/\s+/g, ' ').trim() || 'StarkLLM';
+}
+
 export function fileBase(title) {
-  // Windows keeps no dots or spaces at the end of a name ("Bologna." + ".docx" gave "Bologna..docx")
-  const base = String(title || 'StarkLLM').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80);
-  return base.replace(/[.\s]+$/, '') || 'StarkLLM';
+  // Windows keeps no dots or spaces at the end of a name ("Bologna." + ".docx" gave "Bologna..docx"); a cut title
+  // ends with no comma either ("…population of Aachen,.pdf")
+  const base = exportTitle(title).replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80);
+  return base.replace(/[.,;:!\s\-–—]+$/u, '') || 'StarkLLM';
 }
 
 function download(blob, name) {

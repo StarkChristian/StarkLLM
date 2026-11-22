@@ -2,6 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { markdownToHtml, printableHtml, exportItems, fileBase } from '../src/utils/exportDocs.js';
+import { exportTitle as _exportTitle } from '../src/utils/exportDocs.js';
 
 test('Markdown becomes HTML: headings, lists, tables, code, quotes, links', () => {
   const html = markdownToHtml('## Bill\n\nThe bill is **84 EUR**, due *15 Dec*. Ref `INV-1`.\n\n1. Check\n2. Pay\n   - by transfer\n\n| A | B |\n| --- | --- |\n| x | y |\n\n> quoted\n\n```\nlet a = 1 < 2;\n```\n\n[site](https://example.com)');
@@ -57,4 +58,10 @@ test('the export: readable source places and no picture icon', () => {
   ], 'en', undefined, (s) => s.replace(/ \(Time (.*)\)$/, ' · at $1'));
   assert.equal(q.content, 'What is due?\n\n(letter-de.png)');
   assert.deepEqual(a.sources, ['meeting-de.wav · at 00:00:09']);
+});
+
+test('the export title: no picture icon, no comma at the end of a file name', () => {
+  assert.equal(_exportTitle('\u{1F5BC}\uFE0F letter-es.png'), 'letter-es.png');
+  assert.equal(fileBase('What is the population of Aachen, and when'.slice(0, 33)),'What is the population of Aachen');
+  assert.equal(fileBase('\u{1F5BC} letter-es.png'), 'letter-es.png');
 });

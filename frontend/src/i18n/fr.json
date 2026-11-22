@@ -1439,5 +1439,11 @@
   "A local model for programming, with Python, JavaScript, Go, Rust and more.": "Un modèle local pour programmer, avec Python, JavaScript, Go, Rust et plus.",
   "A popular Mistral model that understands long texts and works well with the knowledge base.": "Un modèle Mistral populaire qui comprend les longs textes et fonctionne bien avec la base de connaissances.",
   "A small Microsoft model with good reasoning and writing, and fast answers.": "Un petit modèle Microsoft qui raisonne et écrit bien et répond vite.",
-  "The model that turns document passages into vectors for the search of the knowledge base.": "Le modèle qui transforme les passages des documents en vecteurs pour la recherche de la base de connaissances."
+  "The model that turns document passages into vectors for the search of the knowledge base.": "Le modèle qui transforme les passages des documents en vecteurs pour la recherche de la base de connaissances.",
+  "Very fast and light, for every computer": "Très rapide et léger, pour tout ordinateur",
+  "Careful reasoning, step by step": "Raisonnement soigneux, étape par étape",
+  "Writing, fixing and explaining code": "Écrire, corriger et expliquer du code",
+  "Steady and precise, good with documents": "Stable et précis, bon avec les documents",
+  "Small and efficient, from Microsoft": "Petit et efficace, de Microsoft",
+  "Precise search of your documents": "Recherche précise dans vos documents"
 }

@@ -191,6 +191,14 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
     'phi3.5:mini': t('A small Microsoft model with good reasoning and writing, and fast answers.'),
     'nomic-embed-text:latest': t('The model that turns document passages into vectors for the search of the knowledge base.'),
   }[m.name] || m.description);
+  const modelTagline = (m) => ({
+    'llama3.2:3b': t('Very fast and light, for every computer'),
+    'deepseek-r1:8b': t('Careful reasoning, step by step'),
+    'qwen2.5-coder:7b': t('Writing, fixing and explaining code'),
+    'mistral:7b': t('Steady and precise, good with documents'),
+    'phi3.5:mini': t('Small and efficient, from Microsoft'),
+    'nomic-embed-text:latest': t('Precise search of your documents'),
+  }[m.name] || m.tagline);
   const categories = ['All', 'General / Fast', 'Reasoning / Math', 'Coding', 'General / RAG', 'Compact', 'Embedding'];
   const categoryLabel = (c) => ({ All: t('All'), 'General / Fast': t('General / Fast'), 'Reasoning / Math': t('Reasoning / Math'), Coding: t('Coding'),
     'General / RAG': t('General / documents'), Compact: t('Compact'), Embedding: t('Embedding') }[c] || c);
@@ -321,7 +329,7 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
                           </span>
                         )}
                       </div>
-                      <div className={styles.tagline}>{model.tagline}</div>
+                      <div className={styles.tagline}>{modelTagline(model)}</div>
                       <p className={styles.description}>{modelDescription(model)}</p>
                       
                       <div className={styles.metaRow}>

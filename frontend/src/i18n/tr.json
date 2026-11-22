@@ -1439,5 +1439,11 @@
   "A local model for programming, with Python, JavaScript, Go, Rust and more.": "Python, JavaScript, Go, Rust ve daha fazlasıyla programlama için yerel bir model.",
   "A popular Mistral model that understands long texts and works well with the knowledge base.": "Uzun metinleri anlayan ve bilgi tabanıyla iyi çalışan popüler bir Mistral modeli.",
   "A small Microsoft model with good reasoning and writing, and fast answers.": "İyi akıl yürüten ve yazan, hızlı yanıt veren küçük bir Microsoft modeli.",
-  "The model that turns document passages into vectors for the search of the knowledge base.": "Bilgi tabanı araması için belge pasajlarını vektörlere dönüştüren model."
+  "The model that turns document passages into vectors for the search of the knowledge base.": "Bilgi tabanı araması için belge pasajlarını vektörlere dönüştüren model.",
+  "Very fast and light, for every computer": "Çok hızlı ve hafif, her bilgisayar için",
+  "Careful reasoning, step by step": "Adım adım dikkatli akıl yürütme",
+  "Writing, fixing and explaining code": "Kod yazma, düzeltme ve açıklama",
+  "Steady and precise, good with documents": "İstikrarlı ve hassas, belgelerle iyi",
+  "Small and efficient, from Microsoft": "Küçük ve verimli, Microsoft’tan",
+  "Precise search of your documents": "Belgelerinizde hassas arama"
 }
