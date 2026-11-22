@@ -20,6 +20,8 @@ data class Link(
     val fingerprint: String,
     val deviceId: String,
     val token: String,
+    val relayUrl: String? = null,
+    val relayId: String? = null,
 ) {
     val id: String get() = fingerprint
 }
@@ -33,6 +35,8 @@ private data class StoredLink(
     val deviceId: String,
     val token: String,      // AES-GCM cipher text (base64)
     val iv: String,
+    val relayUrl: String? = null,
+    val relayId: String? = null,
 )
 
 /**
@@ -49,7 +53,7 @@ class LinkStore(context: Context) {
     }
 
     fun all(): List<Link> = stored().mapNotNull { s ->
-        runCatching { Link(s.pcName, s.addresses, s.port, s.fingerprint, s.deviceId, decrypt(s.token, s.iv)) }.getOrNull()
+        runCatching { Link(s.pcName, s.addresses, s.port, s.fingerprint, s.deviceId, decrypt(s.token, s.iv), s.relayUrl, s.relayId) }.getOrNull()
     }
 
     /** the PC in use; the first one when none was chosen */
@@ -62,7 +66,7 @@ class LinkStore(context: Context) {
     /** adds a PC or replaces the pairing with the same PC, and makes it the current one */
     fun save(link: Link) {
         val (cipherText, iv) = encrypt(link.token)
-        val entry = StoredLink(link.pcName, link.addresses, link.port, link.fingerprint, link.deviceId, cipherText, iv)
+        val entry = StoredLink(link.pcName, link.addresses, link.port, link.fingerprint, link.deviceId, cipherText, iv, link.relayUrl, link.relayId)
         write(stored().filter { it.fingerprint != link.fingerprint } + entry)
         prefs.edit().putString("current", link.id).commit()
     }

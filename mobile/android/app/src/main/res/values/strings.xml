@@ -203,4 +203,6 @@
         <item quantity="one">%d open deadline</item>
         <item quantity="other">%d open deadlines</item>
     </plurals>
+    <string name="error_away_off">This phone may only reach the PC in your home network. To use it away from home, allow it on the PC under Settings &gt; Phone.</string>
+    <string name="error_pair_at_home">Pair the phone in your home network, in the same Wi-Fi as the PC.</string>
 </resources>

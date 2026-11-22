@@ -202,4 +202,6 @@
         <item quantity="one">%d offene Frist</item>
         <item quantity="other">%d offene Fristen</item>
     </plurals>
+    <string name="error_away_off">Dieses Telefon darf den PC nur im Heimnetz erreichen. Um es unterwegs zu nutzen, erlauben Sie es auf dem PC unter Einstellungen &gt; Telefon.</string>
+    <string name="error_pair_at_home">Koppeln Sie das Telefon im Heimnetz, im selben WLAN wie der PC.</string>
 </resources>

@@ -32,13 +32,14 @@ import javax.net.ssl.SSLException
  * another certificate (WRONG_PC) cannot, or anyone in the Wi-Fi could unpair the phone.
  */
 enum class Problem(val removesPairing: Boolean = false) {
-    UNREACHABLE, WRONG_PC, CODE_CLOSED, WRONG_CODE, TOO_MANY_DEVICES, UNPAIRED(removesPairing = true), PC_OFFLINE, NOT_SIGNED_IN, NOT_ALLOWED, SERVER
+    UNREACHABLE, WRONG_PC, CODE_CLOSED, WRONG_CODE, TOO_MANY_DEVICES, UNPAIRED(removesPairing = true), PC_OFFLINE, NOT_SIGNED_IN, NOT_ALLOWED, AWAY_OFF, PAIR_AT_HOME, SERVER
 }
 
 class ApiException(val problem: Problem, val detail: String = "") : IOException("$problem $detail")
 
 private val JSON_TYPE = "application/json".toMediaType()
 const val DEVICE_HEADER = "X-StarkLLM-Device"
+private const val RELAY = "relay"
 
 /**
  * StarkLLM on the paired PC, through its phone link (desktop/phonelink.js). Tries the PC's addresses in turn (the one
@@ -51,14 +52,30 @@ class StarkApi(
     private val token: String?,
     base: OkHttpClient = OkHttpClient(),
     private val onAddressWorked: (String) -> Unit = {},
+    relayUrl: String? = null,
+    relayId: String? = null,
 ) {
     private val client = Pinning.client(fingerprint, base)
+    // away from home: the same pinned TLS, over a WebSocket to the StarkLLM relay (RelaySocket.kt)
+    private val relayClient: OkHttpClient? =
+        if (Relay.validUrl(relayUrl) && relayId != null && Relay.ID.matches(relayId)) {
+            client.newBuilder()
+                .dns(Relay.dns)
+                .proxy(java.net.Proxy.NO_PROXY)
+                .socketFactory(RelaySocketFactory(relayUrl!!, relayId, base.newBuilder().pingInterval(20, java.util.concurrent.TimeUnit.SECONDS).build()))
+                .connectTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+        } else null
+    private fun clientFor(address: String) = if (address == RELAY) relayClient!! else client
+
+    /** true when the last answer came through the relay (the phone is away from home) */
+    val viaRelay: Boolean get() = current == RELAY
     @Volatile private var current: String? = null
 
     constructor(link: Link, base: OkHttpClient = OkHttpClient(), onAddressWorked: (String) -> Unit = {}) :
-        this(link.addresses, link.port, link.fingerprint, link.token, base, onAddressWorked)
+        this(link.addresses, link.port, link.fingerprint, link.token, base, onAddressWorked, link.relayUrl, link.relayId)
 
-    private fun url(address: String, path: String) = "https://$address:$port$path"
+    private fun url(address: String, path: String) = "https://${if (address == RELAY) Relay.HOST else address}:$port$path"
 
     private fun build(address: String, method: String, path: String, body: RequestBody?): Request =
         Request.Builder().url(url(address, path)).method(method, body).apply {
@@ -71,17 +88,19 @@ class StarkApi(
      * only devices with another certificate answered (none of the PC's addresses is the paired PC now), else UNREACHABLE.
      */
     private fun execute(method: String, path: String, body: RequestBody? = null, register: (Call) -> Unit = {}): Response {
-        val order = listOfNotNull(current) + (addresses - setOfNotNull(current))
+        // the home addresses first, then the relay (when the PC named one); the way that worked last goes first
+        val ways = addresses + listOfNotNull(if (relayClient != null) RELAY else null)
+        val order = listOfNotNull(current) + (ways - setOfNotNull(current))
         var last: Exception? = null
         var otherDevice: SSLException? = null
         for (address in order) {
-            val call = client.newCall(build(address, method, path, body))
+            val call = clientFor(address).newCall(build(address, method, path, body))
             register(call)
             try {
                 val res = call.execute()
                 if (current != address) {
                     current = address
-                    onAddressWorked(address)
+                    if (address != RELAY) onAddressWorked(address)
                 }
                 return res
             } catch (e: SSLException) {
@@ -94,7 +113,7 @@ class StarkApi(
                 last = e
                 // a read once more on the same address (a connection closed by the PC in between); never a question
                 if (method == "GET") {
-                    val again = client.newCall(build(address, method, path, body))
+                    val again = clientFor(address).newCall(build(address, method, path, body))
                     register(again)
                     try {
                         val res = again.execute()
@@ -126,6 +145,8 @@ class StarkApi(
                 code == "wrong-code" -> Problem.WRONG_CODE
                 code == "too-many-devices" -> Problem.TOO_MANY_DEVICES
                 code == "not-allowed" -> Problem.NOT_ALLOWED
+                code == "away-off" -> Problem.AWAY_OFF
+                code == "pair-at-home" -> Problem.PAIR_AT_HOME
                 res.code == 401 -> Problem.NOT_SIGNED_IN
                 else -> Problem.SERVER
             },

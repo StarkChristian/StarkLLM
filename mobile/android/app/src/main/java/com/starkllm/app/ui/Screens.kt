@@ -271,6 +271,8 @@ internal fun problemText(problem: Problem?): String = stringResource(
         Problem.PC_OFFLINE -> R.string.error_pc_offline
         Problem.NOT_SIGNED_IN -> R.string.several_accounts
         Problem.NOT_ALLOWED -> R.string.error_not_allowed
+        Problem.AWAY_OFF -> R.string.error_away_off
+        Problem.PAIR_AT_HOME -> R.string.error_pair_at_home
         Problem.SERVER, null -> R.string.error_server
     }
 )

@@ -6,6 +6,7 @@ import java.net.URLDecoder
 /**
  * The content of the pairing QR code that StarkLLM on the PC shows (Settings > Phone, desktop/phonelink.js):
  * starkllm://pair?v=1&n=<PC name>&a=<addresses>&p=<port>&f=<certificate fingerprint>&c=<one-time code>
+ * and, from 2.6, &r=<relay wss://...>&i=<the PC's relay id> for phones away from home (docs/phone-away.md)
  */
 data class PairingInfo(
     val pcName: String,
@@ -13,6 +14,8 @@ data class PairingInfo(
     val port: Int,
     val fingerprint: String,
     val code: String,
+    val relayUrl: String? = null,
+    val relayId: String? = null,
 ) {
     companion object {
         private val FINGERPRINT = Regex("^[A-Za-z0-9_-]{43}$")   // SHA-256 in base64url
@@ -31,7 +34,9 @@ data class PairingInfo(
             val fingerprint = q["f"]?.takeIf { FINGERPRINT.matches(it) } ?: return null
             val code = q["c"]?.takeIf { CODE.matches(it) } ?: return null
             val name = q["n"].orEmpty().filter { !it.isISOControl() }.trim().take(60).ifEmpty { "PC" }
-            return PairingInfo(name, addresses.take(8), port, fingerprint, code)
+            val relayUrl = q["r"]?.takeIf { Relay.validUrl(it) }
+            val relayId = q["i"]?.takeIf { relayUrl != null && Relay.ID.matches(it) }
+            return PairingInfo(name, addresses.take(8), port, fingerprint, code, relayUrl?.takeIf { relayId != null }, relayId)
         }
 
         private fun query(raw: String): Map<String, String> =

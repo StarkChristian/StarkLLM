@@ -203,4 +203,6 @@
         <item quantity="many">%d d\'échéances ouvertes</item>
         <item quantity="other">%d échéances ouvertes</item>
     </plurals>
+    <string name="error_away_off">Ce téléphone ne peut joindre le PC que sur votre réseau domestique. Pour l’utiliser hors de chez vous, autorisez-le sur le PC dans Paramètres &gt; Téléphone.</string>
+    <string name="error_pair_at_home">Associez le téléphone sur votre réseau domestique, sur le même Wi-Fi que le PC.</string>
 </resources>

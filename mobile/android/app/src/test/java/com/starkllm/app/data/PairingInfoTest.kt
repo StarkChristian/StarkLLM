@@ -71,4 +71,16 @@ class PairingInfoTest {
         assertEquals(listOf("Call me Ishmael, said he."), s.unverifiedQuotes)
         assertEquals(AnswerSources.NONE, AnswerSources.from(null))
     }
+
+    @org.junit.Test
+    fun `the relay of a pairing code is taken only as wss to a public name`() {
+        val base = "starkllm://pair?v=1&n=PC&a=192.168.0.47&p=47615&f=" + "A".repeat(43) + "&c=" + "B".repeat(22)
+        val ok = PairingInfo.parse(base + "&r=wss%3A%2F%2Frelay.starkllm.com&i=" + "C".repeat(22))!!
+        org.junit.Assert.assertEquals("wss://relay.starkllm.com", ok.relayUrl)
+        org.junit.Assert.assertEquals("C".repeat(22), ok.relayId)
+        org.junit.Assert.assertNull(PairingInfo.parse(base + "&r=ws%3A%2F%2Frelay.starkllm.com&i=" + "C".repeat(22))!!.relayUrl)
+        org.junit.Assert.assertNull(PairingInfo.parse(base + "&r=wss%3A%2F%2F192.168.0.1&i=" + "C".repeat(22))!!.relayUrl)
+        org.junit.Assert.assertNull(PairingInfo.parse(base + "&r=wss%3A%2F%2Frelay.starkllm.com")!!.relayUrl)
+        org.junit.Assert.assertNull(PairingInfo.parse(base)!!.relayUrl)
+    }
 }
