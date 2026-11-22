@@ -641,7 +641,7 @@ export default function App() {
   const handleWebTask = async (text) => {
     const bridge = webTaskBridge();
     const messagesBefore = messages;
-    setMessages(prev => [...prev, { role: 'user', content: text, timestamp: new Date() },
+    setMessages(prev => [...prev.map(m => (m.compare ? { ...m, compare: null } : m)), { role: 'user', content: text, timestamp: new Date() },
       { role: 'assistant', content: '', timestamp: new Date(), webTask: initialWebTask(text) }]);
     const fail = (message) => {
       updateWebTask(w => ({ ...w, status: 'error', error: message }));
@@ -717,7 +717,7 @@ export default function App() {
       return;
     }
     const question = String(text || '').trim();
-    setMessages(prev => [...prev,
+    setMessages(prev => [...prev.map(m => (m.compare ? { ...m, compare: null } : m)),
       { role: 'user', content: question || t('Describe this image.'), image: URL.createObjectURL(file), imageName: file.name || '', imageFile: file, timestamp: new Date() },
       { role: 'assistant', content: '', timestamp: new Date() }]);
     const setAnswer = (content, extra = {}) => setMessages(prev => {
@@ -817,9 +817,11 @@ export default function App() {
       return;
     }
     const c = msg.compare;
+    const question = index > 0 && messages[index - 1].role === 'user' ? messages[index - 1].content : '';
+    if (!question) { toast.error(t('The answer could not be kept.')); return; }
     try {
       const res = await fetch(`/api/v1/chat/session/${activeChatId}/keep-answer`, {
-        method: 'POST', headers: getHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ content: c.content, question: index > 0 && messages[index - 1].role === 'user' ? messages[index - 1].content : '' }),
+        method: 'POST', headers: getHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ content: c.content, question }),
       });
       if (!res.ok) throw new Error(`API error: ${res.status}`);
       setMessages(prev => prev.map((m, k) => (k === index ? {

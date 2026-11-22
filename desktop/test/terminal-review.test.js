@@ -17,13 +17,15 @@ test('a command with a second line is refused, also when the first line only loo
 });
 
 test('Windows: paths from the root of the drive are outside the project; switches are not paths', () => {
-  for (const c of ['dir \\Users', 'tree \\', 'dir /Users', 'Get-Content \\Users\\x\\secret.txt', 'type /Windows/win.ini']) {
+  for (const c of ['dir \\Users', 'tree \\', 'Get-Content \\Users\\x\\secret.txt', 'type /Windows/win.ini']) {
     assert.equal(classifyCommand(c, W).blocked, true, c);
   }
   for (const c of ['dir /s', 'dir /b', 'tree /f', 'dir src', 'Get-ChildItem C:\\proj\\src']) {
     assert.equal(classifyCommand(c, W).blocked, false, c);
   }
   assert.equal(classifyCommand('dir /s', W).readOnly, true);
+  assert.equal(classifyCommand('dir /Users', W).readOnly, false); // asked, not run by itself
+  for (const c of ['msbuild /nologo', 'robocopy src dst /purge', 'dotnet build /p:Configuration=Release']) assert.equal(classifyCommand(c, W).blocked, false, c);
 });
 
 test('commands that start other programs out of sight, encoded PowerShell, the registry are refused', () => {
@@ -51,9 +53,11 @@ test('git output with file contents is asked, not run by itself', () => {
   assert.equal(classifyCommand('git show --stat HEAD', L).readOnly, true);
 });
 
-test('other names of secret files: streams and short names', () => {
-  for (const f of ['.env::$DATA', 'config/.env:secret', 'ENV~1', 'SECRET~2.JSO']) assert.equal(isSecretFile(f), true, f);
-  assert.equal(isSecretFile('C:/proj/readme.md'), false);
+test('other names of secret files: streams and short names (file paths of read_file and write_file)', () => {
+  const { oddFileName } = require('../terminal-core');
+  for (const f of ['.env::$DATA', 'config/.env:secret', 'ENV~1', 'SECRET~2.JSO']) assert.equal(oddFileName(f), true, f);
+  assert.equal(oddFileName('C:/proj/readme.md'), false);
+  assert.equal(oddFileName('src/app.js'), false);
 });
 
 test('a link with an innocent name to a secret file is not read', async () => {
@@ -67,8 +71,23 @@ test('a link with an innocent name to a secret file is not read', async () => {
 });
 
 test('commands that name a file with secrets are refused, also with a yes', () => {
-  for (const c of ['type .env', 'Get-Content (Join-Path $PWD ".env")', 'cat config/.env.local', 'copy id_rsa x.txt', 'Get-Content certs\server.key', 'type ENV~1']) {
+  for (const c of ['type .env', 'Get-Content (Join-Path $PWD ".env")', 'cat config/.env.local', 'copy id_rsa x.txt', 'Get-Content certs\server.key']) {
     assert.equal(classifyCommand(c, W).blocked, true, c);
   }
   for (const c of ['type .env.example', 'type README.md', 'dir']) assert.equal(classifyCommand(c, W).blocked, false, c);
+});
+
+test('everyday commands with colons, tildes and addresses are not refused', () => {
+  for (const c of ['npm run test:unit', 'git diff HEAD~1', 'git log HEAD~3 --oneline', 'git show HEAD:src/app.js', 'pytest tests/test_a.py::test_x',
+    'dotnet build /p:Configuration=Release', 'curl https://example.com', 'git clone https://example.com/r.git', 'docker run -p 8080:80 x']) {
+    assert.equal(classifyCommand(c, W).blocked, false, c);
+  }
+  for (const c of ['git show HEAD:.env', 'type .env::$DATA', 'Get-Content .env:secret']) assert.equal(classifyCommand(c, W).blocked, true, c);
+});
+
+test('encoded PowerShell in every spelling', () => {
+  for (const c of ['powershell /enc SQBFAFgA', 'powershell \u2013enc SQBFAFgA', 'powershell -EncodedArguments x', 'powershell -enc:SQBFAFgA', 'pwsh -e SQBFAFgA']) {
+    assert.equal(classifyCommand(c, W).blocked, true, c);
+  }
+  assert.equal(classifyCommand('powershell -NoProfile -Command "Get-Content a.txt -Encoding utf8"', W).blocked, false);
 });

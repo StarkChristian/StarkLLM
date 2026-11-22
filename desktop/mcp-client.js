@@ -58,6 +58,10 @@ class StdioConnection {
     const viaShell = process.platform === 'win32' && !/\.(exe|com)$/i.test(command);
     // Windows: "npx", "uvx" and other launchers are .cmd files, which only the command shell runs; arguments are quoted
     const quote = (a) => (/[\s"&|<>^()]/.test(a) ? `"${String(a).replace(/"/g, '""')}"` : a);
+    // the command shell expands %VAR% and !VAR! also inside quotes: such arguments are refused for .cmd launchers
+    if (viaShell && [command, ...args].some((a) => /[%!\r\n]/.test(String(a)))) {
+      throw new Error('an argument has % or ! or a line break, which the Windows command shell would change; start the server program directly (its .exe)');
+    }
     this.child = viaShell
       ? spawnFn([command, ...args].map(quote).join(' '), [], { cwd: cwd || undefined, env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, shell: true })
       : spawnFn(command, args, { cwd: cwd || undefined, env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });

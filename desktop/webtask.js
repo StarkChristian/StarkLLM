@@ -34,6 +34,7 @@ let lastTerminal = null; // the terminal of the last task, for "Undo the file ch
 let lastTerminalTask = '';
 const running = new Set(); // child processes of commands that run now
 let backgroundRun = false; // a scheduled task runs in a hidden window
+let userStarting = false; // the user's own task is starting: no scheduled run begins meanwhile
 const pending = new Map(); // question id -> resolve
 let sessionReady = false;
 
@@ -348,7 +349,7 @@ async function stopScheduledRun() {
 async function runScheduled(id, { log = () => {}, notify = true } = {}) {
   const s = readSchedules().find((x) => x.id === id);
   if (!s) return { error: 'unknown' };
-  if (current) return { error: 'busy' };
+  if (current || userStarting) return { error: 'busy' };
   if (getShared().isOffline()) return { error: 'offline' };
   // a window of the user's own task that is still open is not reused: the run waits for the next minute
   if (win && !win.isDestroyed() && win.isVisible()) return { error: 'busy' };
@@ -442,7 +443,10 @@ function register(ipcMain, { fromApp, log = () => {} }) {
     const model = String(opts.model || '').trim();
     if (!task) return { error: 'empty' };
     if (!model) return { error: 'no-model' };
-    if (current && current.scheduled) await stopScheduledRun(); // the user's own task comes first
+    if (current && current.scheduled) {
+      userStarting = true; // the user's own task comes first
+      try { await stopScheduledRun(); } finally { setTimeout(() => { userStarting = false; }, 2000); }
+    }
     if (current) return { error: 'busy' };
     // the terminal: only a folder the user chose in the folder dialog
     let terminal = null;

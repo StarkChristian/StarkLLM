@@ -56,16 +56,21 @@ const NOT_SECRET = /\.env\.(example|sample|template|dist|defaults)$/i;
 
 function isSecretFile(rel) {
   const p = String(rel || '');
-  // "x.env::$DATA" (another stream of a file) and "ENV~1" (a short 8.3 name) could name a secret file differently
-  if (/:/.test(p.replace(/^[a-z]:/i, '')) || /~\d/.test(p)) return true;
   return SECRET_FILE.test(p) && !NOT_SECRET.test(p);
+}
+
+// a file path of read_file / write_file that could name a secret file by another name: "x.env::$DATA" (another
+// stream of a file) or "ENV~1" (a short 8.3 name). Not used for the words of commands (HEAD~1, test:unit, URLs).
+function oddFileName(rel) {
+  const p = String(rel || '');
+  return /:/.test(p.replace(/^[a-z]:/i, '')) || /(^|[\\/])[^\\/]{1,8}~\d/.test(p);
 }
 
 // Commands that are refused, also when the user would say yes: they change more than a project.
 const BLOCKED_COMMANDS = [
   [/[\r\n\u0000-\u0008\u000b\u000c\u000e-\u001f]/, 'it has more than one line: run one command at a time'],
   [/\bcmd(\.exe)?\s+\/[ck]\b|\b(start-job|start-threadjob|invoke-command|icm|saps|register-objectevent|register-wmievent|invoke-cimmethod|invoke-wmimethod|wmic)\b|win32_process|\[scriptblock\]::create|\bnew-pssession\b/i, 'it starts other programs or commands in a way StarkLLM cannot check'],
-  [/\b(powershell|pwsh)(\.exe)?\b[^\n]*\s-(e|ec|en|enc|enco|encod|encode|encoded|encodedc\w*)\s/i, 'it runs hidden or encoded code'],
+  [/\b(powershell|pwsh)(\.exe)?\b[^\n]*(^|\s)[-\/\u2013\u2014](e|ec|en|enc|enco|encod|encode|encoded|encodedc\w*|encodeda\w*)([\s:]|$)/i, 'it runs hidden or encoded code'],
   [/registry::|\bhk(lm|cu|cr|u|cc):/i, 'it changes Windows settings'],
   [/(downloadstring|downloadfile|downloaddata)\s*\(/i, 'it downloads code and runs it'],
   [/\b(format(-volume)?|diskpart|bcdedit|shutdown|restart-computer|stop-computer|vssadmin|wbadmin|cipher\s+\/w|clear-disk|initialize-disk|mkfs(\.\w+)?|dd\s+if=)\b/i, 'it changes Windows or the disks'],
@@ -101,7 +106,7 @@ function outsideToken(command, root, platform) {
       if (platform !== 'win32' || !inside(p.resolve(tok))) return tok;
       continue;
     }
-    if (platform === 'win32' && (/^\\(?!\\)/.test(tok) || /^\/[^/\s]{4,}/.test(tok) || /^\/[^/\s]*[\\/]/.test(tok))) {
+    if (platform === 'win32' && (/^\\(?!\\)/.test(tok) || /^\/[^/\s]*[\\/]/.test(tok))) {
       if (!inside(p.resolve(root.slice(0, 2), tok))) return tok;
       continue;
     }
@@ -122,7 +127,8 @@ function classifyCommand(command, { root, platform = process.platform, offline =
   const c = raw.replace(/[ \t]+/g, ' ').trim();
   for (const [re, why] of BLOCKED_COMMANDS) if (re.test(c)) return { blocked: true, reason: why };
   // a file with secrets is not read or changed by a command either (type .env, Get-Content id_rsa, copy x.pem ...)
-  const secret = c.split(/[\s"'=,;()|&<>`]+/).find((tok) => tok && isSecretFile(tok));
+  const secret = c.split(/[\s"'=,;()|&<>`]+/).find((tok) => tok && !/:\/\//.test(tok)
+    && (isSecretFile(tok) || isSecretFile(tok.replace(/^[^:\\/]+:(?![\\/])/, '')) || isSecretFile(tok.replace(/:+\$?\w*$/, ''))));
   if (secret) return { blocked: true, reason: `it reads or changes a file that may hold secrets (${secret.slice(0, 40)})` };
   const out = root ? outsideToken(c, root, platform) : '';
   if (out) return { blocked: true, reason: `it reaches outside the project folder (${out.slice(0, 60)})` };
@@ -131,7 +137,9 @@ function classifyCommand(command, { root, platform = process.platform, offline =
   const deletes = DELETES.test(c);
   const chained = /[;&|<>`]|\$\(/.test(c);
   const printsFiles = /^git\s+(show|log)\b/i.test(c) && /:|\s-p\b|--patch|\s-u\b|--stat-graph|\s-L/i.test(c);
-  const readOnly = !chained && !network && !deletes && !printsFiles && READ_ONLY.test(c) && !/--output|--ext-diff|--textconv|\s-c\s|--exec/i.test(c);
+  // Windows: "dir /Users" may list the root of the drive (in PowerShell /x is a path): asked, not run by itself
+  const rootWord = platform === 'win32' && /(^|\s)\/[A-Za-z]{4,}(\s|$)/.test(c);
+  const readOnly = !chained && !network && !deletes && !printsFiles && !rootWord && READ_ONLY.test(c) && !/--output|--ext-diff|--textconv|\s-c\s|--exec/i.test(c);
   return { blocked: false, network, deletes, readOnly };
 }
 
@@ -276,7 +284,7 @@ function createTerminal({ root, fs, run, platform = process.platform, offline = 
         const abs = resolve(a.path);
         if (!abs) return { note: `"${String(a.path).slice(0, 80)}" is outside the project folder. Use paths inside it.` };
         const r = rel(abs);
-        if (isSecretFile(r) || isSecretFile(realName(abs))) return { history: `read_file ${r}: NOT allowed, it may hold secrets; do not try again`, step: { action: 'secret', detail: r }, note: `${r} may hold secrets (passwords, keys), so StarkLLM does not read it. Ask the user if you need something from it.` };
+        if (isSecretFile(r) || isSecretFile(realName(abs)) || oddFileName(r)) return { history: `read_file ${r}: NOT allowed, it may hold secrets; do not try again`, step: { action: 'secret', detail: r }, note: `${r} may hold secrets (passwords, keys), so StarkLLM does not read it. Ask the user if you need something from it.` };
         if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) return { note: `There is no file "${r}". Use list_files to see the files.` };
         if (fs.statSync(abs).size > MAX_FILE_BYTES) return { note: `${r} is larger than 2 MB and is not read.` };
         const buf = fs.readFileSync(abs);
@@ -293,7 +301,7 @@ function createTerminal({ root, fs, run, platform = process.platform, offline = 
         const abs = resolve(a.path);
         if (!abs) return { note: `"${String(a.path).slice(0, 80)}" is outside the project folder. Change files inside it only.` };
         const r = rel(abs);
-        if (isSecretFile(r) || isSecretFile(realName(abs)) || inGitFolder(abs)) return { step: { action: 'secret', detail: r }, note: `StarkLLM does not change ${r} (secrets or the .git folder). Ask the user to do it.` };
+        if (isSecretFile(r) || isSecretFile(realName(abs)) || oddFileName(r) || inGitFolder(abs)) return { step: { action: 'secret', detail: r }, note: `StarkLLM does not change ${r} (secrets or the .git folder). Ask the user to do it.` };
         const exists = fs.existsSync(abs);
         if (exists && !fs.statSync(abs).isFile()) return { note: `${r} is a folder, not a file.` };
         let before = exists ? fs.readFileSync(abs, 'utf8') : '';
@@ -406,4 +414,4 @@ function createTerminal({ root, fs, run, platform = process.platform, offline = 
   };
 }
 
-module.exports = { createTerminal, classifyCommand, isSecretFile, diffText, clip, redact, tool, TERMINAL_TOOLS, TERMINAL_TOOL_NAMES, COMMAND_SECONDS };
+module.exports = { createTerminal, classifyCommand, isSecretFile, oddFileName, diffText, clip, redact, tool, TERMINAL_TOOLS, TERMINAL_TOOL_NAMES, COMMAND_SECONDS };
