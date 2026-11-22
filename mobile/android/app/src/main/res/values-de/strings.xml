@@ -205,4 +205,5 @@
     <string name="error_away_off">Dieses Telefon darf den PC nur im Heimnetz erreichen. Um es unterwegs zu nutzen, erlauben Sie es auf dem PC unter Einstellungen &gt; Telefon.</string>
     <string name="error_pair_at_home">Koppeln Sie das Telefon im Heimnetz, im selben WLAN wie der PC.</string>
     <string name="connected_away">Verbunden · unterwegs</string>
+    <string name="error_unreachable_away">Der PC ist nicht erreichbar. Ist er an und läuft StarkLLM? Zu Hause: Sind Telefon und PC im selben WLAN? Unterwegs: Ist dieses Telefon auf dem PC für unterwegs erlaubt (Einstellungen &gt; Telefon)?</string>
 </resources>

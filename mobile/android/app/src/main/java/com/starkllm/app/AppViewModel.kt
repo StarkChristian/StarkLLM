@@ -138,7 +138,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val problem = (e as? ApiException)?.problem ?: Problem.UNREACHABLE
         // only the paired PC's own "not-paired" removes the pairing; another device at its address (WRONG_PC) does not
         if (problem.removesPairing) forgetCurrent()
-        _state.update { it.copy(notice = Notice(problem)) }
+        val unreachable = problem == Problem.UNREACHABLE || problem == Problem.UNREACHABLE_AWAY || problem == Problem.WRONG_PC
+        _state.update { it.copy(notice = Notice(problem), hello = if (unreachable) null else it.hello) }
     }
 
     /** Runs a request; a removed pairing sends the user back to the pairing screen. */

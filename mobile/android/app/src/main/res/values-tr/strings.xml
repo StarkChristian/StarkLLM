@@ -205,4 +205,5 @@
     <string name="error_away_off">Bu telefon bilgisayara yalnızca ev ağınızda ulaşabilir. Evden uzakta kullanmak için bilgisayarda Ayarlar &gt; Telefon bölümünden izin verin.</string>
     <string name="error_pair_at_home">Telefonu ev ağınızda, bilgisayarla aynı Wi-Fi’da eşleyin.</string>
     <string name="connected_away">Bağlı · evden uzakta</string>
+    <string name="error_unreachable_away">Bilgisayara ulaşılamıyor. Açık mı ve StarkLLM çalışıyor mu? Evde: telefon ve bilgisayar aynı Wi-Fi’da mı? Evden uzakta: bu telefona bilgisayarda evden uzakta izin verildi mi (Ayarlar &gt; Telefon)?</string>
 </resources>

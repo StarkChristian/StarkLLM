@@ -206,4 +206,5 @@
     <string name="error_away_off">Ce téléphone ne peut joindre le PC que sur votre réseau domestique. Pour l’utiliser hors de chez vous, autorisez-le sur le PC dans Paramètres &gt; Téléphone.</string>
     <string name="error_pair_at_home">Associez le téléphone sur votre réseau domestique, sur le même Wi-Fi que le PC.</string>
     <string name="connected_away">Connecté · hors de chez vous</string>
+    <string name="error_unreachable_away">Le PC est injoignable. Est-il allumé et StarkLLM est-il lancé ? À la maison : le téléphone et le PC sont-ils sur le même Wi-Fi ? Hors de chez vous : ce téléphone est-il autorisé hors de chez vous sur le PC (Paramètres &gt; Téléphone) ?</string>
 </resources>

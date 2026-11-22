@@ -206,4 +206,5 @@
     <string name="error_away_off">Este teléfono solo puede llegar al PC en su red doméstica. Para usarlo fuera de casa, permítalo en el PC en Ajustes &gt; Teléfono.</string>
     <string name="error_pair_at_home">Vincule el teléfono en su red doméstica, en la misma red wifi que el PC.</string>
     <string name="connected_away">Conectado · fuera de casa</string>
+    <string name="error_unreachable_away">No se puede llegar al PC. ¿Está encendido y StarkLLM en marcha? En casa: ¿están el teléfono y el PC en la misma red wifi? Fuera de casa: ¿está este teléfono permitido fuera de casa en el PC (Ajustes &gt; Teléfono)?</string>
 </resources>

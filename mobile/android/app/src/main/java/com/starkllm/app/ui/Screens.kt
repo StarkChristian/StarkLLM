@@ -263,6 +263,7 @@ internal fun Mark(size: Dp) {
 internal fun problemText(problem: Problem?): String = stringResource(
     when (problem) {
         Problem.UNREACHABLE -> R.string.error_unreachable
+        Problem.UNREACHABLE_AWAY -> R.string.error_unreachable_away
         Problem.WRONG_PC -> R.string.error_wrong_pc
         Problem.CODE_CLOSED -> R.string.error_code_closed
         Problem.WRONG_CODE -> R.string.error_wrong_code

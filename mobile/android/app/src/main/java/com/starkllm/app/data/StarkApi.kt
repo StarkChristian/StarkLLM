@@ -32,7 +32,7 @@ import javax.net.ssl.SSLException
  * another certificate (WRONG_PC) cannot, or anyone in the Wi-Fi could unpair the phone.
  */
 enum class Problem(val removesPairing: Boolean = false) {
-    UNREACHABLE, WRONG_PC, CODE_CLOSED, WRONG_CODE, TOO_MANY_DEVICES, UNPAIRED(removesPairing = true), PC_OFFLINE, NOT_SIGNED_IN, NOT_ALLOWED, AWAY_OFF, PAIR_AT_HOME, SERVER
+    UNREACHABLE, WRONG_PC, CODE_CLOSED, WRONG_CODE, TOO_MANY_DEVICES, UNPAIRED(removesPairing = true), PC_OFFLINE, NOT_SIGNED_IN, NOT_ALLOWED, AWAY_OFF, PAIR_AT_HOME, UNREACHABLE_AWAY, SERVER
 }
 
 class ApiException(val problem: Problem, val detail: String = "") : IOException("$problem $detail")
@@ -127,7 +127,7 @@ class StarkApi(
             }
         }
         if (otherDevice != null) throw ApiException(Problem.WRONG_PC, otherDevice.message.orEmpty())
-        throw ApiException(Problem.UNREACHABLE, last?.message.orEmpty())
+        throw ApiException(if (relayClient != null) Problem.UNREACHABLE_AWAY else Problem.UNREACHABLE, last?.message.orEmpty())
     }
 
     private fun isPinMismatch(e: SSLException) = generateSequence<Throwable>(e) { it.cause }.any { it is CertificateException }
