@@ -49,7 +49,7 @@ not started; the code has no analytics library.
 
 | # | What | Host | When | Why | User-controlled | Default | Offline | Feature |
 |---|---|---|---|---|---|---|---|---|
-| E1 | Web search | `duckduckgo.com` (`html.duckduckgo.com`; one engine only, the library default would ask several) | per question, only with the "Web Search" button on | add search results to the answer; the question is sent | yes, per question | **off** | button disabled, request refused | `web_search` |
+| E1 | Web search | `duckduckgo.com` (`html.duckduckgo.com`); only when it does not answer, the next one: `leta.mullvad.net` (Mullvad's Leta, Brave results), then `mojeek.com`. One engine at a time; the library default would ask several at once | per question, only with the "Web Search" button on | add search results to the answer; the question is sent | yes, per question | **off** | button disabled, request refused | `web_search` |
 | E2 | Web page import | the address the user typed | only after "+ Web URL" | read a page into the workspace | yes | off | refused | `web_import` |
 | E3 | YouTube import | `www.youtube.com` | only after "+ YouTube Video" | title and transcript | yes | off | refused | `youtube_import` |
 | E4 | GitHub import | `api.github.com`, `raw.githubusercontent.com` | only after "+ GitHub Repo" | read a repository | yes | off | refused | `github_import` |

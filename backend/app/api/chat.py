@@ -38,6 +38,10 @@ except ImportError:
     except ImportError:
         DDGS = None
 
+# Web search: one engine at a time, the next only when one fails (the library's "auto" asks several at once).
+# DuckDuckGo first; Mullvad's Leta (Brave results, no account, no tracking) and Mojeek (own index) when it does not answer.
+WEB_SEARCH_ENGINES = [("duckduckgo", "duckduckgo.com"), ("mullvad_brave", "leta.mullvad.net"), ("mojeek", "mojeek.com")]
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -1105,6 +1109,8 @@ async def chat(
                 logger.error(f"Error querying RAG: {e}", exc_info=True)
                 return [], [], "", ""
 
+        web_failed = [False]
+
         async def fetch_web():
             if not getattr(req, "use_web_search", False):
                 return [], [], ""
@@ -1118,14 +1124,26 @@ async def chat(
                     # the search library has its own HTTP client: the network layer records the request and refuses it
                     # while the app is fully offline. One engine only (DuckDuckGo): the library's default "auto" sends
                     # the question to several search engines at once.
-                    with netguard.external("web_search", "duckduckgo.com", purpose="Web search the user switched on for this question"):
-                        with DDGS() as ddgs:
-                            for r in ddgs.text(req.message, max_results=5, backend="duckduckgo"):
-                                results.append({
-                                    'title': r.get('title', 'Unknown'),
-                                    'href': r.get('href', ''),
-                                    'body': r.get('body', '')
-                                })
+                    failed = 0
+                    for backend, host in WEB_SEARCH_ENGINES:
+                        try:
+                            with netguard.external("web_search", host, purpose="Web search the user switched on for this question"):
+                                with DDGS() as ddgs:
+                                    for r in ddgs.text(req.message, max_results=5, backend=backend):
+                                        results.append({
+                                            'title': r.get('title', 'Unknown'),
+                                            'href': r.get('href', ''),
+                                            'body': r.get('body', '')
+                                        })
+                        except Exception as e:
+                            if isinstance(e, netguard.OfflineBlocked):
+                                raise
+                            failed += 1
+                            logger.warning(f"Web search with {host} did not work: {e}")
+                        if results:
+                            break
+                    if not results and failed == len(WEB_SEARCH_ENGINES):
+                        web_failed[0] = True
                     return results
 
                 web_res = await asyncio.to_thread(do_web_search)
@@ -1149,6 +1167,7 @@ async def chat(
                 return w_sources, w_urls, w_ctx
             except Exception as e:
                 logger.error(f"Web Search failed: {e}")
+                web_failed[0] = True
                 return [], [], ""
 
         async def fetch_memory():
@@ -1283,6 +1302,13 @@ async def chat(
 --- Web Search Results ---
 {untrusted.data_block(web_context)}
 """
+        elif getattr(req, "use_web_search", False) and web_failed[0]:
+            web_section = """
+--- Web Search Results ---
+The web search did not work this time: the search services did not answer. If the answer is not in the documents
+either, say that it is not in the documents and that the web search did not work this time, so the user can try again
+later. Do not say that the web has nothing about it, and do not invent an answer.
+"""
         elif getattr(req, "use_web_search", False):
             # the user turned web search on and it found nothing: say that, not "I cannot reach the internet"
             web_section = """
@@ -1401,7 +1427,8 @@ GENERAL CONVERSATION MODE
         # models wrote a tool call instead of answering from them (scenario test: "what do I have to pay by the end of
         # the year?" got a search_local_kb call although every date was listed).
         active_tools = mcp_service.get_active_tools() if not (ws_context or kb_context or dates_section or overview_section) else []
-        active_tools = list(active_tools) + (_external_tools(req.extra_tools) if not (ws_context or kb_context or dates_section or overview_section) else [])
+        # the tools of MCP servers the user added: also in a workspace with documents, except for a question about them
+        active_tools = list(active_tools) + (_external_tools(req.extra_tools) if not (is_rag_intent or matched_filepaths) else [])
         if active_tools:
             tool_descs = []
             for t in active_tools:
@@ -1466,6 +1493,14 @@ WEB SEARCH
 {web_section}
 """ if web_section else ""
         _lang = language_of(req.message)
+        try:
+            recent = (db.query(models.Message).filter(models.Message.chat_id == chat_obj.id)
+                      .order_by(models.Message.created_at.desc()).limit(3).all())
+            if (len(recent) == 3 and recent[0].role == "user" and recent[1].role == "assistant"
+                    and "```tool_call" in (recent[1].content or "") and recent[2].role == "user"):
+                _lang = language_of(recent[2].content) or language_name(req.language) or _lang
+        except Exception as e:
+            logger.warning(f"Answer language after a tool call: {e}")
         _ui_lang = language_name(req.language)
         language_rule = (f"\nLANGUAGE: The user's message is in {_lang}. Write your whole answer in {_lang}, even when "
                          f"these instructions or the documents are in another language. Names, amounts, dates and "
@@ -1539,9 +1574,13 @@ LANGUAGE & WRITING QUALITY
             reminder.append(f"Write your answer in {_lang}.")
         if web_empty:
             # the last thing a small model reads before it answers (round 5: it named only the documents)
-            reminder.append("A web search was made for this question and found nothing about it. If the documents do not "
-                            "answer it either, say both things: that it is not in the documents and that the web search "
-                            "found nothing about it either. Do not quote any instruction and do not invent an answer.")
+            reminder.append(("The web search did not work this time (the search services did not answer). If the documents "
+                             "do not answer the question, say both things: that it is not in the documents and that the web "
+                             "search did not work this time. Do not quote any instruction and do not invent an answer.")
+                            if web_failed[0] else
+                            ("A web search was made for this question and found nothing about it. If the documents do not "
+                             "answer it either, say both things: that it is not in the documents and that the web search "
+                             "found nothing about it either. Do not quote any instruction and do not invent an answer."))
         if reminder:
             messages.append({"role": "system", "content": " ".join(reminder)})
             k = len(messages) - 2
