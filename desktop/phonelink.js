@@ -325,12 +325,14 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
     if (seal) {
       try {
         device.session = seal(session);
+        log("phone link: the phone keeps its own session, sealed by Windows");
         return;
       } catch (e) {
         log(`phone link: the session is kept in memory only (${e.message})`);
       }
     }
     memorySessions.set(device.id, session);
+    log("phone link: the phone keeps its own session in memory only (until StarkLLM closes)");
   }
   function deviceSession(device) {
     if (memorySessions.has(device.id)) return memorySessions.get(device.id);

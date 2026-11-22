@@ -336,8 +336,15 @@ async function phoneSessionFor(token) {
   }
 }
 
-const phoneSeal = safeStorage && safeStorage.isEncryptionAvailable && safeStorage.isEncryptionAvailable()
-  && !(typeof safeStorage.getSelectedStorageBackend === 'function' && safeStorage.getSelectedStorageBackend() === 'basic_text');
+// Windows encryption for the phones' sessions; asked when used (before Electron is ready it says "not available")
+function phoneSealAvailable() {
+  try {
+    return Boolean(safeStorage && safeStorage.isEncryptionAvailable && safeStorage.isEncryptionAvailable())
+      && !(typeof safeStorage.getSelectedStorageBackend === 'function' && safeStorage.getSelectedStorageBackend() === 'basic_text');
+  } catch (e) {
+    return false;
+  }
+}
 
 async function fetchLocalSession() {
   try {
@@ -515,8 +522,11 @@ function phone() {
       refreshToken: fetchLocalSession,
       sessionFor: (user) => phoneSessions.get(user) || null,
       sessionExpired: (user) => phoneSessions.delete(user),
-      seal: phoneSeal ? (text) => safeStorage.encryptString(text).toString('base64') : null,
-      unseal: phoneSeal ? (data) => safeStorage.decryptString(Buffer.from(data, 'base64')) : null,
+      seal: (text) => {
+        if (!phoneSealAvailable()) throw new Error('Windows encryption is not available');
+        return safeStorage.encryptString(text).toString('base64');
+      },
+      unseal: (data) => safeStorage.decryptString(Buffer.from(data, 'base64')),
       log: logLine,
       version: app.getVersion(),
       onChange: () => {
