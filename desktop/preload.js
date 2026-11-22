@@ -63,7 +63,9 @@ contextBridge.exposeInMainWorld('starkllmDesktop', {
   phoneLink: {
     status: () => ipcRenderer.invoke('phone:status'),
     setEnabled: (on) => ipcRenderer.invoke('phone:enable', Boolean(on)),
-    startPairing: () => ipcRenderer.invoke('phone:pair'),
+    // the session of the account signed in in this window: a phone paired now belongs to that account
+    startPairing: (session) => ipcRenderer.invoke('phone:pair', String(session || '')),
+    setUserSession: (session) => ipcRenderer.invoke('phone:user-session', String(session || '')),
     cancelPairing: () => ipcRenderer.invoke('phone:cancel-pair'),
     removeDevice: (id) => ipcRenderer.invoke('phone:remove', String(id || '')),
     setLevel: (id, level) => ipcRenderer.invoke('phone:set-level', String(id || ''), String(level || '')),

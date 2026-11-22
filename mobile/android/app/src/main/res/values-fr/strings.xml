@@ -33,7 +33,7 @@
     <string name="error_unpaired">Ce téléphone n\'est plus associé au PC. Associez-le à nouveau.</string>
     <string name="error_pc_offline">StarkLLM sur le PC est entièrement hors ligne et n\'accepte pas le téléphone pour le moment.</string>
     <string name="error_server">StarkLLM sur le PC n\'a pas pu le faire. Réessayez dans un instant.</string>
-    <string name="several_accounts">StarkLLM sur ce PC a plusieurs comptes. La connexion depuis le téléphone arrivera dans une version ultérieure.</string>
+    <string name="several_accounts">StarkLLM sur le PC n’a aucun compte connecté pour ce téléphone. Ouvrez StarkLLM sur le PC et connectez-vous. Si le PC a plusieurs comptes, associez à nouveau le téléphone pendant que votre compte est connecté sur le PC.</string>
     <string name="workspaces">Espaces de travail</string>
     <string name="no_workspaces">Aucun espace de travail pour l\'instant. Créez-en un dans StarkLLM sur votre PC.</string>
     <string name="new_chat">Nouveau chat</string>

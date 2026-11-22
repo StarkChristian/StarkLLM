@@ -182,6 +182,8 @@ export default function App() {
   useEffect(() => {
     if (token) {
       localStorage.setItem('token', token);
+      // the phone link: phones paired with this account use this session (desktop app only)
+      try { window.starkllmDesktop?.phoneLink?.setUserSession?.(token); } catch (e) { /* not the desktop app */ }
       fetchWorkspaces();
       fetchMe();
     } else {

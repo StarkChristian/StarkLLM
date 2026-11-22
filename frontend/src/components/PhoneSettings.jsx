@@ -114,7 +114,7 @@ export default function PhoneSettings() {
   });
   const pair = () => run('pair', async () => {
     setJustPaired('');
-    const p = check(await api.startPairing());
+    const p = check(await api.startPairing(localStorage.getItem('token') || ''));
     setPairing({ ...p, devicesBefore: status ? status.devices.length : 0 });
   });
   const cancel = () => run('cancel', async () => { await api.cancelPairing(); setPairing(null); });
@@ -195,11 +195,12 @@ export default function PhoneSettings() {
             <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <Smartphone size={18} style={{ flexShrink: 0 }} />
               <div style={{ flex: 1 }}>
-                <div>{d.name}</div>
+                <div>{d.name}{d.user && d.user !== 'local' ? <span className={styles.hint}> · {t('account {name}', { name: d.user })}</span> : null}</div>
                 <div className={styles.hint}>{t('Paired {time}', { time: when(d.created) })}{d.lastSeen ? ` · ${t('last seen {time}', { time: when(d.lastSeen) })}` : ''}</div>
                 <label className={styles.hint} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
                   {t('This phone may:')}
-                  <select value={d.level || 'work'} disabled={busy === `level-${d.id}`} onChange={(e) => setLevel(d, e.target.value)}>
+                  <select value={d.level || 'work'} disabled={busy === `level-${d.id}`} onChange={(e) => setLevel(d, e.target.value)}
+                          style={{ background: 'transparent', color: 'inherit', colorScheme: 'light dark', border: '1px solid currentColor', borderRadius: 6, padding: '2px 6px' }}>
                     {LEVELS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                   </select>
                 </label>

@@ -33,7 +33,7 @@
     <string name="error_unpaired">Bu telefon artık bilgisayarla eşli değil. Yeniden eşleyin.</string>
     <string name="error_pc_offline">Bilgisayardaki StarkLLM tamamen çevrimdışı olduğu için şu anda telefonu kabul etmiyor.</string>
     <string name="error_server">Bilgisayardaki StarkLLM bunu yapamadı. Birazdan tekrar deneyin.</string>
-    <string name="several_accounts">Bu bilgisayardaki StarkLLM\'in birden çok hesabı var. Telefondan oturum açma sonraki bir sürümde gelecek.</string>
+    <string name="several_accounts">Bilgisayardaki StarkLLM’de bu telefon için oturum açmış bir hesap yok. Bilgisayarda StarkLLM’i açıp oturum açın. Bilgisayarda birden çok hesap varsa, hesabınız bilgisayarda açıkken telefonu yeniden eşleyin.</string>
     <string name="workspaces">Çalışma alanları</string>
     <string name="no_workspaces">Henüz çalışma alanı yok. Bilgisayarınızdaki StarkLLM\'de bir tane oluşturun.</string>
     <string name="new_chat">Yeni sohbet</string>
