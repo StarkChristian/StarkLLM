@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
-import { Compass, Loader, CheckCircle, AlertTriangle, Square, ExternalLink, ShieldAlert, Hand, Pause, Play, FilePlus, Bookmark, TerminalSquare, Undo2 } from 'lucide-react';
+import { Compass, Loader, CheckCircle, AlertTriangle, Square, ExternalLink, ShieldAlert, Hand, Pause, Play, FilePlus, Bookmark, TerminalSquare, Undo2, Repeat } from 'lucide-react';
 import styles from './WebTaskCard.module.css';
 import { t } from '../i18n';
+import { UI_LOCALE } from '../utils/locale';
+import { weekdayName } from '../utils/schedule';
+import { ruleInWords } from '../utils/scheduleWords';
 
 // A web task in the chat (docs/web-tasks.md): StarkLLM works in its own browser window; here the user sees each
 // step, answers its questions, allows or refuses a risky click, and does a sign-in, a payment or a CAPTCHA in the
@@ -171,7 +174,47 @@ function AskBox({ ask, onReply }) {
   );
 }
 
-export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onResume, onSavePage, onSaveTask, onUndo }) {
+function RepeatForm({ onSchedule, task }) {
+  const [open, setOpen] = useState(false);
+  const [every, setEvery] = useState('day');
+  const [time, setTime] = useState('08:00');
+  const [weekday, setWeekday] = useState(1);
+  const [state, setState] = useState('');
+  const save = async () => {
+    setState('saving');
+    const rule = every === 'week' ? { every, time, weekday: Number(weekday) } : { every, time };
+    const ok = await onSchedule(task, rule);
+    setState(ok ? `saved:${ruleInWords(rule)}` : 'failed');
+  };
+  if (state.startsWith('saved:')) {
+    return <span className={styles.hint}>{t('Scheduled {when}. It only looks; results are under Settings › Privacy & network.', { when: state.slice(6) })}</span>;
+  }
+  if (!open) {
+    return (
+      <button type="button" className={styles.secondary} onClick={() => setOpen(true)}>
+        <Repeat size={14} /> {t('Repeat this task')}
+      </button>
+    );
+  }
+  return (
+    <span className={styles.repeatForm}>
+      <select value={every} onChange={(e) => setEvery(e.target.value)} aria-label={t('How often')}>
+        <option value="day">{t('daily')}</option>
+        <option value="week">{t('weekly')}</option>
+      </select>
+      {every === 'week' && (
+        <select value={weekday} onChange={(e) => setWeekday(e.target.value)} aria-label={t('Day')}>
+          {[1, 2, 3, 4, 5, 6, 0].map((d) => <option key={d} value={d}>{weekdayName(d, UI_LOCALE)}</option>)}
+        </select>
+      )}
+      <input type="time" value={time} onChange={(e) => setTime(e.target.value)} aria-label={t('Time')} />
+      <button type="button" className={styles.primary} onClick={save} disabled={state === 'saving' || !/^\d{2}:\d{2}$/.test(time)}>{t('Schedule')}</button>
+      {state === 'failed' && <span className={styles.error}>{t('The task could not be scheduled.')}</span>}
+    </span>
+  );
+}
+
+export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onResume, onSavePage, onSaveTask, onUndo, onSchedule }) {
   const running = task.status === 'starting' || task.status === 'running';
   const [saved, setSaved] = useState('');
   const [taskSaved, setTaskSaved] = useState('');
@@ -264,6 +307,11 @@ export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onRe
           </button>
           {undone === 'done' && <span className={styles.hint}>{t('Undone: the files are as they were before the task. Changes made by commands, for example installed packages, are not undone.')}</span>}
           {undone === 'failed' && <span className={styles.error}>{t('The changes could not be undone. A newer task may have started.')}</span>}
+        </div>
+      )}
+      {task.status === 'done' && onSchedule && task.task && (
+        <div className={styles.saveRow}>
+          <RepeatForm onSchedule={onSchedule} task={task.task} />
         </div>
       )}
       {task.status === 'error' && (

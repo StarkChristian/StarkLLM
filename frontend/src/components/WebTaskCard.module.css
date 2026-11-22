@@ -49,3 +49,5 @@
 .diff .add { color: #15803d; }
 .diff .del { color: #b91c1c; }
 .warn { color: #b45309; font-weight: 600; }
+.repeatForm { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.repeatForm select, .repeatForm input { padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border-color, #888); background: transparent; color: inherit; }

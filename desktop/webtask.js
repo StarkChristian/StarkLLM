@@ -10,14 +10,16 @@
 //    clicks and hands passwords, payments and CAPTCHAs to the user (IPC "webtask:*");
 //  * with a project folder the user chose in a folder dialog, the terminal (terminal-core.js): files and commands in
 //    that folder only, each change and command after the user's yes, the file changes can be undone afterwards.
-//    Commands run as the user, with the user's rights, without the secrets of StarkLLM's own environment.
-const { app, BrowserWindow, session, dialog } = require('electron');
+//    Commands run as the user, with the user's rights, without the secrets of StarkLLM's own environment;
+//  * scheduled web tasks (schedule-core.js) run in a hidden window and only look.
+const { app, BrowserWindow, session, dialog, Notification } = require('electron');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawn, execFile } = require('child_process');
 const { runTask } = require('./webtask-core');
 const { createTerminal } = require('./terminal-core');
+const schedule = require('./schedule-core');
 const { PAGE_SCRIPT } = require('./webtask-page');
 const { getShared } = require('./netguard');
 const { t } = require('./i18n');
@@ -27,9 +29,10 @@ const PARTITION = 'persist:starkllm-web';
 const LANGUAGE_NAMES = { en: 'English', de: 'German', es: 'Spanish', fr: 'French', it: 'Italian', tr: 'Turkish' };
 
 let win = null;
-let current = null; // { id, signal, sender }
+let current = null; // { id, signal, sender, scheduled? }
 let lastTerminal = null; // the terminal of the last task, for "Undo the file changes"
 const running = new Set(); // child processes of commands that run now
+let backgroundRun = false; // a scheduled task runs in a hidden window
 const pending = new Map(); // question id -> resolve
 let sessionReady = false;
 
@@ -61,6 +64,7 @@ function openWindow() {
   win = new BrowserWindow({
     width: 1180,
     height: 860,
+    show: !backgroundRun,
     title: t('StarkLLM web task'),
     autoHideMenuBar: true,
     webPreferences: { partition: PARTITION, sandbox: true, contextIsolation: true, nodeIntegration: false, spellcheck: false },
@@ -119,7 +123,7 @@ function electronBrowser() {
     hasPage: () => Boolean(win && !win.isDestroyed() && isWeb(win.webContents.getURL())),
     async open(url) {
       const wc = w();
-      if (!win.isVisible()) win.show();
+      if (!backgroundRun && !win.isVisible()) win.show();
       await wc.loadURL(url).catch((e) => {
         // a page that redirects or stops early still counts; a blocked request (offline) does not
         if (getShared().isOffline()) {
@@ -307,6 +311,96 @@ function ollamaChat(model) {
   };
 }
 
+// ── Scheduled web tasks (docs/roadmap-2026-12.md, R5; rules in schedule-core.js) ──
+function schedulesFile() {
+  return path.join(app.getPath('userData'), 'webtask-schedules.json');
+}
+
+function readSchedules() {
+  try {
+    const list = JSON.parse(fs.readFileSync(schedulesFile(), 'utf8'));
+    return Array.isArray(list) ? list : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function writeSchedules(list) {
+  fs.writeFileSync(schedulesFile(), JSON.stringify(list.slice(0, schedule.MAX_SCHEDULES), null, 1));
+}
+
+const scheduleListeners = new Set(); // chat pages that show the list
+function scheduleChanged() {
+  for (const wc of scheduleListeners) if (!wc.isDestroyed()) wc.send('webtask:schedules-changed');
+}
+
+async function stopScheduledRun() {
+  if (!current || !current.scheduled) return;
+  current.signal.stopped = true;
+  for (let k = 0; k < 100 && current; k++) await sleep(100);
+}
+
+// One scheduled task, in a hidden window, looking only: every question is answered "no" by itself.
+async function runScheduled(id, { log = () => {}, notify = true } = {}) {
+  const s = readSchedules().find((x) => x.id === id);
+  if (!s) return { error: 'unknown' };
+  if (current) return { error: 'busy' };
+  if (getShared().isOffline()) return { error: 'offline' };
+  const signal = { stopped: false, paused: false, untilResumed: async () => {}, resume: () => {} };
+  current = { id: `sch-${s.id}`, signal, sender: null, scheduled: true };
+  backgroundRun = true;
+  let url = '';
+  let result;
+  try {
+    const rules = readRules();
+    const r = await runTask({
+      task: s.task, language: LANGUAGE_NAMES[s.language] || 'English', browser: electronBrowser(), llm: ollamaChat(s.model),
+      ask: schedule.lookingOnlyAsk, emit: (e) => { if (e.type === 'answer' && e.url) url = e.url; }, signal,
+      siteRule: (host) => rules[host] || rules[host.replace(/^www\./, '')] || '', saveSiteRule: () => {},
+      maxSteps: 20, maxMinutes: 8,
+    });
+    result = { status: r.status, answer: r.answer || r.error || '', url };
+  } catch (e) {
+    result = { status: 'error', answer: String(e && e.message), url };
+  } finally {
+    current = null;
+    backgroundRun = false;
+    // the hidden window of the run is closed; a window the user has open stays
+    if (win && !win.isDestroyed() && !win.isVisible()) win.destroy();
+  }
+  const list = readSchedules();
+  const k = list.findIndex((x) => x.id === id);
+  if (k < 0) return { error: 'unknown' };
+  const done = schedule.recordRun(list[k], result);
+  const { isChange, ...kept } = done;
+  list[k] = kept;
+  writeSchedules(list);
+  log(`scheduled web task ${id}: ${result.status}${isChange ? ' (changed)' : ''}`);
+  if (isChange && notify && Notification.isSupported()) {
+    const n = new Notification({ title: t('StarkLLM: the answer changed'), body: `${s.task.slice(0, 80)}\n${String(result.answer).slice(0, 160)}` });
+    n.on('click', () => {
+      const main = BrowserWindow.getAllWindows().find((x) => x !== win && !x.isDestroyed());
+      if (main) { main.show(); main.focus(); }
+    });
+    n.show();
+  }
+  scheduleChanged();
+  return { ok: true, schedule: kept, changed: isChange };
+}
+
+let scheduleTimer = null;
+function startScheduler(log) {
+  if (scheduleTimer) return;
+  const tick = async () => {
+    if (current || getShared().isOffline()) return;
+    const due = schedule.dueSchedules(readSchedules(), new Date());
+    if (due.length) await runScheduled(due[0].id, { log });
+  };
+  // the first check two minutes after the start (a run missed while the PC was off), then every minute
+  setTimeout(() => { tick().catch(() => {}); }, 120000);
+  scheduleTimer = setInterval(() => { tick().catch(() => {}); }, 60000);
+}
+
 // IPC for the chat page. fromApp(event) is the same check as for the other bridges: only StarkLLM's own page.
 function register(ipcMain, { fromApp, log = () => {} }) {
   const allowed = (fn) => async (event, ...args) => {
@@ -323,6 +417,7 @@ function register(ipcMain, { fromApp, log = () => {} }) {
     const model = String(opts.model || '').trim();
     if (!task) return { error: 'empty' };
     if (!model) return { error: 'no-model' };
+    if (current && current.scheduled) await stopScheduledRun(); // the user's own task comes first
     if (current) return { error: 'busy' };
     // the terminal: only a folder the user chose in the folder dialog
     let terminal = null;
@@ -406,6 +501,33 @@ function register(ipcMain, { fromApp, log = () => {} }) {
     const files = lastTerminal.undo();
     return { ok: true, files };
   }));
+  // Scheduled web tasks: list, add (from a finished web task), pause, run now, remove
+  ipcMain.handle('webtask:schedules', allowed(async (event) => {
+    scheduleListeners.add(event.sender);
+    return { schedules: readSchedules() };
+  }));
+  ipcMain.handle('webtask:schedule-add', allowed(async (_event, opts = {}) => {
+    const list = readSchedules();
+    if (list.length >= schedule.MAX_SCHEDULES) return { error: 'too-many' };
+    const s = schedule.makeSchedule(opts);
+    if (!s) return { error: 'invalid' };
+    writeSchedules([...list, s]);
+    scheduleChanged();
+    return { ok: true, schedule: s };
+  }));
+  ipcMain.handle('webtask:schedule-enabled', allowed(async (_event, id, enabled) => {
+    const list = readSchedules().map((x) => (x.id === String(id) ? { ...x, enabled: Boolean(enabled) } : x));
+    writeSchedules(list);
+    scheduleChanged();
+    return { ok: true };
+  }));
+  ipcMain.handle('webtask:schedule-remove', allowed(async (_event, id) => {
+    writeSchedules(readSchedules().filter((x) => x.id !== String(id)));
+    scheduleChanged();
+    return { ok: true };
+  }));
+  ipcMain.handle('webtask:schedule-run', allowed(async (_event, id) => runScheduled(String(id), { log })));
+  startScheduler(log);
 
   // Settings: the user's site rules, to see and remove them
   ipcMain.handle('webtask:sites', allowed(async () => ({ rules: readRules() })));
@@ -473,4 +595,4 @@ function stopForOffline() {
   stopCommands();
 }
 
-module.exports = { register, stopForOffline, stopCommands, PARTITION, unsuitableFolder: (d) => unsuitableFolder(d) };
+module.exports = { register, stopForOffline, stopCommands, PARTITION, readSchedules, unsuitableFolder: (d) => unsuitableFolder(d) };

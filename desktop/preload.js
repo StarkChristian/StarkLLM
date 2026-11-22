@@ -78,6 +78,23 @@ contextBridge.exposeInMainWorld('starkllmDesktop', {
     // the text of the page the window shows, to save it to the workspace
     pageText: () => ipcRenderer.invoke('webtask:page'),
     showWindow: () => ipcRenderer.invoke('webtask:show'),
+    // scheduled web tasks (docs/roadmap-2026-12.md, R5): looking only, run by the desktop app
+    schedules: {
+      list: () => ipcRenderer.invoke('webtask:schedules'),
+      add: (opts) => ipcRenderer.invoke('webtask:schedule-add', {
+        task: String((opts && opts.task) || ''), model: String((opts && opts.model) || ''), language: String((opts && opts.language) || ''),
+        rule: opts && opts.rule ? { every: String(opts.rule.every || ''), time: String(opts.rule.time || ''), weekday: Number(opts.rule.weekday) } : null,
+        workspaceId: Number(opts && opts.workspaceId) || null,
+      }),
+      setEnabled: (id, enabled) => ipcRenderer.invoke('webtask:schedule-enabled', String(id || ''), Boolean(enabled)),
+      remove: (id) => ipcRenderer.invoke('webtask:schedule-remove', String(id || '')),
+      runNow: (id) => ipcRenderer.invoke('webtask:schedule-run', String(id || '')),
+      onChange: (cb) => {
+        const handler = () => cb();
+        ipcRenderer.on('webtask:schedules-changed', handler);
+        return () => ipcRenderer.removeListener('webtask:schedules-changed', handler);
+      },
+    },
     clearData: () => ipcRenderer.invoke('webtask:clear-data'),
     onEvent: (cb) => {
       const handler = (_event, e) => cb(e);

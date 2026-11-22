@@ -174,6 +174,22 @@ from their documentation:
 | Local models only | Goose, Aider, Cline (with Ollama) | yes |
 | Background servers with a Stop button | Claude Code, Cline | not yet (next) |
 
+## Scheduled web tasks (roadmap R5)
+
+After a finished web task, **Repeat this task** schedules it daily or weekly at a time. The desktop app runs it by
+itself (`desktop/schedule-core.js`, `webtask.js`) in a hidden window, while StarkLLM runs and is online, one task at a
+time. The user's own task stops a scheduled run first, and closing StarkLLM ends it. A run missed while the PC was off
+runs once at the next start.
+
+- **Looking only (in code):** every question of a scheduled task is answered "no" by itself: no risky click (buy, book,
+  send ...), no bank, health or government site unless the user allowed it before, no sign-in, password, payment or
+  CAPTCHA. No terminal or project folder. At most 20 steps and 8 minutes.
+- The last answer and the last ten runs are kept in `webtask-schedules.json` in the profile folder. Settings › Privacy &
+  network lists the schedules (Run now, Pause, Remove). When an answer changed since the run before, a notification
+  shows it.
+- Tests: `desktop/test/schedule-core.test.js` (times, daylight saving time, missed runs, changes, looking only);
+  `desktop/tools/webtask-schedule-try.js` runs a schedule twice in the real hidden window.
+
 ## Not in this version (next steps)
 
 - **The user's own browser** (with their sign-ins), with permission: planned as a browser extension that the user

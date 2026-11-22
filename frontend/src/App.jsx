@@ -1389,6 +1389,12 @@ export default function App() {
                 onSavePage: handleSaveWebTaskPage,
                 onSaveTask: handleSaveWebTaskTemplate,
                 onUndo: handleUndoTerminal,
+                onSchedule: async (task, rule) => {
+                  const b = webTaskBridge();
+                  if (!b || !b.schedules) return false;
+                  const r = await b.schedules.add({ task, rule, model: currentModel, language: language(), workspaceId: activeWorkspace && activeWorkspace.id });
+                  return Boolean(r && r.ok);
+                },
               } : null}
             />
             <InputBar 
