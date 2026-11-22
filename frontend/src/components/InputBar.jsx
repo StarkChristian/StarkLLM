@@ -8,7 +8,7 @@ import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
 import { isWebTaskTemplate } from '../utils/webTask';
 
-export default function InputBar({ onSendImage, compareModel, onSetCompareModel, onSendMessage, onFileUpload, useKb, onToggleKb, useWebSearch, onToggleWebSearch, webTaskAvailable, useWebTask, onToggleWebTask, terminalFolder, onChooseTerminalFolder, onClearTerminalFolder, offline, cloudHost, onOpenSettings, isGenerating, onStopGeneration, token, activeWorkspace, onOpenKbSettings }) {
+export default function InputBar({ onSendImage, compareModel, onSetCompareModel, onSendMessage, onFileUpload, useKb, onToggleKb, useWebSearch, onToggleWebSearch, webTaskAvailable, useWebTask, onToggleWebTask, terminalFolder, useTerminal, onToggleTerminal, onChooseTerminalFolder, onClearTerminalFolder, offline, cloudHost, onOpenSettings, isGenerating, onStopGeneration, token, activeWorkspace, onOpenKbSettings }) {
   const toast = useToast();
   const [text, setText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -260,16 +260,20 @@ export default function InputBar({ onSendImage, compareModel, onSetCompareModel,
           </button>
         )}
         {terminalFolder && (
-          <span className={`${styles.kbToggle} ${styles.kbToggleOn}`} role="status" title={terminalFolder.folder}>
-            <TerminalSquare size={16} />
-            {t('Terminal: {folder}', { folder: terminalFolder.name })}
+          <span className={`${styles.kbToggle} ${useTerminal ? styles.kbToggleOn : ''}`} title={terminalFolder.folder}>
+            <button type="button" onClick={onToggleTerminal} aria-pressed={Boolean(useTerminal)}
+              title={useTerminal ? t('Terminal on: click to turn it off') : t('Terminal off: click to work in this folder')}
+              style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, padding: 0, font: 'inherit' }}>
+              <TerminalSquare size={16} />
+              {useTerminal ? t('Terminal ON: {folder}', { folder: terminalFolder.name }) : t('Terminal: {folder}', { folder: terminalFolder.name })}
+            </button>
             <button type="button" onClick={onClearTerminalFolder} title={t('Stop using this folder')} aria-label={t('Stop using this folder')}
               style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', display: 'inline-flex', padding: 0, marginLeft: 4 }}>
               <X size={14} />
             </button>
           </span>
         )}
-        {terminalFolder && (
+        {terminalFolder && useTerminal && (
           <span className={styles.onlineNote} role="status">{t('StarkLLM works in the folder {folder}. It asks you before each change of a file and each command.', { folder: terminalFolder.name })}</span>
         )}
         {onSetCompareModel && !compareModel && !comparePicking && (

@@ -140,7 +140,7 @@ export default function ToolCallCard({
       setExecError(null);
       const r = await bridge.call(toolName, argsObj);
       if (!r || !r.ok) {
-        setExecError(r && r.error === 'tool-off' ? t('This tool is turned off in Settings › Tools.') : r && r.error === 'not-running' ? t('The tool server is not running.') : (r && r.message) || t('Execution error'));
+        setExecError(r && r.error === 'tool-off' ? t('This tool is turned off in Settings › Tools.') : r && r.error === 'not-running' ? t('The tool server is not running.') : r && r.error === 'offline' ? t('StarkLLM is fully offline: tool servers are off.') : (r && r.message) || t('Execution error'));
         setStatus('error');
         return;
       }

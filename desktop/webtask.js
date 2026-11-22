@@ -31,6 +31,7 @@ const LANGUAGE_NAMES = { en: 'English', de: 'German', es: 'Spanish', fr: 'French
 let win = null;
 let current = null; // { id, signal, sender, scheduled? }
 let lastTerminal = null; // the terminal of the last task, for "Undo the file changes"
+let lastTerminalTask = '';
 const running = new Set(); // child processes of commands that run now
 let backgroundRun = false; // a scheduled task runs in a hidden window
 const pending = new Map(); // question id -> resolve
@@ -294,11 +295,12 @@ function stopCommands() {
 }
 
 // The local AI model (Ollama on this PC). Recorded by the network layer like every connection of the app.
-function ollamaChat(model) {
+function ollamaChat(model, abortSignal) {
   const post = getShared().wrapFetch(fetch, 'web_task', 'The local AI model (Ollama on this PC) chooses the next step of a web task');
   return async (messages, tools) => {
     const res = await post(OLLAMA_URL + '/api/chat', {
       method: 'POST',
+      signal: abortSignal,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model, messages, tools, stream: false, think: false, options: { num_ctx: 16384, temperature: 0.1 } }),
     });
@@ -337,7 +339,9 @@ function scheduleChanged() {
 async function stopScheduledRun() {
   if (!current || !current.scheduled) return;
   current.signal.stopped = true;
-  for (let k = 0; k < 100 && current; k++) await sleep(100);
+  current.signal.preempted = true; // the user's own task: this run did not happen, it runs again later
+  if (current.abort) current.abort.abort(); // the model call that runs now ends at once
+  for (let k = 0; k < 300 && current; k++) await sleep(100);
 }
 
 // One scheduled task, in a hidden window, looking only: every question is answered "no" by itself.
@@ -346,15 +350,18 @@ async function runScheduled(id, { log = () => {}, notify = true } = {}) {
   if (!s) return { error: 'unknown' };
   if (current) return { error: 'busy' };
   if (getShared().isOffline()) return { error: 'offline' };
+  // a window of the user's own task that is still open is not reused: the run waits for the next minute
+  if (win && !win.isDestroyed() && win.isVisible()) return { error: 'busy' };
   const signal = { stopped: false, paused: false, untilResumed: async () => {}, resume: () => {} };
-  current = { id: `sch-${s.id}`, signal, sender: null, scheduled: true };
+  const abort = new AbortController();
+  current = { id: `sch-${s.id}`, signal, sender: null, scheduled: true, abort };
   backgroundRun = true;
   let url = '';
   let result;
   try {
     const rules = readRules();
     const r = await runTask({
-      task: s.task, language: LANGUAGE_NAMES[s.language] || 'English', browser: electronBrowser(), llm: ollamaChat(s.model),
+      task: s.task, language: LANGUAGE_NAMES[s.language] || 'English', browser: electronBrowser(), llm: ollamaChat(s.model, abort.signal),
       ask: schedule.lookingOnlyAsk, emit: (e) => { if (e.type === 'answer' && e.url) url = e.url; }, signal,
       siteRule: (host) => rules[host] || rules[host.replace(/^www\./, '')] || '', saveSiteRule: () => {},
       maxSteps: 20, maxMinutes: 8,
@@ -368,6 +375,8 @@ async function runScheduled(id, { log = () => {}, notify = true } = {}) {
     // the hidden window of the run is closed; a window the user has open stays
     if (win && !win.isDestroyed() && !win.isVisible()) win.destroy();
   }
+  // a run that gave way to the user's own task, or ended with StarkLLM, is not recorded: it runs again later
+  if (signal.preempted) return { error: 'preempted' };
   const list = readSchedules();
   const k = list.findIndex((x) => x.id === id);
   if (k < 0) return { error: 'unknown' };
@@ -389,6 +398,22 @@ async function runScheduled(id, { log = () => {}, notify = true } = {}) {
 }
 
 let scheduleTimer = null;
+let scheduleStart = null;
+// The main window closed: no more scheduled runs, the one that runs ends now and its hidden window is closed, so
+// StarkLLM does not stay open unseen.
+function shutdown() {
+  if (scheduleStart) { clearTimeout(scheduleStart); scheduleStart = null; }
+  if (scheduleTimer) { clearInterval(scheduleTimer); scheduleTimer = null; }
+  if (current) {
+    current.signal.stopped = true;
+    current.signal.preempted = Boolean(current.scheduled);
+    if (current.abort) current.abort.abort();
+    current.signal.resume();
+  }
+  stopCommands();
+  if (win && !win.isDestroyed() && !win.isVisible()) win.destroy();
+}
+
 function startScheduler(log) {
   if (scheduleTimer) return;
   const tick = async () => {
@@ -397,7 +422,7 @@ function startScheduler(log) {
     if (due.length) await runScheduled(due[0].id, { log });
   };
   // the first check two minutes after the start (a run missed while the PC was off), then every minute
-  setTimeout(() => { tick().catch(() => {}); }, 120000);
+  scheduleStart = setTimeout(() => { tick().catch(() => {}); }, 120000);
   scheduleTimer = setInterval(() => { tick().catch(() => {}); }, 60000);
 }
 
@@ -454,8 +479,8 @@ function register(ipcMain, { fromApp, log = () => {} }) {
     const prev = opts.previous && typeof opts.previous === 'object'
       ? { task: String(opts.previous.task || '').slice(0, 2000), answer: String(opts.previous.answer || '').slice(0, 4000) }
       : null;
-    send({ type: 'started', task, folder: terminal ? terminal.folderName : '' });
-    lastTerminal = terminal;
+    send({ type: 'started', task, folder: terminal ? terminal.folderName : '', taskId: id });
+    if (terminal) { lastTerminal = terminal; lastTerminalTask = id; }
     const rules = readRules();
     runTask({ task, language, browser: electronBrowser(), llm: ollamaChat(model), ask, emit: send, signal, previous: prev && prev.task ? prev : null,
       siteRule: (host) => rules[host] || rules[host.replace(/^www\./, '')] || '',
@@ -495,9 +520,10 @@ function register(ipcMain, { fromApp, log = () => {} }) {
   }));
 
   // "Undo the file changes" of the last task (not while a task runs)
-  ipcMain.handle('webtask:undo', allowed(async () => {
-    if (current) return { error: 'busy' };
+  ipcMain.handle('webtask:undo', allowed(async (_event, taskId) => {
+    if (current && !current.scheduled) return { error: 'busy' };
     if (!lastTerminal) return { error: 'nothing' };
+    if (taskId && String(taskId) !== lastTerminalTask) return { error: 'not-latest' };
     const files = lastTerminal.undo();
     return { ok: true, files };
   }));
@@ -595,4 +621,4 @@ function stopForOffline() {
   stopCommands();
 }
 
-module.exports = { register, stopForOffline, stopCommands, PARTITION, readSchedules, unsuitableFolder: (d) => unsuitableFolder(d) };
+module.exports = { register, stopForOffline, stopCommands, shutdown, PARTITION, readSchedules, unsuitableFolder: (d) => unsuitableFolder(d) };

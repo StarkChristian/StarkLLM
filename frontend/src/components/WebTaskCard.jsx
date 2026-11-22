@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Compass, Loader, CheckCircle, AlertTriangle, Square, ExternalLink, ShieldAlert, Hand, Pause, Play, FilePlus, Bookmark, TerminalSquare, Undo2, Repeat } from 'lucide-react';
 import styles from './WebTaskCard.module.css';
 import { t } from '../i18n';
+import { webTaskErrorText } from '../utils/webTaskText';
 import { UI_LOCALE } from '../utils/locale';
 import { weekdayName } from '../utils/schedule';
 import { ruleInWords } from '../utils/scheduleWords';
@@ -24,7 +25,7 @@ function stepText(s) {
     case 'asked': return t('Asked you: {question}', { question: d });
     case 'refused': return t('Not done: you did not allow it');
     case 'user': return t('A step for you in the window');
-    case 'problem': return t('Did not work: {reason}', { reason: d });
+    case 'problem': return t('Did not work: {reason}', { reason: webTaskErrorText(d) });
     case 'blocked': return t('Not opened: {site} (site rules)', { site: d });
     case 'list': return t('Listed {folder}', { folder: d });
     case 'readfile': return t('Read {file}', { file: d });
@@ -77,6 +78,7 @@ function AskBox({ ask, onReply }) {
           <pre className={styles.command}>{ask.text}</pre>
           {x.network && <p className={styles.warn}>{t('This command uses the internet.')}</p>}
           {x.deletes && <p className={styles.warn}>{t('This command deletes or throws away something.')}</p>}
+          {x.offline && <p className={styles.warn}>{t('StarkLLM is fully offline, but a program you allow can still use the internet by itself.')}</p>}
           <div className={styles.askButtons}>
             <button type="button" className={styles.secondary} onClick={() => onReply(ask.qid, { ok: false })}>{t('Do not run')}</button>
             {!x.deletes && (
@@ -222,8 +224,8 @@ export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onRe
   const files = task.files || [];
   const undo = async () => {
     setUndone('working');
-    const ok = await onUndo();
-    setUndone(ok ? 'done' : 'failed');
+    const ok = await onUndo(task.taskId);
+    setUndone(ok === 'not-latest' ? 'not-latest' : ok ? 'done' : 'failed');
   };
   const saveTask = async () => {
     setTaskSaved('saving');
@@ -280,7 +282,7 @@ export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onRe
         </details>
       )}
       {task.ask && <AskBox key={task.ask.qid} ask={task.ask} onReply={onReply} />}
-      {task.error && <p className={styles.error}>{task.error}</p>}
+      {task.error && <p className={styles.error}>{webTaskErrorText(task.error)}</p>}
       {task.status === 'done' && onSavePage && task.url && (
         <div className={styles.saveRow}>
           <button type="button" className={styles.secondary} onClick={save} disabled={saved === 'saving' || saved === 'saved'}>
@@ -307,6 +309,7 @@ export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onRe
           </button>
           {undone === 'done' && <span className={styles.hint}>{t('Undone: the files are as they were before the task. Changes made by commands, for example installed packages, are not undone.')}</span>}
           {undone === 'failed' && <span className={styles.error}>{t('The changes could not be undone. A newer task may have started.')}</span>}
+          {undone === 'not-latest' && <span className={styles.error}>{t('Only the changes of the newest task can be undone.')}</span>}
         </div>
       )}
       {task.status === 'done' && onSchedule && task.task && (

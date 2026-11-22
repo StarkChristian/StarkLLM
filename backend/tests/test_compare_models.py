@@ -70,7 +70,7 @@ def test_the_second_model_answers_without_the_first_answer_and_nothing_is_saved(
 def test_keep_this_answer_replaces_the_saved_answer(env):
     client, headers, ws_id, seen, history = env
     chat_id = int(ask(client, headers, ws_id).headers["X-Chat-ID"])
-    r = client.post(f"/api/v1/chat/session/{chat_id}/keep-answer", headers=headers, json={"content": "Rome (model-b)."})
+    r = client.post(f"/api/v1/chat/session/{chat_id}/keep-answer", headers=headers, json={"content": "Rome (model-b).", "question": "What is the capital of Italy?"})
     assert r.status_code == 200, r.text
     assert history(chat_id) == [("user", "What is the capital of Italy?"), ("assistant", "Rome (model-b).")]
 
@@ -97,6 +97,16 @@ def test_keep_answer_only_in_ones_own_chat(env):
     finally:
         db.close()
     r = client.post(f"/api/v1/chat/session/{chat_id}/keep-answer",
-                    headers={"Authorization": f"Bearer {create_access_token({'sub': other})}"}, json={"content": "hijacked"})
+                    headers={"Authorization": f"Bearer {create_access_token({'sub': other})}"}, json={"content": "hijacked", "question": "What is the capital of Italy?"})
     assert r.status_code == 404
+    assert history(chat_id)[-1] == ("assistant", "Answer of model-a.")
+
+
+def test_keep_answer_refuses_an_answer_of_an_earlier_question(env):
+    client, headers, ws_id, seen, history = env
+    chat_id = int(ask(client, headers, ws_id).headers["X-Chat-ID"])
+    ask(client, headers, ws_id, chat_id=chat_id, message="And of France?")
+    r = client.post(f"/api/v1/chat/session/{chat_id}/keep-answer", headers=headers,
+                    json={"content": "Rome (model-b).", "question": "What is the capital of Italy?"})
+    assert r.status_code == 409
     assert history(chat_id)[-1] == ("assistant", "Answer of model-a.")

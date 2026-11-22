@@ -23,6 +23,7 @@ import { useToast } from './components/Toast';
 import { useChatFolders } from './hooks/useChatFolders';
 import { useChatSummary } from './hooks/useChatSummary';
 import { exportChat } from './utils/chatExport';
+import { webTaskErrorText } from './utils/webTaskText';
 import { exportItems, saveAsWord, saveAsPdf } from './utils/exportDocs';
 import { UI_LOCALE } from './utils/locale';
 import { mcpBridge } from './utils/mcpBridge';
@@ -81,12 +82,15 @@ export default function App() {
   // Web tasks (docs/web-tasks.md): only in the desktop app, which has the browser window
   const [useWebTask, setUseWebTask] = useState(false);
   // the terminal of tasks: a project folder the user chose in the folder dialog of the desktop app
-  const [terminalFolder, setTerminalFolderState] = useState(() => {
-    try { const f = JSON.parse(localStorage.getItem('webtask_folder') || 'null'); return f && f.folder ? f : null; } catch (e) { return null; }
-  });
+  // the folder is kept per workspace; the terminal is on only while the user turned it on (not after a restart)
+  const [terminalFolder, setTerminalFolderState] = useState(null);
+  const [useTerminal, setUseTerminal] = useState(false);
+  const terminalFolderKey = (wsId) => `webtask_folder_${wsId || 0}`;
+  const terminalWsRef = useRef(0);
   const setTerminalFolder = (f) => {
     setTerminalFolderState(f);
-    try { if (f) localStorage.setItem('webtask_folder', JSON.stringify(f)); else localStorage.removeItem('webtask_folder'); } catch (e) { /* private window */ }
+    if (!f) setUseTerminal(false);
+    try { const k = terminalFolderKey(terminalWsRef.current); if (f) localStorage.setItem(k, JSON.stringify(f)); else localStorage.removeItem(k); } catch (e) { /* private window */ }
   };
   const webTaskRunningRef = useRef(false);
   const offline = useOffline(token); // the fully offline switch (Settings > Privacy & network)
@@ -605,19 +609,32 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    const wsId = activeWorkspace ? activeWorkspace.id : 0;
+    terminalWsRef.current = wsId;
+    try {
+      const f = JSON.parse(localStorage.getItem(terminalFolderKey(wsId)) || 'null');
+      setTerminalFolderState(f && f.folder ? f : null);
+    } catch (e) {
+      setTerminalFolderState(null);
+    }
+    setUseTerminal(false);
+  }, [activeWorkspace && activeWorkspace.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleChooseTerminalFolder = async () => {
     const bridge = webTaskBridge();
     if (!bridge || !bridge.chooseFolder) return '';
     const r = await bridge.chooseFolder();
-    if (r && r.ok) { setTerminalFolder({ folder: r.folder, name: r.name }); return 'ok'; }
+    if (r && r.ok) { setTerminalFolder({ folder: r.folder, name: r.name }); setUseTerminal(true); return 'ok'; }
     return r && r.error === 'unsuitable' ? 'unsuitable' : '';
   };
 
   // "Undo the file changes" of the last task with the terminal
-  const handleUndoTerminal = async () => {
+  const handleUndoTerminal = async (taskId) => {
     const bridge = webTaskBridge();
     if (!bridge || !bridge.undo) return false;
-    const r = await bridge.undo();
+    const r = await bridge.undo(taskId);
+    if (r && r.error === 'not-latest') return 'not-latest';
     return Boolean(r && r.ok);
   };
 
@@ -651,7 +668,7 @@ export default function App() {
     });
     try {
       // a follow-up continues in the same window, with the task before it and its answer
-      const r = await bridge.start({ task: text, model: currentModel, language: language(), previous: previousWebTask(messagesBefore), folder: terminalFolder ? terminalFolder.folder : '' });
+      const r = await bridge.start({ task: text, model: currentModel, language: language(), previous: previousWebTask(messagesBefore), folder: useTerminal && terminalFolder ? terminalFolder.folder : '' });
       if (!r || r.error) {
         if (r && r.error === 'folder') setTerminalFolder(null);
         const why = r && r.error === 'folder' ? t('The project folder can no longer be used. Choose it again with Terminal.')
@@ -664,7 +681,7 @@ export default function App() {
       await ended;
       const content = state.status === 'done' ? state.answer
         : state.status === 'stopped' ? t('The web task was stopped.')
-          : t('The web task was not finished.') + (state.error ? ` ${state.error}` : '');
+          : t('The web task was not finished.') + (state.error ? ` ${webTaskErrorText(state.error)}` : '');
       setMessages(prev => {
         const msgs = [...prev];
         msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content };
@@ -701,7 +718,7 @@ export default function App() {
     }
     const question = String(text || '').trim();
     setMessages(prev => [...prev,
-      { role: 'user', content: question || t('Describe this image.'), image: URL.createObjectURL(file), imageName: file.name || '', timestamp: new Date() },
+      { role: 'user', content: question || t('Describe this image.'), image: URL.createObjectURL(file), imageName: file.name || '', imageFile: file, timestamp: new Date() },
       { role: 'assistant', content: '', timestamp: new Date() }]);
     const setAnswer = (content, extra = {}) => setMessages(prev => {
       const msgs = [...prev];
@@ -719,7 +736,7 @@ export default function App() {
       const form = new FormData();
       form.append('workspace_id', String(activeWorkspace.id));
       if (activeChatId) form.append('chat_id', String(activeChatId));
-      form.append('message', question);
+      form.append('message', question || t('Describe this image.'));
       if (currentModel) form.append('model', currentModel);
       form.append('language', language());
       form.append('image', file, file.name || 'image.png');
@@ -802,7 +819,7 @@ export default function App() {
     const c = msg.compare;
     try {
       const res = await fetch(`/api/v1/chat/session/${activeChatId}/keep-answer`, {
-        method: 'POST', headers: getHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ content: c.content }),
+        method: 'POST', headers: getHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ content: c.content, question: index > 0 && messages[index - 1].role === 'user' ? messages[index - 1].content : '' }),
       });
       if (!res.ok) throw new Error(`API error: ${res.status}`);
       setMessages(prev => prev.map((m, k) => (k === index ? {
@@ -821,11 +838,12 @@ export default function App() {
       return;
     }
     // a web task, or a task in the project folder (the terminal works also while StarkLLM is fully offline)
-    if (webTaskBridge() && ((useWebTask && !offline) || terminalFolder)) {
+    if (webTaskBridge() && ((useWebTask && !offline) || (useTerminal && terminalFolder))) {
       await handleWebTask(text);
       return;
     }
-    setMessages(prev => [...prev, { role: 'user', content: text, timestamp: new Date() }]);
+    // a comparison that was not decided closes with the next question ("Keep this answer" replaces the newest answer)
+    setMessages(prev => [...prev.map(m => (m.compare ? { ...m, compare: null } : m)), { role: 'user', content: text, timestamp: new Date() }]);
     setMessages(prev => [...prev, { role: 'assistant', content: '', timestamp: new Date() }]);
     setIsGenerating(true);
 
@@ -991,6 +1009,7 @@ export default function App() {
       });
 
       if (primaryOk && compareModel && savedProvider === 'ollama' && compareModel !== effectiveModel) {
+        clearTimeout(timeoutId); // the second model has its own time: loading it can take minutes
         await runComparison({
           workspace_id: activeWorkspace.id,
           chat_id: parseInt(response.headers.get('X-Chat-ID') || currentChatId, 10),
@@ -1142,11 +1161,16 @@ export default function App() {
     const userMsgIndex = index - 1;
     const userMsg = messages[userMsgIndex];
     if (userMsg.role !== 'user') return;
+    if (!userMsg.imageFile && /\n\n🖼 [^\n]+$/.test(userMsg.content || '')) {
+      toast.warning(t('The image of this question is not kept. Add the image again to ask about it.'));
+      return;
+    }
     
     const success = await handleTruncateChat(userMsgIndex);
     if (!success) return;
     
     setMessages(prev => prev.slice(0, userMsgIndex));
+    if (userMsg.imageFile) { await handleImageQuestion(userMsg.content, userMsg.imageFile); return; }
     await handleSendMessage(userMsg.content);
   };
 
@@ -1154,7 +1178,9 @@ export default function App() {
     const success = await handleTruncateChat(index);
     if (!success) return;
 
+    const edited = messages[index];
     setMessages(prev => prev.slice(0, index));
+    if (edited && edited.imageFile) { await handleImageQuestion(newText, edited.imageFile); return; }
     await handleSendMessage(newText);
   };
 
@@ -1600,6 +1626,8 @@ export default function App() {
               useWebTask={useWebTask && !offline}
               onToggleWebTask={() => setUseWebTask(!useWebTask)}
               terminalFolder={webTaskBridge() ? terminalFolder : null}
+              useTerminal={useTerminal}
+              onToggleTerminal={() => setUseTerminal(!useTerminal)}
               onChooseTerminalFolder={handleChooseTerminalFolder}
               onClearTerminalFolder={() => setTerminalFolder(null)}
               cloudHost={currentCloudHost()}

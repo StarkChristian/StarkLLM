@@ -56,11 +56,18 @@ const NOT_SECRET = /\.env\.(example|sample|template|dist|defaults)$/i;
 
 function isSecretFile(rel) {
   const p = String(rel || '');
+  // "x.env::$DATA" (another stream of a file) and "ENV~1" (a short 8.3 name) could name a secret file differently
+  if (/:/.test(p.replace(/^[a-z]:/i, '')) || /~\d/.test(p)) return true;
   return SECRET_FILE.test(p) && !NOT_SECRET.test(p);
 }
 
 // Commands that are refused, also when the user would say yes: they change more than a project.
 const BLOCKED_COMMANDS = [
+  [/[\r\n\u0000-\u0008\u000b\u000c\u000e-\u001f]/, 'it has more than one line: run one command at a time'],
+  [/\bcmd(\.exe)?\s+\/[ck]\b|\b(start-job|start-threadjob|invoke-command|icm|saps|register-objectevent|register-wmievent|invoke-cimmethod|invoke-wmimethod|wmic)\b|win32_process|\[scriptblock\]::create|\bnew-pssession\b/i, 'it starts other programs or commands in a way StarkLLM cannot check'],
+  [/\b(powershell|pwsh)(\.exe)?\b[^\n]*\s-(e|ec|en|enc|enco|encod|encode|encoded|encodedc\w*)\s/i, 'it runs hidden or encoded code'],
+  [/registry::|\bhk(lm|cu|cr|u|cc):/i, 'it changes Windows settings'],
+  [/(downloadstring|downloadfile|downloaddata)\s*\(/i, 'it downloads code and runs it'],
   [/\b(format(-volume)?|diskpart|bcdedit|shutdown|restart-computer|stop-computer|vssadmin|wbadmin|cipher\s+\/w|clear-disk|initialize-disk|mkfs(\.\w+)?|dd\s+if=)\b/i, 'it changes Windows or the disks'],
   [/\b(reg(\.exe)?\s+(add|delete|import|load)|(set|new|remove)-itemproperty\b[^\n]*\bhk(lm|cu|cr|u)\b|setx)\b/i, 'it changes Windows settings'],
   [/\b(set-executionpolicy|set-mppreference|add-mppreference|remove-mppreference|netsh|new-netfirewallrule|set-netfirewall\w*|disable-netfirewall\w*|takeown|icacls|cacls|net\s+(user|localgroup|share)|runas|sudo|doas|chmod\s+[0-7]*7[0-7]*\s+\/|chown|set-acl|uac)\b|-verb\s+runas/i, 'it changes security settings or permissions'],
@@ -71,7 +78,7 @@ const BLOCKED_COMMANDS = [
 ];
 
 // Commands that use the internet: asked online, refused while StarkLLM is fully offline.
-const NETWORK = /\b(npm\s+(install|i|ci|add|update|upgrade|publish|login|audit|outdated|view|info)|npx|pnpm\s+(install|i|add|update|dlx)|yarn(\s+(install|add|upgrade|dlx))?$|yarn\s+(install|add|upgrade|dlx)|pip3?\s+(install|download)|python3?\s+-m\s+pip\s+(install|download)|uv\s+(add|sync|pip\s+install)|poetry\s+(install|add|update)|git\s+(clone|fetch|pull|push|submodule|ls-remote)|curl|wget|iwr|irm|invoke-webrequest|invoke-restmethod|ssh|scp|sftp|ftp|rsync|nuget|dotnet\s+(restore|add)|cargo\s+(install|add|update|publish|fetch)|go\s+(get|install|mod\s+download)|gem\s+install|bundle(\s+install)?|composer\s+(install|require|update)|docker\s+(pull|push|run|build|login)|gh)\b/i;
+const NETWORK = /(?<![.\\/\w-])(new-object\s+(system\.)?net\.webclient|net\.http\.httpclient|test-netconnection|resolve-dnsname|nslookup|ping|npm\s+(install|i|ci|add|update|upgrade|publish|login|audit|outdated|view|info)|npx|pnpm\s+(install|i|add|update|dlx)|yarn(\s+(install|add|upgrade|dlx))?$|yarn\s+(install|add|upgrade|dlx)|pip3?\s+(install|download)|python3?\s+-m\s+pip\s+(install|download)|uv\s+(add|sync|pip\s+install)|poetry\s+(install|add|update)|git\s+(clone|fetch|pull|push|submodule|ls-remote)|curl|wget|iwr|irm|invoke-webrequest|invoke-restmethod|ssh|scp|sftp|ftp|rsync|nuget|dotnet\s+(restore|add)|cargo\s+(install|add|update|publish|fetch)|go\s+(get|install|mod\s+download)|gem\s+install|bundle(\s+install)?|composer\s+(install|require|update)|docker\s+(pull|push|run|build|login)|gh)\b/i;
 // Commands that delete or throw away work: always asked, also after "allow for this task".
 const DELETES = /\b(rm|rmdir|rd|del|erase|remove-item|ri|unlink)\b|\bgit\s+(clean|reset\s+--hard|checkout\s+(--|\.)|restore|stash\s+(drop|clear)|branch\s+-D|push\s+[^\n]*(-f|--force))\b/i;
 // Commands that only look: run without asking, when they are alone (no ; | > & and no $( )).
@@ -94,6 +101,10 @@ function outsideToken(command, root, platform) {
       if (platform !== 'win32' || !inside(p.resolve(tok))) return tok;
       continue;
     }
+    if (platform === 'win32' && (/^\\(?!\\)/.test(tok) || /^\/[^/\s]{4,}/.test(tok) || /^\/[^/\s]*[\\/]/.test(tok))) {
+      if (!inside(p.resolve(root.slice(0, 2), tok))) return tok;
+      continue;
+    }
     if (platform !== 'win32' && tok.startsWith('/')) {
       if (tok === '/dev/null') continue;
       if (!inside(p.resolve(tok))) return tok;
@@ -106,7 +117,9 @@ function outsideToken(command, root, platform) {
 
 // command -> { blocked, reason } or { network, deletes, readOnly }
 function classifyCommand(command, { root, platform = process.platform, offline = false } = {}) {
-  const c = String(command || '').replace(/\s+/g, ' ').trim();
+  const raw = String(command || '');
+  if (BLOCKED_COMMANDS[0][0].test(raw.trim())) return { blocked: true, reason: BLOCKED_COMMANDS[0][1] };
+  const c = raw.replace(/[ \t]+/g, ' ').trim();
   for (const [re, why] of BLOCKED_COMMANDS) if (re.test(c)) return { blocked: true, reason: why };
   const out = root ? outsideToken(c, root, platform) : '';
   if (out) return { blocked: true, reason: `it reaches outside the project folder (${out.slice(0, 60)})` };
@@ -114,7 +127,8 @@ function classifyCommand(command, { root, platform = process.platform, offline =
   if (network && offline) return { blocked: true, reason: 'it uses the internet, and StarkLLM is fully offline' };
   const deletes = DELETES.test(c);
   const chained = /[;&|<>`]|\$\(/.test(c);
-  const readOnly = !chained && !network && !deletes && READ_ONLY.test(c) && !/--output|--ext-diff|--textconv|\s-c\s|--exec/i.test(c);
+  const printsFiles = /^git\s+(show|log)\b/i.test(c) && /:|\s-p\b|--patch|\s-u\b|--stat-graph|\s-L/i.test(c);
+  const readOnly = !chained && !network && !deletes && !printsFiles && READ_ONLY.test(c) && !/--output|--ext-diff|--textconv|\s-c\s|--exec/i.test(c);
   return { blocked: false, network, deletes, readOnly };
 }
 
@@ -202,6 +216,15 @@ function createTerminal({ root, fs, run, platform = process.platform, offline = 
     return isInside(real) ? abs : null;
   }
   const inGitFolder = (abs) => rel(abs).split('/').includes('.git');
+  // the real name of an existing file (Windows: the long name of "ENV~1", the target of a link)
+  const realName = (abs) => {
+    try {
+      const real = (fs.realpathSync.native || fs.realpathSync)(abs);
+      return p.basename(real);
+    } catch (e) {
+      return '';
+    }
+  };
 
   function listing(abs, max = 200) {
     const entries = fs.readdirSync(abs, { withFileTypes: true })
@@ -250,7 +273,7 @@ function createTerminal({ root, fs, run, platform = process.platform, offline = 
         const abs = resolve(a.path);
         if (!abs) return { note: `"${String(a.path).slice(0, 80)}" is outside the project folder. Use paths inside it.` };
         const r = rel(abs);
-        if (isSecretFile(r)) return { history: `read_file ${r}: NOT allowed, it may hold secrets; do not try again`, step: { action: 'secret', detail: r }, note: `${r} may hold secrets (passwords, keys), so StarkLLM does not read it. Ask the user if you need something from it.` };
+        if (isSecretFile(r) || isSecretFile(realName(abs))) return { history: `read_file ${r}: NOT allowed, it may hold secrets; do not try again`, step: { action: 'secret', detail: r }, note: `${r} may hold secrets (passwords, keys), so StarkLLM does not read it. Ask the user if you need something from it.` };
         if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) return { note: `There is no file "${r}". Use list_files to see the files.` };
         if (fs.statSync(abs).size > MAX_FILE_BYTES) return { note: `${r} is larger than 2 MB and is not read.` };
         const buf = fs.readFileSync(abs);
@@ -267,7 +290,7 @@ function createTerminal({ root, fs, run, platform = process.platform, offline = 
         const abs = resolve(a.path);
         if (!abs) return { note: `"${String(a.path).slice(0, 80)}" is outside the project folder. Change files inside it only.` };
         const r = rel(abs);
-        if (isSecretFile(r) || inGitFolder(abs)) return { step: { action: 'secret', detail: r }, note: `StarkLLM does not change ${r} (secrets or the .git folder). Ask the user to do it.` };
+        if (isSecretFile(r) || isSecretFile(realName(abs)) || inGitFolder(abs)) return { step: { action: 'secret', detail: r }, note: `StarkLLM does not change ${r} (secrets or the .git folder). Ask the user to do it.` };
         const exists = fs.existsSync(abs);
         if (exists && !fs.statSync(abs).isFile()) return { note: `${r} is a folder, not a file.` };
         let before = exists ? fs.readFileSync(abs, 'utf8') : '';
@@ -307,7 +330,7 @@ function createTerminal({ root, fs, run, platform = process.platform, offline = 
         }
         if (!c.readOnly && !(allowedCommands.has(command) && !c.deletes)) {
           const res = refusedCommands.has(command) ? { ok: false, again: true }
-            : await ask({ type: 'command', text: command, extra: { network: c.network, deletes: c.deletes, folder: folderName } });
+            : await ask({ type: 'command', text: command, extra: { network: c.network, deletes: c.deletes, folder: folderName, offline: offline() } });
           if (signal && signal.stopped) return {};
           if (!res || !res.ok) {
             refusedCommands.add(command);

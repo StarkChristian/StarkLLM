@@ -81,7 +81,7 @@ contextBridge.exposeInMainWorld('starkllmDesktop', {
     }),
     // the terminal: the project folder (chosen in the folder dialog), and undoing the file changes of the last task
     chooseFolder: () => ipcRenderer.invoke('webtask:choose-folder'),
-    undo: () => ipcRenderer.invoke('webtask:undo'),
+    undo: (taskId) => ipcRenderer.invoke('webtask:undo', String(taskId || '')),
     reply: (qid, answer) => ipcRenderer.invoke('webtask:reply', String(qid || ''), {
       ok: Boolean(answer && answer.ok), text: String((answer && answer.text) || ''), remember: Boolean(answer && answer.remember),
     }),

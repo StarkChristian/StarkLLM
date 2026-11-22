@@ -3,6 +3,7 @@ import { Plus, Play, Square, Trash2, AlertTriangle } from 'lucide-react';
 import styles from './Settings.module.css';
 import { t } from '../i18n';
 import { mcpBridge } from '../utils/mcpBridge';
+import { webTaskErrorText } from '../utils/webTaskText';
 
 // Tool servers of the user (docs/roadmap-2026-12.md, R6): MCP servers on this PC that StarkLLM's model may use.
 // Every tool is off until it is turned on here, and every call waits for a yes in the chat.
@@ -20,7 +21,7 @@ export default function McpServers() {
 
   const after = (r) => {
     if (r && r.servers) setServers(r.servers);
-    if (r && r.error) setError(r.message || r.error);
+    if (r && r.error) setError(webTaskErrorText(r.message || r.error));
     else setError('');
   };
   const add = async () => {
@@ -61,7 +62,7 @@ export default function McpServers() {
               <button type="button" className="btn-secondary" onClick={async () => { if (window.confirm(t('Remove the tool server “{name}”?', { name: s.name }))) after(await bridge.remove(s.id)); }}><Trash2 size={14} /> {t('Remove')}</button>
             </div>
           </div>
-          {s.error && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', margin: '0.4rem 0 0' }}>{s.error}</p>}
+          {s.error && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', margin: '0.4rem 0 0' }}>{webTaskErrorText(s.error)}</p>}
           {s.running && (s.tools.length === 0
             ? <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{t('This server offers no tools.')}</p>
             : (

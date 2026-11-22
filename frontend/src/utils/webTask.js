@@ -11,7 +11,7 @@ export function reduceWebTask(state, e) {
   if (!e || !e.type) return state;
   switch (e.type) {
     case 'started':
-      return { ...state, status: 'running', folder: e.folder || state.folder || '' };
+      return { ...state, status: 'running', folder: e.folder || state.folder || '', ...(e.taskId ? { taskId: e.taskId } : {}) };
     case 'step':
       return {
         ...state,

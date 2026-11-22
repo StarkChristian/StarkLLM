@@ -1,0 +1,645 @@
+.container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  /* Do NOT set height: 100vh here — the parent flex column
+     already stretches us to fill available space. Setting 100vh
+     creates a second full-height context that makes overflow-y
+     scroll against the viewport instead of the flex box. */
+  min-height: 0;   /* allow flex child to shrink below its content height */
+  position: relative;
+  background-color: var(--bg-primary);
+  background-image: var(--bg-pattern);
+  background-size: var(--bg-pattern-size);
+}
+
+.messages {
+  flex: 1;
+  min-height: 0;   /* critical: lets flex child honour overflow-y */
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  padding: 24px 20px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.messageWrapper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  width: 100%;
+  max-width: 850px;
+}
+
+.messageWrapper.user {
+  flex-direction: row-reverse;
+}
+
+.messageWrapper.system {
+  justify-content: center;
+}
+
+.metaRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding-left: 52px;
+}
+
+.messageWrapper.user .metaRow {
+  justify-content: flex-end;
+  padding-left: 0;
+  padding-right: 52px;
+}
+
+.timestamp {
+  font-size: 0.7rem;
+  color: var(--text-muted, rgba(255,255,255,0.3));
+}
+
+.speedBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  border-radius: 999px;
+  color: #38bdf8;
+  font-size: 0.68rem;
+  font-family: var(--font-mono, monospace);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  user-select: none;
+  animation: fadeIn 0.25s ease-out;
+}
+
+.speedZap {
+  color: #f59e0b;
+}
+
+.speedDot {
+  opacity: 0.4;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: var(--bg-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid var(--border-color);
+}
+
+.assistantAvatar {
+  background-color: var(--accent-color);
+  border: none;
+}
+
+.content {
+  background: var(--bg-tertiary);
+  padding: 16px 20px;
+  border-radius: var(--radius-xl) var(--radius-xl) var(--radius-xl) 4px;
+  max-width: 85%;
+  line-height: 1.9;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+  font-size: 1.2rem;
+  position: relative;
+}
+
+.user .content {
+  background: var(--grad-card);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl) var(--radius-xl) 4px var(--radius-xl);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+
+.content p {
+  margin-top: 0;
+}
+.content p:last-child {
+  margin-bottom: 0;
+}
+
+/* ── Message Actions (TTS & Copy) ── */
+.messageActions {
+  position: absolute;
+  top: -12px;
+  right: -10px;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.messageWrapper:hover .messageActions {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.actionBtn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.actionBtn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.actionBtn:hover.playing {
+  color: var(--accent-bright) !important;
+  background: rgba(99, 102, 241, 0.1) !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
+}
+
+/* Chat Error Box */
+.chatErrorBox {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(239, 68, 68, 0.04);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-top: 12px;
+  color: #ef4444;
+  font-size: 0.9rem;
+}
+
+.chatErrorIcon {
+  flex-shrink: 0;
+}
+
+.chatRetryBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.chatRetryBtn:hover {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+.actionBtn.playing, .actionBtn.success {
+  color: var(--accent-color);
+  border-color: var(--accent-color);
+}
+
+.sourcesContainer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 10px;
+}
+
+.sourceGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--bg-tertiary);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  max-width: 100%;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  transition: all 0.2s ease;
+  font-family: inherit;
+  text-align: start;
+}
+
+button.sourceGroup {
+  cursor: pointer;
+}
+
+.sourceGroup:hover,
+button.sourceGroup:focus-visible {
+  background-color: var(--bg-active);
+  border-color: var(--accent-bright);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+}
+
+.sourceIcon {
+  color: var(--accent-bright);
+  flex-shrink: 0;
+}
+
+.webSourceLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: rgba(16, 185, 129, 0.06);
+  border: 1px solid rgba(16, 185, 129, 0.18);
+  color: #10b981;
+  font-size: 0.74rem;
+  padding: 4px 10px;
+  border-radius: 6px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  max-width: 260px;
+  overflow: hidden;
+}
+
+.webSourceLink:hover {
+  background-color: rgba(16, 185, 129, 0.14);
+  border-color: rgba(16, 185, 129, 0.35);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.15);
+}
+
+.webSourceTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+}
+
+.webSourceDomain {
+  font-size: 0.65rem;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+
+/* ── RTL & BiDi Support ── */
+.rtl {
+  direction: rtl;
+  text-align: right;
+  unicode-bidi: plaintext;
+}
+
+/* Ensure code blocks and inline code remain LTR and left-aligned */
+.rtl pre,
+.rtl code {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: embed;
+}
+
+.rtl pre {
+  display: block;
+}
+
+/* Move message actions to the left side in RTL message bubbles */
+.rtl .messageActions {
+  right: auto;
+  left: -10px;
+}
+
+/* ── Thinking Animation ── */
+.thinking {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  background-color: var(--text-secondary);
+  border-radius: 50%;
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.dot:nth-child(1) { animation-delay: -0.32s; }
+.dot:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
+}
+
+/* ── Centered Welcome Branding Area ── */
+.welcomeContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  text-align: center;
+  padding: 40px;
+  gap: 16px;
+  margin: auto;
+  animation: fadeIn 0.4s ease;
+}
+
+.welcomeLogo {
+  width: 140px;
+  height: auto;
+  object-fit: contain;
+  opacity: 0.9;
+  filter: drop-shadow(0 0 32px var(--accent-glow));
+}
+
+.welcomeTitle {
+  font-size: 2.8rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  background: linear-gradient(90deg, var(--text-primary) 0%, var(--accent-bright) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.welcomeSubtitle {
+  font-size: 1.15rem;
+  color: var(--text-secondary);
+  max-width: 460px;
+  line-height: 1.6;
+}
+
+.suggestionsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(260px, 320px));
+  gap: 12px;
+  margin-top: 24px;
+  max-width: 660px;
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .suggestionsGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.suggestionCard {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  backdrop-filter: blur(8px);
+  font: inherit;
+  color: inherit;
+  text-align: start;
+}
+
+.suggestionCard:hover,
+.suggestionCard:focus-visible {
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.35);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+.suggestionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.suggestionIcon {
+  color: var(--accent-bright);
+  flex-shrink: 0;
+}
+
+.suggestionDesc {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* ── Edit Message UI ── */
+.editContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.editInput {
+  width: 100%;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  font-family: inherit;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  min-height: 80px;
+}
+
+.editInput:focus {
+  border-color: var(--accent-color);
+}
+
+.editActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.editCancelBtn, .editSaveBtn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.editCancelBtn {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.editCancelBtn:hover {
+  background: var(--border-color);
+  color: var(--text-primary);
+}
+
+.editSaveBtn {
+  background: var(--accent-color);
+  color: white;
+}
+
+.editSaveBtn:hover {
+  background: var(--accent-hover);
+}
+
+/* ── Export Floating Button ── */
+.exportFloating {
+  position: absolute;
+  top: 16px;
+  right: 24px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.exportBtn {
+  background: var(--glass-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+}
+
+.exportBtn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--accent-color);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.exportMenu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background: rgba(10, 13, 20, 0.85);
+  backdrop-filter: blur(20px) saturate(1.5);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  min-width: 180px;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.exportMenu button {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 8px 12px;
+  text-align: left;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  font-size: 0.85rem;
+}
+
+.exportMenu button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.welcomeNotice {
+  margin: 0 0 12px;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  background: var(--bg-active);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+/* Warnings from StarkLLM's own checks on the documents (fake letters, different bank accounts) */
+.docWarning {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.10);
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+.docWarning p { margin: 0; }
+.docWarning p + p { margin-top: 6px; }
+.docWarningIcon { color: var(--danger, #ef4444); flex-shrink: 0; margin-top: 2px; }
+.docNotice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(234, 179, 8, 0.45);
+  background: rgba(234, 179, 8, 0.10);
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+.docNotice p { margin: 0; }
+.docNotice p + p { margin-top: 6px; }
+.docNoticeIcon { color: var(--warning, #eab308); flex-shrink: 0; margin-top: 2px; }
+
+/* "Save this answer as Word or PDF" (docs/roadmap-2026-12.md, R1) */
+.answerExportMenu {
+  position: absolute; bottom: 100%; inset-inline-start: 0; z-index: 20; display: flex; flex-direction: column; min-width: 190px;
+  background: var(--bg-secondary, #1e1e2e); border: 1px solid var(--border-color, rgba(127,127,127,0.3)); border-radius: 8px; padding: 4px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+}
+.answerExportMenu button {
+  background: none; border: none; color: var(--text-primary, inherit); text-align: start; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 0.9em;
+}
+.answerExportMenu button:hover { background: var(--bg-hover, rgba(127,127,127,0.15)); }
+/* an image in the question (docs/roadmap-2026-12.md, R2) */
+.questionImage { display: block; max-width: min(320px, 100%); max-height: 240px; border-radius: 8px; margin-bottom: 8px; object-fit: contain; }
+.imageModel { font-size: 0.8em; color: var(--text-secondary, inherit); margin-bottom: 6px; }
+
+/* two models side by side (docs/roadmap-2026-12.md, R4) */
+.compareBox { margin-top: 12px; padding: 10px 12px; border-radius: 10px; border: 1px dashed var(--accent-color, #6d5dfc); background: var(--bg-secondary, rgba(127,127,127,0.05)); }
+.compareHead { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 0.9em; margin-bottom: 6px; color: var(--text-secondary, inherit); }
+.compareHead strong { color: var(--text-primary, inherit); }
+.compareButtons { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 8px; }
+.compareButtons button { padding: 5px 10px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border-color, #888); background: transparent; color: inherit; font-size: 0.9em; }
+.compareButtons .comparePrimary { background: var(--accent-color, #6d5dfc); color: #fff; border: none; }
+.compareNote { font-size: 0.8em; color: var(--text-secondary, inherit); margin-top: 4px; }

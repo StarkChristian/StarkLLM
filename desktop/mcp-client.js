@@ -55,7 +55,13 @@ function localUrl(u) {
 // ── stdio: a program StarkLLM starts ──
 class StdioConnection {
   constructor({ command, args = [], cwd, env, spawnFn = spawn }) {
-    this.child = spawnFn(command, args, { cwd: cwd || undefined, env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+    const viaShell = process.platform === 'win32' && !/\.(exe|com)$/i.test(command);
+    // Windows: "npx", "uvx" and other launchers are .cmd files, which only the command shell runs; arguments are quoted
+    const quote = (a) => (/[\s"&|<>^()]/.test(a) ? `"${String(a).replace(/"/g, '""')}"` : a);
+    this.child = viaShell
+      ? spawnFn([command, ...args].map(quote).join(' '), [], { cwd: cwd || undefined, env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, shell: true })
+      : spawnFn(command, args, { cwd: cwd || undefined, env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+    this.child.stdin.on('error', () => {}); // the server ended: the pending calls fail with its exit message
     this.pending = new Map();
     this.nextId = 1;
     this.buffer = '';
@@ -114,7 +120,12 @@ class StdioConnection {
 
   close() {
     this.closed = true;
-    try { this.child.kill(); } catch (e) { /* gone */ }
+    if (process.platform === 'win32' && this.child.pid) {
+      // the server with every program it started (a .cmd launcher starts node, which starts the server)
+      require('child_process').execFile('taskkill', ['/pid', String(this.child.pid), '/T', '/F'], { windowsHide: true }, () => {});
+    } else {
+      try { this.child.kill(); } catch (e) { /* gone */ }
+    }
   }
 }
 

@@ -731,12 +731,14 @@ async def image_question(
     )
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace not found")
+    from starlette.concurrency import run_in_threadpool
     data = await image.read(iq.MAX_BYTES + 1)
     try:
-        image_b64, _info = iq.prepare_image(data)
+        image_b64, _info = await run_in_threadpool(iq.prepare_image, data)
     except iq.ImageError as e:
         raise HTTPException(status_code=400, detail={"code": e.code, "message": str(e)})
-    chosen = iq.choose_model((model or "").strip() or None, llm_service.get_available_models(), _ollama_show)
+    installed = await run_in_threadpool(llm_service.get_available_models)
+    chosen = await run_in_threadpool(iq.choose_model, (model or "").strip() or None, installed, _ollama_show)
     if not chosen:
         raise HTTPException(status_code=409, detail={"code": "no-vision-model", "suggest": iq.SUGGESTED_MODEL})
     if chat_id:
@@ -782,6 +784,8 @@ async def image_question(
 
 class KeepAnswerRequest(BaseModel):
     content: str = Field(..., min_length=1, max_length=400000)
+    # the question the compared answers belong to: only the answer to it is replaced (not a newer one)
+    question: str = Field(..., min_length=1, max_length=100_000)
 
 
 @router.post("/session/{chat_id}/keep-answer")
@@ -809,6 +813,15 @@ def keep_compared_answer(
     )
     if not last or last.role != "assistant":
         raise HTTPException(status_code=409, detail="The newest message of the chat is not an answer")
+    asked = (
+        db.query(models.Message)
+        .filter(models.Message.chat_id == chat_id, models.Message.role == "user",
+                models.Message.created_at <= last.created_at, models.Message.id < last.id)
+        .order_by(models.Message.created_at.desc(), models.Message.id.desc())
+        .first()
+    )
+    if not asked or asked.content != req.question:
+        raise HTTPException(status_code=409, detail="The compared answer belongs to an earlier question")
     last.content = req.content
     db.commit()
     return {"ok": True, "message_id": last.id}
@@ -1383,9 +1396,10 @@ GENERAL CONVERSATION MODE
             tools_str = "\n".join(tool_descs)
             mcp_section = f"""
 ═══════════════════════════════════════
-LOCAL MCP TOOLS (READ-ONLY)
+LOCAL TOOLS (MCP; EACH CALL WAITS FOR THE USER'S YES)
 ═══════════════════════════════════════
-You have access to the following local Model Context Protocol (MCP) tools:
+You have access to the following local Model Context Protocol (MCP) tools. The built-in ones only read; tools named
+ext__... belong to programs the user added and may change things, so use them only for what the user asked:
 {tools_str}
 
 If you need to list workspace files, search the Knowledge Base, or inspect a specific cited document chunk that was not provided above, output a tool call block EXACTLY in this format:

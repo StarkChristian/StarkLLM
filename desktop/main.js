@@ -186,7 +186,7 @@ function createMainWindow() {
     }
   });
   // a scheduled web task runs in a hidden window: it ends with the main window, so StarkLLM does not stay open unseen
-  mainWindow.on('closed', () => webtask.stopForOffline());
+  mainWindow.on('closed', () => webtask.shutdown());
 
   // Load splash screen first
   splashShownAt = Date.now();
