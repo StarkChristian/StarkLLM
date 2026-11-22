@@ -197,7 +197,7 @@ function pageMessage(snap, { terminal = null, browserOn = true } = {}) {
 
 // One user message per step (system + task + history + page): small local models follow this better than a long
 // chat of tool calls, and the prompt stays the same size from step 1 to step 30.
-function buildMessages({ task, language, history, snap, note, extraText, previous, terminal = null, browserOn = true, toolOutput = '', overview = '' }) {
+function buildMessages({ task, language, history, snap, note, extraText, previous, terminal = null, browserOn = true, toolOutput = '', overview = '', lastFile = '' }) {
   const parts = [];
   // a follow-up ("now the 14th too"): the task before it and its answer, in the same window
   if (previous && previous.task) {
@@ -212,6 +212,8 @@ function buildMessages({ task, language, history, snap, note, extraText, previou
   if (note) parts.push('', `Note: ${note}`);
   if (terminal) {
     parts.push('', `Project folder "${terminal.folderName}" (paths are relative to it). At the start of the task it had:`, overview || '(nothing)');
+    const files = terminal.memory ? terminal.memory(16000, lastFile) : '';
+    if (files) parts.push('', 'Files you looked at or changed in this task (as they are now):', '<untrusted_files>', files, '</untrusted_files>');
     if (toolOutput) parts.push('', 'Result of your last step:', '<untrusted_tool_output>', toolOutput, '</untrusted_tool_output>');
   }
   parts.push('', terminal ? 'Browser:' : 'Current page:', pageMessage(snap, { terminal, browserOn }));
@@ -275,6 +277,7 @@ async function runTask({ task, language = 'English', browser, llm, ask, emit = (
   const tools = toolsFor({ browserOn, terminal });
   const overview = terminal ? terminal.overview() : '';
   let toolOutput = '';
+  let lastFile = ''; // the file read in the last step is in its result, not twice in the prompt
   let lastWasBrowser = false;
   let started = now();
   // site rules: decided once per site and task. siteRule(host) -> 'allow' | 'block' | '' (the user's own list)
@@ -367,11 +370,12 @@ async function runTask({ task, language = 'English', browser, llm, ask, emit = (
       if (!res || !res.ok) return finishWith('error', 'The site asked to check that a person is there (CAPTCHA). StarkLLM does not answer such checks; the user did not either.');
       continue;
     }
-    const reply = await llm(buildMessages({ task, language, history, snap, note, extraText, previous, terminal, browserOn, toolOutput, overview }), tools);
+    const reply = await llm(buildMessages({ task, language, history, snap, note, extraText, previous, terminal, browserOn, toolOutput, overview, lastFile }), tools);
     if (signal.stopped) return finishWith('stopped');
     note = '';
     extraText = '';
     toolOutput = '';
+    lastFile = '';
     const call = parseCall(reply);
     if (!call || !call.name) {
       if (++invalid >= 3) return finishWith('error', 'The AI model did not choose a step three times in a row.');
@@ -408,8 +412,12 @@ async function runTask({ task, language = 'English', browser, llm, ask, emit = (
         if (r.refused) {
           if (++refusals >= 3) return finishWith('error', 'The AI model kept trying steps the user did not allow, and was stopped.');
         }
-        if (r.step && !r.again) step(n, r.step.action, short(r.step.detail, 160), r.step.extra ? { extra: r.step.extra } : {});
+        if (r.step && !r.again) {
+          step(n, r.step.action, short(r.step.detail, 160), r.step.extra ? { extra: r.step.extra } : {});
+          if (r.history) history[history.length - 1] = short(r.history, 200);
+        }
         if (r.output) toolOutput = r.output;
+        if (call.name === 'read_file' && r.output) lastFile = r.step.detail;
         if (r.note) note = r.note;
       } catch (e) {
         note = `That did not work: ${short(e && e.message, 160)}. Try something else.`;

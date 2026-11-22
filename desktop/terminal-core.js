@@ -179,6 +179,10 @@ function createTerminal({ root, fs, run, platform = process.platform, offline = 
   const refusedCommands = new Set();
   let editsAllowed = false;
   const state = { version: 0 };
+  // the files the model looked at or changed in this task, newest first: shown again in every step as they are now,
+  // so a small model does not have to remember a file it read three steps ago
+  let seen = [];
+  const look = (r) => { seen = [r, ...seen.filter((x) => x !== r)].slice(0, 8); };
 
   const rel = (abs) => p.relative(realRoot, abs).split(p.sep).join('/') || '.';
   const isInside = (abs) => {
@@ -246,7 +250,7 @@ function createTerminal({ root, fs, run, platform = process.platform, offline = 
         const abs = resolve(a.path);
         if (!abs) return { note: `"${String(a.path).slice(0, 80)}" is outside the project folder. Use paths inside it.` };
         const r = rel(abs);
-        if (isSecretFile(r)) return { step: { action: 'secret', detail: r }, note: `${r} may hold secrets (passwords, keys), so StarkLLM does not read it. Ask the user if you need something from it.` };
+        if (isSecretFile(r)) return { history: `read_file ${r}: NOT allowed, it may hold secrets; do not try again`, step: { action: 'secret', detail: r }, note: `${r} may hold secrets (passwords, keys), so StarkLLM does not read it. Ask the user if you need something from it.` };
         if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) return { note: `There is no file "${r}". Use list_files to see the files.` };
         if (fs.statSync(abs).size > MAX_FILE_BYTES) return { note: `${r} is larger than 2 MB and is not read.` };
         const buf = fs.readFileSync(abs);
@@ -255,6 +259,7 @@ function createTerminal({ root, fs, run, platform = process.platform, offline = 
         const from = Math.max(1, Math.min(Number(a.start_line) || 1, lines.length));
         const to = Math.min(lines.length, from + MAX_READ_LINES - 1);
         const more = to < lines.length ? `\n(The file goes on: read_file with start_line ${to + 1} for more.)` : '';
+        look(r);
         return { step: { action: 'readfile', detail: r }, output: `File ${r}, lines ${from}–${to} of ${lines.length}:\n${clip(redact(lines.slice(from - 1, to).join('\n')))}${more}` };
       }
       case 'edit_file':
@@ -288,6 +293,7 @@ function createTerminal({ root, fs, run, platform = process.platform, offline = 
         if (signal && signal.stopped) return {};
         if (!ok) return refusedEdit(r);
         before = null;
+        look(r);
         return { step: { action: exists ? 'edit' : 'create', detail: r, extra: { diff } }, output: `${exists ? 'Changed' : 'Created'} ${r}.` };
       }
       case 'run_command': {
@@ -315,7 +321,7 @@ function createTerminal({ root, fs, run, platform = process.platform, offline = 
         const head = r.timedOut ? `The command was stopped after ${commandSeconds} seconds.` : `Exit code ${r.code}.`;
         const shown = redact(r.output || '');
         const output = clip(shown || '(no output)');
-        return { step: { action: 'command', detail: command, extra: { code: r.code, timedOut: Boolean(r.timedOut), output: clip(shown, 3000) } },
+        return { history: `run_command: ${command} -> ${r.timedOut ? 'stopped after the time limit' : 'exit code ' + r.code}`, step: { action: 'command', detail: command, extra: { code: r.code, timedOut: Boolean(r.timedOut), output: clip(shown, 3000) } },
           output: `Command: ${command}\n${head}\n${output}` };
       }
       default:
@@ -338,8 +344,31 @@ function createTerminal({ root, fs, run, platform = process.platform, offline = 
     return done;
   }
 
+  // "Files you looked at": each as it is now (whole files up to a size, newest first), at most maxChars together
+  function memory(maxChars = 16000, skip = '') {
+    const parts = [];
+    let used = 0;
+    for (const r of seen) {
+      if (r === skip) continue;
+      const abs = p.join(realRoot, ...r.split('/'));
+      let text;
+      try {
+        if (!fs.existsSync(abs) || fs.statSync(abs).size > MAX_FILE_BYTES) continue;
+        text = redact(fs.readFileSync(abs, 'utf8'));
+      } catch (e) { continue; }
+      const lines = text.split(/\r?\n/).length;
+      const room = Math.min(7000, maxChars - used);
+      if (room < 400) break;
+      const body = text.length > room ? text.slice(0, room) + `\n… (more: read_file ${r} with a start_line)` : text;
+      parts.push(`--- ${r} (${lines} lines, as it is now) ---\n${body}`);
+      used += body.length;
+    }
+    return parts.join('\n');
+  }
+
   return {
     tools: TERMINAL_TOOLS,
+    memory,
     has: (name) => TERMINAL_TOOL_NAMES.has(name),
     folderName,
     shell: platform === 'win32' ? 'Windows PowerShell' : 'bash',
