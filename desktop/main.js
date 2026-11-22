@@ -519,6 +519,8 @@ function phone() {
       dir: path.join(app.getPath('userData'), 'phone'),
       guard,
       getApi: () => ({ url: apiUrl(), token: localToken }),
+      // tests of phones away from home in the home network: only connections through the relay (127.0.0.1) are taken
+      ...(process.env.STARKLLM_PHONE_RELAY_ONLY === '1' ? { remoteAllowed: (address) => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(String(address)) } : {}),
       refreshToken: fetchLocalSession,
       sessionFor: (user) => phoneSessions.get(user) || null,
       sessionExpired: (user) => phoneSessions.delete(user),
