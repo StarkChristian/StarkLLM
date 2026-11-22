@@ -1,5 +1,20 @@
 # StarkLLM Release Notes
 
+## Version 2.5.0 — StarkLLM does tasks for you, on the web and in your files
+
+- **Web tasks.** "Web task" in the chat: StarkLLM opens its own browser window and does the task on websites, for example finding the cheapest flight on a day. You see every step. It asks before anything that buys, books, pays, sends or deletes. Sign-ins, payments and "are you a robot" checks are always yours. "Take over" lets you work in the window and hand it back. Bank, health and government sites are only opened after your yes, adult sites never. The page can be saved to the workspace, the task saved for later or **repeated daily or weekly** (it then only looks, and a notification shows when the answer changed).
+- **Terminal: help with code.** Choose a project folder with "Terminal": StarkLLM reads and changes files there and runs commands (PowerShell), each change shown first and each command only after your yes. It never leaves the folder, never reads keys or .env files, refuses commands that change Windows or its security, and "Undo the file changes" puts the files back.
+- **Ask about an image.** Paste a screenshot or choose a photo: a vision model on this PC answers. The image is made smaller, its hidden data (place, camera) is removed, and it is not stored.
+- **Recordings as documents.** Meetings, lectures and voice memos (mp3, m4a, wav, the sound of videos ...) are written down on this PC with times, then you ask about them like about any document.
+- **Two models side by side.** "Compare models" asks a second local model the same question; you keep the better answer.
+- **Word and PDF.** A whole chat or a single answer as a Word document or a PDF, with its sources.
+- **Your own tool servers (MCP).** Settings › Tools: add MCP servers that run on this PC. Every tool is off until you turn it on, every call waits for your yes.
+- **Also in this version** (prepared as 2.4.0, not released on its own): the Android phone joins in (preview), see below.
+
+Web tasks and the terminal work best with a local model of 14B or more (for example qwen3:14b); small 7B models stop safely but finish few tasks.
+
+**From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install".
+
 ## Version 2.4.0 — Your phone joins in (preview)
 
 - **Your Android phone (preview).** Settings → Phone pairs the StarkLLM app for Android with this PC through a QR code. From the phone you ask about your documents, send photos of letters, see your deadlines and mark them done. The documents and the AI model stay on this PC: the phone connects over your home network only, encrypted with a certificate it checks, and only after you paired it. Off by default; per phone you choose what it may do (ask only; also send documents; also start a backup or switch fully offline). A question from the phone never goes online: no web search and no cloud models. "Fully offline" closes the link. The Android app is in a closed test on Google Play: www.starkllm.com/android.
