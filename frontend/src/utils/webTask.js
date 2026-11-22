@@ -1,7 +1,11 @@
 // Web tasks (docs/web-tasks.md): what the chat shows of a task, from the events of the desktop app (webtask.js).
 // A pure function, so it can be tested without the app: reduce(state, event) -> new state.
 
-export const initialWebTask = () => ({ status: 'starting', steps: [], ask: null, answer: '', url: '', title: '', error: '' });
+export const initialWebTask = (task = '') => ({ status: 'starting', task, steps: [], ask: null, answer: '', url: '', title: '', error: '' });
+
+// Saved web tasks are prompt templates with this tag (Templates in the chat); choosing one turns "Web task" on.
+export const WEB_TASK_TAG = 'web-task';
+export const isWebTaskTemplate = (template) => Boolean(template && String(template.tags || '').split(/[,\s]+/).includes(WEB_TASK_TAG));
 
 export function reduceWebTask(state, e) {
   if (!e || !e.type) return state;

@@ -48,3 +48,12 @@ test('a follow-up uses the newest answer only when it is a finished web task', a
   assert.equal(previousWebTask([{ role: 'user', content: 'x' }, { ...done, webTask: { status: 'error' } }]), null);
   assert.equal(previousWebTask([]), null);
 });
+
+test('saved web tasks are templates with the tag web-task', async () => {
+  const { isWebTaskTemplate, initialWebTask } = await import('../src/utils/webTask.js');
+  assert.equal(isWebTaskTemplate({ tags: 'web-task' }), true);
+  assert.equal(isWebTaskTemplate({ tags: 'travel, web-task' }), true);
+  assert.equal(isWebTaskTemplate({ tags: 'web' }), false);
+  assert.equal(isWebTaskTemplate(null), false);
+  assert.equal(initialWebTask('find a flight').task, 'find a flight');
+});

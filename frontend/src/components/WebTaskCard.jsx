@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Compass, Loader, CheckCircle, AlertTriangle, Square, ExternalLink, ShieldAlert, Hand, Pause, Play, FilePlus } from 'lucide-react';
+import { Compass, Loader, CheckCircle, AlertTriangle, Square, ExternalLink, ShieldAlert, Hand, Pause, Play, FilePlus, Bookmark } from 'lucide-react';
 import styles from './WebTaskCard.module.css';
 import { t } from '../i18n';
 
@@ -99,9 +99,15 @@ function AskBox({ ask, onReply }) {
   );
 }
 
-export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onResume, onSavePage }) {
+export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onResume, onSavePage, onSaveTask }) {
   const running = task.status === 'starting' || task.status === 'running';
   const [saved, setSaved] = useState('');
+  const [taskSaved, setTaskSaved] = useState('');
+  const saveTask = async () => {
+    setTaskSaved('saving');
+    const ok = await onSaveTask(task.task);
+    setTaskSaved(ok ? 'saved' : 'failed');
+  };
   const save = async () => {
     setSaved('saving');
     const ok = await onSavePage();
@@ -158,6 +164,15 @@ export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onRe
           </button>
           {saved === 'saved' && <span className={styles.hint}>{t('Saved. You can ask about it like about your other documents.')}</span>}
           {saved === 'failed' && <span className={styles.error}>{t('The page could not be saved.')}</span>}
+        </div>
+      )}
+      {task.status === 'done' && onSaveTask && task.task && (
+        <div className={styles.saveRow}>
+          <button type="button" className={styles.secondary} onClick={saveTask} disabled={taskSaved === 'saving' || taskSaved === 'saved'}>
+            <Bookmark size={14} /> {t('Save as a reusable web task')}
+          </button>
+          {taskSaved === 'saved' && <span className={styles.hint}>{t('Saved under Templates. Choose it there to run the task again; parts in {{double braces}} become fields to fill in.')}</span>}
+          {taskSaved === 'failed' && <span className={styles.error}>{t('The task could not be saved.')}</span>}
         </div>
       )}
       {task.status === 'error' && (

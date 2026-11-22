@@ -6,6 +6,7 @@ import { useToast } from './Toast';
 import { UPLOAD_ACCEPT } from '../utils/uploadTypes';
 import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
+import { isWebTaskTemplate } from '../utils/webTask';
 
 export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleKb, useWebSearch, onToggleWebSearch, webTaskAvailable, useWebTask, onToggleWebTask, offline, cloudHost, onOpenSettings, isGenerating, onStopGeneration, token, activeWorkspace, onOpenKbSettings }) {
   const toast = useToast();
@@ -135,8 +136,10 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
     }
   };
 
-  const handleInsertTemplate = (templateContent) => {
+  const handleInsertTemplate = (templateContent, template) => {
     setText(prev => prev ? prev + '\n' + templateContent : templateContent);
+    // a saved web task: the message is a task for StarkLLM's browser window again
+    if (isWebTaskTemplate(template) && webTaskAvailable && !useWebTask && !offline) onToggleWebTask();
   };
 
   return (

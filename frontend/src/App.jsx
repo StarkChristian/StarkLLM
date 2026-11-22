@@ -27,7 +27,7 @@ import { currentCloudHost } from './utils/cloud';
 import { isUploadable } from './utils/uploadTypes';
 import { serverDate } from './utils/time';
 import { t, language } from './i18n';
-import { initialWebTask, reduceWebTask, answered as webTaskAnswered, webTaskBridge, previousWebTask } from './utils/webTask';
+import { initialWebTask, reduceWebTask, answered as webTaskAnswered, webTaskBridge, previousWebTask, WEB_TASK_TAG } from './utils/webTask';
 
 const NO_ANSWER_TEXT = '*[The model returned no answer. Try again, raise the token limit, or choose another model.]*';
 
@@ -577,11 +577,26 @@ export default function App() {
     }
   };
 
+  // "Save as a reusable web task": a template with the tag web-task (Templates in the chat), kept by the engine
+  const handleSaveWebTaskTemplate = async (task) => {
+    try {
+      const res = await fetch('/api/v1/prompts', {
+        method: 'POST',
+        headers: getHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ title: String(task).replace(/\s+/g, ' ').trim().slice(0, 60), content: task, tags: WEB_TASK_TAG }),
+      });
+      return res.ok;
+    } catch (e) {
+      console.error('Saving the web task failed:', e);
+      return false;
+    }
+  };
+
   const handleWebTask = async (text) => {
     const bridge = webTaskBridge();
     const messagesBefore = messages;
     setMessages(prev => [...prev, { role: 'user', content: text, timestamp: new Date() },
-      { role: 'assistant', content: '', timestamp: new Date(), webTask: initialWebTask() }]);
+      { role: 'assistant', content: '', timestamp: new Date(), webTask: initialWebTask(text) }]);
     const fail = (message) => {
       updateWebTask(w => ({ ...w, status: 'error', error: message }));
       setMessages(prev => {
@@ -1345,6 +1360,7 @@ export default function App() {
                 onPause: () => webTaskBridge().pause(),
                 onResume: () => webTaskBridge().resume(),
                 onSavePage: handleSaveWebTaskPage,
+                onSaveTask: handleSaveWebTaskTemplate,
               } : null}
             />
             <InputBar 

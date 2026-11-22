@@ -1275,5 +1275,8 @@
   "StarkLLM waits. Do what you like in its browser window, then hand it back: StarkLLM looks at the page again and goes on.": "StarkLLM aspetta. Fai quello che vuoi nella sua finestra del browser, poi restituiscigliela: StarkLLM guarda di nuovo la pagina e continua.",
   "Save this page to the workspace": "Salva questa pagina nello spazio di lavoro",
   "Saved. You can ask about it like about your other documents.": "Salvata. Puoi farci domande come sugli altri documenti.",
-  "The page could not be saved.": "Non è stato possibile salvare la pagina."
+  "The page could not be saved.": "Non è stato possibile salvare la pagina.",
+  "Save as a reusable web task": "Salva come attività web riutilizzabile",
+  "Saved under Templates. Choose it there to run the task again; parts in {{double braces}} become fields to fill in.": "Salvata nei modelli. Sceglila lì per ripetere l’attività; le parti tra {{doppie graffe}} diventano campi da compilare.",
+  "The task could not be saved.": "Non è stato possibile salvare l’attività."
 }

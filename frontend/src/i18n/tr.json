@@ -1275,5 +1275,8 @@
   "StarkLLM waits. Do what you like in its browser window, then hand it back: StarkLLM looks at the page again and goes on.": "StarkLLM bekliyor. Tarayıcı penceresinde istediğinizi yapın, sonra geri verin: StarkLLM sayfaya yeniden bakar ve devam eder.",
   "Save this page to the workspace": "Bu sayfayı çalışma alanına kaydet",
   "Saved. You can ask about it like about your other documents.": "Kaydedildi. Diğer belgeleriniz gibi bu konuda da soru sorabilirsiniz.",
-  "The page could not be saved.": "Sayfa kaydedilemedi."
+  "The page could not be saved.": "Sayfa kaydedilemedi.",
+  "Save as a reusable web task": "Yeniden kullanılabilir web görevi olarak kaydet",
+  "Saved under Templates. Choose it there to run the task again; parts in {{double braces}} become fields to fill in.": "Şablonlar altına kaydedildi. Görevi yeniden çalıştırmak için oradan seçin; {{çift süslü parantez}} içindeki kısımlar doldurulacak alanlara dönüşür.",
+  "The task could not be saved.": "Görev kaydedilemedi."
 }
