@@ -14,6 +14,7 @@ const fs = require('fs');
 const path = require('path');
 
 const FEATURES = {
+  mcp: 'A tool server (MCP) on this PC that the user added: the tool calls the user allowed',
   update_check: 'Check for a newer StarkLLM version (GitHub)',
   update_download: 'Download of a StarkLLM update (GitHub)',
   ollama_install: 'Download of the Ollama installer the user asked for',
