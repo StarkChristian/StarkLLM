@@ -9,6 +9,8 @@ Passages are about two minutes or 1,200 characters long, each starting with its 
 in the recording something was said.
 """
 import logging
+import os
+import threading
 from typing import Dict, Iterable, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -17,6 +19,40 @@ logger = logging.getLogger(__name__)
 RECORDING_EXTENSIONS = {".mp3", ".m4a", ".aac", ".wav", ".ogg", ".oga", ".opus", ".flac", ".wma", ".webm", ".mp4", ".mov", ".mkv"}
 MAX_HOURS = 4
 MAX_BYTES = 500 * 1024 * 1024
+
+# The speech model for recordings: larger than the one for dictation (base), because a meeting is long and every
+# date and amount counts. Measured on the test meetings of 2.5.0 (22 Nov 2026, CPU int8): base heard "die Zember" and
+# "erneutende Zember" for "Dezember" / "am 9. Dezember"; large-v3-turbo wrote both meetings without an error, at about
+# 0.6 x the recording time on a 16-core CPU. Downloaded once (about 1.6 GB) at the first recording, refused while
+# fully offline: then the dictation model writes the recording down. STARKLLM_RECORDING_MODEL=base keeps the small one.
+RECORDING_MODEL = os.environ.get("STARKLLM_RECORDING_MODEL", "large-v3-turbo")
+_load_lock = threading.Lock()
+
+
+def _recording_model():
+    """(model, name) of the large speech model, or (None, "") when it cannot be had (offline, no space)."""
+    name = RECORDING_MODEL
+    if not name or name == "base":
+        return None, ""
+    try:
+        from faster_whisper import WhisperModel
+    except Exception as e:  # the native libraries could not load: the dictation model will say so too
+        logger.warning(f"Recording: faster_whisper not available: {e}")
+        return None, ""
+    # half of the processor for a long background job: the PC stays usable
+    threads = max(1, (os.cpu_count() or 2) // 2)
+    try:
+        return WhisperModel(name, device="cpu", compute_type="int8", cpu_threads=threads, local_files_only=True), name
+    except Exception:
+        pass
+    try:
+        from app.core import netguard
+        with netguard.external("speech_model_download", "huggingface.co",
+                               purpose="One-time download of the speech model for recordings (about 1.6 GB)"):
+            return WhisperModel(name, device="cpu", compute_type="int8", cpu_threads=threads), name
+    except Exception as e:
+        logger.warning(f"Recording: the model {name} is not available ({e}); the dictation model writes it down")
+        return None, ""
 
 
 class RecordingError(ValueError):
@@ -52,10 +88,22 @@ def passages(segments: Iterable[Dict], max_chars: int = 1200, max_seconds: float
 
 
 def transcribe(path: str, language: Optional[str] = None, model=None) -> Dict:
-    """The whole recording -> {"language", "duration", "passages"}. model: the Whisper model (voice_service.model)."""
-    if model is None:
-        from app.services.voice_service import voice_service
-        model = voice_service.model
+    """The whole recording -> {"language", "duration", "passages", "model"}. model: a Whisper model (tests); by
+    default the large model for recordings, else the dictation model (voice_service.model)."""
+    if model is not None:
+        return _transcribe_with(model, path, language, "given")
+    with _load_lock:  # one large model in memory at a time; it is released after the recording
+        big, name = _recording_model()
+        if big is not None:
+            try:
+                return _transcribe_with(big, path, language, name)
+            finally:
+                del big
+    from app.services.voice_service import voice_service
+    return _transcribe_with(voice_service.model, path, language, "base")
+
+
+def _transcribe_with(model, path: str, language: Optional[str], name: str) -> Dict:
     if model is None:
         raise RecordingError("The speech model is not available on this PC (it is downloaded once, while online).")
     code = (language or "").lower().split("-")[0] or None
@@ -67,5 +115,5 @@ def transcribe(path: str, language: Optional[str] = None, model=None) -> Dict:
     found = []
     for seg in segments:  # a generator: the work happens here
         found.append({"start": seg.start, "end": seg.end, "text": seg.text})
-    logger.info(f"Recording: {len(found)} segments, {duration:.0f} s, language {getattr(info, 'language', '?')}")
-    return {"language": getattr(info, "language", None), "duration": duration, "passages": passages(found)}
+    logger.info(f"Recording: {len(found)} segments, {duration:.0f} s, language {getattr(info, 'language', '?')}, model {name}")
+    return {"language": getattr(info, "language", None), "duration": duration, "passages": passages(found), "model": name}

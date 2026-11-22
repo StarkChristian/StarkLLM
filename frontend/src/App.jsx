@@ -1228,7 +1228,7 @@ export default function App() {
     setMessages(prev => [...prev, { role: 'system', content: t('Uploading {name}…', { name: file.name }) }]);
     if (isRecording(file.name)) {
       // the speech model writes the recording down on this PC: that takes a while
-      setMessages(prev => [...prev, { role: 'system', content: t('Recordings (meetings, voice memos) are written down with times on this PC. This takes a while: about a tenth of the recording time or more.') }]);
+      setMessages(prev => [...prev, { role: 'system', content: t('Recordings (meetings, voice memos) are written down with times on this PC by a large speech model. The first recording downloads it once (about 1.6 GB). Writing down takes about as long as the recording, or less.') }]);
     }
 
     let response;

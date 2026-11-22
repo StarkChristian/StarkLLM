@@ -1356,7 +1356,6 @@
   "Questions about images use a local AI model on this PC. Choose a local model (Ollama) in the model list.": "Görsellerle ilgili sorular bu bilgisayardaki yerel bir yapay zekâ modelini kullanır. Model listesinden yerel bir model (Ollama) seçin.",
   "None of the installed AI models can see images. Install a vision model, for example {model} (about 6 GB), in the model list, then ask again.": "Kurulu yapay zekâ modellerinin hiçbiri görselleri göremiyor. Model listesinden bir görme modeli kurun, örneğin {model} (yaklaşık 6 GB), sonra yeniden sorun.",
   "The question about the image could not be answered.": "Görselle ilgili soru yanıtlanamadı.",
-  "Recordings (meetings, voice memos) are written down with times on this PC. This takes a while: about a tenth of the recording time or more.": "Kayıtlar (toplantılar, sesli notlar) bu bilgisayarda zaman bilgileriyle yazıya dökülür. Bu biraz sürer: kayıt süresinin yaklaşık onda biri veya daha fazla.",
   "The answer could not be kept.": "Yanıt saklanamadı.",
   "Ask a second local model the same question and compare the answers": "Aynı soruyu ikinci bir yerel modele sor ve yanıtları karşılaştır",
   "Compare models": "Modelleri karşılaştır",
@@ -1424,5 +1423,6 @@
   "Task stopped": "Görev durduruldu",
   "Task not finished": "Görev bitmedi",
   "1 file changed: {files}": "1 dosya değişti: {files}",
-  "line {n}": "satır {n}"
+  "line {n}": "satır {n}",
+  "Recordings (meetings, voice memos) are written down with times on this PC by a large speech model. The first recording downloads it once (about 1.6 GB). Writing down takes about as long as the recording, or less.": "Kayıtlar (toplantılar, sesli notlar) bu bilgisayarda büyük bir konuşma modeliyle zaman bilgileriyle yazıya dökülür. İlk kayıt modeli bir kez indirir (yaklaşık 1,6 GB). Yazıya dökme yaklaşık kayıt süresi kadar veya daha kısa sürer."
 }

@@ -1356,7 +1356,6 @@
   "Questions about images use a local AI model on this PC. Choose a local model (Ollama) in the model list.": "Les questions sur les images utilisent un modèle d’IA local sur ce PC. Choisissez un modèle local (Ollama) dans la liste des modèles.",
   "None of the installed AI models can see images. Install a vision model, for example {model} (about 6 GB), in the model list, then ask again.": "Aucun des modèles d’IA installés ne voit les images. Installez un modèle de vision, par exemple {model} (environ 6 Go), dans la liste des modèles, puis reposez la question.",
   "The question about the image could not be answered.": "La question sur l’image n’a pas pu recevoir de réponse.",
-  "Recordings (meetings, voice memos) are written down with times on this PC. This takes a while: about a tenth of the recording time or more.": "Les enregistrements (réunions, mémos vocaux) sont transcrits avec les horaires sur ce PC. Cela prend un moment : environ un dixième de la durée de l’enregistrement ou plus.",
   "The answer could not be kept.": "La réponse n’a pas pu être conservée.",
   "Ask a second local model the same question and compare the answers": "Poser la même question à un second modèle local et comparer les réponses",
   "Compare models": "Comparer des modèles",
@@ -1424,5 +1423,6 @@
   "Task stopped": "Tâche arrêtée",
   "Task not finished": "Tâche non terminée",
   "1 file changed: {files}": "1 fichier modifié : {files}",
-  "line {n}": "ligne {n}"
+  "line {n}": "ligne {n}",
+  "Recordings (meetings, voice memos) are written down with times on this PC by a large speech model. The first recording downloads it once (about 1.6 GB). Writing down takes about as long as the recording, or less.": "Les enregistrements (réunions, mémos vocaux) sont transcrits avec les horaires sur ce PC par un grand modèle de parole. Le premier enregistrement le télécharge une seule fois (environ 1,6 Go). La transcription dure à peu près la durée de l’enregistrement, ou moins."
 }

@@ -97,3 +97,38 @@ def test_real_speech_is_written_down_with_times():
     text = " ".join(p["text"] for p in out["passages"]).lower()
     assert text.startswith("[00:00:0")
     assert "budget" in text and "december" in text
+
+
+def test_without_the_large_model_the_dictation_model_writes_it_down(monkeypatch):
+    from app.services import voice_service as vs
+    monkeypatch.setattr(rec, "_recording_model", lambda: (None, ""))
+    fake = _FakeWhisper()
+    monkeypatch.setattr(vs.VoiceService, "model", property(lambda self: fake))
+    out = rec.transcribe("x.m4a")
+    assert out["model"] == "base"
+    assert out["passages"][0]["text"].startswith("[00:00:00] Guten Morgen.")
+
+
+def test_the_large_model_is_used_when_it_is_there(monkeypatch):
+    big = _FakeWhisper()
+    monkeypatch.setattr(rec, "_recording_model", lambda: (big, "large-v3-turbo"))
+    out = rec.transcribe("x.m4a", language="de")
+    assert out["model"] == "large-v3-turbo"
+    assert big.kw["vad_filter"] is True
+
+
+def test_offline_the_download_is_refused_and_nothing_breaks(monkeypatch):
+    import builtins
+    real_import = builtins.__import__
+
+    class NoModel:
+        def __init__(self, name, **kw):
+            if kw.get("local_files_only"):
+                raise RuntimeError("not on this PC")
+            raise RuntimeError("download refused")
+    import types
+    monkeypatch.setitem(__import__("sys").modules, "faster_whisper", types.SimpleNamespace(WhisperModel=NoModel))
+    monkeypatch.setattr(rec, "RECORDING_MODEL", "large-v3-turbo")
+    assert rec._recording_model() == (None, "")
+    monkeypatch.setattr(rec, "RECORDING_MODEL", "base")
+    assert rec._recording_model() == (None, "")
