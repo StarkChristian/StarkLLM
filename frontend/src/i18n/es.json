@@ -1336,5 +1336,14 @@
   "weekly": "cada semana",
   "Day": "Día",
   "Schedule": "Programar",
-  "The task could not be scheduled.": "No se pudo programar la tarea."
+  "The task could not be scheduled.": "No se pudo programar la tarea.",
+  "📘 Word document (.docx)": "📘 Documento de Word (.docx)",
+  "📕 PDF (.pdf)": "📕 PDF (.pdf)",
+  "Save this answer as Word or PDF": "Guardar esta respuesta como Word o PDF",
+  "Word document (.docx)": "Documento de Word (.docx)",
+  "PDF (.pdf)": "PDF (.pdf)",
+  "You": "Usted",
+  "Sources": "Fuentes",
+  "Exported from StarkLLM": "Exportado de StarkLLM",
+  "The export did not work.": "La exportación no funcionó."
 }

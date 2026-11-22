@@ -1336,5 +1336,14 @@
   "weekly": "her hafta",
   "Day": "Gün",
   "Schedule": "Zamanla",
-  "The task could not be scheduled.": "Görev zamanlanamadı."
+  "The task could not be scheduled.": "Görev zamanlanamadı.",
+  "📘 Word document (.docx)": "📘 Word belgesi (.docx)",
+  "📕 PDF (.pdf)": "📕 PDF (.pdf)",
+  "Save this answer as Word or PDF": "Bu yanıtı Word veya PDF olarak kaydet",
+  "Word document (.docx)": "Word belgesi (.docx)",
+  "PDF (.pdf)": "PDF (.pdf)",
+  "You": "Siz",
+  "Sources": "Kaynaklar",
+  "Exported from StarkLLM": "StarkLLM’den dışa aktarıldı",
+  "The export did not work.": "Dışa aktarma çalışmadı."
 }

@@ -4,7 +4,7 @@ import styles from './ChatArea.module.css';
 import { 
   User, Bot, Volume2, Square, Database, Copy, Check, Globe, RefreshCw, 
   Edit2, Download, FileText, AlertTriangle, Sparkles, Code, BookOpen, Upload, CalendarClock,
-  ThumbsUp, ThumbsDown, Zap, Cloud
+  ThumbsUp, ThumbsDown, Zap, Cloud, FileDown
 } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
@@ -184,8 +184,10 @@ const ChatMessageRenderer = React.memo(({
   onSendToolResult,
   onFeedback,
   onInspectSources,
-  webTaskActions
+  webTaskActions,
+  onExportAnswer
 }) => {
+  const [exportOpen, setExportOpen] = useState(false);
   const contentSegments = msg.role === 'assistant' ? parseContentWithToolCalls(msg.content) : null;
   const [localFeedback, setLocalFeedback] = useState(msg.feedback || null);
 
@@ -412,6 +414,25 @@ const ChatMessageRenderer = React.memo(({
                 </>
               )}
               
+              {msg.role === 'assistant' && onExportAnswer && (
+                <span style={{ position: 'relative', display: 'inline-flex' }}>
+                  <button
+                    className={styles.actionBtn}
+                    onClick={() => setExportOpen(!exportOpen)}
+                    title={t('Save this answer as Word or PDF')}
+                    aria-expanded={exportOpen}
+                  >
+                    <FileDown size={14} />
+                  </button>
+                  {exportOpen && (
+                    <span className={styles.answerExportMenu} role="menu">
+                      <button role="menuitem" onClick={() => { setExportOpen(false); onExportAnswer(i, 'docx'); }}>{t('Word document (.docx)')}</button>
+                      <button role="menuitem" onClick={() => { setExportOpen(false); onExportAnswer(i, 'pdf'); }}>{t('PDF (.pdf)')}</button>
+                    </span>
+                  )}
+                </span>
+              )}
+
               {msg.role === 'assistant' && !isRTL(msg.content) && (
                 <button 
                   className={`${styles.actionBtn} ${playingIndex === i ? styles.playing : ''}`} 
@@ -459,6 +480,7 @@ export default function ChatArea({
   onRegenerate,
   onEdit,
   onExport,
+  onExportAnswer,
   onSummarize,
   onRetryMessage,
   onSelectStarter,
@@ -796,6 +818,12 @@ export default function ChatArea({
                   </button>
                   {showExportMenu && (
                     <div className={styles.exportMenu}>
+                      <button onClick={() => { onExport('docx'); setShowExportMenu(false); }}>
+                        {t('📘 Word document (.docx)')}
+                      </button>
+                      <button onClick={() => { onExport('pdf'); setShowExportMenu(false); }}>
+                        {t('📕 PDF (.pdf)')}
+                      </button>
                       <button onClick={() => { onExport('md'); setShowExportMenu(false); }}>
                         {t('📄 Markdown (.md)')}
                       </button>
@@ -840,6 +868,7 @@ export default function ChatArea({
               onFeedback={null}
               onInspectSources={(source, labels) => setInspectingSource({ msg: source, labels })}
               webTaskActions={webTaskActions}
+              onExportAnswer={onExportAnswer}
             />
           ))}
           <div ref={messagesEndRef} />

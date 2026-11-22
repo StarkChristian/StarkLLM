@@ -131,5 +131,6 @@
   "StarkLLM web task": "Attività web di StarkLLM",
   "StarkLLM is fully offline: web tasks are off.": "StarkLLM è completamente offline: le attività web sono disattivate.",
   "Choose the project folder for the terminal": "Scegli la cartella del progetto per il terminale",
-  "StarkLLM: the answer changed": "StarkLLM: la risposta è cambiata"
+  "StarkLLM: the answer changed": "StarkLLM: la risposta è cambiata",
+  "Save as PDF": "Salva come PDF"
 }

@@ -1336,5 +1336,14 @@
   "weekly": "chaque semaine",
   "Day": "Jour",
   "Schedule": "Planifier",
-  "The task could not be scheduled.": "La tâche n’a pas pu être planifiée."
+  "The task could not be scheduled.": "La tâche n’a pas pu être planifiée.",
+  "📘 Word document (.docx)": "📘 Document Word (.docx)",
+  "📕 PDF (.pdf)": "📕 PDF (.pdf)",
+  "Save this answer as Word or PDF": "Enregistrer cette réponse en Word ou PDF",
+  "Word document (.docx)": "Document Word (.docx)",
+  "PDF (.pdf)": "PDF (.pdf)",
+  "You": "Vous",
+  "Sources": "Sources",
+  "Exported from StarkLLM": "Exporté depuis StarkLLM",
+  "The export did not work.": "L’exportation n’a pas fonctionné."
 }

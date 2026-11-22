@@ -674,6 +674,29 @@ def record_web_task(
     return {"chat_id": chat_obj.id}
 
 
+class ExportMessage(BaseModel):
+    role: str = Field(..., max_length=20)
+    content: str = Field("", max_length=400000)
+    time: Optional[str] = Field(None, max_length=40)
+    sources: list[str] = Field(default_factory=list, max_length=100)
+
+
+class ExportDocxRequest(BaseModel):
+    title: str = Field("StarkLLM", max_length=300)
+    messages: list[ExportMessage] = Field(..., max_length=5000)
+    labels: dict[str, str] = Field(default_factory=dict)
+    date_text: str = Field("", max_length=60)
+
+
+@router.post("/export/docx")
+def export_docx(req: ExportDocxRequest, current_user: models.User = Depends(get_current_user)):
+    """A chat or one answer as a Word document (docs/roadmap-2026-12.md, R1), written on this PC."""
+    from app.services.docx_export import chat_to_docx
+    data = chat_to_docx(req.title, [m.model_dump() for m in req.messages],
+                        labels={k: str(v)[:80] for k, v in list(req.labels.items())[:10]}, date_text=req.date_text)
+    return Response(content=data, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
+
 @router.post("/save-partial")
 def save_partial_message(
     req: SavePartialRequest,

@@ -9,7 +9,7 @@ const os = require('os');
 const i18n = require('../i18n');
 
 const ROOT = path.join(__dirname, '..');
-const SOURCES = ['main.js', 'updates.js', 'engine.js', 'diagnostics.js', 'ollama-install.js', 'native-engine.js', 'webtask.js'];
+const SOURCES = ['main.js', 'updates.js', 'engine.js', 'diagnostics.js', 'ollama-install.js', 'native-engine.js', 'webtask.js', 'export-pdf.js'];
 const LITERAL = String.raw`('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")`;
 // t('...') and status('...') (also the two branches of status(cond ? 'a' : 'b'))
 const CALLS = [new RegExp(String.raw`(?<![\w.])t\(\s*${LITERAL}`, 'g'), new RegExp(String.raw`(?<![\w.])status\(\s*(?:[\w.]+\s*\?\s*)?${LITERAL}(?:\s*:\s*${LITERAL})?`, 'g')];

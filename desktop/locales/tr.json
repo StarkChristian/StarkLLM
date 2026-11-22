@@ -131,5 +131,6 @@
   "StarkLLM web task": "StarkLLM web görevi",
   "StarkLLM is fully offline: web tasks are off.": "StarkLLM tamamen çevrimdışı: web görevleri kapalı.",
   "Choose the project folder for the terminal": "Terminal için proje klasörünü seçin",
-  "StarkLLM: the answer changed": "StarkLLM: yanıt değişti"
+  "StarkLLM: the answer changed": "StarkLLM: yanıt değişti",
+  "Save as PDF": "PDF olarak kaydet"
 }
