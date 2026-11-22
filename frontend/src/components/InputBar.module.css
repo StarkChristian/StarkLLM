@@ -278,6 +278,7 @@
 /* Shown while a request leaves this PC (web search, cloud model provider). */
 .onlineNote {
   align-self: center;
+  flex-basis: 100%;
   font-size: 0.75rem;
   color: var(--text-secondary);
 }

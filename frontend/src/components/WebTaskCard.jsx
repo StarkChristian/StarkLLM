@@ -221,6 +221,7 @@ export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onRe
   const [saved, setSaved] = useState('');
   const [taskSaved, setTaskSaved] = useState('');
   const [undone, setUndone] = useState('');
+  const [stepsOpen, setStepsOpen] = useState(false);
   const files = task.files || [];
   const undo = async () => {
     setUndone('working');
@@ -274,8 +275,8 @@ export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onRe
         <p className={styles.hint}>{t('StarkLLM waits. Do what you like in its browser window, then hand it back: StarkLLM looks at the page again and goes on.')}</p>
       )}
       {task.steps.length > 0 && (
-        <details className={styles.steps} open={running}>
-          <summary>{t('{count} steps', { count: task.steps.length })}</summary>
+        <details className={styles.steps} open={running || stepsOpen} onToggle={(e) => { if (!running) setStepsOpen(e.currentTarget.open); }}>
+          <summary>{task.steps.length === 1 ? t('1 step') : t('{count} steps', { count: task.steps.length })}</summary>
           <ol>
             {task.steps.map((s, k) => <li key={k}>{stepText(s)}<StepDetails s={s} /></li>)}
           </ol>

@@ -23,9 +23,16 @@ export default function ScheduledWebTasks() {
   }, [bridge, load]);
   if (!bridge || !bridge.schedules) return null;
 
+  const [runError, setRunError] = useState('');
   const runNow = async (id) => {
     setRunning(id);
-    try { await bridge.schedules.runNow(id); } finally { setRunning(''); load(); }
+    setRunError('');
+    try {
+      const r = await bridge.schedules.runNow(id);
+      if (r && r.error === 'busy') setRunError(t('A web task is running now. Try again when it has finished.'));
+      else if (r && r.error === 'offline') setRunError(t('StarkLLM is fully offline: web tasks are off.'));
+      else if (r && r.error && r.error !== 'preempted') setRunError(t('The task could not run.'));
+    } finally { setRunning(''); load(); }
   };
   const toggle = async (s) => { await bridge.schedules.setEnabled(s.id, s.enabled === false); load(); };
   const remove = async (s) => {
@@ -41,6 +48,7 @@ export default function ScheduledWebTasks() {
       <p className={styles.summary}>
         {t('They run by themselves while StarkLLM runs and is online, and only look: StarkLLM answers every question of the task with "no", so it never buys, books or sends anything and stops where a sign-in would be needed. A notification shows when an answer changed.')}
       </p>
+      {runError && <p className={styles.muted} role="status">{runError}</p>}
       {list.length === 0 ? (
         <p className={styles.muted}>{t('No scheduled tasks yet. After a web task, choose “Repeat this task”.')}</p>
       ) : (

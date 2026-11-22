@@ -1414,5 +1414,8 @@
   "StarkLLM is fully offline, but a program you allow can still use the internet by itself.": "StarkLLM ist vollständig offline, aber ein Programm, das Sie erlauben, kann das Internet trotzdem selbst nutzen.",
   "Terminal on: click to turn it off": "Terminal an: klicken zum Ausschalten",
   "Terminal off: click to work in this folder": "Terminal aus: klicken, um in diesem Ordner zu arbeiten",
-  "Terminal ON: {folder}": "Terminal AN: {folder}"
+  "Terminal ON: {folder}": "Terminal AN: {folder}",
+  "A web task is running now. Try again when it has finished.": "Gerade läuft eine Web-Aufgabe. Versuchen Sie es erneut, wenn sie fertig ist.",
+  "The task could not run.": "Die Aufgabe konnte nicht laufen.",
+  "1 step": "1 Schritt"
 }

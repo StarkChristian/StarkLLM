@@ -18,6 +18,8 @@ contextBridge.exposeInMainWorld('starkllmDesktop', {
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),
   // a chat or an answer as PDF: printed by the desktop app, saved where the user chooses (docs/roadmap-2026-12.md, R1)
   exportPdf: (html, name) => ipcRenderer.invoke('export:pdf', String(html || ''), String(name || '')),
+  // a file made by the chat page (Word ...), saved with the app's save dialog
+  saveFile: (name, bytes) => ipcRenderer.invoke('export:save', String(name || ''), bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || [])),
   // tool servers (MCP) of the user (docs/roadmap-2026-12.md, R6): Settings and the tool card in the chat
   mcp: {
     list: () => ipcRenderer.invoke('mcp:list'),

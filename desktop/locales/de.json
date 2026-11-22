@@ -132,5 +132,6 @@
   "StarkLLM is fully offline: web tasks are off.": "StarkLLM ist vollständig offline: Web-Aufgaben sind aus.",
   "Choose the project folder for the terminal": "Projektordner für das Terminal wählen",
   "StarkLLM: the answer changed": "StarkLLM: die Antwort hat sich geändert",
-  "Save as PDF": "Als PDF speichern"
+  "Save as PDF": "Als PDF speichern",
+  "Save": "Speichern"
 }

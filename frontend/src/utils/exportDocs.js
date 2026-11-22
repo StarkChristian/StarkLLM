@@ -159,7 +159,7 @@ function download(blob, name) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setTimeout(() => URL.revokeObjectURL(url), 60000); // the browser may still read it after a save dialog
 }
 
 // -> true when the file was made (or the print dialog opened), false when it failed, null when the user cancelled
@@ -170,7 +170,16 @@ export async function saveAsWord({ title, items, words, dateText, headers }) {
     body: JSON.stringify({ title, messages: items, labels: words, date_text: dateText }),
   });
   if (!res.ok) return false;
-  download(await res.blob(), `${fileBase(title)}.docx`);
+  const blob = await res.blob();
+  const name = `${fileBase(title)}.docx`;
+  const desktop = typeof window !== 'undefined' && window.starkllmDesktop && window.starkllmDesktop.saveFile;
+  if (desktop) {
+    // the desktop app: its own save dialog (a browser download stayed a .tmp file in Downloads, MSI test 2.5.0)
+    const r = await window.starkllmDesktop.saveFile(name, new Uint8Array(await blob.arrayBuffer()));
+    if (r && r.canceled) return null;
+    return Boolean(r && r.ok);
+  }
+  download(blob, name);
   return true;
 }
 

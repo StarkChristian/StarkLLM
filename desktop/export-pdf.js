@@ -43,7 +43,30 @@ async function htmlToPdf(html) {
   }
 }
 
+const SAVE_TYPES = { docx: 'Word', md: 'Markdown', html: 'HTML', json: 'JSON', txt: 'Text' };
+
 function register(ipcMain, { fromApp }) {
+  // a file the chat page made (Word, Markdown ...): the save dialog of the app, then written where the user chose
+  ipcMain.handle('export:save', async (event, name, data) => {
+    if (!fromApp(event)) return { error: 'not-allowed' };
+    const ext = String(name || '').split('.').pop().toLowerCase();
+    if (!SAVE_TYPES[ext] || !(data instanceof Uint8Array) || data.length > 100 * 1024 * 1024) return { error: 'invalid' };
+    try {
+      const parent = BrowserWindow.fromWebContents(event.sender);
+      const base = String(name).replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim().slice(0, 120) || `StarkLLM.${ext}`;
+      const r = await dialog.showSaveDialog(parent, {
+        title: t('Save'),
+        defaultPath: base,
+        filters: [{ name: SAVE_TYPES[ext], extensions: [ext] }],
+      });
+      if (r.canceled || !r.filePath) return { canceled: true };
+      fs.writeFileSync(r.filePath, Buffer.from(data));
+      return { ok: true, name: path.basename(r.filePath) };
+    } catch (e) {
+      return { error: 'failed', message: e.message };
+    }
+  });
+
   ipcMain.handle('export:pdf', async (event, html, name) => {
     if (!fromApp(event)) return { error: 'not-allowed' };
     if (typeof html !== 'string' || !html || html.length > 30 * 1024 * 1024) return { error: 'invalid' };

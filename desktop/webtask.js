@@ -115,17 +115,40 @@ async function inPage(wc, expression, ms = 10000) {
   }
 }
 
-function electronBrowser() {
-  const w = () => {
-    const x = openWindow();
-    return x.webContents;
-  };
+// A hidden window of its own for a scheduled run: the same storage as the web-task window, never shown, closed after
+// the run. The user's own window (if open) is not touched.
+let bgWin = null;
+function openBackgroundWindow() {
+  if (bgWin && !bgWin.isDestroyed()) return bgWin;
+  prepareSession();
+  bgWin = new BrowserWindow({
+    width: 1180,
+    height: 860,
+    show: false,
+    webPreferences: { partition: PARTITION, sandbox: true, contextIsolation: true, nodeIntegration: false, spellcheck: false },
+  });
+  const wc = bgWin.webContents;
+  wc.setWindowOpenHandler(({ url }) => { if (isWeb(url)) wc.loadURL(url).catch(() => {}); return { action: 'deny' }; });
+  wc.on('will-navigate', (event, url) => { if (!isWeb(url)) event.preventDefault(); });
+  bgWin.on('closed', () => { bgWin = null; });
+  return bgWin;
+}
+
+function closeBackgroundWindow() {
+  if (bgWin && !bgWin.isDestroyed()) bgWin.destroy();
+  bgWin = null;
+}
+
+function electronBrowser(getWindow = openWindow) {
+  const hidden = getWindow !== openWindow;
+  const current = () => (hidden ? bgWin : win);
+  const w = () => getWindow().webContents;
   return {
     // a follow-up task continues on the page the window shows
-    hasPage: () => Boolean(win && !win.isDestroyed() && isWeb(win.webContents.getURL())),
+    hasPage: () => { const x = current(); return Boolean(x && !x.isDestroyed() && isWeb(x.webContents.getURL())); },
     async open(url) {
       const wc = w();
-      if (!backgroundRun && !win.isVisible()) win.show();
+      if (!hidden && !win.isVisible()) win.show();
       await wc.loadURL(url).catch((e) => {
         // a page that redirects or stops early still counts; a blocked request (offline) does not
         if (getShared().isOffline()) {
@@ -351,8 +374,6 @@ async function runScheduled(id, { log = () => {}, notify = true } = {}) {
   if (!s) return { error: 'unknown' };
   if (current || userStarting) return { error: 'busy' };
   if (getShared().isOffline()) return { error: 'offline' };
-  // a window of the user's own task that is still open is not reused: the run waits for the next minute
-  if (win && !win.isDestroyed() && win.isVisible()) return { error: 'busy' };
   const signal = { stopped: false, paused: false, untilResumed: async () => {}, resume: () => {} };
   const abort = new AbortController();
   current = { id: `sch-${s.id}`, signal, sender: null, scheduled: true, abort };
@@ -362,7 +383,7 @@ async function runScheduled(id, { log = () => {}, notify = true } = {}) {
   try {
     const rules = readRules();
     const r = await runTask({
-      task: s.task, language: LANGUAGE_NAMES[s.language] || 'English', browser: electronBrowser(), llm: ollamaChat(s.model, abort.signal),
+      task: s.task, language: LANGUAGE_NAMES[s.language] || 'English', browser: electronBrowser(openBackgroundWindow), llm: ollamaChat(s.model, abort.signal),
       ask: schedule.lookingOnlyAsk, emit: (e) => { if (e.type === 'answer' && e.url) url = e.url; }, signal,
       siteRule: (host) => rules[host] || rules[host.replace(/^www\./, '')] || '', saveSiteRule: () => {},
       maxSteps: 20, maxMinutes: 8,
@@ -374,7 +395,7 @@ async function runScheduled(id, { log = () => {}, notify = true } = {}) {
     current = null;
     backgroundRun = false;
     // the hidden window of the run is closed; a window the user has open stays
-    if (win && !win.isDestroyed() && !win.isVisible()) win.destroy();
+    closeBackgroundWindow();
   }
   // a run that gave way to the user's own task, or ended with StarkLLM, is not recorded: it runs again later
   if (signal.preempted) return { error: 'preempted' };
@@ -412,7 +433,7 @@ function shutdown() {
     current.signal.resume();
   }
   stopCommands();
-  if (win && !win.isDestroyed() && !win.isVisible()) win.destroy();
+  closeBackgroundWindow();
 }
 
 function startScheduler(log) {

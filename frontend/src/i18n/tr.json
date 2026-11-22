@@ -1414,5 +1414,8 @@
   "StarkLLM is fully offline, but a program you allow can still use the internet by itself.": "StarkLLM tamamen çevrimdışı, ancak izin verdiğiniz bir program yine de kendi başına interneti kullanabilir.",
   "Terminal on: click to turn it off": "Terminal açık: kapatmak için tıklayın",
   "Terminal off: click to work in this folder": "Terminal kapalı: bu klasörde çalışmak için tıklayın",
-  "Terminal ON: {folder}": "Terminal AÇIK: {folder}"
+  "Terminal ON: {folder}": "Terminal AÇIK: {folder}",
+  "A web task is running now. Try again when it has finished.": "Şu anda bir web görevi çalışıyor. Bittiğinde yeniden deneyin.",
+  "The task could not run.": "Görev çalıştırılamadı.",
+  "1 step": "1 adım"
 }
