@@ -44,3 +44,8 @@ test('times of messages from the engine (UTC without a zone) are shown in local 
   const local = new Date(Date.UTC(2026, 10, 22, 10, 24)).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' });
   assert.equal(item.time, local);
 });
+
+test('a file name does not end in a dot', () => {
+  assert.equal(fileBase('How many people live in Bologna.'), 'How many people live in Bologna');
+  assert.equal(fileBase('...'), 'StarkLLM');
+});

@@ -148,7 +148,9 @@ ${body}
 }
 
 export function fileBase(title) {
-  return (String(title || 'StarkLLM').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80) || 'StarkLLM');
+  // Windows keeps no dots or spaces at the end of a name ("Bologna." + ".docx" gave "Bologna..docx")
+  const base = String(title || 'StarkLLM').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80);
+  return base.replace(/[.\s]+$/, '') || 'StarkLLM';
 }
 
 function download(blob, name) {
