@@ -1356,5 +1356,21 @@
   "Questions about images use a local AI model on this PC. Choose a local model (Ollama) in the model list.": "Las preguntas sobre imágenes usan un modelo de IA local en este PC. Elija un modelo local (Ollama) en la lista de modelos.",
   "None of the installed AI models can see images. Install a vision model, for example {model} (about 6 GB), in the model list, then ask again.": "Ninguno de los modelos de IA instalados puede ver imágenes. Instale un modelo de visión, por ejemplo {model} (unos 6 GB), en la lista de modelos y vuelva a preguntar.",
   "The question about the image could not be answered.": "No se pudo responder la pregunta sobre la imagen.",
-  "Recordings (meetings, voice memos) are written down with times on this PC. This takes a while: about a tenth of the recording time or more.": "Las grabaciones (reuniones, notas de voz) se transcriben con marcas de tiempo en este PC. Tarda un rato: una décima parte de la duración de la grabación o más."
+  "Recordings (meetings, voice memos) are written down with times on this PC. This takes a while: about a tenth of the recording time or more.": "Las grabaciones (reuniones, notas de voz) se transcriben con marcas de tiempo en este PC. Tarda un rato: una décima parte de la duración de la grabación o más.",
+  "The answer could not be kept.": "No se pudo conservar la respuesta.",
+  "Ask a second local model the same question and compare the answers": "Hacer la misma pregunta a un segundo modelo local y comparar las respuestas",
+  "Compare models": "Comparar modelos",
+  "Second model": "Segundo modelo",
+  "Second model…": "Segundo modelo…",
+  "Compare with {model}": "Comparar con {model}",
+  "Stop comparing": "Dejar de comparar",
+  "Answer of {model}": "Respuesta de {model}",
+  "Second answer: {model}": "Segunda respuesta: {model}",
+  "{sec} s · {speed} tok/s": "{sec} s · {speed} tok/s",
+  "Waiting for the second model…": "Esperando al segundo modelo…",
+  "The second model did not answer.": "El segundo modelo no respondió.",
+  "Stopped": "Detenido",
+  "Keep the first answer ({model})": "Conservar la primera respuesta ({model})",
+  "Keep the first answer": "Conservar la primera respuesta",
+  "Keep this answer": "Conservar esta respuesta"
 }

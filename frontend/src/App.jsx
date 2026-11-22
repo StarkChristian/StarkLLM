@@ -75,6 +75,8 @@ export default function App() {
   }, [token]);
   const [useKb, setUseKb] = useState(false);
   const [useWebSearch, setUseWebSearch] = useState(false);
+  // a second local model that answers the same question, to compare (docs/roadmap-2026-12.md, R4); '' is off
+  const [compareModel, setCompareModel] = useState('');
   // Web tasks (docs/web-tasks.md): only in the desktop app, which has the browser window
   const [useWebTask, setUseWebTask] = useState(false);
   // the terminal of tasks: a project folder the user chose in the folder dialog of the desktop app
@@ -756,6 +758,62 @@ export default function App() {
     }
   };
 
+  // ── Two models side by side (docs/roadmap-2026-12.md, R4) ──
+  const updateCompare = (fn) => setMessages(prev => {
+    const msgs = [...prev];
+    const k = msgs.length - 1;
+    if (k < 0 || msgs[k].role !== 'assistant') return prev;
+    msgs[k] = { ...msgs[k], compare: fn(msgs[k].compare || {}) };
+    return msgs;
+  });
+
+  const runComparison = async (body, primaryModel, signal) => {
+    updateCompare(() => ({ model: body.model, primaryModel: primaryModel || '', content: '', status: 'running' }));
+    const started = performance.now();
+    try {
+      const res = await fetch('/api/v1/chat/', { method: 'POST', headers: getHeaders({ 'Content-Type': 'application/json' }), signal, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let full = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        full += decoder.decode(value, { stream: true });
+        updateCompare(c => ({ ...c, content: full }));
+      }
+      const sec = Math.max(0.1, (performance.now() - started) / 1000);
+      const tokens = Math.max(1, Math.round(full.trim().split(/\s+/).filter(Boolean).length * 1.3));
+      updateCompare(c => ({ ...c, content: full, status: full.trim() ? 'done' : 'error', timeSec: sec.toFixed(1), tokPerSec: (tokens / sec).toFixed(1) }));
+    } catch (err) {
+      updateCompare(c => ({ ...c, status: err.name === 'AbortError' ? 'stopped' : 'error' }));
+    }
+  };
+
+  // "Keep this answer": the second model's answer becomes the answer of the chat (saved by the engine)
+  const handleKeepCompared = async (index, keepSecond) => {
+    const msg = messages[index];
+    if (!msg || !msg.compare) return;
+    if (!keepSecond) {
+      setMessages(prev => prev.map((m, k) => (k === index ? { ...m, compare: null } : m)));
+      return;
+    }
+    const c = msg.compare;
+    try {
+      const res = await fetch(`/api/v1/chat/session/${activeChatId}/keep-answer`, {
+        method: 'POST', headers: getHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ content: c.content }),
+      });
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      setMessages(prev => prev.map((m, k) => (k === index ? {
+        ...m, content: c.content, compare: null, answeredBy: c.model,
+        speedStats: c.tokPerSec ? { tokPerSec: c.tokPerSec, tokens: Math.round(Number(c.tokPerSec) * Number(c.timeSec)), timeSec: c.timeSec } : m.speedStats,
+      } : m)));
+    } catch (e) {
+      console.error('Keeping the answer failed:', e);
+      toast.error(t('The answer could not be kept.'));
+    }
+  };
+
   const handleSendMessage = async (text) => {
     if (!activeWorkspace) {
       setMessages(prev => [...prev, { role: 'assistant', content: t('Please create or select a workspace first.') }]);
@@ -909,7 +967,8 @@ export default function App() {
       const tokPerSec = (totalTokens / totalElapsedSec).toFixed(1);
 
       // An error message streamed by the backend is not generated text: no speed badge for it.
-      if (!fullText.trimStart().startsWith('Error generating response')) setMessages(prev => {
+      const primaryOk = !fullText.trimStart().startsWith('Error generating response');
+      if (primaryOk) setMessages(prev => {
         const msgs = [...prev];
         const prevMsg = msgs[msgs.length - 1];
         if (prevMsg && prevMsg.role === 'assistant') {
@@ -924,6 +983,25 @@ export default function App() {
         }
         return msgs;
       });
+
+      if (primaryOk && compareModel && savedProvider === 'ollama' && compareModel !== effectiveModel) {
+        await runComparison({
+          workspace_id: activeWorkspace.id,
+          chat_id: parseInt(response.headers.get('X-Chat-ID') || currentChatId, 10),
+          message: text,
+          model: compareModel,
+          provider: 'ollama',
+          stream: true,
+          compare: true,
+          language: language(),
+          today: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })(),
+          use_knowledge_base: useKb,
+          use_web_search: useWebSearch && !offline,
+          use_hybrid_search: localStorage.getItem('rag_hybrid_search') !== 'false',
+          use_query_rewriting: localStorage.getItem('rag_query_rewriting') !== 'false',
+          use_context_compression: localStorage.getItem('rag_context_compression') !== 'false',
+        }, effectiveModel, controller.signal);
+      }
 
     } catch (err) {
       if (isTimeout) {
@@ -1476,6 +1554,7 @@ export default function App() {
               onEdit={handleEditMessage}
               onExport={handleExportChat}
               onExportAnswer={handleExportAnswer}
+              onKeepCompared={handleKeepCompared}
               onSummarize={activeChatId ? handleSummarizeChat : null}
               onRetryMessage={handleSendMessage}
               onSelectStarter={handleSendMessage}
@@ -1502,6 +1581,8 @@ export default function App() {
             />
             <InputBar 
               onSendImage={handleImageQuestion}
+              compareModel={compareModel}
+              onSetCompareModel={setCompareModel}
               onSendMessage={handleSendMessage} 
               onFileUpload={handleFileUpload}
               useKb={useKb}

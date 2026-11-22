@@ -592,6 +592,9 @@ class ChatRequest(BaseModel):
     provider: Optional[str] = "ollama"
     language: Optional[str] = None  # the interface language ("de", "en", ...): the answer language when the message is too short to tell
     today: Optional[str] = None  # the PC's local date (YYYY-MM-DD): "today" and every day count follow the user's day
+    # a second answer from another model, to compare (docs/roadmap-2026-12.md, R4): the question and the first answer
+    # are in the chat already; nothing of this request is saved and the first answer is not shown to this model
+    compare: bool = False
 
     @field_validator("message")
     @classmethod
@@ -774,6 +777,40 @@ async def image_question(
                              headers={"X-Chat-ID": str(the_chat), "X-Image-Model": urllib.parse.quote(chosen)})
 
 
+class KeepAnswerRequest(BaseModel):
+    content: str = Field(..., min_length=1, max_length=400000)
+
+
+@router.post("/session/{chat_id}/keep-answer")
+def keep_compared_answer(
+    chat_id: int,
+    req: KeepAnswerRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """"Keep this answer" of a comparison (docs/roadmap-2026-12.md, R4): the newest answer of the chat becomes the
+    second model's answer."""
+    chat_obj = (
+        db.query(models.Chat)
+        .join(models.Workspace, models.Chat.workspace_id == models.Workspace.id)
+        .filter(models.Chat.id == chat_id, models.Workspace.user_id == current_user.id)
+        .first()
+    )
+    if not chat_obj:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    last = (
+        db.query(models.Message)
+        .filter(models.Message.chat_id == chat_id)
+        .order_by(models.Message.created_at.desc(), models.Message.id.desc())
+        .first()
+    )
+    if not last or last.role != "assistant":
+        raise HTTPException(status_code=409, detail="The newest message of the chat is not an answer")
+    last.content = req.content
+    db.commit()
+    return {"ok": True, "message_id": last.id}
+
+
 @router.post("/save-partial")
 def save_partial_message(
     req: SavePartialRequest,
@@ -831,6 +868,8 @@ async def chat(
 
         # ---- Create or fetch chat session
         chat_renamed = False
+        if req.compare and not req.chat_id:
+            raise HTTPException(status_code=400, detail="A comparison needs the chat of the first answer")
         if req.chat_id:
             chat_obj = (
                 db.query(models.Chat)
@@ -842,7 +881,7 @@ async def chat(
             )
             if not chat_obj:
                 raise HTTPException(status_code=404, detail="Chat not found")
-            if not chat_obj.title or chat_obj.title in ("New Chat", "Untitled Chat"):
+            if not req.compare and (not chat_obj.title or chat_obj.title in ("New Chat", "Untitled Chat")):
                 chat_obj.title = req.message[:50]
                 db.commit()
                 db.refresh(chat_obj)
@@ -855,12 +894,13 @@ async def chat(
             db.commit()
             db.refresh(chat_obj)
 
-        # ---- Persist user message
-        user_msg = models.Message(
-            chat_id=chat_obj.id, role="user", content=req.message
-        )
-        db.add(user_msg)
-        db.commit()
+        # ---- Persist user message (a comparison asks the question that is saved already)
+        if not req.compare:
+            user_msg = models.Message(
+                chat_id=chat_obj.id, role="user", content=req.message
+            )
+            db.add(user_msg)
+            db.commit()
 
         # ---- Determine active model early for routing
         model_name = req.model if req.model else (current_user.default_model if current_user.default_model else settings.DEFAULT_TEXT_MODEL)
@@ -1421,10 +1461,16 @@ LANGUAGE & WRITING QUALITY
             .all()
         )
         history.reverse()
+        if req.compare:
+            # the second model answers the same question without seeing the first answer
+            if history and history[-1].role == "assistant":
+                history = history[:-1]
+            if not history or history[-1].role != "user" or history[-1].content != req.message:
+                raise HTTPException(status_code=409, detail="The question to compare is not the last one of the chat")
 
         # Trigger background memory extraction every 5 messages
         total_messages = db.query(models.Message).filter(models.Message.chat_id == chat_obj.id).count()
-        if total_messages % 5 == 0 and total_messages > 0:
+        if not req.compare and total_messages % 5 == 0 and total_messages > 0:
             formatted_history = "\n".join([f"{msg.role.capitalize()}: {msg.content}" for msg in history])
             background_tasks.add_task(memory_service.summarize_and_store_conversation, formatted_history, req.workspace_id)
 
@@ -1495,7 +1541,9 @@ LANGUAGE & WRITING QUALITY
                                 .first()
                             )
                             # Only save if no assistant message exists after the last user message
-                            if not existing or (last_user and existing.created_at < last_user.created_at):
+                            if req.compare:
+                                pass  # a second answer to compare is not saved ("Keep this answer" saves it)
+                            elif not existing or (last_user and existing.created_at < last_user.created_at):
                                 ast_msg = models.Message(
                                     chat_id=chat_obj.id,
                                     role="assistant",
@@ -1552,11 +1600,12 @@ LANGUAGE & WRITING QUALITY
                 raise HTTPException(status_code=502, detail=f"The language model backend (Ollama) failed: {e}")
 
             saved_sources = _sources_used(sources_json, content, [ws_context, kb_context])
-            ast_msg = models.Message(
-                chat_id=chat_obj.id, role="assistant", content=content, sources=saved_sources
-            )
-            db.add(ast_msg)
-            db.commit()
+            if not req.compare:
+                ast_msg = models.Message(
+                    chat_id=chat_obj.id, role="assistant", content=content, sources=saved_sources
+                )
+                db.add(ast_msg)
+                db.commit()
             # Set headers on the Response object for non-streaming paths
             kb_used_val = "true" if (req.use_knowledge_base and bool(kb_results)) else "false"
             response.headers["X-Chat-ID"] = str(chat_obj.id)

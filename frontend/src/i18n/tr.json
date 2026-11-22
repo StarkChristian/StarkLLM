@@ -1356,5 +1356,21 @@
   "Questions about images use a local AI model on this PC. Choose a local model (Ollama) in the model list.": "Görsellerle ilgili sorular bu bilgisayardaki yerel bir yapay zekâ modelini kullanır. Model listesinden yerel bir model (Ollama) seçin.",
   "None of the installed AI models can see images. Install a vision model, for example {model} (about 6 GB), in the model list, then ask again.": "Kurulu yapay zekâ modellerinin hiçbiri görselleri göremiyor. Model listesinden bir görme modeli kurun, örneğin {model} (yaklaşık 6 GB), sonra yeniden sorun.",
   "The question about the image could not be answered.": "Görselle ilgili soru yanıtlanamadı.",
-  "Recordings (meetings, voice memos) are written down with times on this PC. This takes a while: about a tenth of the recording time or more.": "Kayıtlar (toplantılar, sesli notlar) bu bilgisayarda zaman bilgileriyle yazıya dökülür. Bu biraz sürer: kayıt süresinin yaklaşık onda biri veya daha fazla."
+  "Recordings (meetings, voice memos) are written down with times on this PC. This takes a while: about a tenth of the recording time or more.": "Kayıtlar (toplantılar, sesli notlar) bu bilgisayarda zaman bilgileriyle yazıya dökülür. Bu biraz sürer: kayıt süresinin yaklaşık onda biri veya daha fazla.",
+  "The answer could not be kept.": "Yanıt saklanamadı.",
+  "Ask a second local model the same question and compare the answers": "Aynı soruyu ikinci bir yerel modele sor ve yanıtları karşılaştır",
+  "Compare models": "Modelleri karşılaştır",
+  "Second model": "İkinci model",
+  "Second model…": "İkinci model…",
+  "Compare with {model}": "{model} ile karşılaştır",
+  "Stop comparing": "Karşılaştırmayı durdur",
+  "Answer of {model}": "{model} yanıtı",
+  "Second answer: {model}": "İkinci yanıt: {model}",
+  "{sec} s · {speed} tok/s": "{sec} sn · {speed} tok/sn",
+  "Waiting for the second model…": "İkinci model bekleniyor…",
+  "The second model did not answer.": "İkinci model yanıt vermedi.",
+  "Stopped": "Durduruldu",
+  "Keep the first answer ({model})": "İlk yanıtı tut ({model})",
+  "Keep the first answer": "İlk yanıtı tut",
+  "Keep this answer": "Bu yanıtı tut"
 }

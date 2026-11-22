@@ -185,7 +185,8 @@ const ChatMessageRenderer = React.memo(({
   onFeedback,
   onInspectSources,
   webTaskActions,
-  onExportAnswer
+  onExportAnswer,
+  onKeepCompared
 }) => {
   const [exportOpen, setExportOpen] = useState(false);
   const contentSegments = msg.role === 'assistant' ? parseContentWithToolCalls(msg.content) : null;
@@ -273,6 +274,29 @@ const ChatMessageRenderer = React.memo(({
                 })
               ) : (
                 <div dangerouslySetInnerHTML={{ __html: md.render(msg.content) }} />
+              )}
+              {msg.answeredBy && <div className={styles.compareNote}>{t('Answer of {model}', { model: msg.answeredBy })}</div>}
+              {msg.compare && (
+                <div className={styles.compareBox}>
+                  <div className={styles.compareHead}>
+                    <strong>{t('Second answer: {model}', { model: msg.compare.model })}</strong>
+                    {msg.compare.status === 'done' && <span>{t('{sec} s · {speed} tok/s', { sec: msg.compare.timeSec, speed: msg.compare.tokPerSec })}</span>}
+                    {msg.compare.status === 'running' && !msg.compare.content && <span>{t('Waiting for the second model…')}</span>}
+                    {msg.compare.status === 'error' && <span>{t('The second model did not answer.')}</span>}
+                    {msg.compare.status === 'stopped' && <span>{t('Stopped')}</span>}
+                  </div>
+                  {msg.compare.content && <div dangerouslySetInnerHTML={{ __html: md.render(msg.compare.content) }} />}
+                  {msg.compare.status !== 'running' && onKeepCompared && (
+                    <div className={styles.compareButtons}>
+                      <button type="button" onClick={() => onKeepCompared(i, false)}>
+                        {msg.compare.primaryModel ? t('Keep the first answer ({model})', { model: msg.compare.primaryModel }) : t('Keep the first answer')}
+                      </button>
+                      {msg.compare.status === 'done' && (
+                        <button type="button" className={styles.comparePrimary} onClick={() => onKeepCompared(i, true)}>{t('Keep this answer')}</button>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
 
               {msg.role === 'assistant' && ((shown.ws && shown.ws.length > 0) || (shown.kb && shown.kb.length > 0) || (msg.webSources && msg.webSources.length > 0) || msg.cloudHost) && (
@@ -483,6 +507,7 @@ export default function ChatArea({
   onEdit,
   onExport,
   onExportAnswer,
+  onKeepCompared,
   onSummarize,
   onRetryMessage,
   onSelectStarter,
@@ -871,6 +896,7 @@ export default function ChatArea({
               onInspectSources={(source, labels) => setInspectingSource({ msg: source, labels })}
               webTaskActions={webTaskActions}
               onExportAnswer={onExportAnswer}
+              onKeepCompared={onKeepCompared}
             />
           ))}
           <div ref={messagesEndRef} />

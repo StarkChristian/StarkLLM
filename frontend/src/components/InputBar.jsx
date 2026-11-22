@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import styles from './InputBar.module.css';
-import { Paperclip, Mic, Send, Square, Loader, Database, Globe, FileCode, Settings, Cloud, Compass, TerminalSquare, ImagePlus, X } from 'lucide-react';
+import { Paperclip, Mic, Send, Square, Loader, Database, Globe, FileCode, Settings, Cloud, Compass, TerminalSquare, ImagePlus, Columns2, X } from 'lucide-react';
 import PromptTemplateModal from './PromptTemplateModal';
 import { useToast } from './Toast';
 import { UPLOAD_ACCEPT } from '../utils/uploadTypes';
@@ -8,7 +8,7 @@ import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
 import { isWebTaskTemplate } from '../utils/webTask';
 
-export default function InputBar({ onSendImage, onSendMessage, onFileUpload, useKb, onToggleKb, useWebSearch, onToggleWebSearch, webTaskAvailable, useWebTask, onToggleWebTask, terminalFolder, onChooseTerminalFolder, onClearTerminalFolder, offline, cloudHost, onOpenSettings, isGenerating, onStopGeneration, token, activeWorkspace, onOpenKbSettings }) {
+export default function InputBar({ onSendImage, compareModel, onSetCompareModel, onSendMessage, onFileUpload, useKb, onToggleKb, useWebSearch, onToggleWebSearch, webTaskAvailable, useWebTask, onToggleWebTask, terminalFolder, onChooseTerminalFolder, onClearTerminalFolder, offline, cloudHost, onOpenSettings, isGenerating, onStopGeneration, token, activeWorkspace, onOpenKbSettings }) {
   const toast = useToast();
   const [text, setText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -16,6 +16,19 @@ export default function InputBar({ onSendImage, onSendMessage, onFileUpload, use
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
+  const [comparePicking, setComparePicking] = useState(false);
+  const [installedModels, setInstalledModels] = useState([]);
+  const openComparePicker = async () => {
+    setComparePicking(true);
+    try {
+      const res = await fetch('/api/v1/chat/models', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      const j = await res.json();
+      // chat models only: no embedding models
+      setInstalledModels((j.models || []).filter(m => !/embed|bge-|nomic|clip/i.test(m)));
+    } catch (e) {
+      setInstalledModels([]);
+    }
+  };
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
   // an image for the next question (docs/roadmap-2026-12.md, R2): pasted, or chosen with the image button
@@ -258,6 +271,40 @@ export default function InputBar({ onSendImage, onSendMessage, onFileUpload, use
         )}
         {terminalFolder && (
           <span className={styles.onlineNote} role="status">{t('StarkLLM works in the folder {folder}. It asks you before each change of a file and each command.', { folder: terminalFolder.name })}</span>
+        )}
+        {onSetCompareModel && !compareModel && !comparePicking && (
+          <button
+            className={styles.kbToggle}
+            onClick={openComparePicker}
+            title={t('Ask a second local model the same question and compare the answers')}
+            type="button"
+          >
+            <Columns2 size={16} />
+            {t('Compare models')}
+          </button>
+        )}
+        {onSetCompareModel && !compareModel && comparePicking && (
+          <select
+            className={styles.kbToggle}
+            autoFocus
+            value=""
+            aria-label={t('Second model')}
+            onChange={(e) => { onSetCompareModel(e.target.value); setComparePicking(false); }}
+            onBlur={() => setComparePicking(false)}
+          >
+            <option value="" disabled>{t('Second model…')}</option>
+            {installedModels.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        )}
+        {compareModel && (
+          <span className={`${styles.kbToggle} ${styles.kbToggleOn}`} role="status">
+            <Columns2 size={16} />
+            {t('Compare with {model}', { model: compareModel })}
+            <button type="button" onClick={() => onSetCompareModel('')} title={t('Stop comparing')} aria-label={t('Stop comparing')}
+              style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', display: 'inline-flex', padding: 0, marginLeft: 4 }}>
+              <X size={14} />
+            </button>
+          </span>
         )}
         {cloudHost && (
           <button

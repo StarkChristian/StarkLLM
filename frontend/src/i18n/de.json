@@ -1356,5 +1356,21 @@
   "Questions about images use a local AI model on this PC. Choose a local model (Ollama) in the model list.": "Fragen zu Bildern nutzen ein lokales KI-Modell auf diesem PC. Wählen Sie ein lokales Modell (Ollama) in der Modellliste.",
   "None of the installed AI models can see images. Install a vision model, for example {model} (about 6 GB), in the model list, then ask again.": "Keines der installierten KI-Modelle kann Bilder sehen. Installieren Sie ein Bildmodell, zum Beispiel {model} (etwa 6 GB), in der Modellliste und fragen Sie dann erneut.",
   "The question about the image could not be answered.": "Die Frage zum Bild konnte nicht beantwortet werden.",
-  "Recordings (meetings, voice memos) are written down with times on this PC. This takes a while: about a tenth of the recording time or more.": "Aufnahmen (Besprechungen, Sprachmemos) werden auf diesem PC mit Zeitangaben aufgeschrieben. Das dauert eine Weile: etwa ein Zehntel der Aufnahmezeit oder mehr."
+  "Recordings (meetings, voice memos) are written down with times on this PC. This takes a while: about a tenth of the recording time or more.": "Aufnahmen (Besprechungen, Sprachmemos) werden auf diesem PC mit Zeitangaben aufgeschrieben. Das dauert eine Weile: etwa ein Zehntel der Aufnahmezeit oder mehr.",
+  "The answer could not be kept.": "Die Antwort konnte nicht übernommen werden.",
+  "Ask a second local model the same question and compare the answers": "Einem zweiten lokalen Modell dieselbe Frage stellen und die Antworten vergleichen",
+  "Compare models": "Modelle vergleichen",
+  "Second model": "Zweites Modell",
+  "Second model…": "Zweites Modell…",
+  "Compare with {model}": "Vergleich mit {model}",
+  "Stop comparing": "Vergleich beenden",
+  "Answer of {model}": "Antwort von {model}",
+  "Second answer: {model}": "Zweite Antwort: {model}",
+  "{sec} s · {speed} tok/s": "{sec} s · {speed} Tok./s",
+  "Waiting for the second model…": "Warte auf das zweite Modell…",
+  "The second model did not answer.": "Das zweite Modell hat nicht geantwortet.",
+  "Stopped": "Gestoppt",
+  "Keep the first answer ({model})": "Erste Antwort behalten ({model})",
+  "Keep the first answer": "Erste Antwort behalten",
+  "Keep this answer": "Diese Antwort übernehmen"
 }
