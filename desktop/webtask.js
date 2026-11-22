@@ -87,9 +87,18 @@ async function settle(wc) {
   await sleep(300);
 }
 
-async function inPage(wc, expression) {
-  await wc.executeJavaScript(PAGE_SCRIPT, false);
-  return wc.executeJavaScript(expression, false);
+// A script in the page, with a time limit: a page that never answers must not stop the task for ever.
+async function inPage(wc, expression, ms = 10000) {
+  let timer;
+  const limit = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('the page did not answer')), ms); });
+  try {
+    return await Promise.race([
+      wc.executeJavaScript(PAGE_SCRIPT, false).then(() => wc.executeJavaScript(expression, false)),
+      limit,
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function electronBrowser() {

@@ -232,6 +232,7 @@ async function runTask({ task, language = 'English', browser, llm, ask, emit = (
   let started = now();
   // site rules: decided once per site and task. siteRule(host) -> 'allow' | 'block' | '' (the user's own list)
   const decided = new Map();
+  const blockedTries = new Map();
   const decideSite = async (host) => {
     if (!host) return 'allow';
     if (decided.has(host)) return decided.get(host);
@@ -285,8 +286,11 @@ async function runTask({ task, language = 'English', browser, llm, ask, emit = (
     if (now() - started > maxMinutes * 60000) {
       return finishWith('error', `The task took longer than ${maxMinutes} minutes and was ended.`);
     }
-    if (n > 1 || browser.hasPage()) {
+    // only a page that is open can be read (after a blocked first site there is none yet)
+    if (browser.hasPage()) {
       try { snap = await browser.snapshot(); } catch (e) { snap = null; }
+    } else {
+      snap = null;
     }
     // what the last step did to the page: small models repeat a step that changes nothing unless they are told
     const sig = snap ? `${snap.url}|${snap.title}|${snap.scroll || 0}|${snap.text.length}|${snap.elements.map((e) => e.label + (e.value || '') + (e.checked ? 1 : 0)).join(',').length}|${snap.text.slice(0, 400)}` : '';
@@ -302,7 +306,7 @@ async function runTask({ task, language = 'English', browser, llm, ask, emit = (
       if (d === 'block') {
         await browser.leave();
         step(n, 'blocked', h);
-        note = `StarkLLM does not work on ${h} (site rules or the user's no). Use another site, or finish and say so.`;
+        note = `The user did not allow StarkLLM to work on ${h}, so it was not used. Use another site if that fits the task; otherwise finish and tell the user that ${h} was not opened because of their choice.`;
         snap = null;
         continue;
       }
@@ -349,8 +353,16 @@ async function runTask({ task, language = 'English', browser, llm, ask, emit = (
           if (!url) { note = `"${short(a.url)}" is not a web address. Use a full https:// address.`; break; }
           if (await decideSite(hostOf(url)) === 'block') {
             if (signal.stopped) return finishWith('stopped');
+            const tries = (blockedTries.get(hostOf(url)) || 0) + 1;
+            blockedTries.set(hostOf(url), tries);
+            if (tries >= 3) return finishWith('error', `${hostOf(url)} was not opened because you did not allow it.`);
+            if (tries === 2) {
+              note = `${hostOf(url)} is NOT allowed and will not be opened. Do not try it again. Call finish now and tell the user, in their language, that ${hostOf(url)} was not opened because they did not allow it.`;
+              lastAction = '';
+              break;
+            }
             step(n, 'blocked', hostOf(url));
-            note = `StarkLLM does not work on ${hostOf(url)} (site rules or the user's no). Use another site, or finish and say so.`;
+            note = `The user did not allow StarkLLM to work on ${hostOf(url)}, so it was not opened. Use another site if that fits the task; otherwise finish and tell the user that ${hostOf(url)} was not opened because of their choice.`;
             break;
           }
           await browser.open(url);
