@@ -49,3 +49,12 @@ test('a file name does not end in a dot', () => {
   assert.equal(fileBase('How many people live in Bologna.'), 'How many people live in Bologna');
   assert.equal(fileBase('...'), 'StarkLLM');
 });
+
+test('the export: readable source places and no picture icon', () => {
+  const [q, a] = exportItems([
+    { role: 'user', content: 'What is due?\n\n\u{1F5BC} letter-de.png' },
+    { role: 'assistant', content: 'x', wsSources: ['meeting-de.wav (Time 00:00:09)'] },
+  ], 'en', undefined, (s) => s.replace(/ \(Time (.*)\)$/, ' · at $1'));
+  assert.equal(q.content, 'What is due?\n\n(letter-de.png)');
+  assert.deepEqual(a.sources, ['meeting-de.wav · at 00:00:09']);
+});

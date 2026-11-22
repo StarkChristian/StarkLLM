@@ -61,7 +61,9 @@ def test_the_second_model_answers_without_the_first_answer_and_nothing_is_saved(
     assert second.json()["response"] == "Answer of model-b."
     prompt_b = seen[-1]["messages"]
     assert seen[-1]["model"] == "model-b"
-    assert prompt_b[-1] == {"role": "user", "content": "What is the capital of Italy?"}
+    asked = [m for m in prompt_b if m["role"] != "system"]
+    assert asked[-1] == {"role": "user", "content": "What is the capital of Italy?"}
+    assert prompt_b[-1] == {"role": "system", "content": "Write your answer in English."}  # the answer language, right after the question
     assert not any(m["content"] == "Answer of model-a." for m in prompt_b)
     # the chat has the question once and the first answer only
     assert history(chat_id) == [("user", "What is the capital of Italy?"), ("assistant", "Answer of model-a.")]

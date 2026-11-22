@@ -25,6 +25,7 @@ import { useChatSummary } from './hooks/useChatSummary';
 import { exportChat } from './utils/chatExport';
 import { webTaskErrorText } from './utils/webTaskText';
 import { exportItems, saveAsWord, saveAsPdf } from './utils/exportDocs';
+import { readableSource } from './utils/sources';
 import { UI_LOCALE } from './utils/locale';
 import { mcpBridge } from './utils/mcpBridge';
 import { currentCloudHost } from './utils/cloud';
@@ -1188,7 +1189,7 @@ export default function App() {
 
   // Word and PDF (docs/roadmap-2026-12.md, R1): a whole chat, or one question with its answer
   const exportAsDocument = async (format, title, msgs) => {
-    const items = exportItems(msgs, UI_LOCALE, serverDate); // engine times are UTC: shown in local time like the chat
+    const items = exportItems(msgs, UI_LOCALE, serverDate, readableSource); // engine times are UTC: shown in local time like the chat
     if (!items.length) return;
     const args = {
       title, items, headers: getHeaders(), lang: language(), dir: document.documentElement.dir || 'ltr',

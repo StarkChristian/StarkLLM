@@ -1518,6 +1518,8 @@ LANGUAGE & WRITING QUALITY
         messages = [{"role": "system", "content": system_prompt}]
         for msg in history:
             messages.append({"role": msg.role, "content": msg.content})
+        if _lang:
+            messages.append({"role": "system", "content": f"Write your answer in {_lang}."})
 
         # ---- Generate response
         options = {}

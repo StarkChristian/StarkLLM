@@ -85,23 +85,24 @@ export function markdownToHtml(markdown) {
 }
 
 // The sources of an answer as short texts (file names, knowledge base, web pages)
-export function sourcesOf(msg) {
+export function sourcesOf(msg, readable = (x) => x) {
   const s = [];
   for (const x of msg.wsSources || []) s.push(typeof x === 'string' ? x : x.filename || x.title || '');
   for (const x of msg.kbSources || []) s.push(typeof x === 'string' ? x : x.filename || x.title || '');
   for (const x of msg.webSources || []) s.push(typeof x === 'string' ? x : (x.url ? `${x.title || x.url} (${x.url})` : x.title || ''));
-  return s.filter(Boolean);
+  return s.filter(Boolean).map(readable);
 }
 
 // the messages of a chat (or of one question and its answer) for an export: no system notes, no empty answers
-export function exportItems(messages, locale, toDate = (v) => new Date(v)) {
+export function exportItems(messages, locale, toDate = (v) => new Date(v), readable = (x) => x) {
   return (messages || [])
     .filter((m) => (m.role === 'user' || m.role === 'assistant') && String(m.content || '').trim())
     .map((m) => ({
       role: m.role,
-      content: String(m.content),
+      // an image question ends with "🖼 name": the icon is left out (the PDF fonts have no picture for it)
+      content: String(m.content).replace(/\n\n\u{1F5BC}\uFE0F? ([^\n]+)$/u, '\n\n($1)'),
       time: m.timestamp ? toDate(m.timestamp).toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' }) : '',
-      sources: m.role === 'assistant' ? sourcesOf(m) : [],
+      sources: m.role === 'assistant' ? sourcesOf(m, readable) : [],
     }));
 }
 

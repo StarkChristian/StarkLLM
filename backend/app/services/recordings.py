@@ -115,5 +115,5 @@ def _transcribe_with(model, path: str, language: Optional[str], name: str) -> Di
     found = []
     for seg in segments:  # a generator: the work happens here
         found.append({"start": seg.start, "end": seg.end, "text": seg.text})
-    logger.info(f"Recording: {len(found)} segments, {duration:.0f} s, language {getattr(info, 'language', '?')}, model {name}")
+    logger.warning(f"Recording written down: {len(found)} segments, {duration:.0f} s, language {getattr(info, 'language', '?')}, speech model {name}")
     return {"language": getattr(info, "language", None), "duration": duration, "passages": passages(found), "model": name}
