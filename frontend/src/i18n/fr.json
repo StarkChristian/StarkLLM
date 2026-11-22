@@ -574,7 +574,6 @@
   "Title": "Titre",
   "Toggle Knowledge Base retrieval": "Activer/désactiver la recherche dans la base de connaissances",
   "Toggle Web Search": "Activer/désactiver la recherche web",
-  "Tool Result:": "Résultat de l'outil :",
   "Tool execution runs 100% on your local machine. No external MCP registry is contacted, and every tool call requires manual user confirmation before running.": "L'exécution des outils se fait à 100 % sur votre machine. Aucun registre MCP externe n'est contacté, et chaque appel d'outil exige une confirmation manuelle de l'utilisateur avant d'être lancé.",
   "Top P ({value})": "Top P ({value})",
   "Transcribing audio with Whisper...": "Transcription de l'audio avec Whisper…",
@@ -1447,5 +1446,6 @@
   "Chat loaded. How can I help you?": "Discussion chargée. Comment puis-je vous aider ?",
   "account {name}": "compte {name}",
   "Your question is sent to DuckDuckGo (if it does not answer, to Mullvad Leta, then Mojeek).": "Votre question est envoyée à DuckDuckGo (s’il ne répond pas, à Mullvad Leta, puis à Mojeek).",
-  "Send the result to the assistant": "Envoyer le résultat à l'assistant"
+  "Send the result to the assistant": "Envoyer le résultat à l'assistant",
+  "Result of the tool:": "Résultat de l’outil :"
 }

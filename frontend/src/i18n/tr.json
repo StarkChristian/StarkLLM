@@ -574,7 +574,6 @@
   "Title": "Başlık",
   "Toggle Knowledge Base retrieval": "Bilgi Tabanı aramasını aç/kapat",
   "Toggle Web Search": "Web Aramasını aç/kapat",
-  "Tool Result:": "Araç Sonucu:",
   "Tool execution runs 100% on your local machine. No external MCP registry is contacted, and every tool call requires manual user confirmation before running.": "Araçların çalıştırılması %100 yerel makinenizde gerçekleşir. Harici bir MCP kayıt defteriyle iletişim kurulmaz ve her araç çağrısı çalıştırılmadan önce kullanıcının elle onayını gerektirir.",
   "Top P ({value})": "Top P ({value})",
   "Transcribing audio with Whisper...": "Ses Whisper ile yazıya dökülüyor...",
@@ -1447,5 +1446,6 @@
   "Chat loaded. How can I help you?": "Sohbet yüklendi. Nasıl yardımcı olabilirim?",
   "account {name}": "hesap {name}",
   "Your question is sent to DuckDuckGo (if it does not answer, to Mullvad Leta, then Mojeek).": "Sorunuz DuckDuckGo’ya gönderilir (yanıt vermezse Mullvad Leta’ya, sonra Mojeek’e).",
-  "Send the result to the assistant": "Sonucu asistana gönder"
+  "Send the result to the assistant": "Sonucu asistana gönder",
+  "Result of the tool:": "Aracın sonucu:"
 }
