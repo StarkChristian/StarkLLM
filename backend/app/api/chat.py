@@ -41,6 +41,20 @@ except ImportError:
 # Web search: one engine at a time, the next only when one fails (the library's "auto" asks several at once).
 # DuckDuckGo first; Mullvad's Leta (Brave results, no account, no tracking) and Mojeek (own index) when it does not answer.
 WEB_SEARCH_ENGINES = [("duckduckgo", "duckduckgo.com"), ("mullvad_brave", "leta.mullvad.net"), ("mojeek", "mojeek.com")]
+_SEARCH_REGIONS = {"German": "de-de", "Spanish": "es-es", "French": "fr-fr", "Italian": "it-it", "Turkish": "tr-tr",
+                   "Portuguese": "pt-pt", "Dutch": "nl-nl", "Polish": "pl-pl", "Russian": "ru-ru"}
+
+
+def search_regions(language):
+    """the results of the question's language first, then without a region (English: only the library's default)"""
+    r = _SEARCH_REGIONS.get(language or "")
+    return [r, "wt-wt"] if r else ["us-en"]
+
+
+def search_query(message: str) -> str:
+    """the question as a search query: one line, without the marks that some engines read as part of a word"""
+    q = re.sub(r"[¿¡«»“”„]", " ", str(message or ""))
+    return re.sub(r"\s+", " ", q).strip()[:400]
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -1125,21 +1139,29 @@ async def chat(
                     # while the app is fully offline. One engine only (DuckDuckGo): the library's default "auto" sends
                     # the question to several search engines at once.
                     failed = 0
+                    query = search_query(req.message)
+                    regions = search_regions(language_of(req.message) or language_name(getattr(req, "language", None)))
                     for backend, host in WEB_SEARCH_ENGINES:
-                        try:
-                            with netguard.external("web_search", host, purpose="Web search the user switched on for this question"):
-                                with DDGS() as ddgs:
-                                    for r in ddgs.text(req.message, max_results=5, backend=backend):
-                                        results.append({
-                                            'title': r.get('title', 'Unknown'),
-                                            'href': r.get('href', ''),
-                                            'body': r.get('body', '')
-                                        })
-                        except Exception as e:
-                            if isinstance(e, netguard.OfflineBlocked):
-                                raise
+                        engine_failed = True
+                        for region in regions:
+                            try:
+                                with netguard.external("web_search", host, purpose="Web search the user switched on for this question"):
+                                    with DDGS() as ddgs:
+                                        for r in ddgs.text(query, max_results=5, backend=backend, region=region):
+                                            results.append({
+                                                'title': r.get('title', 'Unknown'),
+                                                'href': r.get('href', ''),
+                                                'body': r.get('body', '')
+                                            })
+                                engine_failed = False
+                            except Exception as e:
+                                if isinstance(e, netguard.OfflineBlocked):
+                                    raise
+                                logger.warning(f"Web search with {host} ({region}) did not work: {e}")
+                            if results:
+                                break
+                        if engine_failed:
                             failed += 1
-                            logger.warning(f"Web search with {host} did not work: {e}")
                         if results:
                             break
                     if not results and failed == len(WEB_SEARCH_ENGINES):
