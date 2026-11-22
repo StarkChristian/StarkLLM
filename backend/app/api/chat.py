@@ -5,7 +5,7 @@ import asyncio
 import logging
 import urllib.parse
 from datetime import date
-from fastapi import APIRouter, Depends, HTTPException, Response, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Response, BackgroundTasks, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, select, exists
@@ -695,6 +695,83 @@ def export_docx(req: ExportDocxRequest, current_user: models.User = Depends(get_
     data = chat_to_docx(req.title, [m.model_dump() for m in req.messages],
                         labels={k: str(v)[:80] for k, v in list(req.labels.items())[:10]}, date_text=req.date_text)
     return Response(content=data, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
+
+def _ollama_show(model: str) -> dict:
+    """Ollama's information about an installed model (its capabilities: "vision", "tools", ...)."""
+    r = netguard.post(f"{llm_service.base_url}/api/show", feature="ollama", json={"model": model}, timeout=15)
+    r.raise_for_status()
+    return r.json()
+
+
+@router.post("/image")
+async def image_question(
+    workspace_id: int = Form(...),
+    message: str = Form("", max_length=20000),
+    chat_id: Optional[int] = Form(None),
+    model: Optional[str] = Form(None, max_length=200),
+    language: Optional[str] = Form(None, max_length=20),
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """A question about an image (docs/roadmap-2026-12.md, R2): the image goes to a vision model of the local Ollama,
+    the answer streams back as text. The image is not stored; the history keeps the question with a note."""
+    from app.services import image_question as iq
+    ws = (
+        db.query(models.Workspace)
+        .filter(models.Workspace.id == workspace_id, models.Workspace.user_id == current_user.id)
+        .first()
+    )
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    data = await image.read(iq.MAX_BYTES + 1)
+    try:
+        image_b64, _info = iq.prepare_image(data)
+    except iq.ImageError as e:
+        raise HTTPException(status_code=400, detail={"code": e.code, "message": str(e)})
+    chosen = iq.choose_model((model or "").strip() or None, llm_service.get_available_models(), _ollama_show)
+    if not chosen:
+        raise HTTPException(status_code=409, detail={"code": "no-vision-model", "suggest": iq.SUGGESTED_MODEL})
+    if chat_id:
+        chat_obj = db.query(models.Chat).filter(models.Chat.id == chat_id, models.Chat.workspace_id == ws.id).first()
+        if not chat_obj:
+            raise HTTPException(status_code=404, detail="Chat not found")
+    question = message.strip() or "Describe this image."
+    if not chat_id:
+        chat_obj = models.Chat(workspace_id=ws.id, title=question[:50])
+        db.add(chat_obj)
+        db.commit()
+        db.refresh(chat_obj)
+    name = re.sub(r"[\[\]()<>*_`\r\n]", "", os.path.basename(image.filename or "image"))[:80] or "image"
+    db.add(models.Message(chat_id=chat_obj.id, role="user", content=f"{question}\n\n🖼 {name}"))
+    db.commit()
+    the_chat = chat_obj.id
+    msgs = iq.messages_for(question, image_b64, language_name(language) or "the language of the question")
+
+    def answer():
+        parts = []
+        try:
+            for chunk in llm_service.generate_chat(chosen, msgs, stream=True, options={"temperature": 0.2}):
+                parts.append(chunk)
+                yield chunk
+        except LLMBackendError as e:
+            note = f"\n\n⚠️ {e}"
+            parts.append(note)
+            yield note
+        finally:
+            text = "".join(parts).strip()
+            if text:
+                from app.db.session import SessionLocal
+                s = SessionLocal()
+                try:
+                    s.add(models.Message(chat_id=the_chat, role="assistant", content=text))
+                    s.commit()
+                finally:
+                    s.close()
+
+    return StreamingResponse(answer(), media_type="text/plain; charset=utf-8",
+                             headers={"X-Chat-ID": str(the_chat), "X-Image-Model": urllib.parse.quote(chosen)})
 
 
 @router.post("/save-partial")

@@ -294,3 +294,13 @@
   font-size: 0.75rem;
   cursor: pointer;
 }
+
+/* the image of the next question (docs/roadmap-2026-12.md, R2) */
+.imageChip {
+  display: flex; align-items: center; gap: 10px; margin: 0 0 8px; padding: 6px 8px; border-radius: 10px;
+  border: 1px solid var(--border-color, rgba(127,127,127,0.3)); background: var(--bg-secondary, rgba(127,127,127,0.06)); font-size: 0.85em;
+  color: var(--text-secondary, inherit);
+}
+.imageChip img { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; }
+.imageChip span { flex: 1; }
+.imageChip button { background: none; border: none; color: inherit; cursor: pointer; display: inline-flex; padding: 4px; }

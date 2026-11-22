@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import styles from './InputBar.module.css';
-import { Paperclip, Mic, Send, Square, Loader, Database, Globe, FileCode, Settings, Cloud, Compass, TerminalSquare, X } from 'lucide-react';
+import { Paperclip, Mic, Send, Square, Loader, Database, Globe, FileCode, Settings, Cloud, Compass, TerminalSquare, ImagePlus, X } from 'lucide-react';
 import PromptTemplateModal from './PromptTemplateModal';
 import { useToast } from './Toast';
 import { UPLOAD_ACCEPT } from '../utils/uploadTypes';
@@ -8,7 +8,7 @@ import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
 import { isWebTaskTemplate } from '../utils/webTask';
 
-export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleKb, useWebSearch, onToggleWebSearch, webTaskAvailable, useWebTask, onToggleWebTask, terminalFolder, onChooseTerminalFolder, onClearTerminalFolder, offline, cloudHost, onOpenSettings, isGenerating, onStopGeneration, token, activeWorkspace, onOpenKbSettings }) {
+export default function InputBar({ onSendImage, onSendMessage, onFileUpload, useKb, onToggleKb, useWebSearch, onToggleWebSearch, webTaskAvailable, useWebTask, onToggleWebTask, terminalFolder, onChooseTerminalFolder, onClearTerminalFolder, offline, cloudHost, onOpenSettings, isGenerating, onStopGeneration, token, activeWorkspace, onOpenKbSettings }) {
   const toast = useToast();
   const [text, setText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -17,6 +17,9 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
   const [isUploading, setIsUploading] = useState(false);
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
   const fileInputRef = useRef(null);
+  const imageInputRef = useRef(null);
+  // an image for the next question (docs/roadmap-2026-12.md, R2): pasted, or chosen with the image button
+  const [pendingImage, setPendingImage] = useState(null); // { file, url }
   const textareaRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -38,12 +41,34 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
+  const takeImage = (file) => {
+    if (!file || !/^image\//.test(file.type)) return false;
+    if (file.size > 20 * 1024 * 1024) { toast.error(t('This image cannot be used. Use a PNG, JPEG, WebP or GIF image of up to 20 MB.')); return true; }
+    setPendingImage(prev => { if (prev) URL.revokeObjectURL(prev.url); return { file, url: URL.createObjectURL(file) }; });
+    return true;
+  };
+
+  const clearImage = () => setPendingImage(prev => { if (prev) URL.revokeObjectURL(prev.url); return null; });
+
   const handleSend = () => {
     if (isGenerating) return;
+    if (pendingImage && onSendImage) {
+      onSendImage(text, pendingImage.file);
+      setText('');
+      clearImage();
+      return;
+    }
     if (text.trim()) {
       onSendMessage(text);
       setText('');
     }
+  };
+
+  // a screenshot pasted into the message box becomes the image of the question
+  const handlePaste = (e) => {
+    if (!onSendImage) return;
+    const item = [...(e.clipboardData?.items || [])].find(x => x.kind === 'file' && /^image\//.test(x.type));
+    if (item && takeImage(item.getAsFile())) e.preventDefault();
   };
 
   const handleKeyDown = (e) => {
@@ -248,6 +273,13 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
         )}
       </div>
 
+      {pendingImage && (
+        <div className={styles.imageChip} role="status">
+          <img src={pendingImage.url} alt="" />
+          <span>{t('The image goes with your question to a vision model on this PC.')}</span>
+          <button type="button" onClick={clearImage} title={t('Remove the image')} aria-label={t('Remove the image')}><X size={14} /></button>
+        </div>
+      )}
       <div className={styles.inputWrapper}>
         <div style={{ display: 'flex', gap: '4px' }}>
           <button className={styles.iconBtn} onClick={() => setIsTemplatesOpen(true)} title={t('Prompt Templates')}>
@@ -256,7 +288,19 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
           <button className={styles.iconBtn} onClick={handleFileClick} disabled={isUploading} title={t('Attach files (PDF, Word, Excel, CSV, Markdown, text, JSON, XML, HTML, images) or drop them on the window')}>
             {isUploading ? <Loader size={24} className="spinner" /> : <Paperclip size={24} />}
           </button>
+          {onSendImage && (
+            <button className={styles.iconBtn} onClick={() => imageInputRef.current?.click()} title={t('Ask about an image (or paste a screenshot into the message box)')}>
+              <ImagePlus size={24} />
+            </button>
+          )}
         </div>
+        <input
+          type="file"
+          ref={imageInputRef}
+          style={{ display: 'none' }}
+          accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/tiff"
+          onChange={(e) => { takeImage(e.target.files && e.target.files[0]); e.target.value = ''; }}
+        />
         <input
           type="file"
           ref={fileInputRef}
@@ -290,7 +334,8 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={t('Message StarkLLM or drop a file here...')}
+            onPaste={handlePaste}
+            placeholder={pendingImage ? t('Ask about the image…') : t('Message StarkLLM or drop a file here...')}
             rows={1}
           />
         )}

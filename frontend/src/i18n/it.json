@@ -1345,5 +1345,15 @@
   "You": "Tu",
   "Sources": "Fonti",
   "Exported from StarkLLM": "Esportato da StarkLLM",
-  "The export did not work.": "L’esportazione non è riuscita."
+  "The export did not work.": "L’esportazione non è riuscita.",
+  "This image cannot be used. Use a PNG, JPEG, WebP or GIF image of up to 20 MB.": "Questa immagine non si può usare. Usa un’immagine PNG, JPEG, WebP o GIF fino a 20 MB.",
+  "Ask about an image (or paste a screenshot into the message box)": "Chiedi su un’immagine (o incolla uno screenshot nella casella del messaggio)",
+  "Ask about the image…": "Chiedi sull’immagine…",
+  "The image goes with your question to a vision model on this PC.": "L’immagine va con la tua domanda a un modello di visione su questo PC.",
+  "Remove the image": "Rimuovi l’immagine",
+  "Answered from the image by {model}": "Risposta dall’immagine di {model}",
+  "Describe this image.": "Descrivi questa immagine.",
+  "Questions about images use a local AI model on this PC. Choose a local model (Ollama) in the model list.": "Le domande sulle immagini usano un modello di IA locale su questo PC. Scegli un modello locale (Ollama) nell’elenco dei modelli.",
+  "None of the installed AI models can see images. Install a vision model, for example {model} (about 6 GB), in the model list, then ask again.": "Nessuno dei modelli di IA installati vede le immagini. Installa un modello di visione, per esempio {model} (circa 6 GB), nell’elenco dei modelli, poi chiedi di nuovo.",
+  "The question about the image could not be answered.": "Non è stato possibile rispondere alla domanda sull’immagine."
 }

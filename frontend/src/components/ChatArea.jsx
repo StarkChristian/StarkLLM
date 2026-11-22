@@ -250,6 +250,8 @@ const ChatMessageRenderer = React.memo(({
               {msg.role === 'assistant' && msg.warnings && msg.warnings.length > 0 && (
                 <DocumentWarnings warnings={msg.warnings} />
               )}
+              {msg.image && <img src={msg.image} alt={msg.imageName || ''} className={styles.questionImage} />}
+              {msg.imageModel && <div className={styles.imageModel}>{t('Answered from the image by {model}', { model: msg.imageModel })}</div>}
               {contentSegments ? (
                 contentSegments.map((seg, sIdx) => {
                   if (seg.type === 'tool_call') {
