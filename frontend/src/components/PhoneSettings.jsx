@@ -53,7 +53,7 @@ function QrSquares({ matrix }) {
     }
   });
   return (
-    <svg viewBox={`0 0 ${n + 8} ${n + 8}`} width={240} height={240} shapeRendering="crispEdges" role="img" aria-label={t('QR code for pairing a phone')}
+    <svg viewBox={`0 0 ${n + 8} ${n + 8}`} width={320} height={320} shapeRendering="crispEdges" role="img" aria-label={t('QR code for pairing a phone')}
          style={{ background: '#fff', borderRadius: 8, alignSelf: 'center' }}>
       <g fill="#000">{runs}</g>
     </svg>

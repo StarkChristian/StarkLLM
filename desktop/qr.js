@@ -2,9 +2,10 @@
 // squares it gets (no QR library and no network in the page). qrcode-generator: MIT, no dependencies.
 const qrcode = require('qrcode-generator');
 
-// text -> rows of booleans (true = dark), smallest version that fits, error correction M (15 %)
+// text -> rows of booleans (true = dark), smallest version that fits, error correction L (7 %): a code on a screen has
+// no stains, and L gives fewer and larger squares, which phone cameras read at once (M needed several tries)
 function qrMatrix(text) {
-  const q = qrcode(0, 'M');
+  const q = qrcode(0, 'L');
   q.addData(String(text), 'Byte');
   q.make();
   const n = q.getModuleCount();
