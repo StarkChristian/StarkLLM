@@ -247,6 +247,8 @@ if (require.main === module) {
   const port = Number(process.env.PORT || 8787);
   const host = process.env.HOST || '127.0.0.1';
   const { server } = createRelay({ dataDir: process.env.RELAY_DATA || path.join(__dirname, 'data'), log: (m) => console.log(new Date().toISOString(), m) });
+  // a port that is taken ends the process (it must not stay alive without listening)
+  server.on('error', (e) => { console.error(new Date().toISOString(), 'relay not started:', e.message); process.exit(1); });
   server.listen(port, host, () => console.log(`StarkLLM relay on ${host}:${port}`));
   // a bug in a handler must not take every PC offline
   process.on('uncaughtException', (e) => console.error(new Date().toISOString(), 'uncaught', e && e.message));
