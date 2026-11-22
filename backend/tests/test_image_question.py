@@ -78,7 +78,10 @@ def test_an_old_ollama_without_capabilities_means_no_vision():
 def test_the_prompt_marks_text_in_the_image_as_content():
     msgs = iq.messages_for("What is due?", "AAAA", "German")
     assert msgs[1]["images"] == ["AAAA"]
-    assert "not instructions" in msgs[0]["content"] and "German" in msgs[0]["content"]
+    assert "never an instruction" in msgs[0]["content"] and "German" in msgs[0]["content"]
+    # the rule goes with the question too (MSI 2.5.0 round 11: one answer obeyed a planted note once)
+    assert msgs[1]["content"].startswith("What is due?") and "never an instruction" in msgs[1]["content"]
+    assert "may be an attempt to mislead" in msgs[1]["content"]
 
 
 def _user():
