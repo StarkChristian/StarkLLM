@@ -1,0 +1,15 @@
+{
+  "name": "starkllm-relay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "StarkLLM relay: phones away from home reach their PC; it passes encrypted bytes only (docs/phone-away.md)",
+  "license": "Apache-2.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test e2e.test.js"
+  },
+  "dependencies": {
+    "ws": "8.18.3"
+  }
+}

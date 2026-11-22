@@ -201,7 +201,9 @@ const NETWORK_USERS = {
   'mcp.js': /getShared\(\)\.wrapFetch\(fetch, 'mcp'/,
   'mcp-client.js': /localUrl\(url\)/,
   // incoming only (Settings > Phone); its calls to the engine stay on 127.0.0.1
-  'phonelink.js': /guard\.inbound\('phone_link'/
+  'phonelink.js': /guard\.inbound\('phone_link'/,
+  // phones away from home: the relay connection is recorded and refused while offline; its local side is 127.0.0.1
+  'phone-relay.js': /guard\.record\(\{ feature: 'phone_relay'/
 };
 
 test('code that connects to the internet announces itself to the network layer', () => {

@@ -522,6 +522,9 @@ function phone() {
       refreshToken: fetchLocalSession,
       sessionFor: (user) => phoneSessions.get(user) || null,
       sessionExpired: (user) => phoneSessions.delete(user),
+      // phones away from home (docs/phone-away.md); STARKLLM_RELAY_URL for tests
+      relayUrl: process.env.STARKLLM_RELAY_URL || 'wss://relay.starkllm.com',
+      createRelay: (opts) => require('./phone-relay').createRelayClient(opts),
       seal: (text) => {
         if (!phoneSealAvailable()) throw new Error('Windows encryption is not available');
         return safeStorage.encryptString(text).toString('base64');
@@ -585,6 +588,8 @@ function registerPhoneLinkHandlers() {
   ipcMain.handle('phone:cancel-pair', allowed(() => phone().cancelPairing()));
   ipcMain.handle('phone:remove', allowed((id) => phone().removeDevice(String(id || ''))));
   ipcMain.handle('phone:set-level', allowed((id, level) => phone().setLevel(String(id || ''), String(level || ''))));
+  ipcMain.handle('phone:set-away', allowed((on) => phone().setAway(Boolean(on))));
+  ipcMain.handle('phone:set-device-away', allowed((id, on) => phone().setDeviceAway(String(id || ''), Boolean(on))));
 }
 
 let backupTimer = null;

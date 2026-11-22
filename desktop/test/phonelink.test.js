@@ -170,7 +170,7 @@ test('wrong codes block the address that sent them, not the pairing; the pairing
 test('a paired phone reaches the allowed engine calls with the local session; the device token stays here', async (t) => {
   const s = await paired(t);
   const hello = await request(s.port, { path: '/phone/v1/hello', headers: { [DEVICE_HEADER]: s.token }, pin: s.pin });
-  assert.deepStrictEqual(hello.json, { pc_name: 'GEEKOM', version: '2.4.0', device_id: s.deviceId, signed_in: true, level: 'work' });
+  assert.deepStrictEqual(hello.json, { pc_name: 'GEEKOM', version: '2.4.0', device_id: s.deviceId, signed_in: true, level: 'work', away: false, via_relay: false });
   const r = await request(s.port, { path: '/api/v1/workspaces/?x=1', headers: { [DEVICE_HEADER]: s.token, accept: 'application/json', cookie: 'a=b' } });
   assert.strictEqual(r.status, 200);
   const seen = s.engine.seen.at(-1);

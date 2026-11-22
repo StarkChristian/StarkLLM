@@ -1449,5 +1449,14 @@
   "Your question is sent to DuckDuckGo (if it does not answer, to Mullvad Leta, then Mojeek).": "Ihre Frage wird an DuckDuckGo gesendet (antwortet es nicht, an Mullvad Leta, dann an Mojeek).",
   "Send the result to the assistant": "Ergebnis an den Assistenten senden",
   "Open the browser": "Browser öffnen",
-  "Open StarkLLM's browser window and use it yourself, with its own address bar": "Das Browserfenster von StarkLLM öffnen und selbst nutzen, mit eigener Adressleiste"
+  "Open StarkLLM's browser window and use it yourself, with its own address bar": "Das Browserfenster von StarkLLM öffnen und selbst nutzen, mit eigener Adressleiste",
+  "Connected to the StarkLLM relay.": "Mit dem StarkLLM-Relay verbunden.",
+  "Connecting to the StarkLLM relay…": "Verbindung mit dem StarkLLM-Relay wird hergestellt…",
+  "The StarkLLM relay cannot be reached right now; StarkLLM tries again.": "Das StarkLLM-Relay ist gerade nicht erreichbar; StarkLLM versucht es erneut.",
+  "The StarkLLM relay refused this PC.": "Das StarkLLM-Relay hat diesen PC abgelehnt.",
+  "Fully offline: phones away from home are off.": "Vollständig offline: Telefone unterwegs sind aus.",
+  "No phone may be used away from home yet: allow it for a phone below.": "Noch darf kein Telefon unterwegs genutzt werden: Erlauben Sie es unten für ein Telefon.",
+  "Phones away from home": "Telefone unterwegs",
+  "A phone you allow below can also reach this PC when it is not in your home network, through the StarkLLM relay. The connection stays encrypted from the phone to this PC: the relay passes on encrypted bytes only and never sees a question, an answer or a document.": "Ein Telefon, das Sie unten erlauben, erreicht diesen PC auch außerhalb Ihres Heimnetzes, über das StarkLLM-Relay. Die Verbindung bleibt vom Telefon bis zu diesem PC verschlüsselt: Das Relay leitet nur verschlüsselte Daten weiter und sieht nie eine Frage, eine Antwort oder ein Dokument.",
+  "Also away from home (through the relay)": "Auch unterwegs (über das Relay)"
 }

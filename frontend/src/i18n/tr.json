@@ -1449,5 +1449,14 @@
   "Your question is sent to DuckDuckGo (if it does not answer, to Mullvad Leta, then Mojeek).": "Sorunuz DuckDuckGo’ya gönderilir (yanıt vermezse Mullvad Leta’ya, sonra Mojeek’e).",
   "Send the result to the assistant": "Sonucu asistana gönder",
   "Open the browser": "Tarayıcıyı aç",
-  "Open StarkLLM's browser window and use it yourself, with its own address bar": "StarkLLM’in tarayıcı penceresini açın ve kendi adres çubuğuyla kendiniz kullanın"
+  "Open StarkLLM's browser window and use it yourself, with its own address bar": "StarkLLM’in tarayıcı penceresini açın ve kendi adres çubuğuyla kendiniz kullanın",
+  "Connected to the StarkLLM relay.": "StarkLLM aktarıcısına bağlı.",
+  "Connecting to the StarkLLM relay…": "StarkLLM aktarıcısına bağlanılıyor…",
+  "The StarkLLM relay cannot be reached right now; StarkLLM tries again.": "StarkLLM aktarıcısına şu anda ulaşılamıyor; StarkLLM yeniden deniyor.",
+  "The StarkLLM relay refused this PC.": "StarkLLM aktarıcısı bu bilgisayarı reddetti.",
+  "Fully offline: phones away from home are off.": "Tamamen çevrimdışı: evden uzaktaki telefonlar kapalı.",
+  "No phone may be used away from home yet: allow it for a phone below.": "Henüz hiçbir telefon evden uzakta kullanılamaz: aşağıda bir telefon için izin verin.",
+  "Phones away from home": "Evden uzaktaki telefonlar",
+  "A phone you allow below can also reach this PC when it is not in your home network, through the StarkLLM relay. The connection stays encrypted from the phone to this PC: the relay passes on encrypted bytes only and never sees a question, an answer or a document.": "Aşağıda izin verdiğiniz bir telefon, ev ağınızın dışındayken de StarkLLM aktarıcısı üzerinden bu bilgisayara ulaşabilir. Bağlantı telefondan bu bilgisayara kadar şifreli kalır: aktarıcı yalnızca şifreli baytları iletir ve hiçbir soruyu, yanıtı veya belgeyi görmez.",
+  "Also away from home (through the relay)": "Evden uzaktayken de (aktarıcı üzerinden)"
 }
