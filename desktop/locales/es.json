@@ -129,5 +129,6 @@
   "Restart StarkLLM to change this?": "¿Reiniciar StarkLLM para cambiar esto?",
   "StarkLLM restarts Ollama (the local AI runtime) with the new setting. Your chats and documents are not affected.": "StarkLLM reinicia Ollama (el entorno de ejecución de IA local) con el nuevo ajuste. Sus chats y documentos no se ven afectados.",
   "StarkLLM web task": "Tarea web de StarkLLM",
-  "StarkLLM is fully offline: web tasks are off.": "StarkLLM está totalmente sin conexión: las tareas web están desactivadas."
+  "StarkLLM is fully offline: web tasks are off.": "StarkLLM está totalmente sin conexión: las tareas web están desactivadas.",
+  "StarkLLM: the answer changed": "StarkLLM: la respuesta cambió"
 }

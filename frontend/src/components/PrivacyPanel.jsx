@@ -4,6 +4,7 @@ import styles from './PrivacyPanel.module.css';
 import { t } from '../i18n';
 import { readOffline, setOffline, onOfflineChange, readNetworkLog, clearNetworkLog, toCsv, download } from '../utils/privacy';
 import { webTaskBridge } from '../utils/webTask';
+import ScheduledWebTasks from './ScheduledWebTasks';
 
 // Settings > Privacy & network (roadmap phase 3, "provable privacy"): the fully offline switch and the list of every
 // outgoing connection of the app and the engine, kept on this PC. The list holds hosts, purposes and sizes, never a
@@ -217,6 +218,7 @@ export default function PrivacyPanel({ token }) {
               ))}
             </ul>
           )}
+          <ScheduledWebTasks />
         </>
       )}
       <p className={styles.fine}>

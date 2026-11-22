@@ -38,3 +38,6 @@
 .actions { display: inline-flex; gap: 4px; flex-wrap: wrap; }
 .saveRow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
 .saveRow button { display: inline-flex; align-items: center; gap: 6px; }
+
+.repeatForm { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.repeatForm select, .repeatForm input { padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border-color, #888); background: transparent; color: inherit; }
