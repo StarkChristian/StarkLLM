@@ -49,7 +49,8 @@ naming the PR number.
 - The paper-clip button and drag and drop accept images in the chat. The image goes with the question to a
   **vision model** on the PC (for example qwen2.5vl, gemma3 or llava). If none is installed, the chat offers to
   download one (with the size shown) or to save the image as a document instead (text recognition).
-- The image is kept with the chat (on the PC), shown as a thumbnail and resized before sending (at most 1536 px).
+- The image is shown as a thumbnail in the chat and resized before sending (at most 1536 px). It is not stored: the
+  history keeps the question with a note.
 - Tests: the engine sends `images` to Ollama only for a vision model; a text model gets a clear message; images are
   not sent to a cloud provider unless the user chose one and sees the cloud badge.
 
@@ -91,9 +92,11 @@ naming the PR number.
 
 | Step | State |
 | --- | --- |
-| R1 Export to Word and PDF | in progress |
-| R2 An image in the question | next |
-| R3 Recordings | planned |
-| R4 Two models side by side | planned |
-| R5 Scheduled tasks | planned (after #158 and #159 are merged) |
-| R6 MCP client | planned |
+| R1 Export to Word and PDF | built: PR #163 |
+| R2 An image in the question | built: PR #164 (the image is not stored with the chat: no photos in the database, also for protected profiles) |
+| R3 Recordings | built: PR #165 |
+| R4 Two models side by side | built: PR #166 |
+| R5 Scheduled tasks | built: PR #167 (stacked on #159; web tasks only, questions about the workspace on a schedule are next) |
+| R6 MCP client | built: PR #168 |
+
+Not measured yet on Windows for any of them: the installed app (needs a signed build). Each PR says what it verified.
