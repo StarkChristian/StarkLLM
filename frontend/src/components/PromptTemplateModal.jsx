@@ -132,7 +132,7 @@ export default function PromptTemplateModal({ isOpen, onClose, token, onInsertTe
       setVariableValues(initVals);
       setView('fill');
     } else {
-      onInsertTemplate(template.content);
+      onInsertTemplate(template.content, template);
       onClose();
     }
   };
@@ -145,7 +145,7 @@ export default function PromptTemplateModal({ isOpen, onClose, token, onInsertTe
       const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
       resolved = resolved.replace(regex, variableValues[key]);
     });
-    onInsertTemplate(resolved);
+    onInsertTemplate(resolved, fillingTemplate);
     onClose();
   };
 

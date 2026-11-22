@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import styles from './InputBar.module.css';
-import { Paperclip, Mic, Send, Square, Loader, Database, Globe, FileCode, Settings, Cloud } from 'lucide-react';
+import { Paperclip, Mic, Send, Square, Loader, Database, Globe, FileCode, Settings, Cloud, Compass, TerminalSquare, X } from 'lucide-react';
 import PromptTemplateModal from './PromptTemplateModal';
 import { useToast } from './Toast';
 import { UPLOAD_ACCEPT } from '../utils/uploadTypes';
 import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
+import { isWebTaskTemplate } from '../utils/webTask';
 
-export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleKb, useWebSearch, onToggleWebSearch, offline, cloudHost, onOpenSettings, isGenerating, onStopGeneration, token, activeWorkspace, onOpenKbSettings }) {
+export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleKb, useWebSearch, onToggleWebSearch, webTaskAvailable, useWebTask, onToggleWebTask, terminalFolder, onChooseTerminalFolder, onClearTerminalFolder, offline, cloudHost, onOpenSettings, isGenerating, onStopGeneration, token, activeWorkspace, onOpenKbSettings }) {
   const toast = useToast();
   const [text, setText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -135,8 +136,10 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
     }
   };
 
-  const handleInsertTemplate = (templateContent) => {
+  const handleInsertTemplate = (templateContent, template) => {
     setText(prev => prev ? prev + '\n' + templateContent : templateContent);
+    // a saved web task: the message is a task for StarkLLM's browser window again
+    if (isWebTaskTemplate(template) && webTaskAvailable && !useWebTask && !offline) onToggleWebTask();
   };
 
   return (
@@ -188,6 +191,48 @@ export default function InputBar({ onSendMessage, onFileUpload, useKb, onToggleK
         </button>
         {useWebSearch && (
           <span className={styles.onlineNote} role="status">{t('Your question is sent to DuckDuckGo.')}</span>
+        )}
+        {webTaskAvailable && (
+          <button
+            className={`${styles.kbToggle} ${useWebTask ? styles.kbToggleOn : ''}`}
+            onClick={onToggleWebTask}
+            disabled={offline}
+            title={offline ? t('Web tasks are off while StarkLLM is fully offline') : t('StarkLLM does the task on websites in its own browser window')}
+            type="button"
+          >
+            <Compass size={16} />
+            {useWebTask ? t('Web task ON') : t('Web task')}
+          </button>
+        )}
+        {useWebTask && (
+          <span className={styles.onlineNote} role="status">{t('StarkLLM opens its own browser window and works on websites. It asks you before buying, booking or sending anything.')}</span>
+        )}
+        {webTaskAvailable && onChooseTerminalFolder && !terminalFolder && (
+          <button
+            className={styles.kbToggle}
+            onClick={async () => {
+              const r = await onChooseTerminalFolder();
+              if (r === 'unsuitable') toast.error(t('Choose a project folder, not a whole drive, your user folder or a system folder.'));
+            }}
+            title={t('Choose a project folder: StarkLLM can then read and change its files and run commands there, each after your yes.')}
+            type="button"
+          >
+            <TerminalSquare size={16} />
+            {t('Terminal')}
+          </button>
+        )}
+        {terminalFolder && (
+          <span className={`${styles.kbToggle} ${styles.kbToggleOn}`} role="status" title={terminalFolder.folder}>
+            <TerminalSquare size={16} />
+            {t('Terminal: {folder}', { folder: terminalFolder.name })}
+            <button type="button" onClick={onClearTerminalFolder} title={t('Stop using this folder')} aria-label={t('Stop using this folder')}
+              style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', display: 'inline-flex', padding: 0, marginLeft: 4 }}>
+              <X size={14} />
+            </button>
+          </span>
+        )}
+        {terminalFolder && (
+          <span className={styles.onlineNote} role="status">{t('StarkLLM works in the folder {folder}. It asks you before each change of a file and each command.', { folder: terminalFolder.name })}</span>
         )}
         {cloudHost && (
           <button

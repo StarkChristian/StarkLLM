@@ -27,6 +27,7 @@ import { currentCloudHost } from './utils/cloud';
 import { isUploadable } from './utils/uploadTypes';
 import { serverDate } from './utils/time';
 import { t, language } from './i18n';
+import { initialWebTask, reduceWebTask, answered as webTaskAnswered, webTaskBridge, previousWebTask, WEB_TASK_TAG } from './utils/webTask';
 
 const NO_ANSWER_TEXT = '*[The model returned no answer. Try again, raise the token limit, or choose another model.]*';
 
@@ -72,6 +73,17 @@ export default function App() {
   }, [token]);
   const [useKb, setUseKb] = useState(false);
   const [useWebSearch, setUseWebSearch] = useState(false);
+  // Web tasks (docs/web-tasks.md): only in the desktop app, which has the browser window
+  const [useWebTask, setUseWebTask] = useState(false);
+  // the terminal of tasks: a project folder the user chose in the folder dialog of the desktop app
+  const [terminalFolder, setTerminalFolderState] = useState(() => {
+    try { const f = JSON.parse(localStorage.getItem('webtask_folder') || 'null'); return f && f.folder ? f : null; } catch (e) { return null; }
+  });
+  const setTerminalFolder = (f) => {
+    setTerminalFolderState(f);
+    try { if (f) localStorage.setItem('webtask_folder', JSON.stringify(f)); else localStorage.removeItem('webtask_folder'); } catch (e) { /* private window */ }
+  };
+  const webTaskRunningRef = useRef(false);
   const offline = useOffline(token); // the fully offline switch (Settings > Privacy & network)
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(false);
   const [workspacesError, setWorkspacesError] = useState(null);
@@ -539,9 +551,151 @@ export default function App() {
     }
   };
 
+  // ── Web task: StarkLLM does the task on websites in its own browser window (desktop app) ──
+  const updateWebTask = (fn) => setMessages(prev => {
+    const msgs = [...prev];
+    const k = msgs.length - 1;
+    if (k < 0 || !msgs[k].webTask) return prev;
+    msgs[k] = { ...msgs[k], webTask: fn(msgs[k].webTask) };
+    return msgs;
+  });
+
+  const handleWebTaskReply = async (qid, answer) => {
+    const bridge = webTaskBridge();
+    updateWebTask(w => webTaskAnswered(w, qid));
+    if (bridge) await bridge.reply(qid, answer);
+  };
+
+  // "Save this page to the workspace": the text the StarkLLM window shows, kept as a document (no new download)
+  const handleSaveWebTaskPage = async () => {
+    const bridge = webTaskBridge();
+    if (!bridge || !activeWorkspace) return false;
+    try {
+      const page = await bridge.pageText();
+      if (!page || page.error) return false;
+      const res = await fetch(`/api/v1/documents/${activeWorkspace.id}/ingest-page`, {
+        method: 'POST',
+        headers: getHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ url: page.url, title: page.title, text: page.text }),
+      });
+      return res.ok;
+    } catch (e) {
+      console.error('Saving the page failed:', e);
+      return false;
+    }
+  };
+
+  // "Save as a reusable web task": a template with the tag web-task (Templates in the chat), kept by the engine
+  const handleSaveWebTaskTemplate = async (task) => {
+    try {
+      const res = await fetch('/api/v1/prompts', {
+        method: 'POST',
+        headers: getHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ title: String(task).replace(/\s+/g, ' ').trim().slice(0, 60), content: task, tags: WEB_TASK_TAG }),
+      });
+      return res.ok;
+    } catch (e) {
+      console.error('Saving the web task failed:', e);
+      return false;
+    }
+  };
+
+  const handleChooseTerminalFolder = async () => {
+    const bridge = webTaskBridge();
+    if (!bridge || !bridge.chooseFolder) return '';
+    const r = await bridge.chooseFolder();
+    if (r && r.ok) { setTerminalFolder({ folder: r.folder, name: r.name }); return 'ok'; }
+    return r && r.error === 'unsuitable' ? 'unsuitable' : '';
+  };
+
+  // "Undo the file changes" of the last task with the terminal
+  const handleUndoTerminal = async () => {
+    const bridge = webTaskBridge();
+    if (!bridge || !bridge.undo) return false;
+    const r = await bridge.undo();
+    return Boolean(r && r.ok);
+  };
+
+  const handleWebTask = async (text) => {
+    const bridge = webTaskBridge();
+    const messagesBefore = messages;
+    setMessages(prev => [...prev, { role: 'user', content: text, timestamp: new Date() },
+      { role: 'assistant', content: '', timestamp: new Date(), webTask: initialWebTask(text) }]);
+    const fail = (message) => {
+      updateWebTask(w => ({ ...w, status: 'error', error: message }));
+      setMessages(prev => {
+        const msgs = [...prev];
+        msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: message };
+        return msgs;
+      });
+    };
+    if ((localStorage.getItem('llm_provider') || 'ollama') !== 'ollama' || !currentModel) {
+      fail(t('Web tasks use a local AI model on this PC. Choose a local model (Ollama) in the model list.'));
+      return;
+    }
+    setIsGenerating(true);
+    webTaskRunningRef.current = true;
+    let state = initialWebTask();
+    let off = () => {};
+    const ended = new Promise((resolve) => {
+      off = bridge.onEvent((e) => {
+        state = reduceWebTask(state, e);
+        updateWebTask(w => reduceWebTask(w, e));
+        if (e.type === 'ended') resolve();
+      });
+    });
+    try {
+      // a follow-up continues in the same window, with the task before it and its answer
+      const r = await bridge.start({ task: text, model: currentModel, language: language(), previous: previousWebTask(messagesBefore), folder: terminalFolder ? terminalFolder.folder : '' });
+      if (!r || r.error) {
+        if (r && r.error === 'folder') setTerminalFolder(null);
+        const why = r && r.error === 'folder' ? t('The project folder can no longer be used. Choose it again with Terminal.')
+          : r && r.error === 'offline' ? t('StarkLLM is fully offline: web tasks are off.')
+          : r && r.error === 'busy' ? t('A web task is already running. Wait for it or stop it.')
+            : t('The web task could not start.');
+        fail(why);
+        return;
+      }
+      await ended;
+      const content = state.status === 'done' ? state.answer
+        : state.status === 'stopped' ? t('The web task was stopped.')
+          : t('The web task was not finished.') + (state.error ? ` ${state.error}` : '');
+      setMessages(prev => {
+        const msgs = [...prev];
+        msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content };
+        return msgs;
+      });
+      if (state.status === 'done' && activeWorkspace) {
+        // keep it in the chat history, with the page it came from
+        const res = await fetch('/api/v1/chat/web-task', {
+          method: 'POST',
+          headers: getHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ workspace_id: activeWorkspace.id, chat_id: activeChatId, task: text, answer: state.answer, url: state.url, title: state.title }),
+        });
+        if (res.ok) {
+          const { chat_id } = await res.json();
+          if (!activeChatId && chat_id) setActiveChatId(chat_id);
+          refreshChatList(activeWorkspace.id).catch(() => {});
+        }
+      }
+    } catch (err) {
+      fail(t('The web task could not start.'));
+      console.error('Web task error:', err);
+    } finally {
+      off();
+      webTaskRunningRef.current = false;
+      setIsGenerating(false);
+    }
+  };
+
   const handleSendMessage = async (text) => {
     if (!activeWorkspace) {
       setMessages(prev => [...prev, { role: 'assistant', content: t('Please create or select a workspace first.') }]);
+      return;
+    }
+    // a web task, or a task in the project folder (the terminal works also while StarkLLM is fully offline)
+    if (webTaskBridge() && ((useWebTask && !offline) || terminalFolder)) {
+      await handleWebTask(text);
       return;
     }
     setMessages(prev => [...prev, { role: 'user', content: text, timestamp: new Date() }]);
@@ -769,6 +923,11 @@ export default function App() {
   };
 
   const handleStopGeneration = () => {
+    if (webTaskRunningRef.current) {
+      const bridge = webTaskBridge();
+      if (bridge) bridge.stop();
+      return;
+    }
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -1222,6 +1381,15 @@ export default function App() {
               onUpload={handleFileUpload}
               newestDocument={[...workspaceDocs].filter(d => d.status === 'indexed').sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0]?.filename}
               token={token}
+              webTaskActions={webTaskBridge() ? {
+                onReply: handleWebTaskReply,
+                onShowWindow: () => webTaskBridge().showWindow(),
+                onPause: () => webTaskBridge().pause(),
+                onResume: () => webTaskBridge().resume(),
+                onSavePage: handleSaveWebTaskPage,
+                onSaveTask: handleSaveWebTaskTemplate,
+                onUndo: handleUndoTerminal,
+              } : null}
             />
             <InputBar 
               onSendMessage={handleSendMessage} 
@@ -1231,6 +1399,12 @@ export default function App() {
               useWebSearch={useWebSearch && !offline}
               offline={offline}
               onToggleWebSearch={() => setUseWebSearch(!useWebSearch)}
+              webTaskAvailable={Boolean(webTaskBridge())}
+              useWebTask={useWebTask && !offline}
+              onToggleWebTask={() => setUseWebTask(!useWebTask)}
+              terminalFolder={webTaskBridge() ? terminalFolder : null}
+              onChooseTerminalFolder={handleChooseTerminalFolder}
+              onClearTerminalFolder={() => setTerminalFolder(null)}
               cloudHost={currentCloudHost()}
               onOpenSettings={() => setActiveView('settings')}
               isGenerating={isGenerating}

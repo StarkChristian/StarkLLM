@@ -54,6 +54,37 @@ contextBridge.exposeInMainWorld('starkllmDesktop', {
       return () => ipcRenderer.removeListener('phone:changed', handler);
     },
   },
+  // Web tasks (docs/web-tasks.md): StarkLLM does a task on websites in its own browser window. Each step, each
+  // question for the user and the answer come as events; the page answers questions with reply().
+  webTask: {
+    start: (opts) => ipcRenderer.invoke('webtask:start', {
+      task: String((opts && opts.task) || ''), model: String((opts && opts.model) || ''), language: String((opts && opts.language) || ''),
+      previous: opts && opts.previous ? { task: String(opts.previous.task || ''), answer: String(opts.previous.answer || '') } : null,
+      folder: opts && opts.folder ? String(opts.folder) : '',
+    }),
+    // the terminal: the project folder (chosen in the folder dialog), and undoing the file changes of the last task
+    chooseFolder: () => ipcRenderer.invoke('webtask:choose-folder'),
+    undo: () => ipcRenderer.invoke('webtask:undo'),
+    reply: (qid, answer) => ipcRenderer.invoke('webtask:reply', String(qid || ''), {
+      ok: Boolean(answer && answer.ok), text: String((answer && answer.text) || ''), remember: Boolean(answer && answer.remember),
+    }),
+    // the user's site rules (Settings): { rules: { host: 'allow' | 'block' } }; rule null removes one
+    sites: () => ipcRenderer.invoke('webtask:sites'),
+    setSiteRule: (host, rule) => ipcRenderer.invoke('webtask:site-rule', String(host || ''), rule === 'allow' || rule === 'block' ? rule : null),
+    stop: () => ipcRenderer.invoke('webtask:stop'),
+    // the user takes over the window and hands it back
+    pause: () => ipcRenderer.invoke('webtask:pause'),
+    resume: () => ipcRenderer.invoke('webtask:resume'),
+    // the text of the page the window shows, to save it to the workspace
+    pageText: () => ipcRenderer.invoke('webtask:page'),
+    showWindow: () => ipcRenderer.invoke('webtask:show'),
+    clearData: () => ipcRenderer.invoke('webtask:clear-data'),
+    onEvent: (cb) => {
+      const handler = (_event, e) => cb(e);
+      ipcRenderer.on('webtask:event', handler);
+      return () => ipcRenderer.removeListener('webtask:event', handler);
+    },
+  },
   protection: {
     status: () => ipcRenderer.invoke('protection:status'),
     createKey: () => ipcRenderer.invoke('protection:create-key'),

@@ -606,6 +606,16 @@ class ChatRequest(BaseModel):
 # Model management routes moved to models_router.py
 
 
+class WebTaskRecord(BaseModel):
+    """A web task that the desktop app did in its own browser window (docs/web-tasks.md): the task and its result."""
+    workspace_id: int
+    chat_id: Optional[int] = None
+    task: str = Field(..., min_length=1, max_length=2000)
+    answer: str = Field(..., min_length=1, max_length=8000)
+    url: Optional[str] = Field(None, max_length=2000)
+    title: Optional[str] = Field(None, max_length=300)
+
+
 class TruncateRequest(BaseModel):
     chat_id: int
     keep_count: int = Field(..., ge=0)
@@ -622,6 +632,46 @@ class PinChatRequest(BaseModel):
 class SavePartialRequest(BaseModel):
     chat_id: int
     content: str
+
+
+@router.post("/web-task")
+def record_web_task(
+    req: WebTaskRecord,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Keep a web task in the chat history: the user's task and the answer, with the page it came from. The web
+    task itself runs in the desktop app (its browser window and the local AI model); the engine only stores it."""
+    ws = (
+        db.query(models.Workspace)
+        .filter(models.Workspace.id == req.workspace_id, models.Workspace.user_id == current_user.id)
+        .first()
+    )
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    if req.chat_id:
+        chat_obj = (
+            db.query(models.Chat)
+            .filter(models.Chat.id == req.chat_id, models.Chat.workspace_id == ws.id)
+            .first()
+        )
+        if not chat_obj:
+            raise HTTPException(status_code=404, detail="Chat not found")
+    else:
+        chat_obj = models.Chat(workspace_id=ws.id, title=req.task.strip()[:50])
+        db.add(chat_obj)
+        db.commit()
+        db.refresh(chat_obj)
+    answer = req.answer.strip()
+    url = (req.url or "").strip()
+    # only a web address becomes a link; the title is plain text (no Markdown or HTML from a web page)
+    if re.match(r"^https?://\S+$", url):
+        title = re.sub(r"[\[\]()<>*_`]", "", (req.title or "").strip())[:120] or url
+        answer += f"\n\n[{title}]({url})"
+    db.add(models.Message(chat_id=chat_obj.id, role="user", content=req.task.strip()))
+    db.add(models.Message(chat_id=chat_obj.id, role="assistant", content=answer))
+    db.commit()
+    return {"chat_id": chat_obj.id}
 
 
 @router.post("/save-partial")

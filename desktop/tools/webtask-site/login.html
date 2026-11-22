@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SkyCompare - sign in</title></head>
+<body style="font-family: system-ui, sans-serif; margin: 40px;">
+  <h1>Sign in to SkyCompare</h1>
+  <form onsubmit="event.preventDefault(); document.body.innerHTML = '<h1>Signed in</h1><p>Your bookings: none.</p>';">
+    <p><label for="email">E-mail</label><br><input id="email" type="email" autocomplete="username"></p>
+    <p><label for="pw">Password</label><br><input id="pw" type="password" autocomplete="current-password"></p>
+    <button type="submit">Sign in</button>
+  </form>
+</body>
+</html>

@@ -127,5 +127,8 @@
   "StarkLLM turned on the integrated graphics of this PC ({gpu}) for the AI models, so answers come faster. To turn it off, use \"Use the integrated graphics for AI\" in the tray menu.": "StarkLLM ha activado la gráfica integrada de este PC ({gpu}) para los modelos de IA, así las respuestas llegan más rápido. Para desactivarla, use «Usar la gráfica integrada para la IA» en el menú de la bandeja.",
   "Use the integrated graphics for AI": "Usar la gráfica integrada para la IA",
   "Restart StarkLLM to change this?": "¿Reiniciar StarkLLM para cambiar esto?",
-  "StarkLLM restarts Ollama (the local AI runtime) with the new setting. Your chats and documents are not affected.": "StarkLLM reinicia Ollama (el entorno de ejecución de IA local) con el nuevo ajuste. Sus chats y documentos no se ven afectados."
+  "StarkLLM restarts Ollama (the local AI runtime) with the new setting. Your chats and documents are not affected.": "StarkLLM reinicia Ollama (el entorno de ejecución de IA local) con el nuevo ajuste. Sus chats y documentos no se ven afectados.",
+  "StarkLLM web task": "Tarea web de StarkLLM",
+  "StarkLLM is fully offline: web tasks are off.": "StarkLLM está totalmente sin conexión: las tareas web están desactivadas.",
+  "Choose the project folder for the terminal": "Elija la carpeta del proyecto para el terminal"
 }

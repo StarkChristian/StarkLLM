@@ -22,6 +22,7 @@ const FEATURES = {
   model_download: 'Download of an AI model by the local Ollama',
   ui: 'A request of the app window to another host',
   phone_link: 'A paired phone on the home network (Settings > Phone; incoming)',
+  web_task: 'StarkLLM\'s browser window: a web task the user started in the chat (the sites of the task, and the local AI model)',
   unattributed: 'A connection that did not go through the network layer'
 };
 
@@ -252,20 +253,27 @@ function createGuard({ dir = null, now = () => new Date(), maxBytes = 2 * 1024 *
     },
 
     // The app window: with the switch on, only this PC can be reached; otherwise requests to other hosts are recorded.
-    attachSession(session) {
+    // feature: what the window is for ("ui" = the app's own window, "web_task" = StarkLLM's browser window).
+    // blockLocal: web pages of that window must not reach this PC or the home network (the engine, Ollama, a router).
+    attachSession(session, { feature = 'ui', blockLocal = false } = {}) {
       const open = new Map();
       const wb = session.webRequest;
       wb.onBeforeRequest({ urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] }, (details, callback) => {
         const host = hostOf(details.url);
-        if (classify(host) === 'this_pc') {
-          localCounts.ui = (localCounts.ui || 0) + 1;
+        const zone = classify(host);
+        if (blockLocal && zone !== 'internet') {
+          guard.record({ feature, host, purpose: 'A web page asked for this PC or the home network', scheme: schemeOf(details.url), method: details.method, outcome: 'blocked', error: 'local address' });
+          return callback({ cancel: true });
+        }
+        if (zone === 'this_pc') {
+          localCounts[feature] = (localCounts[feature] || 0) + 1;
           return callback({});
         }
         if (offline) {
-          guard.record({ feature: 'ui', host, purpose: 'Blocked request of the app window', scheme: schemeOf(details.url), method: details.method, outcome: 'blocked', error: 'offline mode' });
+          guard.record({ feature, host, purpose: feature === 'ui' ? 'Blocked request of the app window' : 'Blocked request of the StarkLLM browser window', scheme: schemeOf(details.url), method: details.method, outcome: 'blocked', error: 'offline mode' });
           return callback({ cancel: true });
         }
-        const entry = guard.record({ feature: 'ui', host, scheme: schemeOf(details.url), method: details.method, bytes_in: null });
+        const entry = guard.record({ feature, host, scheme: schemeOf(details.url), method: details.method, bytes_in: null });
         if (entry) open.set(details.id, entry);
         callback({});
       });
