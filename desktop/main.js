@@ -20,6 +20,7 @@ const { askOfflineChoice } = require('./offline-choice');
 const { desktopKey, setEngineOffline, switchOffline } = require('./engine-offline');
 const { createPhoneLink } = require('./phonelink');
 const { qrMatrix } = require('./qr');
+const exportPdf = require('./export-pdf');
 
 let mainWindow = null;
 let tray = null;
@@ -106,6 +107,7 @@ function initApp() {
   });
   // Settings > Privacy: the fully offline switch and the list of connections of the app (only the app's own page may ask)
   const fromApp = (event) => Boolean(event.senderFrame && sameOrigin(event.senderFrame.url, APP_URL));
+  exportPdf.register(ipcMain, { fromApp }); // chats and answers as PDF (docs/roadmap-2026-12.md, R1)
   const privacyState = () => ({ offline: guard.isOffline(), localCounts: guard.localCounts() });
   ipcMain.handle('privacy:get', (event) => (fromApp(event) ? privacyState() : { error: 'not allowed' }));
   // sets the app and the engine (engine-offline.js); the answer says what the engine did

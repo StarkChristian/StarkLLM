@@ -1209,5 +1209,14 @@
   "Reads workspaces, chats, the inbox and deadlines, and asks questions. Changes nothing.": "Legge aree di lavoro, chat, posta in arrivo e scadenze e fa domande. Non cambia nulla.",
   "Also sends photos and documents, deletes chats and marks deadlines as done.": "Invia anche foto e documenti, elimina chat e segna le scadenze come fatte.",
   "Also starts a backup now and can switch StarkLLM fully offline. The phone asks for your fingerprint first.": "Avvia anche subito un backup e può mettere StarkLLM completamente offline. Il telefono chiede prima la vostra impronta.",
-  "The StarkLLM app for Android is in a closed test on Google Play before everyone can download it. How to take part:": "L'app StarkLLM per Android è in un test chiuso su Google Play prima che tutti possano scaricarla. Come partecipare:"
+  "The StarkLLM app for Android is in a closed test on Google Play before everyone can download it. How to take part:": "L'app StarkLLM per Android è in un test chiuso su Google Play prima che tutti possano scaricarla. Come partecipare:",
+  "📘 Word document (.docx)": "📘 Documento Word (.docx)",
+  "📕 PDF (.pdf)": "📕 PDF (.pdf)",
+  "Save this answer as Word or PDF": "Salva questa risposta come Word o PDF",
+  "Word document (.docx)": "Documento Word (.docx)",
+  "PDF (.pdf)": "PDF (.pdf)",
+  "You": "Tu",
+  "Sources": "Fonti",
+  "Exported from StarkLLM": "Esportato da StarkLLM",
+  "The export did not work.": "L’esportazione non è riuscita."
 }

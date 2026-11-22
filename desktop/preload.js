@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('starkllmDesktop', {
   // the interface language the user chose: dialogs and the tray menu of the desktop app follow it
   setLanguage: (code) => ipcRenderer.send('desktop:set-language', String(code || '')),
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+  // a chat or an answer as PDF: printed by the desktop app, saved where the user chooses (docs/roadmap-2026-12.md, R1)
+  exportPdf: (html, name) => ipcRenderer.invoke('export:pdf', String(html || ''), String(name || '')),
   openKnowledgeFolder: () => ipcRenderer.invoke('kb:open-folder'),
   // download progress of an update: cb({ phase: 'downloading' | 'done', percent }); returns an unsubscribe function
   onUpdateStatus: (cb) => {

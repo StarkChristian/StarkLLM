@@ -127,5 +127,6 @@
   "StarkLLM turned on the integrated graphics of this PC ({gpu}) for the AI models, so answers come faster. To turn it off, use \"Use the integrated graphics for AI\" in the tray menu.": "StarkLLM ha attivato la grafica integrata di questo PC ({gpu}) per i modelli di IA, così le risposte arrivano più in fretta. Per disattivarla, usa «Usa la grafica integrata per l'IA» nel menu dell'area di notifica.",
   "Use the integrated graphics for AI": "Usa la grafica integrata per l'IA",
   "Restart StarkLLM to change this?": "Riavviare StarkLLM per cambiare questa impostazione?",
-  "StarkLLM restarts Ollama (the local AI runtime) with the new setting. Your chats and documents are not affected.": "StarkLLM riavvia Ollama (il runtime IA locale) con la nuova impostazione. Chat e documenti non vengono toccati."
+  "StarkLLM restarts Ollama (the local AI runtime) with the new setting. Your chats and documents are not affected.": "StarkLLM riavvia Ollama (il runtime IA locale) con la nuova impostazione. Chat e documenti non vengono toccati.",
+  "Save as PDF": "Salva come PDF"
 }

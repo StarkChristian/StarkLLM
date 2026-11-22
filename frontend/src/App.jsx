@@ -23,6 +23,8 @@ import { useToast } from './components/Toast';
 import { useChatFolders } from './hooks/useChatFolders';
 import { useChatSummary } from './hooks/useChatSummary';
 import { exportChat } from './utils/chatExport';
+import { exportItems, saveAsWord, saveAsPdf } from './utils/exportDocs';
+import { UI_LOCALE } from './utils/locale';
 import { currentCloudHost } from './utils/cloud';
 import { isUploadable } from './utils/uploadTypes';
 import { serverDate } from './utils/time';
@@ -847,8 +849,38 @@ export default function App() {
     await handleSendMessage(newText);
   };
 
+  // Word and PDF (docs/roadmap-2026-12.md, R1): a whole chat, or one question with its answer
+  const exportAsDocument = async (format, title, msgs) => {
+    const items = exportItems(msgs, UI_LOCALE);
+    if (!items.length) return;
+    const args = {
+      title, items, headers: getHeaders(), lang: language(), dir: document.documentElement.dir || 'ltr',
+      words: { user: t('You'), assistant: 'StarkLLM', sources: t('Sources'), exported: t('Exported from StarkLLM') },
+      dateText: new Date().toLocaleDateString(UI_LOCALE),
+    };
+    try {
+      const ok = format === 'docx' ? await saveAsWord(args) : await saveAsPdf(args);
+      if (ok === false) toast.error(t('The export did not work.'));
+    } catch (e) {
+      console.error('Export failed:', e);
+      toast.error(t('The export did not work.'));
+    }
+  };
+
   const handleExportChat = (format = 'md') => {
+    if (format === 'docx' || format === 'pdf') {
+      const title = chats.find(c => c.id === activeChatId)?.title || 'StarkLLM';
+      return exportAsDocument(format, title, messages);
+    }
     exportChat(messages, chats, activeChatId, format);
+  };
+
+  const handleExportAnswer = (index, format) => {
+    const answer = messages[index];
+    if (!answer) return;
+    const question = index > 0 && messages[index - 1].role === 'user' ? messages[index - 1] : null;
+    const title = String((question ? question.content : answer.content) || 'StarkLLM').replace(/\s+/g, ' ').trim().slice(0, 60);
+    return exportAsDocument(format, title, question ? [question, answer] : [answer]);
   };
 
   const handleFileUpload = async (file) => {
@@ -1214,6 +1246,7 @@ export default function App() {
               onRegenerate={handleRegenerateMessage}
               onEdit={handleEditMessage}
               onExport={handleExportChat}
+              onExportAnswer={handleExportAnswer}
               onSummarize={activeChatId ? handleSummarizeChat : null}
               onRetryMessage={handleSendMessage}
               onSelectStarter={handleSendMessage}

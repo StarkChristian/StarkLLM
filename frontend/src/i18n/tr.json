@@ -1209,5 +1209,14 @@
   "Reads workspaces, chats, the inbox and deadlines, and asks questions. Changes nothing.": "Çalışma alanlarını, sohbetleri, gelen kutusunu ve son tarihleri okur, soru sorar. Hiçbir şeyi değiştirmez.",
   "Also sends photos and documents, deletes chats and marks deadlines as done.": "Ayrıca fotoğraf ve belge gönderir, sohbetleri siler ve son tarihleri tamamlandı olarak işaretler.",
   "Also starts a backup now and can switch StarkLLM fully offline. The phone asks for your fingerprint first.": "Ayrıca hemen bir yedekleme başlatır ve StarkLLM'i tamamen çevrimdışı yapabilir. Telefon önce parmak izinizi ister.",
-  "The StarkLLM app for Android is in a closed test on Google Play before everyone can download it. How to take part:": "Android için StarkLLM uygulaması, herkes indirmeden önce Google Play'de kapalı testte. Nasıl katılabilirsiniz:"
+  "The StarkLLM app for Android is in a closed test on Google Play before everyone can download it. How to take part:": "Android için StarkLLM uygulaması, herkes indirmeden önce Google Play'de kapalı testte. Nasıl katılabilirsiniz:",
+  "📘 Word document (.docx)": "📘 Word belgesi (.docx)",
+  "📕 PDF (.pdf)": "📕 PDF (.pdf)",
+  "Save this answer as Word or PDF": "Bu yanıtı Word veya PDF olarak kaydet",
+  "Word document (.docx)": "Word belgesi (.docx)",
+  "PDF (.pdf)": "PDF (.pdf)",
+  "You": "Siz",
+  "Sources": "Kaynaklar",
+  "Exported from StarkLLM": "StarkLLM’den dışa aktarıldı",
+  "The export did not work.": "Dışa aktarma çalışmadı."
 }

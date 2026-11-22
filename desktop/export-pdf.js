@@ -1,0 +1,67 @@
+// Chats and answers as PDF (docs/roadmap-2026-12.md, R1): the chat page builds a printable HTML page, this file
+// prints it with Electron's own PDF printer and asks where to save it. No new library and no network: the page is
+// loaded in a hidden window without scripts, and its session refuses every request that is not the page itself.
+const { BrowserWindow, dialog, session } = require('electron');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { t } = require('./i18n');
+
+const PARTITION = 'starkllm-export'; // in memory only: nothing is kept
+let ready = false;
+
+function exportSession() {
+  const ses = session.fromPartition(PARTITION);
+  if (!ready) {
+    ready = true;
+    // the page is a local file; pictures or fonts from the internet are not loaded
+    ses.webRequest.onBeforeRequest((details, callback) => callback({ cancel: !/^(file|data|about|blob):/i.test(details.url) }));
+    ses.setPermissionRequestHandler((_wc, _p, callback) => callback(false));
+  }
+  return ses;
+}
+
+// a file name without characters Windows does not allow
+function safeName(name) {
+  const base = String(name || 'StarkLLM').replace(/[<>:"/\\|?*\x00-\x1f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80) || 'StarkLLM';
+  return base.toLowerCase().endsWith('.pdf') ? base : `${base}.pdf`;
+}
+
+async function htmlToPdf(html) {
+  const tmp = path.join(os.tmpdir(), `starkllm-export-${process.pid}-${Date.now()}.html`);
+  fs.writeFileSync(tmp, String(html), 'utf8');
+  const win = new BrowserWindow({
+    show: false,
+    webPreferences: { session: exportSession(), javascript: false, sandbox: true, contextIsolation: true, nodeIntegration: false },
+  });
+  try {
+    await win.loadFile(tmp);
+    return await win.webContents.printToPDF({ printBackground: true, pageSize: 'A4', margins: { marginType: 'default' } });
+  } finally {
+    win.destroy();
+    fs.rm(tmp, { force: true }, () => {});
+  }
+}
+
+function register(ipcMain, { fromApp }) {
+  ipcMain.handle('export:pdf', async (event, html, name) => {
+    if (!fromApp(event)) return { error: 'not-allowed' };
+    if (typeof html !== 'string' || !html || html.length > 30 * 1024 * 1024) return { error: 'invalid' };
+    try {
+      const pdf = await htmlToPdf(html);
+      const parent = BrowserWindow.fromWebContents(event.sender);
+      const r = await dialog.showSaveDialog(parent, {
+        title: t('Save as PDF'),
+        defaultPath: safeName(name),
+        filters: [{ name: 'PDF', extensions: ['pdf'] }],
+      });
+      if (r.canceled || !r.filePath) return { canceled: true };
+      fs.writeFileSync(r.filePath, pdf);
+      return { ok: true, name: path.basename(r.filePath) };
+    } catch (e) {
+      return { error: 'failed', message: e.message };
+    }
+  });
+}
+
+module.exports = { register, safeName, htmlToPdf };
