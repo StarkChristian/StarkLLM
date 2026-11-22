@@ -189,6 +189,9 @@ async def upload_document(
 
     # Validate file extension
     ALLOWED_EXTENSIONS = {'pdf', 'txt', 'png', 'jpg', 'jpeg', 'webp', 'tif', 'tiff', 'md', 'markdown', 'csv', 'docx', 'xlsx', 'epub', 'pptx', 'html', 'json', 'xml', 'log'}
+    # recordings (meetings, voice memos): written down with times by the speech model on this PC (R3)
+    from app.services.recordings import RECORDING_EXTENSIONS, MAX_BYTES as RECORDING_MAX_BYTES
+    ALLOWED_EXTENSIONS = ALLOWED_EXTENSIONS | {e.lstrip('.') for e in RECORDING_EXTENSIONS}
     ext = (file.filename.rsplit('.', 1)[-1] if '.' in file.filename else '').lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
@@ -218,15 +221,16 @@ async def upload_document(
         logger.error(f"Failed to save uploaded file '{file.filename}': {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to save file to disk: {str(e)[:200]}")
 
-    # Validate file size after saving (100MB limit)
-    MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB
+    # Validate file size after saving (100 MB; recordings 500 MB)
+    is_recording = f".{ext}" in RECORDING_EXTENSIONS
+    MAX_FILE_SIZE = RECORDING_MAX_BYTES if is_recording else 100 * 1024 * 1024
     actual_size = vault.size(file_path)
     if actual_size > MAX_FILE_SIZE:
         os.remove(file_path)
         size_mb = actual_size / (1024 * 1024)
         raise HTTPException(
             status_code=413,
-            detail=f"File too large ({size_mb:.1f} MB). Maximum allowed size is 100 MB."
+            detail=f"File too large ({size_mb:.1f} MB). Maximum allowed size is {MAX_FILE_SIZE // (1024 * 1024)} MB."
         )
     if actual_size == 0:
         os.remove(file_path)
@@ -1078,6 +1082,9 @@ async def get_document_file(
         "webp": "image/webp",
         "html": "text/plain; charset=utf-8",  # never rendered as a page from this origin
         "csv": "text/csv; charset=utf-8",
+        # recordings play in the document viewer
+        "mp3": "audio/mpeg", "m4a": "audio/mp4", "aac": "audio/aac", "wav": "audio/wav", "ogg": "audio/ogg", "oga": "audio/ogg",
+        "opus": "audio/ogg", "flac": "audio/flac", "webm": "audio/webm", "mp4": "video/mp4", "mov": "video/quicktime",
     }
     media_type = media_map.get(ext, "application/octet-stream")
     return vault.file_response(doc.filepath, media_type, doc.filename)
@@ -1192,7 +1199,13 @@ async def get_document_content(
         "pages": pages,
         "full_text": full_text,
         "is_image": ext in PICTURE_FILE_TYPES,
+        "is_recording": f".{ext}" in _recording_extensions(),
     }
+
+
+def _recording_extensions():
+    from app.services.recordings import RECORDING_EXTENSIONS
+    return RECORDING_EXTENSIONS
 
 
 @router.get("/{workspace_id}/documents/lookup")

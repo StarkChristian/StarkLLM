@@ -1209,5 +1209,6 @@
   "Reads workspaces, chats, the inbox and deadlines, and asks questions. Changes nothing.": "Liest Arbeitsbereiche, Chats, Posteingang und Fristen und stellt Fragen. Ändert nichts.",
   "Also sends photos and documents, deletes chats and marks deadlines as done.": "Sendet außerdem Fotos und Dokumente, löscht Chats und markiert Fristen als erledigt.",
   "Also starts a backup now and can switch StarkLLM fully offline. The phone asks for your fingerprint first.": "Startet außerdem sofort eine Sicherung und kann StarkLLM vollständig offline schalten. Das Telefon fragt vorher nach Ihrem Fingerabdruck.",
-  "The StarkLLM app for Android is in a closed test on Google Play before everyone can download it. How to take part:": "Die StarkLLM-App für Android ist in einem geschlossenen Test bei Google Play, bevor sie alle herunterladen können. So machen Sie mit:"
+  "The StarkLLM app for Android is in a closed test on Google Play before everyone can download it. How to take part:": "Die StarkLLM-App für Android ist in einem geschlossenen Test bei Google Play, bevor sie alle herunterladen können. So machen Sie mit:",
+  "Recordings (meetings, voice memos) are written down with times on this PC. This takes a while: about a tenth of the recording time or more.": "Aufnahmen (Besprechungen, Sprachmemos) werden auf diesem PC mit Zeitangaben aufgeschrieben. Das dauert eine Weile: etwa ein Zehntel der Aufnahmezeit oder mehr."
 }
