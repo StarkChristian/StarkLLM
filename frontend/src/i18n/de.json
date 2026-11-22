@@ -523,7 +523,6 @@
   "Select workspace…": "Arbeitsbereich auswählen…",
   "Selected Path:": "Gewählter Pfad:",
   "Semantic Chunking": "Semantische Abschnitte",
-  "Send Result to Assistant": "Ergebnis an den Assistenten senden",
   "Send message": "Nachricht senden",
   "Server returned {status}. The backend did not start within {seconds} seconds.": "Der Server meldet {status}. Das Backend ist nicht innerhalb von {seconds} Sekunden gestartet.",
   "Settings": "Einstellungen",
@@ -631,7 +630,6 @@
   "YouTube transcript queued for indexing!": "YouTube-Transkript wird indexiert.",
   "Your local LLM is reading the conversation.": "Ihr lokales Sprachmodell liest den Chat.",
   "Your private AI assistant": "Ihr privater KI-Assistent",
-  "Your question is sent to DuckDuckGo.": "Ihre Frage wird an DuckDuckGo gesendet.",
   "Your username cannot be changed after registration.": "Der Benutzername kann nach der Registrierung nicht geändert werden.",
   "Zero-Cloud Guarantee:": "Ohne Cloud:",
   "Zipping data...": "Daten werden gepackt…",
@@ -1447,5 +1445,7 @@
   "Small and efficient, from Microsoft": "Klein und effizient, von Microsoft",
   "Precise search of your documents": "Genaue Suche in Ihren Dokumenten",
   "Chat loaded. How can I help you?": "Chat geladen. Wie kann ich helfen?",
-  "account {name}": "Konto {name}"
+  "account {name}": "Konto {name}",
+  "Your question is sent to DuckDuckGo (if it does not answer, to Mullvad Leta, then Mojeek).": "Ihre Frage wird an DuckDuckGo gesendet (antwortet es nicht, an Mullvad Leta, dann an Mojeek).",
+  "Send the result to the assistant": "Ergebnis an den Assistenten senden"
 }

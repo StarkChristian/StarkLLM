@@ -982,7 +982,13 @@ export default function App() {
 
       const webTitles = webSourcesHeader ? webSourcesHeader.split(',').filter(Boolean) : [];
       const webUrls = webSourcesUrlsHeader ? webSourcesUrlsHeader.split(',').filter(Boolean) : [];
-      const webSourcesData = webTitles.map((title, idx) => ({
+      // titles may contain commas: the JSON header keeps them whole (older engines send only the lists)
+      let webSourcesData = null;
+      try {
+        const j = JSON.parse(decodeURIComponent(response.headers.get('X-Web-Sources-Json') || ''));
+        if (Array.isArray(j)) webSourcesData = j.filter(x => x && x.title).map(x => ({ title: String(x.title), url: String(x.url || '') }));
+      } catch { webSourcesData = null; }
+      if (!webSourcesData) webSourcesData = webTitles.map((title, idx) => ({
         title,
         url: webUrls[idx] || ''
       }));

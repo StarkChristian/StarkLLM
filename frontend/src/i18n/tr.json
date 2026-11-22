@@ -523,7 +523,6 @@
   "Select workspace…": "Çalışma alanı seç…",
   "Selected Path:": "Seçilen Yol:",
   "Semantic Chunking": "Anlamsal Parçalama",
-  "Send Result to Assistant": "Sonucu Asistana Gönder",
   "Send message": "Mesajı gönder",
   "Server returned {status}. The backend did not start within {seconds} seconds.": "Sunucu {status} döndürdü. Backend {seconds} saniye içinde başlamadı.",
   "Settings": "Ayarlar",
@@ -631,7 +630,6 @@
   "YouTube transcript queued for indexing!": "YouTube dökümü dizinleme için sıraya alındı!",
   "Your local LLM is reading the conversation.": "Yerel LLM'iniz sohbeti okuyor.",
   "Your private AI assistant": "Özel yapay zeka asistanınız",
-  "Your question is sent to DuckDuckGo.": "Sorunuz DuckDuckGo'ya gönderilir.",
   "Your username cannot be changed after registration.": "Kullanıcı adınız kayıttan sonra değiştirilemez.",
   "Zero-Cloud Guarantee:": "Sıfır Bulut Garantisi:",
   "Zipping data...": "Veriler sıkıştırılıyor...",
@@ -1447,5 +1445,7 @@
   "Small and efficient, from Microsoft": "Küçük ve verimli, Microsoft’tan",
   "Precise search of your documents": "Belgelerinizde hassas arama",
   "Chat loaded. How can I help you?": "Sohbet yüklendi. Nasıl yardımcı olabilirim?",
-  "account {name}": "hesap {name}"
+  "account {name}": "hesap {name}",
+  "Your question is sent to DuckDuckGo (if it does not answer, to Mullvad Leta, then Mojeek).": "Sorunuz DuckDuckGo’ya gönderilir (yanıt vermezse Mullvad Leta’ya, sonra Mojeek’e).",
+  "Send the result to the assistant": "Sonucu asistana gönder"
 }

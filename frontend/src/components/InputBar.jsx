@@ -228,7 +228,7 @@ export default function InputBar({ onSendImage, compareModel, onSetCompareModel,
           {useWebSearch ? t('Web Search ON') : t('Web Search')}
         </button>
         {useWebSearch && (
-          <span className={styles.onlineNote} role="status">{t('Your question is sent to DuckDuckGo.')}</span>
+          <span className={styles.onlineNote} role="status">{t('Your question is sent to DuckDuckGo (if it does not answer, to Mullvad Leta, then Mojeek).')}</span>
         )}
         {webTaskAvailable && (
           <button

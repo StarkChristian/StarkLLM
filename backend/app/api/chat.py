@@ -1509,6 +1509,10 @@ WEB SEARCH
                          + (f"; when the message is too short to tell (one word, a number), answer in {_ui_lang}" if _ui_lang else
                             "; when the message is too short to tell, answer in the language of the documents")
                          + ". Names, amounts, dates and reference numbers from a document stay exactly as written in it.\n")
+        # the app addresses the user politely; the answer does the same (a German tool answer said "bestätige")
+        _polite = {"German": "Sie", "French": "vous", "Spanish": "usted", "Turkish": "siz"}.get(_lang or _ui_lang or "")
+        if _polite:
+            language_rule += f"Address the user politely ({_polite}), as the app does.\n"
         safety_section = _safety_section(warnings)
         system_prompt = f"""You are StarkLLM, a premium private AI assistant with Retrieval-Augmented Generation (RAG) capabilities.
 {custom_instructions_section}
@@ -1678,11 +1682,12 @@ LANGUAGE & WRITING QUALITY
                     "X-WS-Sources": urllib.parse.quote("|".join(ws_sources)),
                     "X-Web-Sources": urllib.parse.quote(",".join(web_sources)),
                     "X-Web-Sources-Urls": urllib.parse.quote(",".join(web_source_urls)),
+                    "X-Web-Sources-Json": urllib.parse.quote(json.dumps([{"title": t, "url": (web_source_urls[i] if i < len(web_source_urls) else "")} for i, t in enumerate(web_sources)])),
                     "X-Cloud-Provider": cloud,
                     "X-Chat-Renamed": "true" if chat_renamed else "false",
                     "X-Doc-Warnings": urllib.parse.quote(json.dumps(warnings)),
                     "X-Sources-Mode": sources_mode,
-                    "Access-Control-Expose-Headers": "X-Chat-ID,X-KB-Used,X-KB-Sources,X-WS-Sources,X-Web-Sources,X-Web-Sources-Urls,X-Cloud-Provider,X-Chat-Renamed,X-Doc-Warnings,X-Sources-Mode",
+                    "Access-Control-Expose-Headers": "X-Chat-ID,X-KB-Used,X-KB-Sources,X-WS-Sources,X-Web-Sources,X-Web-Sources-Urls,X-Web-Sources-Json,X-Cloud-Provider,X-Chat-Renamed,X-Doc-Warnings,X-Sources-Mode",
                 },
             )
         else:
@@ -1723,11 +1728,12 @@ LANGUAGE & WRITING QUALITY
             response.headers["X-WS-Sources"] = urllib.parse.quote("|".join(json.loads(saved_sources).get("ws") or []))
             response.headers["X-Web-Sources"] = urllib.parse.quote(",".join(web_sources))
             response.headers["X-Web-Sources-Urls"] = urllib.parse.quote(",".join(web_source_urls))
+            response.headers["X-Web-Sources-Json"] = urllib.parse.quote(json.dumps([{"title": t, "url": (web_source_urls[i] if i < len(web_source_urls) else "")} for i, t in enumerate(web_sources)]))
             response.headers["X-Cloud-Provider"] = cloud
             response.headers["X-Chat-Renamed"] = "true" if chat_renamed else "false"
             response.headers["X-Doc-Warnings"] = urllib.parse.quote(json.dumps(warnings))
             response.headers["X-Sources-Mode"] = sources_mode
-            response.headers["Access-Control-Expose-Headers"] = "X-Chat-ID,X-KB-Used,X-KB-Sources,X-WS-Sources,X-Web-Sources,X-Web-Sources-Urls,X-Cloud-Provider,X-Chat-Renamed,X-Doc-Warnings,X-Sources-Mode"
+            response.headers["Access-Control-Expose-Headers"] = "X-Chat-ID,X-KB-Used,X-KB-Sources,X-WS-Sources,X-Web-Sources,X-Web-Sources-Urls,X-Web-Sources-Json,X-Cloud-Provider,X-Chat-Renamed,X-Doc-Warnings,X-Sources-Mode"
             
             return {"response": content, "chat_id": chat_obj.id}
 

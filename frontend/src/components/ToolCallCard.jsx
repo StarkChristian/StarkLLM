@@ -277,7 +277,7 @@ export default function ToolCallCard({
           {onSendToolResult && (
             <div className={styles.btnRow} style={{ marginTop: '0.6rem' }}>
               <button className={styles.confirmBtn} onClick={handleSendToChat}>
-                <Send size={13} /> {t('Send Result to Assistant')}
+                <Send size={13} /> {t('Send the result to the assistant')}
               </button>
             </div>
           )}
