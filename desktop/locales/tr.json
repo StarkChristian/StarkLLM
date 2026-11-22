@@ -133,5 +133,13 @@
   "Choose the project folder for the terminal": "Terminal için proje klasörünü seçin",
   "StarkLLM: the answer changed": "StarkLLM: yanıt değişti",
   "Save as PDF": "PDF olarak kaydet",
-  "Save": "Kaydet"
+  "Save": "Kaydet",
+  "Back": "Geri",
+  "Forward": "İleri",
+  "Reload": "Yenile",
+  "Stop loading": "Yüklemeyi durdur",
+  "Start page": "Başlangıç sayfası",
+  "Search or enter a web address": "Arayın veya bir web adresi girin",
+  "StarkLLM is working here": "StarkLLM burada çalışıyor",
+  "You have taken over": "Kontrolü siz aldınız"
 }

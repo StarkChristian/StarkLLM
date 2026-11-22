@@ -100,6 +100,7 @@ contextBridge.exposeInMainWorld('starkllmDesktop', {
     // the text of the page the window shows, to save it to the workspace
     pageText: () => ipcRenderer.invoke('webtask:page'),
     showWindow: () => ipcRenderer.invoke('webtask:show'),
+    openBrowser: () => ipcRenderer.invoke('webtask:open-browser'),
     // scheduled web tasks (docs/roadmap-2026-12.md, R5): looking only, run by the desktop app
     schedules: {
       list: () => ipcRenderer.invoke('webtask:schedules'),

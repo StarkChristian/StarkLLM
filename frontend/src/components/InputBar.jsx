@@ -6,7 +6,7 @@ import { useToast } from './Toast';
 import { UPLOAD_ACCEPT } from '../utils/uploadTypes';
 import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
-import { isWebTaskTemplate } from '../utils/webTask';
+import { isWebTaskTemplate, webTaskBridge } from '../utils/webTask';
 
 export default function InputBar({ onSendImage, compareModel, onSetCompareModel, onSendMessage, onFileUpload, useKb, onToggleKb, useWebSearch, onToggleWebSearch, webTaskAvailable, useWebTask, onToggleWebTask, terminalFolder, useTerminal, onToggleTerminal, onChooseTerminalFolder, onClearTerminalFolder, offline, cloudHost, onOpenSettings, isGenerating, onStopGeneration, token, activeWorkspace, onOpenKbSettings }) {
   const toast = useToast();
@@ -244,6 +244,17 @@ export default function InputBar({ onSendImage, compareModel, onSetCompareModel,
         )}
         {useWebTask && (
           <span className={styles.onlineNote} role="status">{t('StarkLLM opens its own browser window and works on websites. It asks you before buying, booking or sending anything.')}</span>
+        )}
+        {useWebTask && webTaskBridge() && webTaskBridge().openBrowser && (
+          <button
+            className={styles.kbToggle}
+            onClick={async () => { const r = await webTaskBridge().openBrowser(); if (r && r.error === 'offline') toast.error(t('Web tasks are off while StarkLLM is fully offline')); }}
+            title={t("Open StarkLLM's browser window and use it yourself, with its own address bar")}
+            type="button"
+          >
+            <Globe size={16} />
+            {t('Open the browser')}
+          </button>
         )}
         {webTaskAvailable && onChooseTerminalFolder && !terminalFolder && (
           <button

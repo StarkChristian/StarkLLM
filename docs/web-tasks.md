@@ -27,6 +27,16 @@ example check flights."
    (*Allow for this task*, *Always allow this site*, *Not now*, *Never on this site*). Adult sites are blocked.
    The user's answers "always" and "never" are listed in Settings > Privacy & network and can be removed there.
 
+## The browser for the user (2.6.0)
+
+StarkLLM's browser window has an address bar of its own: back, forward, reload or stop, a start page (DuckDuckGo) and
+a field for a web address or a search ("aachen.de" opens https://aachen.de, anything else is searched with DuckDuckGo).
+"Open the browser" next to "Web task" in the chat opens the window without a task, for the user's own use. The bar is a
+local page without network access and without Node (webtask-bar.html, webtask-bar-preload.js: three calls); the web
+page is a view of its own below it, with the same separate storage and the same rules as before (network layer, no
+permissions, no downloads, no pages of this PC or the home network). When the user uses the bar while a task runs, the
+task waits as with "Take over"; the bar shows "StarkLLM is working here" or "You have taken over".
+
 ## How it works
 
 | Part | File | What it does |

@@ -1447,5 +1447,7 @@
   "Chat loaded. How can I help you?": "Sohbet yüklendi. Nasıl yardımcı olabilirim?",
   "account {name}": "hesap {name}",
   "Your question is sent to DuckDuckGo (if it does not answer, to Mullvad Leta, then Mojeek).": "Sorunuz DuckDuckGo’ya gönderilir (yanıt vermezse Mullvad Leta’ya, sonra Mojeek’e).",
-  "Send the result to the assistant": "Sonucu asistana gönder"
+  "Send the result to the assistant": "Sonucu asistana gönder",
+  "Open the browser": "Tarayıcıyı aç",
+  "Open StarkLLM's browser window and use it yourself, with its own address bar": "StarkLLM’in tarayıcı penceresini açın ve kendi adres çubuğuyla kendiniz kullanın"
 }

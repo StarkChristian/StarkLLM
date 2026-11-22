@@ -133,5 +133,13 @@
   "Choose the project folder for the terminal": "Elija la carpeta del proyecto para el terminal",
   "StarkLLM: the answer changed": "StarkLLM: la respuesta cambió",
   "Save as PDF": "Guardar como PDF",
-  "Save": "Guardar"
+  "Save": "Guardar",
+  "Back": "Atrás",
+  "Forward": "Adelante",
+  "Reload": "Recargar",
+  "Stop loading": "Detener la carga",
+  "Start page": "Página de inicio",
+  "Search or enter a web address": "Busque o escriba una dirección web",
+  "StarkLLM is working here": "StarkLLM está trabajando aquí",
+  "You have taken over": "Usted ha tomado el control"
 }
