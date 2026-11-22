@@ -7,11 +7,17 @@
 //    refused (a page must not reach the engine, Ollama or a router);
 //  * no permissions (camera, microphone, location, notifications ...), no downloads, no pop-up windows;
 //  * the AI model is the local Ollama on this PC; the chat page shows each step, asks the user's yes before risky
-//    clicks and hands passwords, payments and CAPTCHAs to the user (IPC "webtask:*").
-const { app, BrowserWindow, session } = require('electron');
+//    clicks and hands passwords, payments and CAPTCHAs to the user (IPC "webtask:*");
+//  * with a project folder the user chose in a folder dialog, the terminal (terminal-core.js): files and commands in
+//    that folder only, each change and command after the user's yes, the file changes can be undone afterwards.
+//    Commands run as the user, with the user's rights, without the secrets of StarkLLM's own environment.
+const { app, BrowserWindow, session, dialog } = require('electron');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const { spawn, execFile } = require('child_process');
 const { runTask } = require('./webtask-core');
+const { createTerminal } = require('./terminal-core');
 const { PAGE_SCRIPT } = require('./webtask-page');
 const { getShared } = require('./netguard');
 const { t } = require('./i18n');
@@ -22,6 +28,8 @@ const LANGUAGE_NAMES = { en: 'English', de: 'German', es: 'Spanish', fr: 'French
 
 let win = null;
 let current = null; // { id, signal, sender }
+let lastTerminal = null; // the terminal of the last task, for "Undo the file changes"
+const running = new Set(); // child processes of commands that run now
 const pending = new Map(); // question id -> resolve
 let sessionReady = false;
 
@@ -196,6 +204,91 @@ function writeRule(host, rule) {
   return true;
 }
 
+// ── Terminal ──
+// The project folders the user chose in the folder dialog (only those can be used), kept in the profile folder.
+function foldersFile() {
+  return path.join(app.getPath('userData'), 'webtask-folders.json');
+}
+
+function readFolders() {
+  try {
+    const f = JSON.parse(fs.readFileSync(foldersFile(), 'utf8'));
+    return Array.isArray(f) ? f.filter((x) => typeof x === 'string') : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+// a whole drive, the user's own folder, Windows or the programs: not a project folder
+function unsuitableFolder(dir) {
+  const d = path.resolve(dir);
+  const norm = (x) => path.resolve(x).toLowerCase().replace(/[\\/]+$/, '');
+  if (path.parse(d).root === d || norm(d) === norm(path.parse(d).root)) return 'drive';
+  const home = os.homedir();
+  const system = [home, path.join(home, 'Desktop'), path.join(home, 'Documents'), path.join(home, 'Downloads'), app.getPath('userData'),
+    process.env.WINDIR, process.env.ProgramFiles, process.env['ProgramFiles(x86)'], process.env.ProgramData, process.env.APPDATA, process.env.LOCALAPPDATA,
+    '/etc', '/usr', '/bin', '/var', '/System', '/Library', '/Applications'].filter(Boolean);
+  if (system.some((s) => norm(s) === norm(d))) return 'system';
+  if ([process.env.WINDIR, process.env.ProgramFiles, process.env['ProgramFiles(x86)'], app.getPath('userData')].filter(Boolean)
+    .some((s) => (norm(d) + path.sep).startsWith(norm(s) + path.sep))) return 'system';
+  return '';
+}
+
+// commands get the user's environment without secrets (tokens, keys, passwords) and without StarkLLM's own settings
+function commandEnv() {
+  const env = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (/token|secret|passw|pwd$|api_?key|private|credential|^starkllm|^electron|^npm_config_.*auth|^aws_|^azure_|^gh_|^github_/i.test(k)) continue;
+    env[k] = v;
+  }
+  env.GIT_PAGER = 'cat';
+  env.PAGER = 'cat';
+  env.GIT_TERMINAL_PROMPT = '0';
+  env.CI = '1'; // programs do not wait for input and print plain output
+  env.NO_COLOR = '1';
+  env.FORCE_COLOR = '0';
+  return env;
+}
+
+function killTree(child) {
+  if (!child || child.exitCode !== null) return;
+  if (process.platform === 'win32') execFile('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true }, () => {});
+  else { try { process.kill(-child.pid, 'SIGKILL'); } catch (e) { try { child.kill('SIGKILL'); } catch (err) { /* gone */ } } }
+}
+
+// one command in the project folder: PowerShell on Windows, bash elsewhere; no input; ends after the time limit,
+// when the task is stopped, or when StarkLLM quits (with every program it started)
+function runCommand(command, { cwd, timeoutMs, signal }) {
+  return new Promise((resolve) => {
+    const win32 = process.platform === 'win32';
+    const child = win32
+      ? spawn('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command',
+        `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $ProgressPreference = 'SilentlyContinue'; ${command}`],
+      { cwd, env: commandEnv(), windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+      : spawn('bash', ['-c', command], { cwd, env: commandEnv(), detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    running.add(child);
+    let out = '';
+    const add = (b) => { if (out.length < 400000) out += b.toString('utf8'); };
+    child.stdout.on('data', add);
+    child.stderr.on('data', add);
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; killTree(child); }, timeoutMs);
+    const watch = setInterval(() => { if (signal && signal.stopped) killTree(child); }, 300);
+    const done = (code) => {
+      clearTimeout(timer);
+      clearInterval(watch);
+      running.delete(child);
+      resolve({ code: code == null ? -1 : code, output: out.replace(/\x1b\[[0-9;]*[A-Za-z]/g, ''), timedOut });
+    };
+    child.on('error', (e) => { add(Buffer.from(String(e.message))); done(-1); });
+    child.on('close', done);
+  });
+}
+
+function stopCommands() {
+  for (const child of running) killTree(child);
+}
+
 // The local AI model (Ollama on this PC). Recorded by the network layer like every connection of the app.
 function ollamaChat(model) {
   const post = getShared().wrapFetch(fetch, 'web_task', 'The local AI model (Ollama on this PC) chooses the next step of a web task');
@@ -230,8 +323,17 @@ function register(ipcMain, { fromApp, log = () => {} }) {
     const model = String(opts.model || '').trim();
     if (!task) return { error: 'empty' };
     if (!model) return { error: 'no-model' };
-    if (getShared().isOffline()) return { error: 'offline' };
     if (current) return { error: 'busy' };
+    // the terminal: only a folder the user chose in the folder dialog
+    let terminal = null;
+    if (opts.folder) {
+      const folder = String(opts.folder);
+      if (!readFolders().includes(folder) || unsuitableFolder(folder) || !fs.existsSync(folder)) return { error: 'folder' };
+      terminal = createTerminal({ root: folder, fs, run: runCommand, offline: () => getShared().isOffline() });
+    }
+    // fully offline: without a project folder there is nothing to do; with one, the folder only (no browser)
+    const offline = getShared().isOffline();
+    if (offline && !terminal) return { error: 'offline' };
     const id = `t${Date.now()}`;
     // pause: the loop waits before its next step until resume() (or stop) is called
     let wake = null;
@@ -250,20 +352,23 @@ function register(ipcMain, { fromApp, log = () => {} }) {
       pending.set(qid, resolve);
       // a step for the user happens in the browser window: bring it to the front
       if (question.type === 'handoff' && win && !win.isDestroyed()) { win.show(); win.focus(); }
-      send({ type: 'ask', qid, ask: question.type, text: question.text, url: question.url || '', kind: question.kind || '' });
+      send({ type: 'ask', qid, ask: question.type, text: question.text, url: question.url || '', kind: question.kind || '', extra: question.extra || null });
     });
     const language = LANGUAGE_NAMES[String(opts.language || '').slice(0, 2)] || 'English';
     // a follow-up: the task before it and its answer (from the chat, so plain text and short)
     const prev = opts.previous && typeof opts.previous === 'object'
       ? { task: String(opts.previous.task || '').slice(0, 2000), answer: String(opts.previous.answer || '').slice(0, 4000) }
       : null;
-    send({ type: 'started', task });
+    send({ type: 'started', task, folder: terminal ? terminal.folderName : '' });
+    lastTerminal = terminal;
     const rules = readRules();
     runTask({ task, language, browser: electronBrowser(), llm: ollamaChat(model), ask, emit: send, signal, previous: prev && prev.task ? prev : null,
       siteRule: (host) => rules[host] || rules[host.replace(/^www\./, '')] || '',
-      saveSiteRule: (host, rule) => { writeRule(host, rule); rules[host] = rule; } })
+      saveSiteRule: (host, rule) => { writeRule(host, rule); rules[host] = rule; },
+      terminal, browserOn: !offline })
       .catch((e) => send({ type: 'error', text: e.message }))
       .finally(() => {
+        stopCommands();
         current = null;
         for (const resolve of pending.values()) resolve({ ok: false });
         pending.clear();
@@ -279,6 +384,27 @@ function register(ipcMain, { fromApp, log = () => {} }) {
     pending.delete(String(qid));
     resolve({ ok: Boolean(answer.ok), text: String(answer.text || '').slice(0, 1000), remember: Boolean(answer.remember) });
     return { ok: true };
+  }));
+
+  // The terminal: the user chooses the project folder in the system's folder dialog (StarkLLM never picks one itself)
+  ipcMain.handle('webtask:choose-folder', allowed(async (event) => {
+    const parent = BrowserWindow.fromWebContents(event.sender);
+    const r = await dialog.showOpenDialog(parent, { title: t('Choose the project folder for the terminal'), properties: ['openDirectory'] });
+    if (r.canceled || !r.filePaths || !r.filePaths[0]) return { canceled: true };
+    const folder = r.filePaths[0];
+    const why = unsuitableFolder(folder);
+    if (why) return { error: 'unsuitable', why };
+    const folders = [folder, ...readFolders().filter((f) => f !== folder)].slice(0, 10);
+    fs.writeFileSync(foldersFile(), JSON.stringify(folders, null, 1));
+    return { ok: true, folder, name: path.basename(folder) };
+  }));
+
+  // "Undo the file changes" of the last task (not while a task runs)
+  ipcMain.handle('webtask:undo', allowed(async () => {
+    if (current) return { error: 'busy' };
+    if (!lastTerminal) return { error: 'nothing' };
+    const files = lastTerminal.undo();
+    return { ok: true, files };
   }));
 
   // Settings: the user's site rules, to see and remove them
@@ -319,6 +445,7 @@ function register(ipcMain, { fromApp, log = () => {} }) {
       current.signal.stopped = true;
       current.signal.resume(); // a paused task ends too
     }
+    stopCommands();
     for (const resolve of pending.values()) resolve({ ok: false });
     pending.clear();
     return { ok: true };
@@ -343,6 +470,7 @@ function stopForOffline() {
     current.signal.stopped = true;
     current.signal.resume();
   }
+  stopCommands();
 }
 
-module.exports = { register, stopForOffline, PARTITION };
+module.exports = { register, stopForOffline, stopCommands, PARTITION, unsuitableFolder: (d) => unsuitableFolder(d) };

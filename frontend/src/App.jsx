@@ -75,6 +75,14 @@ export default function App() {
   const [useWebSearch, setUseWebSearch] = useState(false);
   // Web tasks (docs/web-tasks.md): only in the desktop app, which has the browser window
   const [useWebTask, setUseWebTask] = useState(false);
+  // the terminal of tasks: a project folder the user chose in the folder dialog of the desktop app
+  const [terminalFolder, setTerminalFolderState] = useState(() => {
+    try { const f = JSON.parse(localStorage.getItem('webtask_folder') || 'null'); return f && f.folder ? f : null; } catch (e) { return null; }
+  });
+  const setTerminalFolder = (f) => {
+    setTerminalFolderState(f);
+    try { if (f) localStorage.setItem('webtask_folder', JSON.stringify(f)); else localStorage.removeItem('webtask_folder'); } catch (e) { /* private window */ }
+  };
   const webTaskRunningRef = useRef(false);
   const offline = useOffline(token); // the fully offline switch (Settings > Privacy & network)
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(false);
@@ -592,6 +600,22 @@ export default function App() {
     }
   };
 
+  const handleChooseTerminalFolder = async () => {
+    const bridge = webTaskBridge();
+    if (!bridge || !bridge.chooseFolder) return '';
+    const r = await bridge.chooseFolder();
+    if (r && r.ok) { setTerminalFolder({ folder: r.folder, name: r.name }); return 'ok'; }
+    return r && r.error === 'unsuitable' ? 'unsuitable' : '';
+  };
+
+  // "Undo the file changes" of the last task with the terminal
+  const handleUndoTerminal = async () => {
+    const bridge = webTaskBridge();
+    if (!bridge || !bridge.undo) return false;
+    const r = await bridge.undo();
+    return Boolean(r && r.ok);
+  };
+
   const handleWebTask = async (text) => {
     const bridge = webTaskBridge();
     const messagesBefore = messages;
@@ -622,9 +646,11 @@ export default function App() {
     });
     try {
       // a follow-up continues in the same window, with the task before it and its answer
-      const r = await bridge.start({ task: text, model: currentModel, language: language(), previous: previousWebTask(messagesBefore) });
+      const r = await bridge.start({ task: text, model: currentModel, language: language(), previous: previousWebTask(messagesBefore), folder: terminalFolder ? terminalFolder.folder : '' });
       if (!r || r.error) {
-        const why = r && r.error === 'offline' ? t('StarkLLM is fully offline: web tasks are off.')
+        if (r && r.error === 'folder') setTerminalFolder(null);
+        const why = r && r.error === 'folder' ? t('The project folder can no longer be used. Choose it again with Terminal.')
+          : r && r.error === 'offline' ? t('StarkLLM is fully offline: web tasks are off.')
           : r && r.error === 'busy' ? t('A web task is already running. Wait for it or stop it.')
             : t('The web task could not start.');
         fail(why);
@@ -667,7 +693,8 @@ export default function App() {
       setMessages(prev => [...prev, { role: 'assistant', content: t('Please create or select a workspace first.') }]);
       return;
     }
-    if (useWebTask && webTaskBridge() && !offline) {
+    // a web task, or a task in the project folder (the terminal works also while StarkLLM is fully offline)
+    if (webTaskBridge() && ((useWebTask && !offline) || terminalFolder)) {
       await handleWebTask(text);
       return;
     }
@@ -1361,6 +1388,7 @@ export default function App() {
                 onResume: () => webTaskBridge().resume(),
                 onSavePage: handleSaveWebTaskPage,
                 onSaveTask: handleSaveWebTaskTemplate,
+                onUndo: handleUndoTerminal,
               } : null}
             />
             <InputBar 
@@ -1374,6 +1402,9 @@ export default function App() {
               webTaskAvailable={Boolean(webTaskBridge())}
               useWebTask={useWebTask && !offline}
               onToggleWebTask={() => setUseWebTask(!useWebTask)}
+              terminalFolder={webTaskBridge() ? terminalFolder : null}
+              onChooseTerminalFolder={handleChooseTerminalFolder}
+              onClearTerminalFolder={() => setTerminalFolder(null)}
               cloudHost={currentCloudHost()}
               onOpenSettings={() => setActiveView('settings')}
               isGenerating={isGenerating}

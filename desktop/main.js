@@ -123,6 +123,7 @@ function initApp() {
   });
   registerPhoneLinkHandlers();
   webtask.register(ipcMain, { fromApp, log: logLine });
+  app.on("will-quit", () => webtask.stopCommands()); // commands of a web task end with StarkLLM
   registerProtectionHandlers();
   registerUnlockHandlers();
   lockEngineOnQuit();

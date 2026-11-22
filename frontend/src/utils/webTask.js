@@ -11,23 +11,23 @@ export function reduceWebTask(state, e) {
   if (!e || !e.type) return state;
   switch (e.type) {
     case 'started':
-      return { ...state, status: 'running' };
+      return { ...state, status: 'running', folder: e.folder || state.folder || '' };
     case 'step':
       return {
         ...state,
         status: 'running',
-        steps: [...state.steps, { action: e.action, detail: e.detail || '' }],
+        steps: [...state.steps, e.extra ? { action: e.action, detail: e.detail || '', extra: e.extra } : { action: e.action, detail: e.detail || '' }],
         url: e.url || state.url,
         title: e.title || state.title,
       };
     case 'ask':
-      return { ...state, ask: { qid: e.qid, kind: e.ask, text: e.text || '', url: e.url || '', siteKind: e.kind || '' } };
+      return { ...state, ask: { qid: e.qid, kind: e.ask, text: e.text || '', url: e.url || '', siteKind: e.kind || '', ...(e.extra ? { extra: e.extra } : {}) } };
     case 'answer':
-      return { ...state, status: 'done', ask: null, answer: e.text || '', url: e.url || state.url, title: e.title || state.title };
+      return { ...state, status: 'done', ask: null, answer: e.text || '', url: e.url || state.url, title: e.title || state.title, files: e.files || state.files || [] };
     case 'error':
-      return { ...state, status: 'error', ask: null, error: e.text || '' };
+      return { ...state, status: 'error', ask: null, error: e.text || '', files: e.files || state.files || [] };
     case 'stopped':
-      return { ...state, status: 'stopped', ask: null, paused: false };
+      return { ...state, status: 'stopped', ask: null, paused: false, files: e.files || state.files || [] };
     case 'paused':
       return { ...state, paused: true };
     case 'resumed':

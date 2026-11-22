@@ -57,3 +57,16 @@ test('saved web tasks are templates with the tag web-task', async () => {
   assert.equal(isWebTaskTemplate(null), false);
   assert.equal(initialWebTask('find a flight').task, 'find a flight');
 });
+
+test('terminal: the folder, a command question with its details, the output of a step and the changed files', async () => {
+  const { initialWebTask, reduceWebTask } = await import('../src/utils/webTask.js');
+  let s = reduceWebTask(initialWebTask('fix the tests'), { type: 'started', folder: 'demo' });
+  assert.equal(s.folder, 'demo');
+  s = reduceWebTask(s, { type: 'ask', qid: 'q1', ask: 'command', text: 'npm test', extra: { network: false, deletes: false, folder: 'demo' } });
+  assert.equal(s.ask.kind, 'command');
+  assert.equal(s.ask.extra.folder, 'demo');
+  s = reduceWebTask(s, { type: 'step', action: 'command', detail: 'npm test', extra: { code: 1, output: '1 failing' } });
+  assert.equal(s.steps[0].extra.code, 1);
+  s = reduceWebTask(s, { type: 'answer', text: 'fixed', files: ['src/add.js'] });
+  assert.deepEqual(s.files, ['src/add.js']);
+});

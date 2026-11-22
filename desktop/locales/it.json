@@ -129,5 +129,6 @@
   "Restart StarkLLM to change this?": "Riavviare StarkLLM per cambiare questa impostazione?",
   "StarkLLM restarts Ollama (the local AI runtime) with the new setting. Your chats and documents are not affected.": "StarkLLM riavvia Ollama (il runtime IA locale) con la nuova impostazione. Chat e documenti non vengono toccati.",
   "StarkLLM web task": "Attività web di StarkLLM",
-  "StarkLLM is fully offline: web tasks are off.": "StarkLLM è completamente offline: le attività web sono disattivate."
+  "StarkLLM is fully offline: web tasks are off.": "StarkLLM è completamente offline: le attività web sono disattivate.",
+  "Choose the project folder for the terminal": "Scegli la cartella del progetto per il terminale"
 }

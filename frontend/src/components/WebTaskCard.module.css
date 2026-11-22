@@ -38,3 +38,14 @@
 .actions { display: inline-flex; gap: 4px; flex-wrap: wrap; }
 .saveRow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
 .saveRow button { display: inline-flex; align-items: center; gap: 6px; }
+
+.output { margin: 4px 0 2px; }
+.output summary { cursor: pointer; font-size: 0.9em; }
+.output pre, .diff, .command {
+  margin: 4px 0; padding: 6px 8px; border-radius: 6px; max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.85em;
+  background: var(--bg-primary, rgba(127, 127, 127, 0.08)); border: 1px solid var(--border-color, rgba(127, 127, 127, 0.3));
+}
+.diff .add { color: #15803d; }
+.diff .del { color: #b91c1c; }
+.warn { color: #b45309; font-weight: 600; }

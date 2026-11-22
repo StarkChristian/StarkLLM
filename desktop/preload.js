@@ -60,7 +60,11 @@ contextBridge.exposeInMainWorld('starkllmDesktop', {
     start: (opts) => ipcRenderer.invoke('webtask:start', {
       task: String((opts && opts.task) || ''), model: String((opts && opts.model) || ''), language: String((opts && opts.language) || ''),
       previous: opts && opts.previous ? { task: String(opts.previous.task || ''), answer: String(opts.previous.answer || '') } : null,
+      folder: opts && opts.folder ? String(opts.folder) : '',
     }),
+    // the terminal: the project folder (chosen in the folder dialog), and undoing the file changes of the last task
+    chooseFolder: () => ipcRenderer.invoke('webtask:choose-folder'),
+    undo: () => ipcRenderer.invoke('webtask:undo'),
     reply: (qid, answer) => ipcRenderer.invoke('webtask:reply', String(qid || ''), {
       ok: Boolean(answer && answer.ok), text: String((answer && answer.text) || ''), remember: Boolean(answer && answer.remember),
     }),

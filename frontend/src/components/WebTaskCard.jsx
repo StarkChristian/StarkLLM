@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Compass, Loader, CheckCircle, AlertTriangle, Square, ExternalLink, ShieldAlert, Hand, Pause, Play, FilePlus, Bookmark } from 'lucide-react';
+import { Compass, Loader, CheckCircle, AlertTriangle, Square, ExternalLink, ShieldAlert, Hand, Pause, Play, FilePlus, Bookmark, TerminalSquare, Undo2 } from 'lucide-react';
 import styles from './WebTaskCard.module.css';
 import { t } from '../i18n';
 
@@ -23,12 +23,84 @@ function stepText(s) {
     case 'user': return t('A step for you in the window');
     case 'problem': return t('Did not work: {reason}', { reason: d });
     case 'blocked': return t('Not opened: {site} (site rules)', { site: d });
+    case 'list': return t('Listed {folder}', { folder: d });
+    case 'readfile': return t('Read {file}', { file: d });
+    case 'edit': return t('Changed {file}', { file: d });
+    case 'create': return t('Created {file}', { file: d });
+    case 'command': return t('Ran {command}', { command: d });
+    case 'cmdblocked': return t('Not run, StarkLLM does not run such commands: {command}', { command: d });
+    case 'secret': return t('Not read or changed, it may hold secrets: {file}', { file: d });
     default: return d;
   }
 }
 
+// what a step of the terminal shows when it is opened: the output of a command or the change of a file
+function StepDetails({ s }) {
+  const x = s.extra;
+  if (!x) return null;
+  if (s.action === 'command') {
+    return (
+      <details className={styles.output}>
+        <summary>{x.timedOut ? t('Stopped after the time limit') : t('Exit code {code}', { code: x.code })}</summary>
+        {x.output ? <pre>{x.output}</pre> : null}
+      </details>
+    );
+  }
+  if ((s.action === 'edit' || s.action === 'create') && x.diff) {
+    return <details className={styles.output}><summary>{t('Show the change')}</summary><Diff text={x.diff} /></details>;
+  }
+  return null;
+}
+
+function Diff({ text }) {
+  return (
+    <pre className={styles.diff}>
+      {String(text).split('\n').map((l, k) => (
+        <span key={k} className={l.startsWith('+ ') ? styles.add : l.startsWith('- ') ? styles.del : undefined}>{l}{'\n'}</span>
+      ))}
+    </pre>
+  );
+}
+
 function AskBox({ ask, onReply }) {
   const [answer, setAnswer] = useState('');
+  const x = ask.extra || {};
+  if (ask.kind === 'command') {
+    return (
+      <div className={`${styles.ask} ${x.network || x.deletes ? styles.askRisky : styles.askHandoff}`} role="alert">
+        <TerminalSquare size={18} />
+        <div className={styles.askBody}>
+          <p>{t('StarkLLM wants to run this command in the folder {folder}:', { folder: x.folder || '' })}</p>
+          <pre className={styles.command}>{ask.text}</pre>
+          {x.network && <p className={styles.warn}>{t('This command uses the internet.')}</p>}
+          {x.deletes && <p className={styles.warn}>{t('This command deletes or throws away something.')}</p>}
+          <div className={styles.askButtons}>
+            <button type="button" className={styles.secondary} onClick={() => onReply(ask.qid, { ok: false })}>{t('Do not run')}</button>
+            {!x.deletes && (
+              <button type="button" className={styles.secondary} onClick={() => onReply(ask.qid, { ok: true, remember: true })}>{t('Allow this command for the task')}</button>
+            )}
+            <button type="button" className={styles.primary} onClick={() => onReply(ask.qid, { ok: true })}>{t('Run once')}</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (ask.kind === 'edit') {
+    return (
+      <div className={`${styles.ask} ${styles.askHandoff}`} role="alert">
+        <TerminalSquare size={18} />
+        <div className={styles.askBody}>
+          <p>{x.created ? t('StarkLLM wants to create the file {file}:', { file: ask.text }) : t('StarkLLM wants to change the file {file}:', { file: ask.text })}</p>
+          {x.diff && <Diff text={x.diff} />}
+          <div className={styles.askButtons}>
+            <button type="button" className={styles.secondary} onClick={() => onReply(ask.qid, { ok: false })}>{t('Do not change')}</button>
+            <button type="button" className={styles.secondary} onClick={() => onReply(ask.qid, { ok: true, remember: true })}>{t('Apply all changes in this task')}</button>
+            <button type="button" className={styles.primary} onClick={() => onReply(ask.qid, { ok: true })}>{t('Apply this change')}</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (ask.kind === 'confirm') {
     return (
       <div className={`${styles.ask} ${styles.askRisky}`} role="alert">
@@ -99,10 +171,17 @@ function AskBox({ ask, onReply }) {
   );
 }
 
-export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onResume, onSavePage, onSaveTask }) {
+export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onResume, onSavePage, onSaveTask, onUndo }) {
   const running = task.status === 'starting' || task.status === 'running';
   const [saved, setSaved] = useState('');
   const [taskSaved, setTaskSaved] = useState('');
+  const [undone, setUndone] = useState('');
+  const files = task.files || [];
+  const undo = async () => {
+    setUndone('working');
+    const ok = await onUndo();
+    setUndone(ok ? 'done' : 'failed');
+  };
   const saveTask = async () => {
     setTaskSaved('saving');
     const ok = await onSaveTask(task.task);
@@ -115,6 +194,8 @@ export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onRe
   };
   const header = running && task.paused
     ? <><Pause size={16} />{t('Web task paused: the window is yours')}</>
+    : running && task.folder && !task.url
+    ? <><Loader size={16} className={styles.spin} />{t('Task: StarkLLM is working in the folder {folder}', { folder: task.folder })}</>
     : running
     ? <><Loader size={16} className={styles.spin} />{t('Web task: StarkLLM is working in its browser window')}</>
     : task.status === 'done'
@@ -151,7 +232,7 @@ export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onRe
         <details className={styles.steps} open={running}>
           <summary>{t('{count} steps', { count: task.steps.length })}</summary>
           <ol>
-            {task.steps.map((s, k) => <li key={k}>{stepText(s)}</li>)}
+            {task.steps.map((s, k) => <li key={k}>{stepText(s)}<StepDetails s={s} /></li>)}
           </ol>
         </details>
       )}
@@ -173,6 +254,16 @@ export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onRe
           </button>
           {taskSaved === 'saved' && <span className={styles.hint}>{t('Saved under Templates. Choose it there to run the task again; parts in {{double braces}} become fields to fill in.')}</span>}
           {taskSaved === 'failed' && <span className={styles.error}>{t('The task could not be saved.')}</span>}
+        </div>
+      )}
+      {!running && files.length > 0 && onUndo && (
+        <div className={styles.saveRow}>
+          <span className={styles.hint}>{t('{count} files changed: {files}', { count: files.length, files: files.join(', ') })}</span>
+          <button type="button" className={styles.secondary} onClick={undo} disabled={undone === 'working' || undone === 'done'}>
+            <Undo2 size={14} /> {t('Undo the file changes')}
+          </button>
+          {undone === 'done' && <span className={styles.hint}>{t('Undone: the files are as they were before the task. Changes made by commands, for example installed packages, are not undone.')}</span>}
+          {undone === 'failed' && <span className={styles.error}>{t('The changes could not be undone. A newer task may have started.')}</span>}
         </div>
       )}
       {task.status === 'error' && (
