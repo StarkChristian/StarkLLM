@@ -1280,6 +1280,13 @@ async def chat(
 --- Web Search Results ---
 {untrusted.data_block(web_context)}
 """
+        elif getattr(req, "use_web_search", False):
+            # the user turned web search on and it found nothing: say that, not "I cannot reach the internet"
+            web_section = """
+--- Web Search Results ---
+A web search was made for this question and found nothing useful. If the answer is not in the documents either, say
+that neither the documents nor the web search had it. Do not say that you have no internet access.
+"""
 
         custom_instructions_section = ""
         if current_user.profile_context or current_user.custom_instructions:

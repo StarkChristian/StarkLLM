@@ -182,6 +182,15 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
 
   if (!isOpen) return null;
 
+  // the catalog of the engine (llm_service.RECOMMENDED) describes its models in English
+  const modelDescription = (m) => ({
+    'llama3.2:3b': t('Meta’s compact model for fast chat, e-mails and light work with local documents.'),
+    'deepseek-r1:8b': t('An open reasoning model, strong in mathematics, logic and analysis.'),
+    'qwen2.5-coder:7b': t('A local model for programming, with Python, JavaScript, Go, Rust and more.'),
+    'mistral:7b': t('A popular Mistral model that understands long texts and works well with the knowledge base.'),
+    'phi3.5:mini': t('A small Microsoft model with good reasoning and writing, and fast answers.'),
+    'nomic-embed-text:latest': t('The model that turns document passages into vectors for the search of the knowledge base.'),
+  }[m.name] || m.description);
   const categories = ['All', 'General / Fast', 'Reasoning / Math', 'Coding', 'General / RAG', 'Compact', 'Embedding'];
   const categoryLabel = (c) => ({ All: t('All'), 'General / Fast': t('General / Fast'), 'Reasoning / Math': t('Reasoning / Math'), Coding: t('Coding'),
     'General / RAG': t('General / documents'), Compact: t('Compact'), Embedding: t('Embedding') }[c] || c);
@@ -313,7 +322,7 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
                         )}
                       </div>
                       <div className={styles.tagline}>{model.tagline}</div>
-                      <p className={styles.description}>{model.description}</p>
+                      <p className={styles.description}>{modelDescription(model)}</p>
                       
                       <div className={styles.metaRow}>
                         <span className={styles.metaBadge}>

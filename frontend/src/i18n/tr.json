@@ -1432,5 +1432,12 @@
   "Coding": "Programlama",
   "General / documents": "Genel / belgeler",
   "Compact": "Kompakt",
-  "A tool of an MCP server you added ({tool}). It runs on this PC only after you press Confirm and run.": "Eklediğiniz bir MCP sunucusunun aracı ({tool}). Bu bilgisayarda ancak “Onayla ve çalıştır”a bastıktan sonra çalışır."
+  "A tool of an MCP server you added ({tool}). It runs on this PC only after you press Confirm and run.": "Eklediğiniz bir MCP sunucusunun aracı ({tool}). Bu bilgisayarda ancak “Onayla ve çalıştır”a bastıktan sonra çalışır.",
+  "Listening… {time}": "Dinleniyor… {time}",
+  "Meta’s compact model for fast chat, e-mails and light work with local documents.": "Meta’nın hızlı sohbet, e-posta ve yerel belgelerle hafif işler için kompakt modeli.",
+  "An open reasoning model, strong in mathematics, logic and analysis.": "Matematik, mantık ve analizde güçlü, açık bir akıl yürütme modeli.",
+  "A local model for programming, with Python, JavaScript, Go, Rust and more.": "Python, JavaScript, Go, Rust ve daha fazlasıyla programlama için yerel bir model.",
+  "A popular Mistral model that understands long texts and works well with the knowledge base.": "Uzun metinleri anlayan ve bilgi tabanıyla iyi çalışan popüler bir Mistral modeli.",
+  "A small Microsoft model with good reasoning and writing, and fast answers.": "İyi akıl yürüten ve yazan, hızlı yanıt veren küçük bir Microsoft modeli.",
+  "The model that turns document passages into vectors for the search of the knowledge base.": "Bilgi tabanı araması için belge pasajlarını vektörlere dönüştüren model."
 }

@@ -1432,5 +1432,12 @@
   "Coding": "Programación",
   "General / documents": "General / documentos",
   "Compact": "Compactos",
-  "A tool of an MCP server you added ({tool}). It runs on this PC only after you press Confirm and run.": "Una herramienta de un servidor MCP que usted añadió ({tool}). Se ejecuta en este PC solo después de pulsar «Confirmar y ejecutar»."
+  "A tool of an MCP server you added ({tool}). It runs on this PC only after you press Confirm and run.": "Una herramienta de un servidor MCP que usted añadió ({tool}). Se ejecuta en este PC solo después de pulsar «Confirmar y ejecutar».",
+  "Listening… {time}": "Escuchando… {time}",
+  "Meta’s compact model for fast chat, e-mails and light work with local documents.": "El modelo compacto de Meta para chatear rápido, correos y trabajo ligero con documentos locales.",
+  "An open reasoning model, strong in mathematics, logic and analysis.": "Un modelo abierto de razonamiento, fuerte en matemáticas, lógica y análisis.",
+  "A local model for programming, with Python, JavaScript, Go, Rust and more.": "Un modelo local para programar, con Python, JavaScript, Go, Rust y más.",
+  "A popular Mistral model that understands long texts and works well with the knowledge base.": "Un modelo Mistral popular que entiende textos largos y funciona bien con la base de conocimiento.",
+  "A small Microsoft model with good reasoning and writing, and fast answers.": "Un modelo pequeño de Microsoft que razona y escribe bien y responde rápido.",
+  "The model that turns document passages into vectors for the search of the knowledge base.": "El modelo que convierte los pasajes de los documentos en vectores para la búsqueda de la base de conocimiento."
 }

@@ -680,7 +680,8 @@ export default function App() {
         return;
       }
       await ended;
-      const content = state.status === 'done' ? state.answer
+      const pageLink = /^https?:\/\/\S+$/.test(state.url || '') ? `\n\n[${String(state.title || state.url).replace(/[\[\]()<>*_`]/g, '').slice(0, 120) || state.url}](${state.url})` : '';
+      const content = state.status === 'done' ? state.answer + pageLink
         : state.status === 'stopped' ? t('The web task was stopped.')
           : t('The web task was not finished.') + (state.error ? ` ${webTaskErrorText(state.error)}` : '');
       setMessages(prev => {

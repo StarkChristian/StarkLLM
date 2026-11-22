@@ -364,7 +364,7 @@ export default function InputBar({ onSendImage, compareModel, onSetCompareModel,
         {isRecording ? (
           <div className={styles.recordingIndicator}>
             <span className={styles.recordingPulseDot} />
-            <span className={styles.recordingText}>Listening... {formatDuration(recordingDuration)}</span>
+            <span className={styles.recordingText}>{t('Listening… {time}', { time: formatDuration(recordingDuration) })}</span>
             <div className={styles.waveformBars}>
               <span className={styles.bar1} />
               <span className={styles.bar2} />
