@@ -13,8 +13,8 @@ android {
         applicationId = "com.starkllm.app"
         minSdk = 29
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
     }
 
     // Debug builds only: one fixed test key (password "android", Android's usual debug key), so that a test build from
