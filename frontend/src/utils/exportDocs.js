@@ -94,13 +94,13 @@ export function sourcesOf(msg) {
 }
 
 // the messages of a chat (or of one question and its answer) for an export: no system notes, no empty answers
-export function exportItems(messages, locale) {
+export function exportItems(messages, locale, toDate = (v) => new Date(v)) {
   return (messages || [])
     .filter((m) => (m.role === 'user' || m.role === 'assistant') && String(m.content || '').trim())
     .map((m) => ({
       role: m.role,
       content: String(m.content),
-      time: m.timestamp ? new Date(m.timestamp).toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' }) : '',
+      time: m.timestamp ? toDate(m.timestamp).toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' }) : '',
       sources: m.role === 'assistant' ? sourcesOf(m) : [],
     }));
 }
@@ -120,7 +120,7 @@ export function printableHtml(title, items, words, dateText, lang = 'en', dir = 
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">
 <title>${esc(title)}</title>
 <style>
-  body { font-family: "Segoe UI", Calibri, Arial, sans-serif; color: #111; line-height: 1.5; margin: 0; font-size: 11pt; }
+  body { font-family: "Segoe UI", Calibri, Arial, "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif; color: #111; line-height: 1.5; margin: 0; font-size: 11pt; }
   h1 { font-size: 18pt; margin: 0 0 2pt; }
   .meta { color: #666; font-size: 9pt; margin-bottom: 14pt; }
   section { border-top: 1px solid #ddd; padding: 8pt 0; page-break-inside: auto; }

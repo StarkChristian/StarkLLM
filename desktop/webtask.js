@@ -505,6 +505,10 @@ function register(ipcMain, { fromApp, log = () => {} }) {
       ? { task: String(opts.previous.task || '').slice(0, 2000), answer: String(opts.previous.answer || '').slice(0, 4000) }
       : null;
     send({ type: 'started', task, folder: terminal ? terminal.folderName : '', taskId: id });
+    // a new task (not a follow-up) does not see the page of an earlier one
+    if (!(prev && prev.task) && win && !win.isDestroyed() && isWeb(win.webContents.getURL())) {
+      await win.webContents.loadURL('about:blank').catch(() => {});
+    }
     if (terminal) { lastTerminal = terminal; lastTerminalTask = id; }
     const rules = readRules();
     runTask({ task, language, browser: electronBrowser(), llm: ollamaChat(model), ask, emit: send, signal, previous: prev && prev.task ? prev : null,

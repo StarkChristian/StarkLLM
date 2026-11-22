@@ -37,3 +37,10 @@ test('the export has the chat messages with their sources, not the system notes'
   assert.deepEqual(items[1].sources, ['bill.pdf', 'Supplier (https://s.example)']);
   assert.equal(fileBase('Bills: Q4/2026?'), 'Bills Q42026');
 });
+
+test('times of messages from the engine (UTC without a zone) are shown in local time', () => {
+  const utc = (v) => new Date(String(v) + 'Z');
+  const [item] = exportItems([{ role: 'user', content: 'x', timestamp: '2026-11-22T10:24:00' }], 'en-GB', utc);
+  const local = new Date(Date.UTC(2026, 10, 22, 10, 24)).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' });
+  assert.equal(item.time, local);
+});

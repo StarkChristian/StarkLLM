@@ -1188,7 +1188,7 @@ export default function App() {
 
   // Word and PDF (docs/roadmap-2026-12.md, R1): a whole chat, or one question with its answer
   const exportAsDocument = async (format, title, msgs) => {
-    const items = exportItems(msgs, UI_LOCALE);
+    const items = exportItems(msgs, UI_LOCALE, serverDate); // engine times are UTC: shown in local time like the chat
     if (!items.length) return;
     const args = {
       title, items, headers: getHeaders(), lang: language(), dir: document.documentElement.dir || 'ltr',

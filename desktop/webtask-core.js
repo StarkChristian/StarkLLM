@@ -143,7 +143,7 @@ function systemPrompt(language, { terminal = null, browserOn = true } = {}) {
     '- Do not invent facts: answer only from what you saw on the pages. Name the site you used.',
     '- When the task asks for the cheapest, best, earliest or similar, compare every result on the page (all prices or dates) before you answer. Results are often already on the page: you do not need to click "Book", "Select" or "Details" to see a price.',
     '- When the task is done or you have the answer, call finish. If the task cannot be done, call finish and say why.',
-    `- Write the question for ask_user and the answer of finish in ${language}.`,
+    `- Write the question for ask_user and the answer of finish in ${language}, in the polite form of address of that language (for example "Sie" in German, "vous" in French, "usted" in Spanish, "Lei" in Italian, "siz" in Turkish).`,
   ];
   if (!browserOn) {
     lines[0] = 'You are the assistant of StarkLLM, a private assistant on the user\'s own PC. StarkLLM is fully offline now: there is no browser and no internet, only the project folder.';
