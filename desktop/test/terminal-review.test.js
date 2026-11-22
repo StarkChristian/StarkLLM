@@ -45,7 +45,7 @@ test('the internet: .NET downloads count, a folder named .ssh does not', () => {
 
 test('git output with file contents is asked, not run by itself', () => {
   for (const c of ['git show HEAD:.env', 'git log -p', 'git log --patch', 'git show HEAD:src/a.js']) {
-    assert.equal(classifyCommand(c, L).readOnly, false, c);
+    assert.ok(!classifyCommand(c, L).readOnly, c);
   }
   assert.equal(classifyCommand('git log --oneline -5', L).readOnly, true);
   assert.equal(classifyCommand('git show --stat HEAD', L).readOnly, true);
@@ -64,4 +64,11 @@ test('a link with an innocent name to a secret file is not read', async () => {
   const r = await term.call('read_file', { path: 'notes.txt' }, { ask: async () => ({ ok: true }) });
   assert.ok(!r.output);
   assert.equal(r.step.action, 'secret');
+});
+
+test('commands that name a file with secrets are refused, also with a yes', () => {
+  for (const c of ['type .env', 'Get-Content (Join-Path $PWD ".env")', 'cat config/.env.local', 'copy id_rsa x.txt', 'Get-Content certs\server.key', 'type ENV~1']) {
+    assert.equal(classifyCommand(c, W).blocked, true, c);
+  }
+  for (const c of ['type .env.example', 'type README.md', 'dir']) assert.equal(classifyCommand(c, W).blocked, false, c);
 });

@@ -121,6 +121,9 @@ function classifyCommand(command, { root, platform = process.platform, offline =
   if (BLOCKED_COMMANDS[0][0].test(raw.trim())) return { blocked: true, reason: BLOCKED_COMMANDS[0][1] };
   const c = raw.replace(/[ \t]+/g, ' ').trim();
   for (const [re, why] of BLOCKED_COMMANDS) if (re.test(c)) return { blocked: true, reason: why };
+  // a file with secrets is not read or changed by a command either (type .env, Get-Content id_rsa, copy x.pem ...)
+  const secret = c.split(/[\s"'=,;()|&<>`]+/).find((tok) => tok && isSecretFile(tok));
+  if (secret) return { blocked: true, reason: `it reads or changes a file that may hold secrets (${secret.slice(0, 40)})` };
   const out = root ? outsideToken(c, root, platform) : '';
   if (out) return { blocked: true, reason: `it reaches outside the project folder (${out.slice(0, 60)})` };
   const network = NETWORK.test(c);
