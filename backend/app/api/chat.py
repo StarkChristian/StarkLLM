@@ -1576,6 +1576,12 @@ LANGUAGE & WRITING QUALITY
         reminder = []
         if _lang:
             reminder.append(f"Write your answer in {_lang}.")
+            _native = {"German": "Antworten Sie auf Deutsch.", "Spanish": "Responda en español.", "French": "Répondez en français.",
+                       "Italian": "Rispondere in italiano.", "Turkish": "Türkçe yanıt verin.", "Portuguese": "Responda em português.",
+                       "Dutch": "Antwoord in het Nederlands.", "Polish": "Proszę odpowiedzieć po polsku.",
+                       "Russian": "Ответьте по-русски."}.get(_lang)
+            if _native:
+                reminder.append(_native)
         if web_empty:
             # the last thing a small model reads before it answers (round 5: it named only the documents)
             reminder.append(("The web search did not work this time (the search services did not answer). If the documents "
