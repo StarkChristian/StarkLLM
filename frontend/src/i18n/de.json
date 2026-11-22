@@ -1209,5 +1209,15 @@
   "Reads workspaces, chats, the inbox and deadlines, and asks questions. Changes nothing.": "Liest Arbeitsbereiche, Chats, Posteingang und Fristen und stellt Fragen. Ändert nichts.",
   "Also sends photos and documents, deletes chats and marks deadlines as done.": "Sendet außerdem Fotos und Dokumente, löscht Chats und markiert Fristen als erledigt.",
   "Also starts a backup now and can switch StarkLLM fully offline. The phone asks for your fingerprint first.": "Startet außerdem sofort eine Sicherung und kann StarkLLM vollständig offline schalten. Das Telefon fragt vorher nach Ihrem Fingerabdruck.",
-  "The StarkLLM app for Android is in a closed test on Google Play before everyone can download it. How to take part:": "Die StarkLLM-App für Android ist in einem geschlossenen Test bei Google Play, bevor sie alle herunterladen können. So machen Sie mit:"
+  "The StarkLLM app for Android is in a closed test on Google Play before everyone can download it. How to take part:": "Die StarkLLM-App für Android ist in einem geschlossenen Test bei Google Play, bevor sie alle herunterladen können. So machen Sie mit:",
+  "This image cannot be used. Use a PNG, JPEG, WebP or GIF image of up to 20 MB.": "Dieses Bild kann nicht verwendet werden. Verwenden Sie ein PNG-, JPEG-, WebP- oder GIF-Bild bis 20 MB.",
+  "Ask about an image (or paste a screenshot into the message box)": "Zu einem Bild fragen (oder einen Screenshot in das Nachrichtenfeld einfügen)",
+  "Ask about the image…": "Fragen Sie zum Bild…",
+  "The image goes with your question to a vision model on this PC.": "Das Bild geht mit Ihrer Frage an ein Bildmodell auf diesem PC.",
+  "Remove the image": "Bild entfernen",
+  "Answered from the image by {model}": "Aus dem Bild beantwortet von {model}",
+  "Describe this image.": "Beschreibe dieses Bild.",
+  "Questions about images use a local AI model on this PC. Choose a local model (Ollama) in the model list.": "Fragen zu Bildern nutzen ein lokales KI-Modell auf diesem PC. Wählen Sie ein lokales Modell (Ollama) in der Modellliste.",
+  "None of the installed AI models can see images. Install a vision model, for example {model} (about 6 GB), in the model list, then ask again.": "Keines der installierten KI-Modelle kann Bilder sehen. Installieren Sie ein Bildmodell, zum Beispiel {model} (etwa 6 GB), in der Modellliste und fragen Sie dann erneut.",
+  "The question about the image could not be answered.": "Die Frage zum Bild konnte nicht beantwortet werden."
 }

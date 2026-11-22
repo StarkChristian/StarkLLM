@@ -1209,5 +1209,15 @@
   "Reads workspaces, chats, the inbox and deadlines, and asks questions. Changes nothing.": "Çalışma alanlarını, sohbetleri, gelen kutusunu ve son tarihleri okur, soru sorar. Hiçbir şeyi değiştirmez.",
   "Also sends photos and documents, deletes chats and marks deadlines as done.": "Ayrıca fotoğraf ve belge gönderir, sohbetleri siler ve son tarihleri tamamlandı olarak işaretler.",
   "Also starts a backup now and can switch StarkLLM fully offline. The phone asks for your fingerprint first.": "Ayrıca hemen bir yedekleme başlatır ve StarkLLM'i tamamen çevrimdışı yapabilir. Telefon önce parmak izinizi ister.",
-  "The StarkLLM app for Android is in a closed test on Google Play before everyone can download it. How to take part:": "Android için StarkLLM uygulaması, herkes indirmeden önce Google Play'de kapalı testte. Nasıl katılabilirsiniz:"
+  "The StarkLLM app for Android is in a closed test on Google Play before everyone can download it. How to take part:": "Android için StarkLLM uygulaması, herkes indirmeden önce Google Play'de kapalı testte. Nasıl katılabilirsiniz:",
+  "This image cannot be used. Use a PNG, JPEG, WebP or GIF image of up to 20 MB.": "Bu görsel kullanılamıyor. En fazla 20 MB boyutunda bir PNG, JPEG, WebP veya GIF görseli kullanın.",
+  "Ask about an image (or paste a screenshot into the message box)": "Bir görsel hakkında sorun (veya mesaj kutusuna bir ekran görüntüsü yapıştırın)",
+  "Ask about the image…": "Görsel hakkında sorun…",
+  "The image goes with your question to a vision model on this PC.": "Görsel, sorunuzla birlikte bu bilgisayardaki bir görme modeline gider.",
+  "Remove the image": "Görseli kaldır",
+  "Answered from the image by {model}": "Görselden {model} tarafından yanıtlandı",
+  "Describe this image.": "Bu görseli açıkla.",
+  "Questions about images use a local AI model on this PC. Choose a local model (Ollama) in the model list.": "Görsellerle ilgili sorular bu bilgisayardaki yerel bir yapay zekâ modelini kullanır. Model listesinden yerel bir model (Ollama) seçin.",
+  "None of the installed AI models can see images. Install a vision model, for example {model} (about 6 GB), in the model list, then ask again.": "Kurulu yapay zekâ modellerinin hiçbiri görselleri göremiyor. Model listesinden bir görme modeli kurun, örneğin {model} (yaklaşık 6 GB), sonra yeniden sorun.",
+  "The question about the image could not be answered.": "Görselle ilgili soru yanıtlanamadı."
 }

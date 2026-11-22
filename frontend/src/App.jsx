@@ -539,6 +539,72 @@ export default function App() {
     }
   };
 
+  // ── A question about an image (docs/roadmap-2026-12.md, R2): a vision model of the local Ollama answers ──
+  const handleImageQuestion = async (text, file) => {
+    if (!activeWorkspace) {
+      setMessages(prev => [...prev, { role: 'assistant', content: t('Please create or select a workspace first.') }]);
+      return;
+    }
+    const question = String(text || '').trim();
+    setMessages(prev => [...prev,
+      { role: 'user', content: question || t('Describe this image.'), image: URL.createObjectURL(file), imageName: file.name || '', timestamp: new Date() },
+      { role: 'assistant', content: '', timestamp: new Date() }]);
+    const setAnswer = (content, extra = {}) => setMessages(prev => {
+      const msgs = [...prev];
+      msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content, ...extra };
+      return msgs;
+    });
+    if ((localStorage.getItem('llm_provider') || 'ollama') !== 'ollama') {
+      setAnswer(t('Questions about images use a local AI model on this PC. Choose a local model (Ollama) in the model list.'));
+      return;
+    }
+    setIsGenerating(true);
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    try {
+      const form = new FormData();
+      form.append('workspace_id', String(activeWorkspace.id));
+      if (activeChatId) form.append('chat_id', String(activeChatId));
+      form.append('message', question);
+      if (currentModel) form.append('model', currentModel);
+      form.append('language', language());
+      form.append('image', file, file.name || 'image.png');
+      const res = await fetch('/api/v1/chat/image', { method: 'POST', headers: getHeaders(), body: form, signal: controller.signal });
+      if (res.status === 401) { handleLogout(); return; }
+      if (res.status === 409) {
+        const j = await res.json().catch(() => ({}));
+        setAnswer(t('None of the installed AI models can see images. Install a vision model, for example {model} (about 6 GB), in the model list, then ask again.', { model: (j.detail && j.detail.suggest) || 'qwen2.5vl:7b' }));
+        return;
+      }
+      if (res.status === 400) { setAnswer(t('This image cannot be used. Use a PNG, JPEG, WebP or GIF image of up to 20 MB.')); return; }
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      const chatIdHeader = res.headers.get('X-Chat-ID');
+      if (chatIdHeader && !activeChatId) {
+        setActiveChatId(parseInt(chatIdHeader, 10));
+        refreshChatList(activeWorkspace.id).catch(() => {});
+      }
+      const used = decodeURIComponent(res.headers.get('X-Image-Model') || '');
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let full = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        full += decoder.decode(value, { stream: true });
+        setAnswer(full);
+      }
+      setAnswer(full || t('The question about the image could not be answered.'), used ? { imageModel: used } : {});
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error('Image question error:', err);
+        setAnswer(t('The question about the image could not be answered.'));
+      }
+    } finally {
+      setIsGenerating(false);
+      abortControllerRef.current = null;
+    }
+  };
+
   const handleSendMessage = async (text) => {
     if (!activeWorkspace) {
       setMessages(prev => [...prev, { role: 'assistant', content: t('Please create or select a workspace first.') }]);
@@ -1224,6 +1290,7 @@ export default function App() {
               token={token}
             />
             <InputBar 
+              onSendImage={handleImageQuestion}
               onSendMessage={handleSendMessage} 
               onFileUpload={handleFileUpload}
               useKb={useKb}

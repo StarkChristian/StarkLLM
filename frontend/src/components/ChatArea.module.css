@@ -620,3 +620,7 @@ button.sourceGroup:focus-visible {
 .docNotice p { margin: 0; }
 .docNotice p + p { margin-top: 6px; }
 .docNoticeIcon { color: var(--warning, #eab308); flex-shrink: 0; margin-top: 2px; }
+
+/* an image in the question (docs/roadmap-2026-12.md, R2) */
+.questionImage { display: block; max-width: min(320px, 100%); max-height: 240px; border-radius: 8px; margin-bottom: 8px; object-fit: contain; }
+.imageModel { font-size: 0.8em; color: var(--text-secondary, inherit); margin-bottom: 6px; }

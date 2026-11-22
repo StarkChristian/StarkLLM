@@ -1209,5 +1209,15 @@
   "Reads workspaces, chats, the inbox and deadlines, and asks questions. Changes nothing.": "Lee espacios de trabajo, chats, la bandeja de entrada y los plazos, y hace preguntas. No cambia nada.",
   "Also sends photos and documents, deletes chats and marks deadlines as done.": "Además envía fotos y documentos, elimina chats y marca plazos como hechos.",
   "Also starts a backup now and can switch StarkLLM fully offline. The phone asks for your fingerprint first.": "Además inicia una copia de seguridad ahora y puede poner StarkLLM completamente sin conexión. El teléfono pide antes su huella.",
-  "The StarkLLM app for Android is in a closed test on Google Play before everyone can download it. How to take part:": "La app de StarkLLM para Android está en una prueba cerrada en Google Play antes de que todos puedan descargarla. Cómo participar:"
+  "The StarkLLM app for Android is in a closed test on Google Play before everyone can download it. How to take part:": "La app de StarkLLM para Android está en una prueba cerrada en Google Play antes de que todos puedan descargarla. Cómo participar:",
+  "This image cannot be used. Use a PNG, JPEG, WebP or GIF image of up to 20 MB.": "Esta imagen no se puede usar. Use una imagen PNG, JPEG, WebP o GIF de hasta 20 MB.",
+  "Ask about an image (or paste a screenshot into the message box)": "Preguntar sobre una imagen (o pegar una captura en el cuadro de mensaje)",
+  "Ask about the image…": "Pregunte sobre la imagen…",
+  "The image goes with your question to a vision model on this PC.": "La imagen va con su pregunta a un modelo de visión en este PC.",
+  "Remove the image": "Quitar la imagen",
+  "Answered from the image by {model}": "Respondido a partir de la imagen por {model}",
+  "Describe this image.": "Describe esta imagen.",
+  "Questions about images use a local AI model on this PC. Choose a local model (Ollama) in the model list.": "Las preguntas sobre imágenes usan un modelo de IA local en este PC. Elija un modelo local (Ollama) en la lista de modelos.",
+  "None of the installed AI models can see images. Install a vision model, for example {model} (about 6 GB), in the model list, then ask again.": "Ninguno de los modelos de IA instalados puede ver imágenes. Instale un modelo de visión, por ejemplo {model} (unos 6 GB), en la lista de modelos y vuelva a preguntar.",
+  "The question about the image could not be answered.": "No se pudo responder la pregunta sobre la imagen."
 }
