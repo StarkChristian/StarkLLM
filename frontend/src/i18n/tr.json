@@ -1372,7 +1372,6 @@
   "Keep the first answer ({model})": "İlk yanıtı tut ({model})",
   "Keep the first answer": "İlk yanıtı tut",
   "Keep this answer": "Bu yanıtı tut",
-  "A tool of an MCP server you added ({tool}). It runs on this PC only after you press Run.": "Eklediğiniz bir MCP sunucusunun aracı ({tool}). Bu bilgisayarda ancak Çalıştır’a bastıktan sonra çalışır.",
   "Tools of MCP servers work in the StarkLLM desktop app only.": "MCP sunucularının araçları yalnızca StarkLLM masaüstü uygulamasında çalışır.",
   "This tool is turned off in Settings › Tools.": "Bu araç Ayarlar › Araçlar altında kapalı.",
   "The tool server is not running.": "Araç sunucusu çalışmıyor.",
@@ -1424,5 +1423,14 @@
   "Task not finished": "Görev bitmedi",
   "1 file changed: {files}": "1 dosya değişti: {files}",
   "line {n}": "satır {n}",
-  "Recordings (meetings, voice memos) are written down with times on this PC by a large speech model. The first recording downloads it once (about 1.6 GB). Writing down takes about as long as the recording, or less.": "Kayıtlar (toplantılar, sesli notlar) bu bilgisayarda büyük bir konuşma modeliyle zaman bilgileriyle yazıya dökülür. İlk kayıt modeli bir kez indirir (yaklaşık 1,6 GB). Yazıya dökme yaklaşık kayıt süresi kadar veya daha kısa sürer."
+  "Recordings (meetings, voice memos) are written down with times on this PC by a large speech model. The first recording downloads it once (about 1.6 GB). Writing down takes about as long as the recording, or less.": "Kayıtlar (toplantılar, sesli notlar) bu bilgisayarda büyük bir konuşma modeliyle zaman bilgileriyle yazıya dökülür. İlk kayıt modeli bir kez indirir (yaklaşık 1,6 GB). Yazıya dökme yaklaşık kayıt süresi kadar veya daha kısa sürer.",
+  "Lists the documents of the current workspace (read only).": "Geçerli çalışma alanının belgelerini listeler (yalnızca okuma).",
+  "Searches your Knowledge Base and returns where the passages are (read only).": "Bilgi tabanınızda arar ve pasajların nerede olduğunu söyler (yalnızca okuma).",
+  "Result of the tool {tool}:": "{tool} aracının sonucu:",
+  "General / Fast": "Genel / hızlı",
+  "Reasoning / Math": "Akıl yürütme / matematik",
+  "Coding": "Programlama",
+  "General / documents": "Genel / belgeler",
+  "Compact": "Kompakt",
+  "A tool of an MCP server you added ({tool}). It runs on this PC only after you press Confirm and run.": "Eklediğiniz bir MCP sunucusunun aracı ({tool}). Bu bilgisayarda ancak “Onayla ve çalıştır”a bastıktan sonra çalışır."
 }

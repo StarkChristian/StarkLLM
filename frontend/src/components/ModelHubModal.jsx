@@ -183,6 +183,8 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
   if (!isOpen) return null;
 
   const categories = ['All', 'General / Fast', 'Reasoning / Math', 'Coding', 'General / RAG', 'Compact', 'Embedding'];
+  const categoryLabel = (c) => ({ All: t('All'), 'General / Fast': t('General / Fast'), 'Reasoning / Math': t('Reasoning / Math'), Coding: t('Coding'),
+    'General / RAG': t('General / documents'), Compact: t('Compact'), Embedding: t('Embedding') }[c] || c);
 
   const filteredCatalog = activeCategory === 'All' 
     ? catalog 
@@ -292,7 +294,7 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
                     className={`${styles.catBtn} ${activeCategory === cat ? styles.catBtnActive : ''}`}
                     onClick={() => setActiveCategory(cat)}
                   >
-                    {cat}
+                    {categoryLabel(cat)}
                   </button>
                 ))}
               </div>

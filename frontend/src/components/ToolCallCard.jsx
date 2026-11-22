@@ -4,10 +4,11 @@ import { Terminal, Check, X, AlertTriangle, Play, Loader2, Send } from 'lucide-r
 import { t } from '../i18n';
 import { isExternalTool, externalToolLabel, mcpBridge } from '../utils/mcpBridge';
 
+// in the user's language when the card is shown (not when the file is loaded)
 const TOOL_DESCRIPTIONS = {
-  list_workspace_files: "Lists documents and files uploaded to the current workspace (read-only).",
-  search_local_kb: "Searches the local Knowledge Base index and returns passage locators (read-only).",
-  fetch_cited_chunk: t('Fetches the exact text chunk for a cited document locator from local Chroma store.')
+  list_workspace_files: () => t('Lists the documents of the current workspace (read only).'),
+  search_local_kb: () => t('Searches your Knowledge Base and returns where the passages are (read only).'),
+  fetch_cited_chunk: () => t('Fetches the exact text chunk for a cited document locator from local Chroma store.')
 };
 
 export default function ToolCallCard({
@@ -41,8 +42,8 @@ export default function ToolCallCard({
   const toolName = parsedCall?.name || '';
   // a tool of one of the user's MCP servers (R6): run by the desktop app after the yes below, not by the engine
   const external = isExternalTool(toolName);
-  const toolDesc = external ? t('A tool of an MCP server you added ({tool}). It runs on this PC only after you press Run.', { tool: externalToolLabel(toolName) })
-    : TOOL_DESCRIPTIONS[toolName] || t('Local read-only tool.');
+  const toolDesc = external ? t('A tool of an MCP server you added ({tool}). It runs on this PC only after you press Confirm and run.', { tool: externalToolLabel(toolName) })
+    : TOOL_DESCRIPTIONS[toolName] ? TOOL_DESCRIPTIONS[toolName]() : t('Local read-only tool.');
 
   // Execution Gate: register pending tool call server-side on mount
   useEffect(() => {
@@ -190,7 +191,10 @@ export default function ToolCallCard({
 
   const handleSendToChat = () => {
     if (onSendToolResult && execResult) {
-      const formatted = `[Tool Result: ${toolName}]\n\`\`\`json\n${JSON.stringify(execResult, null, 2)}\n\`\`\``;
+      // the result as the user's next message: a short line in the user's language, then the result
+      const label = external ? externalToolLabel(toolName) : toolName;
+      const body = typeof execResult === 'string' ? execResult : `\`\`\`json\n${JSON.stringify(execResult, null, 2)}\n\`\`\``;
+      const formatted = `${t('Result of the tool {tool}:', { tool: label })}\n\n${body}`;
       onSendToolResult(formatted);
     }
   };
@@ -228,7 +232,7 @@ export default function ToolCallCard({
           <div className={styles.argsLabel}>
             <span>{t('Arguments (Editable):')}</span>
             <span className={styles.argsLabelNote}>
-              {external ? '' : callId ? `Gated ID: ${callId.slice(0, 10)}...` : (gatePending ? t('Authorizing...') : '')}
+              {!external && !callId && gatePending ? t('Authorizing...') : ''}
             </span>
           </div>
           <textarea
