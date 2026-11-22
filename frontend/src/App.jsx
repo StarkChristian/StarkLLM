@@ -131,6 +131,8 @@ export default function App() {
   });
 
   const handleLogout = () => {
+    // the phones paired with this account are no longer paired (Settings > Phone, desktop app only)
+    try { const old = localStorage.getItem('token'); if (old) window.starkllmDesktop?.phoneLink?.signedOut?.(old); } catch (e) { /* not the desktop app */ }
     setToken(null);
     setUsername('');
     localStorage.removeItem('token');

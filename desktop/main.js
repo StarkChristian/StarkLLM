@@ -325,6 +325,20 @@ async function keepPhoneSession(token) {
   return user;
 }
 
+// a long session for a phone of this account (it outlives restarts; a new password or signing out here ends it)
+async function phoneSessionFor(token) {
+  try {
+    const res = await guard.wrapFetch((u, o) => net.fetch(u, o), 'local_engine', 'A session for a paired phone')(`${apiUrl()}/api/v1/auth/phone-session`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'X-Desktop-Key': desktopKey(engineSecret()) }, signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return '';
+    return (await res.json()).access_token || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+const phoneSeal = safeStorage && safeStorage.isEncryptionAvailable && safeStorage.isEncryptionAvailable()
+  && !(typeof safeStorage.getSelectedStorageBackend === 'function' && safeStorage.getSelectedStorageBackend() === 'basic_text');
+
 async function fetchLocalSession() {
   try {
     const key = desktopKey(engineSecret());
@@ -501,6 +515,8 @@ function phone() {
       refreshToken: fetchLocalSession,
       sessionFor: (user) => phoneSessions.get(user) || null,
       sessionExpired: (user) => phoneSessions.delete(user),
+      seal: phoneSeal ? (text) => safeStorage.encryptString(text).toString('base64') : null,
+      unseal: phoneSeal ? (data) => safeStorage.decryptString(Buffer.from(data, 'base64')) : null,
       log: logLine,
       version: app.getVersion(),
       onChange: () => {
@@ -542,9 +558,18 @@ function registerPhoneLinkHandlers() {
   ipcMain.handle('phone:status', allowed(() => phone().status()));
   ipcMain.handle('phone:enable', allowed((on) => phone().setEnabled(Boolean(on))));
   ipcMain.handle('phone:user-session', allowed(async (token) => ({ ok: Boolean(await keepPhoneSession(token)) })));
+  // signing out in the window: the phones of that account are no longer paired
+  ipcMain.handle('phone:signed-out', allowed(async (token) => {
+    const user = await accountOf(String(token || ''));
+    if (!user) return { ok: false };
+    phoneSessions.delete(user);
+    phone().removeDevicesOf(user);
+    return { ok: true };
+  }));
   ipcMain.handle('phone:pair', allowed(async (token) => {
     const user = await keepPhoneSession(token);
-    const p = phone().startPairing({ user });
+    const session = user ? await phoneSessionFor(String(token)) : '';
+    const p = phone().startPairing({ user, session });
     return p.error ? p : { ...p, qr: qrMatrix(p.uri) };
   }));
   ipcMain.handle('phone:cancel-pair', allowed(() => phone().cancelPairing()));

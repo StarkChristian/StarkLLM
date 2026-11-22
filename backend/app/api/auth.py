@@ -116,6 +116,9 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     user = db.query(User).filter(User.username == username).first()
     if user is None:
         raise credentials_exception
+    # a phone's session ends when the account's password changes
+    if payload.get("kind") == PHONE_KIND and not hmac.compare_digest(str(payload.get("pw", "")), password_tag(user)):
+        raise credentials_exception
 
     _record_active_session(user)
     return user
@@ -124,6 +127,13 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 # and asks for a session with a key derived from it; the backend then signs in a single "local" user. As soon as
 # other accounts exist, this is refused and the normal login is used.
 LOCAL_USERNAME = "local"
+PHONE_KIND = "phone"
+PHONE_SESSION_DAYS = 365
+
+
+def password_tag(user) -> str:
+    """Changes with the account's password (a phone's session names it; a new password ends that session)."""
+    return hmac.new(settings.SECRET_KEY.encode(), (user.hashed_password or "").encode(), hashlib.sha256).hexdigest()[:24]
 _FALLBACK_SECRET_PREFIX = "starkllm_research_beta_secure_fallback_key"
 
 
@@ -154,6 +164,17 @@ def desktop_session(x_desktop_key: str = Header(default=""), db: Session = Depen
         raise HTTPException(status_code=409, detail="Accounts exist on this PC; sign in.")
     token = create_access_token(data={"sub": user.username}, expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
     _record_active_session(user)
+    return {"access_token": token, "token_type": "bearer"}
+
+
+@router.post("/phone-session", response_model=Token)
+def phone_session(x_desktop_key: str = Header(default=""), current_user: User = Depends(get_current_user)):
+    """The session of a paired phone (Settings > Phone). Only the desktop app on this PC asks for it (desktop key), with
+    the account's own session of the window; the phone never sees it. It lasts a year and ends with a new password."""
+    if not desktop_key_valid(x_desktop_key):
+        raise HTTPException(status_code=403, detail="Not allowed")
+    token = create_access_token(data={"sub": current_user.username, "kind": PHONE_KIND, "pw": password_tag(current_user)},
+                                expires_delta=timedelta(days=PHONE_SESSION_DAYS))
     return {"access_token": token, "token_type": "bearer"}
 
 

@@ -163,10 +163,12 @@ function send(res, status, body) {
  * refreshToken(): signs in the local user again (after the engine said 401).
  * sessionFor(user): the session of that account in the PC's window, or null (a phone paired while that account was
  * signed in on the PC uses it); sessionExpired(user): the engine refused it (401).
+ * seal(text) -> string / unseal(string) -> text: Windows encryption (safeStorage) for each phone's own session in
+ * phone-link.json; without it the session stays in memory only.
  * pcStatus(): what the desktop app knows about this PC for the phone (backup, protection); no secrets.
  * actions: { name: async () => result } for PHONE_ACTIONS, run for phones at the level "manage".
  */
-function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, sessionFor = () => null, sessionExpired = () => {}, log = () => {}, version = '', pcName = os.hostname(),
+function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, sessionFor = () => null, sessionExpired = () => {}, seal = null, unseal = null, log = () => {}, version = '', pcName = os.hostname(),
   interfaces = () => os.networkInterfaces(), now = () => Date.now(), firstPort = FIRST_PORT, listenHost = '0.0.0.0',
   remoteAllowed = (address) => ['lan', 'this_pc'].includes(classify(plainAddress(address))), onChange = () => {},
   pcStatus = () => ({}), actions = {} }) {
@@ -275,6 +277,7 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
       return send(res, 401, { error: 'wrong-code' });
     }
     const user = pairing.user || '';
+    const session = pairing.session || '';
     pairing = null;
     if (state.devices.length >= MAX_DEVICES) {
       onChange();
@@ -284,6 +287,7 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
     const at = new Date(now()).toISOString();
     const device = { id: crypto.randomBytes(8).toString('hex'), name: cleanName(body.name) || 'Phone', created: at, lastSeen: at,
       tokenHash: hash(token).toString('hex'), level: DEFAULT_LEVEL, ...(user ? { user } : {}) };
+    keepSession(device, session);
     state.devices.push(device);
     save();
     log(`phone link: "${device.name}" paired`);
@@ -313,11 +317,48 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
 
   // the engine session for this phone: its own account's (paired while that account was signed in on the PC), else the
   // local user's (one account on the PC). Never another account's.
+  // each phone's own session (POST /auth/phone-session): sealed in phone-link.json, or in memory without Windows
+  // encryption; it outlives restarts and closed windows until the account signs out here or its password changes
+  const memorySessions = new Map();
+  function keepSession(device, session) {
+    if (!session) return;
+    if (seal) {
+      try {
+        device.session = seal(session);
+        return;
+      } catch (e) {
+        log(`phone link: the session is kept in memory only (${e.message})`);
+      }
+    }
+    memorySessions.set(device.id, session);
+  }
+  function deviceSession(device) {
+    if (memorySessions.has(device.id)) return memorySessions.get(device.id);
+    if (device.session && unseal) {
+      try {
+        const s = unseal(device.session);
+        memorySessions.set(device.id, s);
+        return s;
+      } catch (e) {
+        log(`phone link: a sealed session could not be read (${e.message})`);
+      }
+    }
+    return null;
+  }
+  function dropSession(device) {
+    memorySessions.delete(device.id);
+    if (device.session) {
+      delete device.session;
+      save();
+    }
+  }
+
   function apiFor(device) {
     const api = getApi() || {};
     if (!device || !device.user) return api;
-    const own = sessionFor(device.user);
-    return { url: api.url, token: own || (device.user === 'local' ? api.token : null), user: device.user, own: Boolean(own) };
+    const mine = deviceSession(device);
+    const own = mine || sessionFor(device.user);
+    return { url: api.url, token: own || (device.user === 'local' ? api.token : null), user: device.user, own: Boolean(own), mine: Boolean(mine), device };
   }
 
   async function forward(req, res, url, address, device) {
@@ -351,7 +392,8 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
       headers: { ...headers, host: target.host }
     }, (up) => {
       if (up.statusCode === 401 && injected) {
-        if (api.own) sessionExpired(api.user);
+        if (api.mine) dropSession(api.device);   // a new password: the phone asks to pair again
+        else if (api.own) sessionExpired(api.user);
         else refreshToken().catch(() => {});
       }
       if (up.statusCode === 401 && LOGIN.test(url.pathname)) failed(address, LOGIN_WEIGHT);
@@ -593,7 +635,8 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
       const addresses = homeAddresses(interfaces());
       if (!addresses.length) return { error: 'no-network' };
       if (state.devices.length >= MAX_DEVICES) return { error: 'too-many-devices' };
-      pairing = { code: crypto.randomBytes(16).toString('base64url'), expires: now() + PAIR_MS, user: String(opts.user || '').slice(0, 200) };
+      pairing = { code: crypto.randomBytes(16).toString('base64url'), expires: now() + PAIR_MS, user: String(opts.user || '').slice(0, 200),
+        session: typeof opts.session === 'string' ? opts.session : '' };
       return { uri: pairingUri({ pcName, addresses, port, fingerprint, code: pairing.code }), expiresAt: pairing.expires, addresses, port };
     },
     cancelPairing() {
@@ -615,10 +658,17 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
       const before = state.devices.length;
       state.devices = state.devices.filter((d) => d.id !== id);
       if (state.devices.length !== before) {
+        memorySessions.delete(id);
         save();
         for (const [socket, deviceId] of sockets) if (deviceId === id) socket.destroy();
         log('phone link: a phone was removed');
       }
+      return status();
+    },
+    // the account signed out on this PC: its phones are no longer paired (they pair again after the next sign-in)
+    removeDevicesOf(user) {
+      if (!user) return status();
+      for (const d of state.devices.filter((x) => x.user === user)) this.removeDevice(d.id);
       return status();
     }
   };

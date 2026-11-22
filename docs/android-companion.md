@@ -68,8 +68,12 @@ small HTTPS server in the desktop app (Electron main process) in front of it:
    pairing that tries the port is listed as refused in Settings > Privacy & network (once per 10 minutes).
 7. **Who is signed in.** With one user on the PC (the usual case) the phone link adds the local user's session, so the
    phone needs no password. With several accounts, a phone belongs to the account that was signed in in StarkLLM's
-   window when its QR code was shown (Settings > Phone lists it as "account <name>"). The phone link then uses that
-   account's session of the window: the window hands it over when the account signs in, the desktop app checks it with
+   window when its QR code was shown (Settings > Phone lists it as "account <name>"). The desktop app then gets a
+   session for that phone from the engine (`POST /auth/phone-session`: only with the desktop key and the account's own
+   session; one year; a new password of the account ends it) and keeps it in `phone-link.json`, encrypted by Windows
+   (safeStorage, DPAPI). So the phone stays paired after restarts and when the window stays closed. Signing out of that
+   account in the window removes its phones. Without Windows encryption, and for phones paired before, the phone link
+   uses that account's session of the window: the window hands it over when the account signs in, the desktop app checks it with
    the engine (`auth/me`) and keeps it in memory only, never on disk. It never uses another account's session. When the
    PC has no session for the phone's account (signed out for more than 7 days, or a phone paired before 2.5.0 on a PC
    with several accounts), the PC answers `signed_in: false` and the app asks to sign in on the PC, or to pair again
