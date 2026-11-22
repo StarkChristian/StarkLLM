@@ -1355,5 +1355,6 @@
   "Describe this image.": "Bu görseli açıkla.",
   "Questions about images use a local AI model on this PC. Choose a local model (Ollama) in the model list.": "Görsellerle ilgili sorular bu bilgisayardaki yerel bir yapay zekâ modelini kullanır. Model listesinden yerel bir model (Ollama) seçin.",
   "None of the installed AI models can see images. Install a vision model, for example {model} (about 6 GB), in the model list, then ask again.": "Kurulu yapay zekâ modellerinin hiçbiri görselleri göremiyor. Model listesinden bir görme modeli kurun, örneğin {model} (yaklaşık 6 GB), sonra yeniden sorun.",
-  "The question about the image could not be answered.": "Görselle ilgili soru yanıtlanamadı."
+  "The question about the image could not be answered.": "Görselle ilgili soru yanıtlanamadı.",
+  "Recordings (meetings, voice memos) are written down with times on this PC. This takes a while: about a tenth of the recording time or more.": "Kayıtlar (toplantılar, sesli notlar) bu bilgisayarda zaman bilgileriyle yazıya dökülür. Bu biraz sürer: kayıt süresinin yaklaşık onda biri veya daha fazla."
 }

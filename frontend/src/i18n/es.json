@@ -1355,5 +1355,6 @@
   "Describe this image.": "Describe esta imagen.",
   "Questions about images use a local AI model on this PC. Choose a local model (Ollama) in the model list.": "Las preguntas sobre imágenes usan un modelo de IA local en este PC. Elija un modelo local (Ollama) en la lista de modelos.",
   "None of the installed AI models can see images. Install a vision model, for example {model} (about 6 GB), in the model list, then ask again.": "Ninguno de los modelos de IA instalados puede ver imágenes. Instale un modelo de visión, por ejemplo {model} (unos 6 GB), en la lista de modelos y vuelva a preguntar.",
-  "The question about the image could not be answered.": "No se pudo responder la pregunta sobre la imagen."
+  "The question about the image could not be answered.": "No se pudo responder la pregunta sobre la imagen.",
+  "Recordings (meetings, voice memos) are written down with times on this PC. This takes a while: about a tenth of the recording time or more.": "Las grabaciones (reuniones, notas de voz) se transcriben con marcas de tiempo en este PC. Tarda un rato: una décima parte de la duración de la grabación o más."
 }

@@ -26,7 +26,7 @@ import { exportChat } from './utils/chatExport';
 import { exportItems, saveAsWord, saveAsPdf } from './utils/exportDocs';
 import { UI_LOCALE } from './utils/locale';
 import { currentCloudHost } from './utils/cloud';
-import { isUploadable } from './utils/uploadTypes';
+import { isUploadable, isRecording } from './utils/uploadTypes';
 import { serverDate } from './utils/time';
 import { t, language } from './i18n';
 import { initialWebTask, reduceWebTask, answered as webTaskAnswered, webTaskBridge, previousWebTask, WEB_TASK_TAG } from './utils/webTask';
@@ -1113,6 +1113,10 @@ export default function App() {
     const formData = new FormData();
     formData.append('file', file);
     setMessages(prev => [...prev, { role: 'system', content: t('Uploading {name}…', { name: file.name }) }]);
+    if (isRecording(file.name)) {
+      // the speech model writes the recording down on this PC: that takes a while
+      setMessages(prev => [...prev, { role: 'system', content: t('Recordings (meetings, voice memos) are written down with times on this PC. This takes a while: about a tenth of the recording time or more.') }]);
+    }
 
     let response;
     try {
