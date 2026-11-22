@@ -8,7 +8,9 @@
 //  * no permissions (camera, microphone, location, notifications ...), no downloads, no pop-up windows;
 //  * the AI model is the local Ollama on this PC; the chat page shows each step, asks the user's yes before risky
 //    clicks and hands passwords, payments and CAPTCHAs to the user (IPC "webtask:*").
-const { BrowserWindow, session } = require('electron');
+const { app, BrowserWindow, session } = require('electron');
+const fs = require('fs');
+const path = require('path');
 const { runTask } = require('./webtask-core');
 const { PAGE_SCRIPT } = require('./webtask-page');
 const { getShared } = require('./netguard');
@@ -95,9 +97,9 @@ function electronBrowser() {
     const x = openWindow();
     return x.webContents;
   };
-  let opened = false;
   return {
-    hasPage: () => opened && win && !win.isDestroyed(),
+    // a follow-up task continues on the page the window shows
+    hasPage: () => Boolean(win && !win.isDestroyed() && isWeb(win.webContents.getURL())),
     async open(url) {
       const wc = w();
       if (!win.isVisible()) win.show();
@@ -110,7 +112,6 @@ function electronBrowser() {
         }
         if (!/ERR_ABORTED/.test(String(e && e.message))) throw e;
       });
-      opened = true;
       await settle(wc);
     },
     async snapshot() { return inPage(w(), 'window.__starkllm.snapshot()'); },
@@ -151,7 +152,39 @@ function electronBrowser() {
       if (h && h.canGoBack()) { h.goBack(); await settle(wc); }
     },
     async read() { return inPage(w(), 'window.__starkllm.read()'); },
+    // a site the rules do not allow: back to the page before, or an empty page
+    async leave() {
+      const wc = w();
+      const h = wc.navigationHistory;
+      if (h && h.canGoBack()) h.goBack();
+      else await wc.loadURL('about:blank').catch(() => {});
+      await settle(wc);
+    },
   };
+}
+
+// The user's site rules (Settings > Privacy & network): { "host": "allow" | "block" }, kept in the profile folder.
+function rulesFile() {
+  return path.join(app.getPath('userData'), 'webtask-sites.json');
+}
+
+function readRules() {
+  try {
+    const r = JSON.parse(fs.readFileSync(rulesFile(), 'utf8'));
+    return r && typeof r === 'object' ? r : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function writeRule(host, rule) {
+  const h = String(host || '').toLowerCase().trim();
+  if (!/^[a-z0-9.-]{1,253}$/.test(h)) return false;
+  const rules = readRules();
+  if (rule === 'allow' || rule === 'block') rules[h] = rule;
+  else delete rules[h];
+  fs.writeFileSync(rulesFile(), JSON.stringify(rules, null, 1));
+  return true;
 }
 
 // The local AI model (Ollama on this PC). Recorded by the network layer like every connection of the app.
@@ -191,7 +224,14 @@ function register(ipcMain, { fromApp, log = () => {} }) {
     if (getShared().isOffline()) return { error: 'offline' };
     if (current) return { error: 'busy' };
     const id = `t${Date.now()}`;
-    const signal = { stopped: false };
+    // pause: the loop waits before its next step until resume() (or stop) is called
+    let wake = null;
+    const signal = {
+      stopped: false,
+      paused: false,
+      untilResumed: () => new Promise((resolve) => { if (!signal.paused || signal.stopped) resolve(); else wake = resolve; }),
+      resume: () => { signal.paused = false; if (wake) { const w = wake; wake = null; w(); } },
+    };
     const sender = event.sender;
     current = { id, signal, sender };
     const send = (e) => { if (!sender.isDestroyed()) sender.send('webtask:event', { id, ...e }); };
@@ -201,11 +241,18 @@ function register(ipcMain, { fromApp, log = () => {} }) {
       pending.set(qid, resolve);
       // a step for the user happens in the browser window: bring it to the front
       if (question.type === 'handoff' && win && !win.isDestroyed()) { win.show(); win.focus(); }
-      send({ type: 'ask', qid, ask: question.type, text: question.text, url: question.url || '' });
+      send({ type: 'ask', qid, ask: question.type, text: question.text, url: question.url || '', kind: question.kind || '' });
     });
     const language = LANGUAGE_NAMES[String(opts.language || '').slice(0, 2)] || 'English';
+    // a follow-up: the task before it and its answer (from the chat, so plain text and short)
+    const prev = opts.previous && typeof opts.previous === 'object'
+      ? { task: String(opts.previous.task || '').slice(0, 2000), answer: String(opts.previous.answer || '').slice(0, 4000) }
+      : null;
     send({ type: 'started', task });
-    runTask({ task, language, browser: electronBrowser(), llm: ollamaChat(model), ask, emit: send, signal })
+    const rules = readRules();
+    runTask({ task, language, browser: electronBrowser(), llm: ollamaChat(model), ask, emit: send, signal, previous: prev && prev.task ? prev : null,
+      siteRule: (host) => rules[host] || rules[host.replace(/^www\./, '')] || '',
+      saveSiteRule: (host, rule) => { writeRule(host, rule); rules[host] = rule; } })
       .catch((e) => send({ type: 'error', text: e.message }))
       .finally(() => {
         current = null;
@@ -221,12 +268,48 @@ function register(ipcMain, { fromApp, log = () => {} }) {
     const resolve = pending.get(String(qid));
     if (!resolve) return { error: 'unknown' };
     pending.delete(String(qid));
-    resolve({ ok: Boolean(answer.ok), text: String(answer.text || '').slice(0, 1000) });
+    resolve({ ok: Boolean(answer.ok), text: String(answer.text || '').slice(0, 1000), remember: Boolean(answer.remember) });
     return { ok: true };
   }));
 
+  // Settings: the user's site rules, to see and remove them
+  ipcMain.handle('webtask:sites', allowed(async () => ({ rules: readRules() })));
+  ipcMain.handle('webtask:site-rule', allowed(async (_event, host, rule) => {
+    const ok = writeRule(host, rule === 'allow' || rule === 'block' ? rule : null);
+    return ok ? { ok: true, rules: readRules() } : { error: 'invalid' };
+  }));
+
+  // the user takes over: the task waits after its current step; the window comes to the front
+  ipcMain.handle('webtask:pause', allowed(async () => {
+    if (!current) return { error: 'not-running' };
+    current.signal.paused = true;
+    if (win && !win.isDestroyed()) { win.show(); win.focus(); }
+    return { ok: true };
+  }));
+
+  ipcMain.handle('webtask:resume', allowed(async () => {
+    if (!current) return { error: 'not-running' };
+    current.signal.resume();
+    return { ok: true };
+  }));
+
+  // "Save the page to the workspace": the text the window shows now (also after a sign-in or a search), for the
+  // engine to keep as a document. Only the page of StarkLLM's own window, only when no task runs.
+  ipcMain.handle('webtask:page', allowed(async () => {
+    if (current) return { error: 'busy' };
+    if (!win || win.isDestroyed()) return { error: 'no-window' };
+    const wc = win.webContents;
+    const url = wc.getURL();
+    if (!isWeb(url)) return { error: 'no-page' };
+    const text = await inPage(wc, 'window.__starkllm.read()');
+    return { url, title: wc.getTitle(), text: String(text || '') };
+  }));
+
   ipcMain.handle('webtask:stop', allowed(async () => {
-    if (current) current.signal.stopped = true;
+    if (current) {
+      current.signal.stopped = true;
+      current.signal.resume(); // a paused task ends too
+    }
     for (const resolve of pending.values()) resolve({ ok: false });
     pending.clear();
     return { ok: true };
@@ -247,7 +330,10 @@ function register(ipcMain, { fromApp, log = () => {} }) {
 
 // the fully offline switch closes a task that runs
 function stopForOffline() {
-  if (current) current.signal.stopped = true;
+  if (current) {
+    current.signal.stopped = true;
+    current.signal.resume();
+  }
 }
 
 module.exports = { register, stopForOffline, PARTITION };

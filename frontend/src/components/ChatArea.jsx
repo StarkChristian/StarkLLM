@@ -184,8 +184,7 @@ const ChatMessageRenderer = React.memo(({
   onSendToolResult,
   onFeedback,
   onInspectSources,
-  onWebTaskReply,
-  onShowWebTaskWindow
+  webTaskActions
 }) => {
   const contentSegments = msg.role === 'assistant' ? parseContentWithToolCalls(msg.content) : null;
   const [localFeedback, setLocalFeedback] = useState(msg.feedback || null);
@@ -236,7 +235,7 @@ const ChatMessageRenderer = React.memo(({
               </div>
             </div>
           ) : msg.webTask && msg.content === '' ? (
-            <WebTaskCard task={msg.webTask} onReply={onWebTaskReply} onShowWindow={onShowWebTaskWindow} />
+            <WebTaskCard task={msg.webTask} {...(webTaskActions || {})} />
           ) : msg.role === 'assistant' && msg.content === '' ? (
             <div className={styles.thinking}>
               <span className={styles.dot}></span>
@@ -245,7 +244,7 @@ const ChatMessageRenderer = React.memo(({
             </div>
           ) : (
             <>
-              {msg.webTask && <WebTaskCard task={msg.webTask} onReply={onWebTaskReply} onShowWindow={onShowWebTaskWindow} />}
+              {msg.webTask && <WebTaskCard task={msg.webTask} {...(webTaskActions || {})} />}
               {msg.role === 'assistant' && msg.warnings && msg.warnings.length > 0 && (
                 <DocumentWarnings warnings={msg.warnings} />
               )}
@@ -468,8 +467,7 @@ export default function ChatArea({
   onUpload,
   newestDocument,
   token,
-  onWebTaskReply,
-  onShowWebTaskWindow
+  webTaskActions
 }) {
   const toast = useToast();
   const starterFileRef = useRef(null);
@@ -841,8 +839,7 @@ export default function ChatArea({
               onSendToolResult={onRetryMessage}
               onFeedback={null}
               onInspectSources={(source, labels) => setInspectingSource({ msg: source, labels })}
-              onWebTaskReply={onWebTaskReply}
-              onShowWebTaskWindow={onShowWebTaskWindow}
+              webTaskActions={webTaskActions}
             />
           ))}
           <div ref={messagesEndRef} />

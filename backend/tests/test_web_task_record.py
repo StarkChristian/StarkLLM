@@ -57,3 +57,27 @@ def test_another_users_workspace_or_chat_is_refused():
     ws_b2, headers_b2 = _user()
     r = client.post("/api/v1/chat/web-task", headers=headers_b2, json={"workspace_id": ws_b2, "chat_id": chat_a, "task": "x", "answer": "y"})
     assert r.status_code == 404
+
+
+def test_the_page_of_a_web_task_is_kept_as_a_document_without_a_new_download(monkeypatch):
+    from app.api import documents as documents_api
+    from app.core import netguard
+    started = []
+    monkeypatch.setattr(documents_api, "_index_document_background", lambda *a: started.append(a))
+    monkeypatch.setattr(netguard, "get", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no connection")))
+    ws_id, headers = _user()
+    r = client.post(f"/api/v1/documents/{ws_id}/ingest-page", headers=headers, json={
+        "url": "https://flights.example/results?from=Berlin", "title": "Flights: Berlin / Rome",
+        "text": "easyJet 18:30 - 20:35, direct, 82 EUR. Ryanair 06:05 - 08:10, direct, 90 EUR."})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["filename"] == "Flights Berlin  Rome.md"
+    assert body["source_url"] == "https://flights.example/results?from=Berlin"
+
+
+def test_a_page_needs_a_web_address_and_text():
+    ws_id, headers = _user()
+    assert client.post(f"/api/v1/documents/{ws_id}/ingest-page", headers=headers, json={"url": "file:///etc/passwd", "text": "x" * 50}).status_code == 400
+    assert client.post(f"/api/v1/documents/{ws_id}/ingest-page", headers=headers, json={"url": "https://a.example/", "text": "short"}).status_code == 400
+    _other, headers_b = _user()
+    assert client.post(f"/api/v1/documents/{ws_id}/ingest-page", headers=headers_b, json={"url": "https://a.example/", "text": "x" * 50}).status_code == 404

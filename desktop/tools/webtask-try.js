@@ -65,6 +65,7 @@ async function main() {
     async scroll(dir) { await page.evaluate((d) => window.__starkllm.scrollPage(d), dir); await ready(); },
     async back() { await page.goBack({ timeout: 20000 }).catch(() => {}); await ready(); },
     async read() { await page.evaluate(PAGE_SCRIPT); return page.evaluate(() => window.__starkllm.read()); },
+    async leave() { await page.goBack({ timeout: 10000 }).catch(() => page.goto('about:blank')); await ready(); },
   };
 
   let calls = 0;
@@ -92,6 +93,7 @@ async function main() {
     console.log(`?? ${q.type}: ${q.text} -> ${q.type === 'confirm' ? (allow ? 'yes' : 'no') : q.type === 'question' ? 'answered' : 'not done'}`);
     if (q.type === 'confirm') return { ok: allow };
     if (q.type === 'question') return { ok: true, text: 'Choose what fits the task best; I have no further wishes.' };
+    if (q.type === 'site') return { ok: allow };
     return { ok: false };
   };
   const emit = (e) => console.log(`-- ${e.type}${e.n ? ' ' + e.n : ''}: ${e.action || ''} ${e.detail || e.text || ''}`);

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Compass, Loader, CheckCircle, AlertTriangle, Square, ExternalLink, ShieldAlert, Hand } from 'lucide-react';
+import { Compass, Loader, CheckCircle, AlertTriangle, Square, ExternalLink, ShieldAlert, Hand, Pause, Play, FilePlus } from 'lucide-react';
 import styles from './WebTaskCard.module.css';
 import { t } from '../i18n';
 
@@ -22,6 +22,7 @@ function stepText(s) {
     case 'refused': return t('Not done: you did not allow it');
     case 'user': return t('A step for you in the window');
     case 'problem': return t('Did not work: {reason}', { reason: d });
+    case 'blocked': return t('Not opened: {site} (site rules)', { site: d });
     default: return d;
   }
 }
@@ -38,6 +39,25 @@ function AskBox({ ask, onReply }) {
           <div className={styles.askButtons}>
             <button type="button" className={styles.secondary} onClick={() => onReply(ask.qid, { ok: false })}>{t('Do not allow')}</button>
             <button type="button" className={styles.primary} onClick={() => onReply(ask.qid, { ok: true })}>{t('Allow this click')}</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (ask.kind === 'site') {
+    const why = ask.siteKind === 'finance' ? t('This looks like a bank or payment site.')
+      : ask.siteKind === 'health' ? t('This looks like a health site.')
+        : t('This looks like a government site.');
+    return (
+      <div className={`${styles.ask} ${styles.askRisky}`} role="alert">
+        <ShieldAlert size={18} />
+        <div className={styles.askBody}>
+          <p>{t('StarkLLM wants to work on {site}.', { site: ask.text })} {why} {t('Allow it?')}</p>
+          <div className={styles.askButtons}>
+            <button type="button" className={styles.secondary} onClick={() => onReply(ask.qid, { ok: false, remember: true })}>{t('Never on this site')}</button>
+            <button type="button" className={styles.secondary} onClick={() => onReply(ask.qid, { ok: false })}>{t('Not now')}</button>
+            <button type="button" className={styles.secondary} onClick={() => onReply(ask.qid, { ok: true, remember: true })}>{t('Always allow this site')}</button>
+            <button type="button" className={styles.primary} onClick={() => onReply(ask.qid, { ok: true })}>{t('Allow for this task')}</button>
           </div>
         </div>
       </div>
@@ -79,9 +99,17 @@ function AskBox({ ask, onReply }) {
   );
 }
 
-export default function WebTaskCard({ task, onReply, onShowWindow }) {
+export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onResume, onSavePage }) {
   const running = task.status === 'starting' || task.status === 'running';
-  const header = running
+  const [saved, setSaved] = useState('');
+  const save = async () => {
+    setSaved('saving');
+    const ok = await onSavePage();
+    setSaved(ok ? 'saved' : 'failed');
+  };
+  const header = running && task.paused
+    ? <><Pause size={16} />{t('Web task paused: the window is yours')}</>
+    : running
     ? <><Loader size={16} className={styles.spin} />{t('Web task: StarkLLM is working in its browser window')}</>
     : task.status === 'done'
       ? <><CheckCircle size={16} />{t('Web task done')}</>
@@ -92,12 +120,27 @@ export default function WebTaskCard({ task, onReply, onShowWindow }) {
     <div className={styles.card}>
       <div className={styles.header}>
         <span className={styles.title}>{header}</span>
-        {onShowWindow && (
-          <button type="button" className={styles.link} onClick={onShowWindow}>
-            <ExternalLink size={14} /> {t('Show the window')}
-          </button>
-        )}
+        <span className={styles.actions}>
+          {running && !task.ask && onPause && !task.paused && (
+            <button type="button" className={styles.link} onClick={onPause} title={t('Pause the task and use the window yourself')}>
+              <Pause size={14} /> {t('Take over')}
+            </button>
+          )}
+          {running && task.paused && onResume && (
+            <button type="button" className={styles.link} onClick={onResume}>
+              <Play size={14} /> {t('Hand back to StarkLLM')}
+            </button>
+          )}
+          {onShowWindow && (
+            <button type="button" className={styles.link} onClick={onShowWindow}>
+              <ExternalLink size={14} /> {t('Show the window')}
+            </button>
+          )}
+        </span>
       </div>
+      {running && task.paused && (
+        <p className={styles.hint}>{t('StarkLLM waits. Do what you like in its browser window, then hand it back: StarkLLM looks at the page again and goes on.')}</p>
+      )}
       {task.steps.length > 0 && (
         <details className={styles.steps} open={running}>
           <summary>{t('{count} steps', { count: task.steps.length })}</summary>
@@ -108,6 +151,15 @@ export default function WebTaskCard({ task, onReply, onShowWindow }) {
       )}
       {task.ask && <AskBox key={task.ask.qid} ask={task.ask} onReply={onReply} />}
       {task.error && <p className={styles.error}>{task.error}</p>}
+      {task.status === 'done' && onSavePage && task.url && (
+        <div className={styles.saveRow}>
+          <button type="button" className={styles.secondary} onClick={save} disabled={saved === 'saving' || saved === 'saved'}>
+            <FilePlus size={14} /> {t('Save this page to the workspace')}
+          </button>
+          {saved === 'saved' && <span className={styles.hint}>{t('Saved. You can ask about it like about your other documents.')}</span>}
+          {saved === 'failed' && <span className={styles.error}>{t('The page could not be saved.')}</span>}
+        </div>
+      )}
       {task.status === 'error' && (
         // measured (docs/web-tasks.md): 7B models finish few web tasks, 14B and larger finish them
         <p className={styles.hint}>{t('Web tasks work much better with a larger local model (14B or more, for example qwen3:14b).')}</p>

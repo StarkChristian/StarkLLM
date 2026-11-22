@@ -93,6 +93,17 @@ export default function PrivacyPanel({ token }) {
   };
   // Web tasks: the StarkLLM browser window keeps its own cookies and sign-ins; this deletes them
   const [browserCleared, setBrowserCleared] = useState(false);
+  // the user's site rules for web tasks ("always allow" / "never"), set from the questions in the chat
+  const [siteRules, setSiteRules] = useState({});
+  useEffect(() => {
+    const bridge = webTaskBridge();
+    if (!bridge || !bridge.sites) return;
+    bridge.sites().then((r) => setSiteRules((r && r.rules) || {})).catch(() => {});
+  }, []);
+  const removeSiteRule = async (host) => {
+    const r = await webTaskBridge().setSiteRule(host, null);
+    if (r && r.rules) setSiteRules(r.rules);
+  };
   const clearBrowser = async () => {
     if (!window.confirm(t('Delete the cookies, sign-ins and stored pages of the StarkLLM browser window? Your own browser is not affected.'))) return;
     const r = await webTaskBridge().clearData();
@@ -191,6 +202,21 @@ export default function PrivacyPanel({ token }) {
             <button type="button" className={styles.btn} onClick={clearBrowser}><Trash2 size={14} /> {t('Delete its cookies and sign-ins')}</button>
             {browserCleared && <span className={styles.muted}>{t('Deleted.')}</span>}
           </div>
+          <p className={styles.summary}>
+            {t('Banks, payment, health and government sites: StarkLLM asks before it works there. Adult sites are blocked. Your answers "always" and "never" are listed here.')}
+          </p>
+          {Object.keys(siteRules).length === 0 ? (
+            <p className={styles.muted}>{t('No site rules yet.')}</p>
+          ) : (
+            <ul className={styles.siteRules}>
+              {Object.entries(siteRules).sort(([a], [b]) => a.localeCompare(b)).map(([host, rule]) => (
+                <li key={host}>
+                  <code>{host}</code> <span className={styles.muted}>{rule === 'allow' ? t('always allowed') : t('never')}</span>
+                  <button type="button" className={styles.btn} onClick={() => removeSiteRule(host)}>{t('Remove')}</button>
+                </li>
+              ))}
+            </ul>
+          )}
         </>
       )}
       <p className={styles.fine}>

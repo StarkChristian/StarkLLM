@@ -27,7 +27,7 @@ import { currentCloudHost } from './utils/cloud';
 import { isUploadable } from './utils/uploadTypes';
 import { serverDate } from './utils/time';
 import { t, language } from './i18n';
-import { initialWebTask, reduceWebTask, answered as webTaskAnswered, webTaskBridge } from './utils/webTask';
+import { initialWebTask, reduceWebTask, answered as webTaskAnswered, webTaskBridge, previousWebTask } from './utils/webTask';
 
 const NO_ANSWER_TEXT = '*[The model returned no answer. Try again, raise the token limit, or choose another model.]*';
 
@@ -558,8 +558,28 @@ export default function App() {
     if (bridge) await bridge.reply(qid, answer);
   };
 
+  // "Save this page to the workspace": the text the StarkLLM window shows, kept as a document (no new download)
+  const handleSaveWebTaskPage = async () => {
+    const bridge = webTaskBridge();
+    if (!bridge || !activeWorkspace) return false;
+    try {
+      const page = await bridge.pageText();
+      if (!page || page.error) return false;
+      const res = await fetch(`/api/v1/documents/${activeWorkspace.id}/ingest-page`, {
+        method: 'POST',
+        headers: getHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ url: page.url, title: page.title, text: page.text }),
+      });
+      return res.ok;
+    } catch (e) {
+      console.error('Saving the page failed:', e);
+      return false;
+    }
+  };
+
   const handleWebTask = async (text) => {
     const bridge = webTaskBridge();
+    const messagesBefore = messages;
     setMessages(prev => [...prev, { role: 'user', content: text, timestamp: new Date() },
       { role: 'assistant', content: '', timestamp: new Date(), webTask: initialWebTask() }]);
     const fail = (message) => {
@@ -586,7 +606,8 @@ export default function App() {
       });
     });
     try {
-      const r = await bridge.start({ task: text, model: currentModel, language: language() });
+      // a follow-up continues in the same window, with the task before it and its answer
+      const r = await bridge.start({ task: text, model: currentModel, language: language(), previous: previousWebTask(messagesBefore) });
       if (!r || r.error) {
         const why = r && r.error === 'offline' ? t('StarkLLM is fully offline: web tasks are off.')
           : r && r.error === 'busy' ? t('A web task is already running. Wait for it or stop it.')
@@ -1318,8 +1339,13 @@ export default function App() {
               onUpload={handleFileUpload}
               newestDocument={[...workspaceDocs].filter(d => d.status === 'indexed').sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0]?.filename}
               token={token}
-              onWebTaskReply={handleWebTaskReply}
-              onShowWebTaskWindow={webTaskBridge() ? () => webTaskBridge().showWindow() : null}
+              webTaskActions={webTaskBridge() ? {
+                onReply: handleWebTaskReply,
+                onShowWindow: () => webTaskBridge().showWindow(),
+                onPause: () => webTaskBridge().pause(),
+                onResume: () => webTaskBridge().resume(),
+                onSavePage: handleSaveWebTaskPage,
+              } : null}
             />
             <InputBar 
               onSendMessage={handleSendMessage} 

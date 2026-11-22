@@ -35,3 +35,6 @@
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .hint { margin: 6px 0 0; font-size: 0.9em; color: var(--text-secondary, inherit); }
+.actions { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.saveRow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.saveRow button { display: inline-flex; align-items: center; gap: 6px; }

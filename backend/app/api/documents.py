@@ -387,6 +387,79 @@ async def ingest_url(
     }
 
 
+class IngestPageRequest(BaseModel):
+    url: str
+    title: str = ""
+    text: str
+
+
+@router.post("/{workspace_id}/ingest-page")
+async def ingest_page(
+    workspace_id: int,
+    req: IngestPageRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    Keep a page of a web task (docs/web-tasks.md) as a document of the workspace: the text that StarkLLM's browser
+    window shows, sent by the desktop app. Unlike ingest-url the engine fetches nothing: no connection, and the page
+    is the one the user saw (after a search or a sign-in), not a fresh copy.
+    """
+    ws = db.query(models.Workspace).filter(
+        models.Workspace.id == workspace_id,
+        models.Workspace.user_id == current_user.id
+    ).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    target_url = req.url.strip()
+    if not re.match(r"^https?://\S+$", target_url) or len(target_url) > 2000:
+        raise HTTPException(status_code=400, detail="Invalid URL. Must begin with http:// or https://")
+    clean_text = (req.text or "").strip()[:500000]
+    if len(clean_text) < 30:
+        raise HTTPException(status_code=400, detail="The page contains no text to keep.")
+
+    import hashlib
+    import time
+    from urllib.parse import urlparse
+
+    page_title = re.sub(r'[\\/*?:"<>|\r\n\t]', "", (req.title or "").strip())[:60] or urlparse(target_url).netloc[:60]
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+    unique_prefix = hashlib.md5(f"{workspace_id}_{time.time()}".encode()).hexdigest()[:8]
+    safe_filename = f"{page_title or 'webpage'}.md"
+    file_disk_name = _disk_name(unique_prefix, safe_filename)
+    file_path = os.path.join(settings.UPLOAD_DIR, file_disk_name)
+    markdown_content = f"# {page_title}\n\n**Source URL:** {target_url}\n\n---\n\n{clean_text}"
+    vault.write_text(file_path, markdown_content)
+    actual_size = vault.size(file_path)
+
+    doc = models.Document(
+        workspace_id=workspace_id,
+        filename=safe_filename,
+        filepath=file_path,
+        file_type="md",
+        status=DocStatus.UPLOADING,
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+
+    thread = threading.Thread(
+        target=_index_document_background,
+        args=(doc.id, workspace_id, current_user.id, file_path),
+        daemon=True,
+    )
+    thread.start()
+
+    return {
+        "id": doc.id,
+        "filename": doc.filename,
+        "status": doc.status,
+        "file_size": actual_size,
+        "source_url": target_url,
+    }
+
+
 class IngestYoutubeRequest(BaseModel):
     url: str
 

@@ -69,6 +69,28 @@ const RISKY = new RegExp(
 // Field labels for things only the user may type (when the page gives no type or autocomplete hint).
 const SECRET_FIELD = /pass(word|wort|e)|kennwort|contraseña|mot de passe|şifre|parola|\bpin\b|tan\b|iban|bic\b|card ?number|kartennummer|kreditkarte|numéro de carte|número de tarjeta|numero (di )?carta|kart numarası|\bcvv\b|\bcvc\b|security code|sicherheitscode|prüfnummer|code de sécurité|steuer-?id|social security|ssn\b|personalausweis|passport|reisepass|pasaporte|passeport|passaporto|pasaport/i;
 
+// Kinds of sites with extra rules (docs/web-tasks.md, "Site rules"): judged from the host name on this PC, no lookup
+// online. "finance", "health" and "government": StarkLLM asks before it works there; "adult": blocked. The user's own
+// rules ("always allow" / "never") come first.
+const SITE_KINDS = [
+  ['adult', /(^|[.-])(porn|xxx|xvideos|xhamster|pornhub|onlyfans|redtube|youporn|chaturbate)([.-]|$)/],
+  ['finance', /(^|[.-])(bank|banking|banca|banque|banco|bankasi|sparkasse|volksbank|raiffeisen|postbank|commerzbank|deutsche-bank|comdirect|consorsbank|dkb|ing|n26|revolut|paypal|klarna|wise|stripe|santander|bbva|caixabank|unicredit|intesasanpaolo|bnpparibas|creditagricole|societegenerale|ziraat|garanti|akbank|isbank|yapikredi|coinbase|binance|kraken|trade|broker|depot|finanzen|onlinebanking|ebanking|netbanking)([.-]|$)/],
+  ['finance', /(^|[.-])(banking|bank|banco|banca|banque|sparkasse|volksbank)[a-z0-9-]*\./],
+  ['finance', /[a-z0-9](bank|banking|bankasi)\./], // "ziraatbank.com.tr" (a "foodbank" is asked about too: only a question)
+  ['health', /(^|[.-])(health|gesundheit|krankenkasse|aok|tk|barmer|dak|ikk|klinik|clinic|hospital|krankenhaus|arzt|doctor|doctolib|jameda|apotheke|pharmacy|farmacia|pharmacie|eczane|salud|sante|sanita|saglik)([.-]|$)/],
+  ['government', /(^|\.)(gov|gouv|gob|gv|bund|elster|arbeitsagentur|finanzamt|bundesagentur|service-bw|amt|e-devlet|turkiye\.gov|agenziaentrate|inps|impots|ameli|seg-social|agenciatributaria|hmrc|irs|ssa)(\.|$)/],
+];
+
+function siteKind(host) {
+  const h = String(host || '').toLowerCase().replace(/^www\./, '');
+  for (const [kind, re] of SITE_KINDS) if (re.test(h)) return kind;
+  return '';
+}
+
+function hostOf(url) {
+  try { return new URL(url).hostname.toLowerCase(); } catch (e) { return ''; }
+}
+
 // A page whose purpose is to check that a person is there (CAPTCHA, "are you a robot").
 const HUMAN_CHECK = /captcha|are you (a )?(human|robot)|not a robot|kein roboter|ich bin kein|select all (squares|images)|unusual traffic|verify (that )?you are (a )?human|no soy un robot|je ne suis pas un robot|non sono un robot|robot değilim/i;
 
@@ -139,8 +161,15 @@ function pageMessage(snap) {
 
 // One user message per step (system + task + history + page): small local models follow this better than a long
 // chat of tool calls, and the prompt stays the same size from step 1 to step 30.
-function buildMessages({ task, language, history, snap, note, extraText }) {
-  const parts = [`Task of the user: ${task}`];
+function buildMessages({ task, language, history, snap, note, extraText, previous }) {
+  const parts = [];
+  // a follow-up ("now the 14th too"): the task before it and its answer, in the same window
+  if (previous && previous.task) {
+    parts.push(`Earlier task in this conversation: ${short(previous.task, 400)}`);
+    if (previous.answer) parts.push(`Its answer: ${short(previous.answer, 800)}`);
+    parts.push('The new task below may refer to it. The browser window still shows the last page of the earlier task.', '');
+  }
+  parts.push(`Task of the user: ${task}`);
   if (history.length) {
     parts.push('', 'Steps so far:', ...history.map((h, k) => `${k + 1}. ${h}`));
   }
@@ -194,10 +223,32 @@ const short = (s, n = 80) => {
 //            scroll(dir), back(), read() }
 // llm(messages, tools) -> { content, tool_calls }
 // ask({ type: 'confirm' | 'handoff' | 'question', text }) -> Promise<{ ok: boolean, text?: string }>
-// emit(event): { type: 'step' | 'answer' | 'error' | 'stopped', ... } for the chat
+// emit(event): { type: 'step' | 'answer' | 'error' | 'stopped' | 'paused' | 'resumed', ... } for the chat
+// signal: { stopped, paused, untilResumed() } — the user can pause, work in the window, and hand it back
+// previous: { task, answer } of the task before, for a follow-up in the same window
 async function runTask({ task, language = 'English', browser, llm, ask, emit = () => {}, signal = { stopped: false },
-  maxSteps = MAX_STEPS, maxMinutes = MAX_MINUTES, now = () => Date.now(), searchUrl = searchAddress }) {
-  const started = now();
+  maxSteps = MAX_STEPS, maxMinutes = MAX_MINUTES, now = () => Date.now(), searchUrl = searchAddress, previous = null,
+  siteRule = () => '', saveSiteRule = () => {} }) {
+  let started = now();
+  // site rules: decided once per site and task. siteRule(host) -> 'allow' | 'block' | '' (the user's own list)
+  const decided = new Map();
+  const decideSite = async (host) => {
+    if (!host) return 'allow';
+    if (decided.has(host)) return decided.get(host);
+    const rule = siteRule(host);
+    const kind = siteKind(host);
+    let d = 'allow';
+    if (rule === 'block') d = 'block';
+    else if (rule === 'allow') d = 'allow';
+    else if (kind === 'adult') d = 'block';
+    else if (kind) {
+      const res = await ask({ type: 'site', text: host, kind });
+      d = res && res.ok ? 'allow' : 'block';
+      if (res && res.remember) saveSiteRule(host, d);
+    }
+    decided.set(host, d);
+    return d;
+  };
   const history = [];
   let snap = null;
   let note = '';
@@ -219,6 +270,18 @@ async function runTask({ task, language = 'English', browser, llm, ask, emit = (
 
   for (let n = 1; n <= maxSteps; n++) {
     if (signal.stopped) return finishWith('stopped');
+    if (signal.paused) {
+      // the user took over: nothing happens until "Resume"; the paused time does not count against the limit
+      const pausedAt = now();
+      emit({ type: 'paused' });
+      await signal.untilResumed();
+      if (signal.stopped) return finishWith('stopped');
+      started += now() - pausedAt;
+      emit({ type: 'resumed' });
+      history.push('the user paused the task and may have worked in the window');
+      note = 'The user paused the task and may have changed the page. Look at the current page again before you go on.';
+      lastSig = '';
+    }
     if (now() - started > maxMinutes * 60000) {
       return finishWith('error', `The task took longer than ${maxMinutes} minutes and was ended.`);
     }
@@ -231,6 +294,19 @@ async function runTask({ task, language = 'English', browser, llm, ask, emit = (
       history[history.length - 1] += ' (nothing changed on the page)';
     }
     lastSig = sig;
+    // A page on a site the rules do not allow (reached by a click or a redirect): StarkLLM leaves it at once.
+    if (snap) {
+      const h = hostOf(snap.url);
+      const d = await decideSite(h);
+      if (signal.stopped) return finishWith('stopped');
+      if (d === 'block') {
+        await browser.leave();
+        step(n, 'blocked', h);
+        note = `StarkLLM does not work on ${h} (site rules or the user's no). Use another site, or finish and say so.`;
+        snap = null;
+        continue;
+      }
+    }
     // A check whether a person is there (CAPTCHA) is for the user, never for StarkLLM: the code hands it over at once.
     if (snap && looksLikeHumanCheck(snap) && !handedOver.has(snap.url)) {
       handedOver.add(snap.url);
@@ -240,7 +316,7 @@ async function runTask({ task, language = 'English', browser, llm, ask, emit = (
       if (!res || !res.ok) return finishWith('error', 'The site asked to check that a person is there (CAPTCHA). StarkLLM does not answer such checks; the user did not either.');
       continue;
     }
-    const reply = await llm(buildMessages({ task, language, history, snap, note, extraText }), TOOLS);
+    const reply = await llm(buildMessages({ task, language, history, snap, note, extraText, previous }), TOOLS);
     if (signal.stopped) return finishWith('stopped');
     note = '';
     extraText = '';
@@ -271,6 +347,12 @@ async function runTask({ task, language = 'English', browser, llm, ask, emit = (
         case 'open_url': {
           const url = webUrl(a.url);
           if (!url) { note = `"${short(a.url)}" is not a web address. Use a full https:// address.`; break; }
+          if (await decideSite(hostOf(url)) === 'block') {
+            if (signal.stopped) return finishWith('stopped');
+            step(n, 'blocked', hostOf(url));
+            note = `StarkLLM does not work on ${hostOf(url)} (site rules or the user's no). Use another site, or finish and say so.`;
+            break;
+          }
           await browser.open(url);
           step(n, 'open', url);
           break;
@@ -390,4 +472,4 @@ function searchAddress(query) {
   return 'https://duckduckgo.com/?q=' + encodeURIComponent(query) + '&ia=web';
 }
 
-module.exports = { runTask, TOOLS, isRisky, isSecretField, parseCall, buildMessages, webUrl, systemPrompt, MAX_STEPS };
+module.exports = { runTask, TOOLS, isRisky, isSecretField, parseCall, buildMessages, webUrl, systemPrompt, siteKind, MAX_STEPS };
