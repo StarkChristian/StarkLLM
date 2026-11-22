@@ -102,6 +102,18 @@ function createRelay({ dataDir = path.join(__dirname, 'data'), log = () => {}, n
     res.end('StarkLLM relay: nothing here');
   });
   const wss = new WebSocketServer({ noServer: true, maxPayload: LIMITS.maxFrame, perMessageDeflate: false });
+  // connections that died without closing (a PC that went to sleep, a phone that lost its network) are found by a
+  // ping every 30 s: whoever has not answered the last one is closed, so a PC is not shown online when it is gone
+  wss.on('connection', (ws) => { ws.alive = true; ws.on('pong', () => { ws.alive = true; }); });
+  const beat = setInterval(() => {
+    for (const ws of wss.clients) {
+      if (!ws.alive) { ws.terminate(); continue; }
+      ws.alive = false;
+      try { ws.ping(); } catch (e) { /* closed */ }
+    }
+  }, 30000);
+  beat.unref();
+  server.on('close', () => clearInterval(beat));
 
   server.on('upgrade', (req, socket, head) => {
     let url;
