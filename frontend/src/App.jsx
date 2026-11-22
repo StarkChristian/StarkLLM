@@ -23,6 +23,7 @@ import { useToast } from './components/Toast';
 import { useChatFolders } from './hooks/useChatFolders';
 import { useChatSummary } from './hooks/useChatSummary';
 import { exportChat } from './utils/chatExport';
+import { mcpBridge } from './utils/mcpBridge';
 import { currentCloudHost } from './utils/cloud';
 import { isUploadable } from './utils/uploadTypes';
 import { serverDate } from './utils/time';
@@ -580,11 +581,16 @@ export default function App() {
           ? (savedCustomModel || currentModel || 'deepseek-chat')
           : (currentModel || undefined);
 
+        // the tools of the user's MCP servers that are turned on (desktop app)
+        let extraTools = [];
+        try { const b = mcpBridge(); if (b && savedProvider === 'ollama') { const r = await b.enabledTools(); extraTools = (r && r.tools) || []; } } catch (e) { extraTools = []; }
+
         const response = await fetch('/api/v1/chat/', {
           method: 'POST',
           headers: getHeaders({ 'Content-Type': 'application/json' }),
           signal: controller.signal,
           body: JSON.stringify({
+            extra_tools: extraTools,
             workspace_id: activeWorkspace.id,
             chat_id: activeChatId,
             message: text,

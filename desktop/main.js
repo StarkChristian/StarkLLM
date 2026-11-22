@@ -20,6 +20,7 @@ const { askOfflineChoice } = require('./offline-choice');
 const { desktopKey, setEngineOffline, switchOffline } = require('./engine-offline');
 const { createPhoneLink } = require('./phonelink');
 const { qrMatrix } = require('./qr');
+const mcp = require('./mcp');
 
 let mainWindow = null;
 let tray = null;
@@ -106,6 +107,9 @@ function initApp() {
   });
   // Settings > Privacy: the fully offline switch and the list of connections of the app (only the app's own page may ask)
   const fromApp = (event) => Boolean(event.senderFrame && sameOrigin(event.senderFrame.url, APP_URL));
+  // tool servers (MCP) the user added: started by the desktop app, each call after a yes in the chat (docs/roadmap-2026-12.md, R6)
+  mcp.register(ipcMain, { fromApp, offline: () => require('./netguard').getShared().isOffline(), log: logLine });
+  app.on('will-quit', () => mcp.stopAll());
   const privacyState = () => ({ offline: guard.isOffline(), localCounts: guard.localCounts() });
   ipcMain.handle('privacy:get', (event) => (fromApp(event) ? privacyState() : { error: 'not allowed' }));
   // sets the app and the engine (engine-offline.js); the answer says what the engine did
@@ -591,6 +595,7 @@ function createTray() {
 // The switch lives in the app and in the engine; Settings and the tray menu set both (engine-offline.js: "offline"
 // wins, and the engine accepts the desktop app with the key derived from its SECRET_KEY, whoever is signed in).
 async function switchAppAndEngineOffline(on, from) {
+  if (on) mcp.stopAll(); // tool servers end with the offline switch
   const setEngine = (value) => setEngineOffline({
     fetchFn: guard.wrapFetch((u, o) => net.fetch(u, o), 'local_engine', 'Fully offline switch of the engine on this PC'),
     apiUrl: apiUrl(), key: desktopKey(engineSecret()), on: value

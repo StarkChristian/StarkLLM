@@ -16,6 +16,21 @@ contextBridge.exposeInMainWorld('starkllmDesktop', {
   // the interface language the user chose: dialogs and the tray menu of the desktop app follow it
   setLanguage: (code) => ipcRenderer.send('desktop:set-language', String(code || '')),
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+  // tool servers (MCP) of the user (docs/roadmap-2026-12.md, R6): Settings and the tool card in the chat
+  mcp: {
+    list: () => ipcRenderer.invoke('mcp:list'),
+    add: (s) => ipcRenderer.invoke('mcp:add', {
+      name: String((s && s.name) || ''), transport: s && s.transport === 'http' ? 'http' : 'stdio', command: String((s && s.command) || ''),
+      args: String((s && s.args) || ''), url: String((s && s.url) || ''),
+      env: s && s.env && typeof s.env === 'object' ? Object.fromEntries(Object.entries(s.env).map(([k, v]) => [String(k), String(v)])) : {},
+    }),
+    remove: (id) => ipcRenderer.invoke('mcp:remove', String(id || '')),
+    start: (id) => ipcRenderer.invoke('mcp:start', String(id || '')),
+    stop: (id) => ipcRenderer.invoke('mcp:stop', String(id || '')),
+    setTool: (id, tool, on) => ipcRenderer.invoke('mcp:set-tool', String(id || ''), String(tool || ''), Boolean(on)),
+    enabledTools: () => ipcRenderer.invoke('mcp:enabled-tools'),
+    call: (name, args) => ipcRenderer.invoke('mcp:call', String(name || ''), args && typeof args === 'object' ? JSON.parse(JSON.stringify(args)) : {}),
+  },
   openKnowledgeFolder: () => ipcRenderer.invoke('kb:open-folder'),
   // download progress of an update: cb({ phase: 'downloading' | 'done', percent }); returns an unsubscribe function
   onUpdateStatus: (cb) => {

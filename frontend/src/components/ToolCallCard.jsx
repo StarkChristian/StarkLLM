@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import styles from './ToolCallCard.module.css';
 import { Terminal, Check, X, AlertTriangle, Play, Loader2, Send } from 'lucide-react';
 import { t } from '../i18n';
+import { isExternalTool, externalToolLabel, mcpBridge } from '../utils/mcpBridge';
 
 const TOOL_DESCRIPTIONS = {
   list_workspace_files: "Lists documents and files uploaded to the current workspace (read-only).",
@@ -38,11 +39,14 @@ export default function ToolCallCard({
   const pendingRegisteredRef = useRef(false);
 
   const toolName = parsedCall?.name || '';
-  const toolDesc = TOOL_DESCRIPTIONS[toolName] || t('Local read-only tool.');
+  // a tool of one of the user's MCP servers (R6): run by the desktop app after the yes below, not by the engine
+  const external = isExternalTool(toolName);
+  const toolDesc = external ? t('A tool of an MCP server you added ({tool}). It runs on this PC only after you press Run.', { tool: externalToolLabel(toolName) })
+    : TOOL_DESCRIPTIONS[toolName] || t('Local read-only tool.');
 
   // Execution Gate: register pending tool call server-side on mount
   useEffect(() => {
-    if (isBrokenJson || !parsedCall || !parsedCall.name || pendingRegisteredRef.current) {
+    if (isBrokenJson || !parsedCall || !parsedCall.name || pendingRegisteredRef.current || isExternalTool(parsedCall.name)) {
       setGatePending(false);
       return;
     }
@@ -126,6 +130,23 @@ export default function ToolCallCard({
       argsObj = JSON.parse(editedArgs);
     } catch (err) {
       setJsonError(t('Cannot run: JSON is invalid.'));
+      return;
+    }
+
+    if (external) {
+      const bridge = mcpBridge();
+      if (!bridge) { setExecError(t('Tools of MCP servers work in the StarkLLM desktop app only.')); setStatus('error'); return; }
+      setStatus('running');
+      setExecError(null);
+      const r = await bridge.call(toolName, argsObj);
+      if (!r || !r.ok) {
+        setExecError(r && r.error === 'tool-off' ? t('This tool is turned off in Settings › Tools.') : r && r.error === 'not-running' ? t('The tool server is not running.') : (r && r.message) || t('Execution error'));
+        setStatus('error');
+        return;
+      }
+      setExecResult(r.result);
+      setStatus('executed');
+      if (onToolExecuted) onToolExecuted(toolName, argsObj, r.result);
       return;
     }
 

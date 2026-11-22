@@ -178,6 +178,9 @@ const NETWORK_USERS = {
   'engine.js': /getShared\(\)\.wrapFetch|guard\.begin\(/,
   'native-engine.js': /guard\.begin\('engine_download'/,
   'main.js': /guard\.wrapFetch/,
+  // tool servers on this PC only (mcp-client.js refuses other addresses)
+  'mcp.js': /getShared\(\)\.wrapFetch\(fetch, 'mcp'/,
+  'mcp-client.js': /localUrl\(url\)/,
   // incoming only (Settings > Phone); its calls to the engine stay on 127.0.0.1
   'phonelink.js': /guard\.inbound\('phone_link'/
 };
