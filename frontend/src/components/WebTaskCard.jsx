@@ -60,7 +60,7 @@ function Diff({ text }) {
   return (
     <pre className={styles.diff}>
       {String(text).split('\n').map((l, k) => (
-        <span key={k} className={l.startsWith('+ ') ? styles.add : l.startsWith('- ') ? styles.del : undefined}>{l}{'\n'}</span>
+        <span key={k} className={l.startsWith('+ ') ? styles.add : l.startsWith('- ') ? styles.del : undefined}>{/^@@ line \d+$/.test(l) ? `@@ ${t('line {n}', { n: l.slice(8) })}` : l}{'\n'}</span>
       ))}
     </pre>
   );
@@ -240,15 +240,16 @@ export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onRe
   };
   const header = running && task.paused
     ? <><Pause size={16} />{t('Web task paused: the window is yours')}</>
-    : running && task.folder && !task.url
+    : running && task.folder
     ? <><Loader size={16} className={styles.spin} />{t('Task: StarkLLM is working in the folder {folder}', { folder: task.folder })}</>
     : running
     ? <><Loader size={16} className={styles.spin} />{t('Web task: StarkLLM is working in its browser window')}</>
     : task.status === 'done'
-      ? <><CheckCircle size={16} />{t('Web task done')}</>
+      ? <><CheckCircle size={16} />{task.folder ? t('Task done') : t('Web task done')}</>
       : task.status === 'stopped'
-        ? <><Square size={16} />{t('Web task stopped')}</>
-        : <><AlertTriangle size={16} />{t('Web task not finished')}</>;
+        ? <><Square size={16} />{task.folder ? t('Task stopped') : t('Web task stopped')}</>
+        : <><AlertTriangle size={16} />{task.folder ? t('Task not finished') : t('Web task not finished')}</>;
+  const webPage = /^https?:\/\//i.test(task.url || '');
   return (
     <div className={styles.card}>
       <div className={styles.header}>
@@ -264,7 +265,7 @@ export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onRe
               <Play size={14} /> {t('Hand back to StarkLLM')}
             </button>
           )}
-          {onShowWindow && (
+          {onShowWindow && (webPage || (running && !task.folder)) && (
             <button type="button" className={styles.link} onClick={onShowWindow}>
               <ExternalLink size={14} /> {t('Show the window')}
             </button>
@@ -284,7 +285,7 @@ export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onRe
       )}
       {task.ask && <AskBox key={task.ask.qid} ask={task.ask} onReply={onReply} />}
       {task.error && <p className={styles.error}>{webTaskErrorText(task.error)}</p>}
-      {task.status === 'done' && onSavePage && task.url && (
+      {task.status === 'done' && onSavePage && webPage && (
         <div className={styles.saveRow}>
           <button type="button" className={styles.secondary} onClick={save} disabled={saved === 'saving' || saved === 'saved'}>
             <FilePlus size={14} /> {t('Save this page to the workspace')}
@@ -293,7 +294,7 @@ export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onRe
           {saved === 'failed' && <span className={styles.error}>{t('The page could not be saved.')}</span>}
         </div>
       )}
-      {task.status === 'done' && onSaveTask && task.task && (
+      {task.status === 'done' && onSaveTask && task.task && !task.folder && (
         <div className={styles.saveRow}>
           <button type="button" className={styles.secondary} onClick={saveTask} disabled={taskSaved === 'saving' || taskSaved === 'saved'}>
             <Bookmark size={14} /> {t('Save as a reusable web task')}
@@ -304,7 +305,7 @@ export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onRe
       )}
       {!running && files.length > 0 && onUndo && (
         <div className={styles.saveRow}>
-          <span className={styles.hint}>{t('{count} files changed: {files}', { count: files.length, files: files.join(', ') })}</span>
+          <span className={styles.hint}>{files.length === 1 ? t('1 file changed: {files}', { files: files[0] }) : t('{count} files changed: {files}', { count: files.length, files: files.join(', ') })}</span>
           <button type="button" className={styles.secondary} onClick={undo} disabled={undone === 'working' || undone === 'done'}>
             <Undo2 size={14} /> {t('Undo the file changes')}
           </button>
@@ -313,7 +314,7 @@ export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onRe
           {undone === 'not-latest' && <span className={styles.error}>{t('Only the changes of the newest task can be undone.')}</span>}
         </div>
       )}
-      {task.status === 'done' && onSchedule && task.task && (
+      {task.status === 'done' && onSchedule && task.task && !task.folder && (
         <div className={styles.saveRow}>
           <RepeatForm onSchedule={onSchedule} task={task.task} />
         </div>

@@ -663,6 +663,8 @@ def record_web_task(
         )
         if not chat_obj:
             raise HTTPException(status_code=404, detail="Chat not found")
+        if not chat_obj.title or chat_obj.title in ("New Chat", "Untitled Chat"):
+            chat_obj.title = req.task.strip()[:50]
     else:
         chat_obj = models.Chat(workspace_id=ws.id, title=req.task.strip()[:50])
         db.add(chat_obj)
@@ -745,6 +747,8 @@ async def image_question(
         chat_obj = db.query(models.Chat).filter(models.Chat.id == chat_id, models.Chat.workspace_id == ws.id).first()
         if not chat_obj:
             raise HTTPException(status_code=404, detail="Chat not found")
+        if not chat_obj.title or chat_obj.title in ("New Chat", "Untitled Chat"):
+            chat_obj.title = (message.strip() or "Image")[:50]
     question = message.strip() or "Describe this image."
     if not chat_id:
         chat_obj = models.Chat(workspace_id=ws.id, title=question[:50])

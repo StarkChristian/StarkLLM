@@ -1417,5 +1417,12 @@
   "Terminal ON: {folder}": "Terminal AN: {folder}",
   "A web task is running now. Try again when it has finished.": "Gerade läuft eine Web-Aufgabe. Versuchen Sie es erneut, wenn sie fertig ist.",
   "The task could not run.": "Die Aufgabe konnte nicht laufen.",
-  "1 step": "1 Schritt"
+  "1 step": "1 Schritt",
+  "Confirm and run": "Bestätigen und ausführen",
+  "Running {tool} on this PC…": "{tool} läuft auf diesem PC…",
+  "Task done": "Aufgabe erledigt",
+  "Task stopped": "Aufgabe gestoppt",
+  "Task not finished": "Aufgabe nicht fertig",
+  "1 file changed: {files}": "1 Datei geändert: {files}",
+  "line {n}": "Zeile {n}"
 }

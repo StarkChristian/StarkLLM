@@ -164,8 +164,8 @@ function diffText(before, after, maxChars = 6000) {
     let i = 0; let j = 0;
     while (i < A.length || j < B.length) {
       if (i < A.length && j < B.length && A[i] === B[j]) { out.push(`  ${A[i]}`); i++; j++; }
-      else if (j < B.length && (i >= A.length || L[i][j + 1] >= L[i + 1][j])) { out.push(`+ ${B[j]}`); j++; }
-      else { out.push(`- ${A[i]}`); i++; }
+      else if (i < A.length && (j >= B.length || L[i + 1][j] >= L[i][j + 1])) { out.push(`- ${A[i]}`); i++; }
+      else { out.push(`+ ${B[j]}`); j++; }
     }
   }
   for (let k = ea; k < Math.min(a.length, ea + 2); k++) out.push(`  ${a[k]}`);

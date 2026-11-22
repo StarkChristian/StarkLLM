@@ -228,7 +228,7 @@ export default function ToolCallCard({
           <div className={styles.argsLabel}>
             <span>{t('Arguments (Editable):')}</span>
             <span className={styles.argsLabelNote}>
-              {callId ? `Gated ID: ${callId.slice(0, 10)}...` : (gatePending ? t('Authorizing...') : '')}
+              {external ? '' : callId ? `Gated ID: ${callId.slice(0, 10)}...` : (gatePending ? t('Authorizing...') : '')}
             </span>
           </div>
           <textarea
@@ -236,7 +236,7 @@ export default function ToolCallCard({
             value={editedArgs}
             onChange={(e) => handleArgsChange(e.target.value)}
             rows={Math.min(8, editedArgs.split('\n').length + 1)}
-            disabled={gatePending}
+            disabled={!external && gatePending}
           />
           {jsonError && <div className={styles.argsError}>{jsonError}</div>}
           {execError && <div className={styles.argsError}>{execError}</div>}
@@ -248,9 +248,9 @@ export default function ToolCallCard({
             <button
               className={styles.confirmBtn}
               onClick={handleConfirmRun}
-              disabled={Boolean(jsonError) || gatePending || !callId}
+              disabled={Boolean(jsonError) || (!external && (gatePending || !callId))}
             >
-              <Play size={13} /> Confirm &amp; Run
+              <Play size={13} /> {t('Confirm and run')}
             </button>
           </div>
         </>
@@ -258,7 +258,7 @@ export default function ToolCallCard({
 
       {status === 'running' && (
         <div className={`${styles.statusChip} ${styles.statusChipSuccess}`} style={{ color: '#d4af37' }}>
-          <Loader2 size={14} className="spin" /> Executing {toolName} locally...
+          <Loader2 size={14} className="spin" /> {t('Running {tool} on this PC…', { tool: external ? externalToolLabel(toolName) : toolName })}
         </div>
       )}
 

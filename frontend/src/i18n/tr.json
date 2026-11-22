@@ -1417,5 +1417,12 @@
   "Terminal ON: {folder}": "Terminal AÇIK: {folder}",
   "A web task is running now. Try again when it has finished.": "Şu anda bir web görevi çalışıyor. Bittiğinde yeniden deneyin.",
   "The task could not run.": "Görev çalıştırılamadı.",
-  "1 step": "1 adım"
+  "1 step": "1 adım",
+  "Confirm and run": "Onayla ve çalıştır",
+  "Running {tool} on this PC…": "{tool} bu bilgisayarda çalışıyor…",
+  "Task done": "Görev tamamlandı",
+  "Task stopped": "Görev durduruldu",
+  "Task not finished": "Görev bitmedi",
+  "1 file changed: {files}": "1 dosya değişti: {files}",
+  "line {n}": "satır {n}"
 }

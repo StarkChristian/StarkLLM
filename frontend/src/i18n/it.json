@@ -1417,5 +1417,12 @@
   "Terminal ON: {folder}": "Terminale ATTIVO: {folder}",
   "A web task is running now. Try again when it has finished.": "È in corso un’attività web. Riprova quando è finita.",
   "The task could not run.": "Non è stato possibile eseguire l’attività.",
-  "1 step": "1 passo"
+  "1 step": "1 passo",
+  "Confirm and run": "Conferma ed esegui",
+  "Running {tool} on this PC…": "{tool} in esecuzione su questo PC…",
+  "Task done": "Attività completata",
+  "Task stopped": "Attività fermata",
+  "Task not finished": "Attività non finita",
+  "1 file changed: {files}": "1 file modificato: {files}",
+  "line {n}": "riga {n}"
 }
