@@ -620,3 +620,12 @@ button.sourceGroup:focus-visible {
 .docNotice p { margin: 0; }
 .docNotice p + p { margin-top: 6px; }
 .docNoticeIcon { color: var(--warning, #eab308); flex-shrink: 0; margin-top: 2px; }
+
+/* two models side by side (docs/roadmap-2026-12.md, R4) */
+.compareBox { margin-top: 12px; padding: 10px 12px; border-radius: 10px; border: 1px dashed var(--accent-color, #6d5dfc); background: var(--bg-secondary, rgba(127,127,127,0.05)); }
+.compareHead { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 0.9em; margin-bottom: 6px; color: var(--text-secondary, inherit); }
+.compareHead strong { color: var(--text-primary, inherit); }
+.compareButtons { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 8px; }
+.compareButtons button { padding: 5px 10px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border-color, #888); background: transparent; color: inherit; font-size: 0.9em; }
+.compareButtons .comparePrimary { background: var(--accent-color, #6d5dfc); color: #fff; border: none; }
+.compareNote { font-size: 0.8em; color: var(--text-secondary, inherit); margin-top: 4px; }

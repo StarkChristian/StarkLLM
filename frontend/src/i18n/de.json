@@ -1209,5 +1209,21 @@
   "Reads workspaces, chats, the inbox and deadlines, and asks questions. Changes nothing.": "Liest Arbeitsbereiche, Chats, Posteingang und Fristen und stellt Fragen. Ändert nichts.",
   "Also sends photos and documents, deletes chats and marks deadlines as done.": "Sendet außerdem Fotos und Dokumente, löscht Chats und markiert Fristen als erledigt.",
   "Also starts a backup now and can switch StarkLLM fully offline. The phone asks for your fingerprint first.": "Startet außerdem sofort eine Sicherung und kann StarkLLM vollständig offline schalten. Das Telefon fragt vorher nach Ihrem Fingerabdruck.",
-  "The StarkLLM app for Android is in a closed test on Google Play before everyone can download it. How to take part:": "Die StarkLLM-App für Android ist in einem geschlossenen Test bei Google Play, bevor sie alle herunterladen können. So machen Sie mit:"
+  "The StarkLLM app for Android is in a closed test on Google Play before everyone can download it. How to take part:": "Die StarkLLM-App für Android ist in einem geschlossenen Test bei Google Play, bevor sie alle herunterladen können. So machen Sie mit:",
+  "The answer could not be kept.": "Die Antwort konnte nicht übernommen werden.",
+  "Ask a second local model the same question and compare the answers": "Einem zweiten lokalen Modell dieselbe Frage stellen und die Antworten vergleichen",
+  "Compare models": "Modelle vergleichen",
+  "Second model": "Zweites Modell",
+  "Second model…": "Zweites Modell…",
+  "Compare with {model}": "Vergleich mit {model}",
+  "Stop comparing": "Vergleich beenden",
+  "Answer of {model}": "Antwort von {model}",
+  "Second answer: {model}": "Zweite Antwort: {model}",
+  "{sec} s · {speed} tok/s": "{sec} s · {speed} Tok./s",
+  "Waiting for the second model…": "Warte auf das zweite Modell…",
+  "The second model did not answer.": "Das zweite Modell hat nicht geantwortet.",
+  "Stopped": "Gestoppt",
+  "Keep the first answer ({model})": "Erste Antwort behalten ({model})",
+  "Keep the first answer": "Erste Antwort behalten",
+  "Keep this answer": "Diese Antwort übernehmen"
 }

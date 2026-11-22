@@ -1209,5 +1209,21 @@
   "Reads workspaces, chats, the inbox and deadlines, and asks questions. Changes nothing.": "Çalışma alanlarını, sohbetleri, gelen kutusunu ve son tarihleri okur, soru sorar. Hiçbir şeyi değiştirmez.",
   "Also sends photos and documents, deletes chats and marks deadlines as done.": "Ayrıca fotoğraf ve belge gönderir, sohbetleri siler ve son tarihleri tamamlandı olarak işaretler.",
   "Also starts a backup now and can switch StarkLLM fully offline. The phone asks for your fingerprint first.": "Ayrıca hemen bir yedekleme başlatır ve StarkLLM'i tamamen çevrimdışı yapabilir. Telefon önce parmak izinizi ister.",
-  "The StarkLLM app for Android is in a closed test on Google Play before everyone can download it. How to take part:": "Android için StarkLLM uygulaması, herkes indirmeden önce Google Play'de kapalı testte. Nasıl katılabilirsiniz:"
+  "The StarkLLM app for Android is in a closed test on Google Play before everyone can download it. How to take part:": "Android için StarkLLM uygulaması, herkes indirmeden önce Google Play'de kapalı testte. Nasıl katılabilirsiniz:",
+  "The answer could not be kept.": "Yanıt saklanamadı.",
+  "Ask a second local model the same question and compare the answers": "Aynı soruyu ikinci bir yerel modele sor ve yanıtları karşılaştır",
+  "Compare models": "Modelleri karşılaştır",
+  "Second model": "İkinci model",
+  "Second model…": "İkinci model…",
+  "Compare with {model}": "{model} ile karşılaştır",
+  "Stop comparing": "Karşılaştırmayı durdur",
+  "Answer of {model}": "{model} yanıtı",
+  "Second answer: {model}": "İkinci yanıt: {model}",
+  "{sec} s · {speed} tok/s": "{sec} sn · {speed} tok/sn",
+  "Waiting for the second model…": "İkinci model bekleniyor…",
+  "The second model did not answer.": "İkinci model yanıt vermedi.",
+  "Stopped": "Durduruldu",
+  "Keep the first answer ({model})": "İlk yanıtı tut ({model})",
+  "Keep the first answer": "İlk yanıtı tut",
+  "Keep this answer": "Bu yanıtı tut"
 }

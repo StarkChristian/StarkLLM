@@ -1209,5 +1209,21 @@
   "Reads workspaces, chats, the inbox and deadlines, and asks questions. Changes nothing.": "Legge aree di lavoro, chat, posta in arrivo e scadenze e fa domande. Non cambia nulla.",
   "Also sends photos and documents, deletes chats and marks deadlines as done.": "Invia anche foto e documenti, elimina chat e segna le scadenze come fatte.",
   "Also starts a backup now and can switch StarkLLM fully offline. The phone asks for your fingerprint first.": "Avvia anche subito un backup e può mettere StarkLLM completamente offline. Il telefono chiede prima la vostra impronta.",
-  "The StarkLLM app for Android is in a closed test on Google Play before everyone can download it. How to take part:": "L'app StarkLLM per Android è in un test chiuso su Google Play prima che tutti possano scaricarla. Come partecipare:"
+  "The StarkLLM app for Android is in a closed test on Google Play before everyone can download it. How to take part:": "L'app StarkLLM per Android è in un test chiuso su Google Play prima che tutti possano scaricarla. Come partecipare:",
+  "The answer could not be kept.": "Non è stato possibile tenere la risposta.",
+  "Ask a second local model the same question and compare the answers": "Fai la stessa domanda a un secondo modello locale e confronta le risposte",
+  "Compare models": "Confronta modelli",
+  "Second model": "Secondo modello",
+  "Second model…": "Secondo modello…",
+  "Compare with {model}": "Confronta con {model}",
+  "Stop comparing": "Smetti di confrontare",
+  "Answer of {model}": "Risposta di {model}",
+  "Second answer: {model}": "Seconda risposta: {model}",
+  "{sec} s · {speed} tok/s": "{sec} s · {speed} tok/s",
+  "Waiting for the second model…": "In attesa del secondo modello…",
+  "The second model did not answer.": "Il secondo modello non ha risposto.",
+  "Stopped": "Fermato",
+  "Keep the first answer ({model})": "Tieni la prima risposta ({model})",
+  "Keep the first answer": "Tieni la prima risposta",
+  "Keep this answer": "Tieni questa risposta"
 }

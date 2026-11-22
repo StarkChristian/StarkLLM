@@ -1209,5 +1209,21 @@
   "Reads workspaces, chats, the inbox and deadlines, and asks questions. Changes nothing.": "Lee espacios de trabajo, chats, la bandeja de entrada y los plazos, y hace preguntas. No cambia nada.",
   "Also sends photos and documents, deletes chats and marks deadlines as done.": "Además envía fotos y documentos, elimina chats y marca plazos como hechos.",
   "Also starts a backup now and can switch StarkLLM fully offline. The phone asks for your fingerprint first.": "Además inicia una copia de seguridad ahora y puede poner StarkLLM completamente sin conexión. El teléfono pide antes su huella.",
-  "The StarkLLM app for Android is in a closed test on Google Play before everyone can download it. How to take part:": "La app de StarkLLM para Android está en una prueba cerrada en Google Play antes de que todos puedan descargarla. Cómo participar:"
+  "The StarkLLM app for Android is in a closed test on Google Play before everyone can download it. How to take part:": "La app de StarkLLM para Android está en una prueba cerrada en Google Play antes de que todos puedan descargarla. Cómo participar:",
+  "The answer could not be kept.": "No se pudo conservar la respuesta.",
+  "Ask a second local model the same question and compare the answers": "Hacer la misma pregunta a un segundo modelo local y comparar las respuestas",
+  "Compare models": "Comparar modelos",
+  "Second model": "Segundo modelo",
+  "Second model…": "Segundo modelo…",
+  "Compare with {model}": "Comparar con {model}",
+  "Stop comparing": "Dejar de comparar",
+  "Answer of {model}": "Respuesta de {model}",
+  "Second answer: {model}": "Segunda respuesta: {model}",
+  "{sec} s · {speed} tok/s": "{sec} s · {speed} tok/s",
+  "Waiting for the second model…": "Esperando al segundo modelo…",
+  "The second model did not answer.": "El segundo modelo no respondió.",
+  "Stopped": "Detenido",
+  "Keep the first answer ({model})": "Conservar la primera respuesta ({model})",
+  "Keep the first answer": "Conservar la primera respuesta",
+  "Keep this answer": "Conservar esta respuesta"
 }

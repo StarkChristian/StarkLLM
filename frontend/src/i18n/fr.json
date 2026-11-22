@@ -1209,5 +1209,21 @@
   "Reads workspaces, chats, the inbox and deadlines, and asks questions. Changes nothing.": "Lit les espaces de travail, les chats, la boîte de réception et les échéances, et pose des questions. Ne modifie rien.",
   "Also sends photos and documents, deletes chats and marks deadlines as done.": "Envoie aussi des photos et des documents, supprime des chats et marque des échéances comme faites.",
   "Also starts a backup now and can switch StarkLLM fully offline. The phone asks for your fingerprint first.": "Lance aussi une sauvegarde immédiate et peut passer StarkLLM entièrement hors ligne. Le téléphone demande d'abord votre empreinte.",
-  "The StarkLLM app for Android is in a closed test on Google Play before everyone can download it. How to take part:": "L'application StarkLLM pour Android est en test fermé sur Google Play avant que tout le monde puisse la télécharger. Pour participer :"
+  "The StarkLLM app for Android is in a closed test on Google Play before everyone can download it. How to take part:": "L'application StarkLLM pour Android est en test fermé sur Google Play avant que tout le monde puisse la télécharger. Pour participer :",
+  "The answer could not be kept.": "La réponse n’a pas pu être conservée.",
+  "Ask a second local model the same question and compare the answers": "Poser la même question à un second modèle local et comparer les réponses",
+  "Compare models": "Comparer des modèles",
+  "Second model": "Second modèle",
+  "Second model…": "Second modèle…",
+  "Compare with {model}": "Comparer avec {model}",
+  "Stop comparing": "Arrêter la comparaison",
+  "Answer of {model}": "Réponse de {model}",
+  "Second answer: {model}": "Seconde réponse : {model}",
+  "{sec} s · {speed} tok/s": "{sec} s · {speed} tok/s",
+  "Waiting for the second model…": "En attente du second modèle…",
+  "The second model did not answer.": "Le second modèle n’a pas répondu.",
+  "Stopped": "Arrêté",
+  "Keep the first answer ({model})": "Garder la première réponse ({model})",
+  "Keep the first answer": "Garder la première réponse",
+  "Keep this answer": "Garder cette réponse"
 }
