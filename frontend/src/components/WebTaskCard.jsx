@@ -216,6 +216,12 @@ function RepeatForm({ onSchedule, task }) {
   );
 }
 
+// "qwen2.5:7b" -> true; "qwen3:14b", "qwen3.8:27b" or a name without a size -> false
+export function smallModel(name) {
+  const m = /(\d+(?:\.\d+)?)b\b/i.exec(String(name || '').split(':').pop() || '');
+  return Boolean(m && parseFloat(m[1]) < 14);
+}
+
 export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onResume, onSavePage, onSaveTask, onUndo, onSchedule }) {
   const running = task.status === 'starting' || task.status === 'running';
   const [saved, setSaved] = useState('');
@@ -319,7 +325,7 @@ export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onRe
           <RepeatForm onSchedule={onSchedule} task={task.task} />
         </div>
       )}
-      {task.status === 'error' && (
+      {task.status === 'error' && smallModel(task.model) && (
         // measured (docs/web-tasks.md): 7B models finish few web tasks, 14B and larger finish them
         <p className={styles.hint}>{t('Web tasks work much better with a larger local model (14B or more, for example qwen3:14b).')}</p>
       )}

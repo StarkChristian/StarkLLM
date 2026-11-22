@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { initialWebTask, reduceWebTask, answered } from '../src/utils/webTask.js';
+import { initialWebTask, reduceWebTask, answered, previousWebTask } from '../src/utils/webTask.js';
 
 const run = (events) => events.reduce(reduceWebTask, initialWebTask());
 
@@ -69,4 +69,13 @@ test('terminal: the folder, a command question with its details, the output of a
   assert.equal(s.steps[0].extra.code, 1);
   s = reduceWebTask(s, { type: 'answer', text: 'fixed', files: ['src/add.js'] });
   assert.deepEqual(s.files, ['src/add.js']);
+});
+
+test('a web task answer loaded with its chat is continued by a follow-up', () => {
+  const loaded = [
+    { role: 'user', content: 'Who painted the Mona Lisa?' },
+    { role: 'assistant', content: 'Leonardo da Vinci.\n\n[Mona Lisa](https://example.org)', sources: { web_task: true, answer: 'Leonardo da Vinci.' } },
+  ];
+  assert.deepEqual(previousWebTask(loaded), { task: 'Who painted the Mona Lisa?', answer: 'Leonardo da Vinci.' });
+  assert.equal(previousWebTask([{ role: 'user', content: 'x' }, { role: 'assistant', content: 'y', sources: { mode: 'none' } }]), null);
 });

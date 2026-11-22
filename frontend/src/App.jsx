@@ -681,7 +681,7 @@ export default function App() {
       user: { role: 'user', content: text, timestamp: new Date() },
       card: null,
     };
-    live.card = { role: 'assistant', content: '', timestamp: new Date(), webTask: initialWebTask(text), liveId: live.id };
+    live.card = { role: 'assistant', content: '', timestamp: new Date(), webTask: { ...initialWebTask(text), model: currentModel }, liveId: live.id };
     liveWebTaskRef.current = live;
     setMessages(prev => [...prev.filter(m => !m.greeting).map(m => (m.compare ? { ...m, compare: null } : m)), live.user, live.card]);
     const fail = (message) => {

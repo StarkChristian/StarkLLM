@@ -48,6 +48,11 @@ export function previousWebTask(messages) {
   for (let k = messages.length - 1; k > 0; k--) {
     const m = messages[k];
     if (m.role !== 'assistant') continue;
+    // a web task answer loaded with its chat from the engine (the task ended while another chat was open)
+    if (!m.webTask && m.sources && m.sources.web_task) {
+      const asked = messages[k - 1];
+      return { task: asked && asked.role === 'user' ? asked.content : '', answer: m.sources.answer || m.content || '' };
+    }
     if (!m.webTask || m.webTask.status !== 'done') return null;
     const asked = messages[k - 1];
     return { task: asked && asked.role === 'user' ? asked.content : '', answer: m.webTask.answer || m.content || '' };

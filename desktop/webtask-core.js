@@ -280,6 +280,11 @@ async function runTask({ task, language = 'English', browser, llm, ask, emit = (
   let lastFile = ''; // the file read in the last step is in its result, not twice in the prompt
   let lastWasBrowser = false;
   let started = now();
+  // the time a question waits for the user does not count against the time limit
+  const askUser = async (q) => {
+    const asked = now();
+    try { return await ask(q); } finally { started += now() - asked; }
+  };
   // site rules: decided once per site and task. siteRule(host) -> 'allow' | 'block' | '' (the user's own list)
   const decided = new Map();
   const blockedTries = new Map();
@@ -293,7 +298,7 @@ async function runTask({ task, language = 'English', browser, llm, ask, emit = (
     else if (rule === 'allow') d = 'allow';
     else if (kind === 'adult') d = 'block';
     else if (kind) {
-      const res = await ask({ type: 'site', text: host, kind });
+      const res = await askUser({ type: 'site', text: host, kind });
       d = res && res.ok ? 'allow' : 'block';
       if (res && res.remember) saveSiteRule(host, d);
     }
@@ -364,7 +369,7 @@ async function runTask({ task, language = 'English', browser, llm, ask, emit = (
     // A check whether a person is there (CAPTCHA) is for the user, never for StarkLLM: the code hands it over at once.
     if (snap && looksLikeHumanCheck(snap) && !handedOver.has(snap.url)) {
       handedOver.add(snap.url);
-      const res = await ask({ type: 'handoff', text: 'captcha', url: snap.url });
+      const res = await askUser({ type: 'handoff', text: 'captcha', url: snap.url });
       if (signal.stopped) return finishWith('stopped');
       step(n, 'user', res && res.ok ? 'the user answered a check of the site (CAPTCHA) in the window' : 'the user did not answer the check of the site');
       if (!res || !res.ok) return finishWith('error', 'The site asked to check that a person is there (CAPTCHA). StarkLLM does not answer such checks; the user did not either.');
@@ -470,7 +475,7 @@ async function runTask({ task, language = 'English', browser, llm, ask, emit = (
             const label = short(el.label, 60);
             const key = label.toLowerCase();
             // a "no" holds for the whole task: the same button on another row is not asked again
-            const res = refused.has(key) ? { ok: false, again: true } : await ask({ type: 'confirm', text: el.label, url: snap.url, element: el });
+            const res = refused.has(key) ? { ok: false, again: true } : await askUser({ type: 'confirm', text: el.label, url: snap.url, element: el });
             if (signal.stopped) return finishWith('stopped');
             if (!res || !res.ok) {
               refused.add(key);
@@ -489,7 +494,7 @@ async function runTask({ task, language = 'English', browser, llm, ask, emit = (
           if (!el) { note = `There is no field [${a.element}] on this page.`; break; }
           const info = await browser.focusInfo(el.i);
           if (isSecretField({ ...el, ...(info || {}) })) {
-            const res = await ask({ type: 'handoff', text: el.label, url: snap.url, element: el });
+            const res = await askUser({ type: 'handoff', text: el.label, url: snap.url, element: el });
             if (signal.stopped) return finishWith('stopped');
             step(n, 'user', res && res.ok ? `the user filled "${short(el.label, 40)}" in the window` : 'the user did not fill the field');
             note = res && res.ok ? 'The user did this step in the window. Look at the page again.' : 'The user did not do this step. Finish and say what is missing.';
@@ -527,7 +532,7 @@ async function runTask({ task, language = 'English', browser, llm, ask, emit = (
           if (++questions > 5) return finishWith('error', 'The AI model asked more than five times and was stopped.');
           // a sign-in, a password, a payment or a CAPTCHA is a step the user does in the window, then "Continue"
           const forUser = /captcha|robot|sign.?in|log.?in|anmeld|passw|kennwort|payment|zahlung|verif|bestätig|code/i.test(q);
-          const res = await ask({ type: forUser ? 'handoff' : 'question', text: q, url: snap && snap.url });
+          const res = await askUser({ type: forUser ? 'handoff' : 'question', text: q, url: snap && snap.url });
           if (signal.stopped) return finishWith('stopped');
           step(n, 'asked', short(q, 80));
           if (forUser) note = res && res.ok ? 'The user did it in the window. Look at the page again.' : 'The user did not do it. Do not ask again: finish and say what is missing.';

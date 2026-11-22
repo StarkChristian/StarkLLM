@@ -677,7 +677,9 @@ def record_web_task(
         title = re.sub(r"[\[\]()<>*_`]", "", (req.title or "").strip())[:120] or url
         answer += f"\n\n[{title}]({url})"
     db.add(models.Message(chat_id=chat_obj.id, role="user", content=req.task.strip()))
-    db.add(models.Message(chat_id=chat_obj.id, role="assistant", content=answer))
+    # marked as a web task: a follow-up continues it also after the chat was loaded again (MSI 2.5.0 round 5)
+    db.add(models.Message(chat_id=chat_obj.id, role="assistant", content=answer,
+                          sources=json.dumps({"web_task": True, "answer": req.answer.strip()[:4000]})))
     db.commit()
     return {"chat_id": chat_obj.id}
 
