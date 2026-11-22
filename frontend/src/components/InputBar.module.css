@@ -305,3 +305,6 @@
 .imageChip img { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; }
 .imageChip span { flex: 1; }
 .imageChip button { background: none; border: none; color: inherit; cursor: pointer; display: inline-flex; padding: 4px; }
+
+/* the microphone while it records */
+.recordingBtn { color: #ef4444; background: rgba(239, 68, 68, 0.12); }

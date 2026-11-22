@@ -643,3 +643,6 @@ button.sourceGroup:focus-visible {
 .compareButtons button { padding: 5px 10px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border-color, #888); background: transparent; color: inherit; font-size: 0.9em; }
 .compareButtons .comparePrimary { background: var(--accent-color, #6d5dfc); color: #fff; border: none; }
 .compareNote { font-size: 0.8em; color: var(--text-secondary, inherit); margin-top: 4px; }
+
+/* the marked feedback button (its colours are set inline) */
+.feedbackActive { opacity: 1; }

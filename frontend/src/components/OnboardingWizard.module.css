@@ -244,3 +244,6 @@
   opacity: 0.7;
   cursor: not-allowed;
 }
+
+.statusBadge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 0.8rem; background: rgba(127,127,127,0.12); }
+.spinningBtn { opacity: 0.8; cursor: progress; }
