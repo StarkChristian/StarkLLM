@@ -62,7 +62,8 @@ def test_the_second_model_answers_without_the_first_answer_and_nothing_is_saved(
     prompt_b = seen[-1]["messages"]
     assert seen[-1]["model"] == "model-b"
     asked = [m for m in prompt_b if m["role"] != "system"]
-    assert asked[-1] == {"role": "user", "content": "What is the capital of Italy?"}
+    # the language also goes with the question itself (MSI 2.5.0 round 5); the saved question is unchanged
+    assert asked[-1] == {"role": "user", "content": "What is the capital of Italy?\n\n(Write your answer in English.)"}
     assert prompt_b[-1] == {"role": "system", "content": "Write your answer in English."}  # the answer language, right after the question
     assert not any(m["content"] == "Answer of model-a." for m in prompt_b)
     # the chat has the question once and the first answer only

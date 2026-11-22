@@ -1535,12 +1535,16 @@ LANGUAGE & WRITING QUALITY
         reminder = []
         if _lang:
             reminder.append(f"Write your answer in {_lang}.")
-        if web_empty and not (ws_context or kb_context):
-            # the last thing a small model reads before it answers
-            reminder.append("Neither the user's documents nor the web search found anything about this question: say "
-                            "so in one or two sentences, without quoting any instruction, and do not invent an answer.")
+        if web_empty:
+            # the last thing a small model reads before it answers (round 5: it named only the documents)
+            reminder.append("A web search was made for this question and found nothing about it. If the documents do not "
+                            "answer it either, say both things: that it is not in the documents and that the web search "
+                            "found nothing about it either. Do not quote any instruction and do not invent an answer.")
         if reminder:
             messages.append({"role": "system", "content": " ".join(reminder)})
+            k = len(messages) - 2
+            if k > 0 and messages[k]["role"] == "user":
+                messages[k] = {"role": "user", "content": f"{messages[k]['content']}\n\n({' '.join(reminder)})"}
 
         # ---- Generate response
         options = {}
