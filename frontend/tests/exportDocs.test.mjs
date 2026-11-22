@@ -65,3 +65,8 @@ test('the export title: no picture icon, no comma at the end of a file name', ()
   assert.equal(fileBase('What is the population of Aachen, and when'.slice(0, 33)),'What is the population of Aachen');
   assert.equal(fileBase('\u{1F5BC} letter-es.png'), 'letter-es.png');
 });
+
+test('the export title ends without a comma', () => {
+  assert.equal(_exportTitle('What is the population of Aachen,'), 'What is the population of Aachen');
+  assert.equal(_exportTitle('Wie geht es? '), 'Wie geht es?');
+});

@@ -150,7 +150,8 @@ ${body}
 
 // the title of an exported chat: no picture icons (an image question starts its chat title with "🖼 name")
 export function exportTitle(title) {
-  return String(title || '').replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, '').replace(/\s+/g, ' ').trim() || 'StarkLLM';
+  return String(title || '').replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, '').replace(/\s+/g, ' ').trim()
+    .replace(/[\s,;:\-–—]+$/u, '') || 'StarkLLM';
 }
 
 export function fileBase(title) {
