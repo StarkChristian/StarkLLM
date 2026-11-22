@@ -574,7 +574,6 @@
   "Title": "Başlık",
   "Toggle Knowledge Base retrieval": "Bilgi Tabanı aramasını aç/kapat",
   "Toggle Web Search": "Web Aramasını aç/kapat",
-  "Tool Result:": "Araç Sonucu:",
   "Tool execution runs 100% on your local machine. No external MCP registry is contacted, and every tool call requires manual user confirmation before running.": "Araçların çalıştırılması %100 yerel makinenizde gerçekleşir. Harici bir MCP kayıt defteriyle iletişim kurulmaz ve her araç çağrısı çalıştırılmadan önce kullanıcının elle onayını gerektirir.",
   "Top P ({value})": "Top P ({value})",
   "Transcribing audio with Whisper...": "Ses Whisper ile yazıya dökülüyor...",
@@ -1458,5 +1457,6 @@
   "No phone may be used away from home yet: allow it for a phone below.": "Henüz hiçbir telefon evden uzakta kullanılamaz: aşağıda bir telefon için izin verin.",
   "Phones away from home": "Evden uzaktaki telefonlar",
   "A phone you allow below can also reach this PC when it is not in your home network, through the StarkLLM relay. The connection stays encrypted from the phone to this PC: the relay passes on encrypted bytes only and never sees a question, an answer or a document.": "Aşağıda izin verdiğiniz bir telefon, ev ağınızın dışındayken de StarkLLM aktarıcısı üzerinden bu bilgisayara ulaşabilir. Bağlantı telefondan bu bilgisayara kadar şifreli kalır: aktarıcı yalnızca şifreli baytları iletir ve hiçbir soruyu, yanıtı veya belgeyi görmez.",
-  "Also away from home (through the relay)": "Evden uzaktayken de (aktarıcı üzerinden)"
+  "Also away from home (through the relay)": "Evden uzaktayken de (aktarıcı üzerinden)",
+  "Result of the tool:": "Aracın sonucu:"
 }

@@ -269,7 +269,7 @@ export default function ToolCallCard({
       {status === 'executed' && execResult && (
         <div>
           <div className={styles.argsLabel} style={{ color: '#10b981', marginTop: '0.4rem' }}>
-            {t('Tool Result:')}
+            {t('Result of the tool:')}
           </div>
           <div className={styles.resultBox}>
             {typeof execResult === 'object' ? JSON.stringify(execResult, null, 2) : String(execResult)}

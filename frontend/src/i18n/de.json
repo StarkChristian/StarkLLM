@@ -574,7 +574,6 @@
   "Title": "Titel",
   "Toggle Knowledge Base retrieval": "Wissensdatenbank ein/aus",
   "Toggle Web Search": "Websuche ein/aus",
-  "Tool Result:": "Ergebnis:",
   "Tool execution runs 100% on your local machine. No external MCP registry is contacted, and every tool call requires manual user confirmation before running.": "Die Werkzeuge laufen vollständig auf Ihrem PC. Es wird kein externes MCP-Verzeichnis kontaktiert, und jeder Aufruf muss vorher von Ihnen bestätigt werden.",
   "Top P ({value})": "Top P ({value})",
   "Transcribing audio with Whisper...": "Sprache wird mit Whisper erkannt…",
@@ -1458,5 +1457,6 @@
   "No phone may be used away from home yet: allow it for a phone below.": "Noch darf kein Telefon unterwegs genutzt werden: Erlauben Sie es unten für ein Telefon.",
   "Phones away from home": "Telefone unterwegs",
   "A phone you allow below can also reach this PC when it is not in your home network, through the StarkLLM relay. The connection stays encrypted from the phone to this PC: the relay passes on encrypted bytes only and never sees a question, an answer or a document.": "Ein Telefon, das Sie unten erlauben, erreicht diesen PC auch außerhalb Ihres Heimnetzes, über das StarkLLM-Relay. Die Verbindung bleibt vom Telefon bis zu diesem PC verschlüsselt: Das Relay leitet nur verschlüsselte Daten weiter und sieht nie eine Frage, eine Antwort oder ein Dokument.",
-  "Also away from home (through the relay)": "Auch unterwegs (über das Relay)"
+  "Also away from home (through the relay)": "Auch unterwegs (über das Relay)",
+  "Result of the tool:": "Ergebnis des Werkzeugs:"
 }
