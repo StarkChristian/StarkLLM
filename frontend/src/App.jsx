@@ -597,7 +597,7 @@ export default function App() {
   // "Save as a reusable web task": a template with the tag web-task (Templates in the chat), kept by the engine
   const handleSaveWebTaskTemplate = async (task) => {
     try {
-      const res = await fetch('/api/v1/prompts', {
+      const res = await fetch('/api/v1/prompts/', {
         method: 'POST',
         headers: getHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ title: String(task).replace(/\s+/g, ' ').trim().slice(0, 60), content: task, tags: WEB_TASK_TAG }),
@@ -1206,7 +1206,8 @@ export default function App() {
 
   const handleExportChat = (format = 'md') => {
     if (format === 'docx' || format === 'pdf') {
-      const title = chats.find(c => c.id === activeChatId)?.title || 'StarkLLM';
+      const found = chats.find(c => c.id === activeChatId)?.title;
+      const title = !found ? 'StarkLLM' : found === 'New Chat' ? t('New Chat') : found;
       return exportAsDocument(format, title, messages);
     }
     exportChat(messages, chats, activeChatId, format);
