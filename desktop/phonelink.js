@@ -204,7 +204,9 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
     }
     return state.relay;
   }
-  const isRelayed = (socket) => Boolean(socket) && ['127.0.0.1', '::1'].includes(plainAddress(socket.remoteAddress)) && relayedPorts.has(socket.remotePort);
+  const relayedSockets = new WeakSet();
+  const fromRelay = (socket) => Boolean(socket) && ['127.0.0.1', '::1'].includes(plainAddress(socket.remoteAddress)) && relayedPorts.has(socket.remotePort);
+  const isRelayed = (socket) => Boolean(socket) && relayedSockets.has(socket);
   function syncRelay() {
     const wanted = Boolean(server && state.away && relayUrl && createRelay && state.devices.some((d) => d.away) && !guard.isOffline());
     if (wanted && !relay) {
@@ -259,6 +261,8 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
       log(`phone link: ${address} blocked for 10 minutes after repeated wrong codes or passwords`);
     }
     failures.set(address, f);
+    // many different keys (random tokens through the relay): the oldest are forgotten
+    if (failures.size > 2048) failures.delete(failures.keys().next().value);
   };
 
   // A device without a pairing (or with a removed one) is listed in Settings > Privacy & network as refused, at most
@@ -486,8 +490,8 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
 
   async function handle(req, res) {
     const viaRelay = isRelayed(req.socket);
-    // wrong codes and tokens through the relay count for the relay together, not for this PC's own address
-    const address = viaRelay ? 'relay' : plainAddress(req.socket.remoteAddress);
+    // wrong tokens through the relay are counted per token (one stranger cannot block every phone away from home)
+    const address = viaRelay ? `relay:${hash(String(req.headers[DEVICE_HEADER] || '')).toString('hex').slice(0, 16)}` : plainAddress(req.socket.remoteAddress);
     if (guard.isOffline()) return send(res, 503, { error: 'offline' });
     if (blocked(address)) return send(res, 429, { error: 'try-later' });
     let url;
@@ -568,6 +572,7 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
         raw.on('close', () => rawSockets.delete(raw));
       });
       s.on('secureConnection', (socket) => {
+        if (fromRelay(socket)) relayedSockets.add(socket);
         sockets.set(socket, null);
         socket.on('close', () => sockets.delete(socket));
       });

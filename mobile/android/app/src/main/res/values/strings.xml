@@ -17,7 +17,7 @@
     <string name="suggestion_3">How much do I have to pay, and by when?</string>
     <string name="copy">Copy</string>
     <string name="copied">Copied</string>
-    <string name="privacy_note">Your documents and the AI model stay on your PC. The phone connects over your home network, encrypted, and only shows the answers.</string>
+    <string name="privacy_note">Your documents and the AI model stay on your PC. The phone connects over your home network, or away from home through the StarkLLM relay if you allow it on the PC; it is encrypted from the phone to the PC either way, and the phone only shows the answers.</string>
     <string name="scan_button">Scan QR code</string>
     <string name="scan_hint">Point the camera at the QR code on your PC\'s screen.</string>
     <string name="camera_permission_needed">StarkLLM uses the camera only when you tap: to read your PC\'s QR code or to photograph a letter for your PC. Nothing is recorded in the background.</string>

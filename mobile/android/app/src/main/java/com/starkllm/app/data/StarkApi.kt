@@ -68,6 +68,8 @@ class StarkApi(
         } else null
     private fun clientFor(address: String) = if (address == RELAY) relayClient!! else client
 
+    @Volatile private var lastHomeTry = 0L
+
     /** true when the last answer came through the relay (the phone is away from home) */
     val viaRelay: Boolean get() = current == RELAY
     @Volatile private var current: String? = null
@@ -90,7 +92,10 @@ class StarkApi(
     private fun execute(method: String, path: String, body: RequestBody? = null, register: (Call) -> Unit = {}): Response {
         // the home addresses first, then the relay (when the PC named one); the way that worked last goes first
         val ways = addresses + listOfNotNull(if (relayClient != null) RELAY else null)
-        val order = listOfNotNull(current) + (ways - setOfNotNull(current))
+        // back home: after a minute on the relay the home addresses are tried first again (review M5)
+        val homeAgain = current == RELAY && System.currentTimeMillis() - lastHomeTry > 60_000
+        if (homeAgain || current != RELAY) lastHomeTry = System.currentTimeMillis()
+        val order = if (homeAgain) ways else listOfNotNull(current) + (ways - setOfNotNull(current))
         var last: Exception? = null
         var otherDevice: SSLException? = null
         for (address in order) {
@@ -98,6 +103,11 @@ class StarkApi(
             register(call)
             try {
                 val res = call.execute()
+                if (address == RELAY && res.code == 403 && runCatching { res.peekBody(512).string() }.getOrDefault("").contains("away-off") && address != order.last()) {
+                    res.close()
+                    last = IOException("away-off")
+                    continue
+                }
                 if (current != address) {
                     current = address
                     if (address != RELAY) onAddressWorked(address)

@@ -16,7 +16,7 @@
     <string name="suggestion_3">Wie viel muss ich bis wann bezahlen?</string>
     <string name="copy">Kopieren</string>
     <string name="copied">Kopiert</string>
-    <string name="privacy_note">Ihre Dokumente und das KI-Modell bleiben auf Ihrem PC. Das Telefon verbindet sich verschlüsselt über Ihr Heimnetz und zeigt nur die Antworten.</string>
+    <string name="privacy_note">Ihre Dokumente und das KI-Modell bleiben auf Ihrem PC. Das Telefon verbindet sich über Ihr Heimnetz oder, wenn Sie es auf dem PC erlauben, unterwegs über das StarkLLM-Relay; in beiden Fällen verschlüsselt vom Telefon bis zum PC, und es zeigt nur die Antworten.</string>
     <string name="scan_button">QR-Code scannen</string>
     <string name="scan_hint">Richten Sie die Kamera auf den QR-Code auf dem Bildschirm Ihres PCs.</string>
     <string name="camera_permission_needed">StarkLLM nutzt die Kamera nur, wenn Sie tippen: um den QR-Code Ihres PCs zu lesen oder einen Brief für Ihren PC zu fotografieren. Im Hintergrund wird nichts aufgenommen.</string>

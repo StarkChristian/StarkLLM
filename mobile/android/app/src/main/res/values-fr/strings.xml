@@ -16,7 +16,7 @@
     <string name="suggestion_3">Combien dois-je payer, et avant quand ?</string>
     <string name="copy">Copier</string>
     <string name="copied">Copié</string>
-    <string name="privacy_note">Vos documents et le modèle d\'IA restent sur votre PC. Le téléphone se connecte de façon chiffrée par votre réseau domestique et n\'affiche que les réponses.</string>
+    <string name="privacy_note">Vos documents et le modèle d’IA restent sur votre PC. Le téléphone se connecte via votre réseau domestique ou, si vous l’autorisez sur le PC, hors de chez vous via le relais StarkLLM ; dans les deux cas chiffré du téléphone jusqu’au PC, et il n’affiche que les réponses.</string>
     <string name="scan_button">Scanner le code QR</string>
     <string name="scan_hint">Pointez l\'appareil photo vers le code QR affiché sur votre PC.</string>
     <string name="camera_permission_needed">StarkLLM n\'utilise l\'appareil photo que lorsque vous touchez : pour lire le code QR de votre PC ou photographier un courrier pour votre PC. Rien n\'est enregistré en arrière-plan.</string>

@@ -16,7 +16,7 @@
     <string name="suggestion_3">Ne kadar ödemem gerekiyor ve ne zamana kadar?</string>
     <string name="copy">Kopyala</string>
     <string name="copied">Kopyalandı</string>
-    <string name="privacy_note">Belgeleriniz ve yapay zekâ modeli bilgisayarınızda kalır. Telefon ev ağınız üzerinden şifreli bağlanır ve yalnızca yanıtları gösterir.</string>
+    <string name="privacy_note">Belgeleriniz ve yapay zekâ modeli bilgisayarınızda kalır. Telefon ev ağınız üzerinden ya da bilgisayarda izin verirseniz evden uzakta StarkLLM aktarıcısı üzerinden bağlanır; her iki durumda da telefondan bilgisayara kadar şifrelidir ve yalnızca yanıtları gösterir.</string>
     <string name="scan_button">QR kodunu tara</string>
     <string name="scan_hint">Kamerayı bilgisayarınızın ekranındaki QR koduna doğrultun.</string>
     <string name="camera_permission_needed">StarkLLM kamerayı yalnızca siz dokunduğunuzda kullanır: bilgisayarınızın QR kodunu okumak ya da bilgisayarınız için bir mektubu fotoğraflamak için. Arka planda hiçbir şey kaydedilmez.</string>

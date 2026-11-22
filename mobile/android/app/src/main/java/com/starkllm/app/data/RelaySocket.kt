@@ -140,6 +140,13 @@ class RelaySocket(private val relayUrl: String, private val id: String, private 
         override fun write(b: ByteArray, off: Int, len: Int) {
             if (len == 0) return
             val socket = ws ?: throw IOException("not connected")
+            // OkHttp closes a WebSocket whose queue passes 16 MiB: a large upload waits here until the relay took the
+            // bytes before (review M3)
+            val until = System.currentTimeMillis() + 120_000
+            while (!closed && socket.queueSize() > 1L shl 20) {
+                if (System.currentTimeMillis() > until) throw SocketTimeoutException("The relay does not take the bytes")
+                Thread.sleep(10)
+            }
             if (closed || !socket.send(b.toByteString(off, len))) throw IOException("The relay connection is closed")
         }
     }

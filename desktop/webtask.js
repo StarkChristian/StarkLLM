@@ -99,12 +99,16 @@ function sendBar() {
   if (s && !win.webContents.isDestroyed()) win.webContents.send('webbar:state', s);
 }
 
-// the user uses the bar: a running task waits (like "Take over"), then the bar does what was asked
-function userTakesOver() {
-  if (current && !current.scheduled && !current.signal.paused) {
+// the user uses the bar: a running task waits (like "Take over"); a step it is doing now finishes first (at most 15 s),
+// so it cannot type into the page the user opens
+async function userTakesOver() {
+  if (!current || current.scheduled) return;
+  if (!current.signal.paused) {
     current.signal.paused = true;
     sendBar();
   }
+  const until = Date.now() + 15000;
+  while (current && !current.atPause && !current.signal.stopped && Date.now() < until) await sleep(100);
 }
 
 let barReady = false;
@@ -112,12 +116,13 @@ function registerBar() {
   if (barReady) return;
   barReady = true;
   const fromBar = (event) => win && !win.isDestroyed() && event.sender === win.webContents;
-  barIpc.on('webbar:go', (event, what) => {
+  barIpc.on('webbar:go', async (event, what) => {
     if (!fromBar(event)) return;
+    if (what === 'refresh') return sendBar();
+    await userTakesOver();
+    if (!win || win.isDestroyed()) return;
     const wc = pageOf(win);
     const h = wc.navigationHistory;
-    if (what === 'refresh') return sendBar();
-    userTakesOver();
     if (what === 'back' && h && h.canGoBack()) h.goBack();
     else if (what === 'forward' && h && h.canGoForward()) h.goForward();
     else if (what === 'reload') wc.reload();
@@ -125,11 +130,12 @@ function registerBar() {
     else if (what === 'home') wc.loadURL('https://duckduckgo.com/').catch(() => {});
     sendBar();
   });
-  barIpc.on('webbar:open', (event, text) => {
+  barIpc.on('webbar:open', async (event, text) => {
     if (!fromBar(event)) return;
     const url = addressOf(text);
     if (!isWeb(url)) return;
-    userTakesOver();
+    await userTakesOver();
+    if (!win || win.isDestroyed()) return;
     pageOf(win).loadURL(url).catch(() => {});
     sendBar();
   });
@@ -593,6 +599,8 @@ function register(ipcMain, { fromApp, log = () => {} }) {
     current = { id, signal, sender };
     const send = (e) => {
       if (!sender.isDestroyed()) sender.send('webtask:event', { id, ...e });
+      // the loop is waiting at its pause point (nothing of the task acts on the page now)
+      if (current && current.id === id && (e.type === 'paused' || e.type === 'resumed')) current.atPause = e.type === 'paused';
       if (['started', 'paused', 'resumed', 'ended'].includes(e.type)) sendBar();
     };
     let q = 0;

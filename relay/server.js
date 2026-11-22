@@ -12,6 +12,10 @@
 //
 // An id is a random 128-bit value the PC makes (it is in the pairing QR code). The first PC that registers an id keeps
 // it: the relay stores a SHA-256 of its secret, later registrations must show the same secret.
+//
+// Limits (review of 23 Nov 2026): everything is counted per PC; a phone of an unknown or offline PC is refused before
+// any state is made; registrations, unauthenticated connections and buffered bytes have caps; a PC record is dropped
+// when nothing uses it; errors in a handler never stop the relay.
 'use strict';
 const http = require('http');
 const crypto = require('crypto');
@@ -23,39 +27,70 @@ const ID = /^[A-Za-z0-9_-]{22,64}$/;
 const SECRET = /^[A-Za-z0-9_-]{32,128}$/;
 const LIMITS = {
   streamsPerPc: 16,          // phone connections at the same time for one PC
+  waitingPerPc: 8,           // phones waiting for their PC to answer, per PC
+  waitingTotal: 2000,        // the same for all PCs together
   openPerMinute: 60,         // new phone connections per PC and minute
   pcWaitMs: 10000,           // the PC has this long to open the stream of a phone
-  idleMs: 120000,            // a stream without traffic is closed
+  idleMs: 6 * 60 * 1000,     // a stream without any traffic (data or ping) is closed; longer than the phone's read timeout
   maxFrame: 1024 * 1024,     // bytes per WebSocket message
+  maxBuffered: 8 * 1024 * 1024, // bytes waiting for a slow receiver before the stream is closed
   bytesPerMinute: 200 * 1024 * 1024, // per PC, both directions together
+  registrationsPerMinute: 30,  // new PC ids, for all callers together
+  maxPcs: 100000,            // registered PC ids
+  authPending: 500,          // connections that have not shown their secret yet
 };
 
 function hash(s) {
   return crypto.createHash('sha256').update(String(s)).digest('hex');
 }
 
+function sameHash(a, b) {
+  const x = Buffer.from(String(a));
+  const y = Buffer.from(String(b));
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+
 function createRelay({ dataDir = path.join(__dirname, 'data'), log = () => {}, now = () => Date.now() } = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   const keysPath = path.join(dataDir, 'pcs.json');
   let keys = {};
-  try { keys = JSON.parse(fs.readFileSync(keysPath, 'utf8')); } catch (e) { keys = {}; }
-  const saveKeys = () => fs.writeFileSync(keysPath, JSON.stringify(keys));
+  if (fs.existsSync(keysPath)) {
+    // a damaged file must not free every id for anyone: the relay does not start (the file was written atomically)
+    keys = JSON.parse(fs.readFileSync(keysPath, 'utf8'));
+  }
+  const saveKeys = () => {
+    const tmp = `${keysPath}.${process.pid}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(keys));
+    fs.renameSync(tmp, keysPath);
+  };
 
-  const pcs = new Map();      // id -> { control, streams: Map(sid -> {phone, pc, timer}), opened: [times], bytes, minute }
+  const pcs = new Map();      // id -> { control, streams: Map(sid -> stream), waiting: Set(sid), opened: [times], bytes, minute }
   const waiting = new Map();  // sid -> { id, phone, timer }
+  let registrations = [];
+  let authPending = 0;
 
   function pcOf(id) {
     let p = pcs.get(id);
-    if (!p) { p = { control: null, streams: new Map(), opened: [], bytes: 0, minute: 0 }; pcs.set(id, p); }
+    if (!p) { p = { control: null, streams: new Map(), waiting: new Set(), opened: [], bytes: 0, minute: 0 }; pcs.set(id, p); }
     return p;
   }
+  function dropIfUnused(id) {
+    const p = pcs.get(id);
+    if (p && !p.control && p.streams.size === 0 && p.waiting.size === 0) pcs.delete(id);
+  }
 
-  // the PC's secret: the first one registers the id, later ones must match
+  // the PC's secret: the first one registers the id (within the caps), later ones must match
   function pcAllowed(id, secret) {
     if (!ID.test(id || '') || !SECRET.test(secret || '')) return false;
     const h = hash(secret);
-    if (!keys[id]) { keys[id] = { key: h, since: new Date(now()).toISOString() }; saveKeys(); return true; }
-    return crypto.timingSafeEqual(Buffer.from(keys[id].key), Buffer.from(h));
+    if (keys[id]) return sameHash(keys[id].key, h);
+    const t = now();
+    registrations = registrations.filter((x) => t - x < 60000);
+    if (registrations.length >= LIMITS.registrationsPerMinute || Object.keys(keys).length >= LIMITS.maxPcs) return false;
+    registrations.push(t);
+    keys[id] = { key: h, since: new Date(t).toISOString() };
+    saveKeys();
+    return true;
   }
 
   function count(p, n) {
@@ -69,29 +104,35 @@ function createRelay({ dataDir = path.join(__dirname, 'data'), log = () => {}, n
     const p = pcOf(id);
     const s = { phone, pc: pcWs, timer: null };
     p.streams.set(sid, s);
-    const idle = () => { clearTimeout(s.timer); s.timer = setTimeout(() => end(1000), LIMITS.idleMs); };
+    let ended = false;
     const end = (code) => {
+      if (ended) return;
+      ended = true;
       clearTimeout(s.timer);
       p.streams.delete(sid);
       for (const ws of [phone, pcWs]) { try { ws.close(code); } catch (e) { /* closed */ } }
+      dropIfUnused(id);
+    };
+    const idle = () => { clearTimeout(s.timer); s.timer = setTimeout(() => end(1000), LIMITS.idleMs); };
+    const forward = (from, to) => (data, binary) => {
+      if (!binary) return;
+      if (!count(p, data.length)) return end(4429);
+      // a receiver that does not read: the stream is closed instead of keeping its bytes here
+      if (to.bufferedAmount > LIMITS.maxBuffered) return end(4413);
+      idle();
+      if (to.readyState === 1) to.send(data, { binary: true });
+      return undefined;
     };
     idle();
-    phone.on('message', (data, binary) => {
-      if (!binary) return;
-      if (!count(p, data.length)) return end(4429);
-      idle();
-      if (pcWs.readyState === 1) pcWs.send(data, { binary: true });
-    });
-    pcWs.on('message', (data, binary) => {
-      if (!binary) return;
-      if (!count(p, data.length)) return end(4429);
-      idle();
-      if (phone.readyState === 1) phone.send(data, { binary: true });
-    });
-    phone.on('close', () => end(1000));
-    pcWs.on('close', () => end(1000));
-    phone.on('error', () => end(1011));
-    pcWs.on('error', () => end(1011));
+    phone.on('message', forward(phone, pcWs));
+    pcWs.on('message', forward(pcWs, phone));
+    // pings keep a stream alive while the PC thinks (a large model can take minutes before its first word)
+    for (const ws of [phone, pcWs]) {
+      ws.on('ping', idle);
+      ws.on('pong', idle);
+      ws.on('close', () => end(1000));
+      ws.on('error', () => end(1011));
+    }
     // the phone may now start its TLS handshake
     phone.send(JSON.stringify({ type: 'ready' }));
   }
@@ -115,7 +156,7 @@ function createRelay({ dataDir = path.join(__dirname, 'data'), log = () => {}, n
   beat.unref();
   server.on('close', () => clearInterval(beat));
 
-  server.on('upgrade', (req, socket, head) => {
+  function handleUpgrade(req, socket, head) {
     let url;
     try { url = new URL(req.url, 'http://relay'); } catch (e) { return socket.destroy(); }
     const id = url.searchParams.get('id') || '';
@@ -123,58 +164,83 @@ function createRelay({ dataDir = path.join(__dirname, 'data'), log = () => {}, n
     if (!ID.test(id)) return reject('400 Bad Request');
 
     if (url.pathname === '/v1/pc' || url.pathname === '/v1/pc-stream') {
+      if (authPending >= LIMITS.authPending) return reject('503 Service Unavailable');
+      authPending += 1;
       // the PC shows its secret in its first message (WebSocket clients cannot always send headers)
       return wss.handleUpgrade(req, socket, head, (ws) => {
-        const timer = setTimeout(() => ws.close(4401), 5000);
+        let counted = true;
+        const done = () => { if (counted) { counted = false; authPending -= 1; } };
+        const timer = setTimeout(() => { done(); ws.close(4401); }, 5000);
+        ws.on('close', done);
         ws.once('message', (data, binary) => {
           clearTimeout(timer);
-          let m = null;
-          try { m = binary ? null : JSON.parse(String(data)); } catch (e) { m = null; }
-          if (!m || m.type !== 'auth' || !pcAllowed(id, m.key)) return ws.close(4403);
-          return pcConnected(ws);
+          done();
+          try {
+            let m = null;
+            try { m = binary ? null : JSON.parse(String(data)); } catch (e) { m = null; }
+            if (!m || m.type !== 'auth' || !pcAllowed(id, m.key)) return ws.close(4403);
+            return pcConnected(ws, url, id);
+          } catch (e) {
+            log(`auth failed: ${e.message}`);
+            try { ws.close(1011); } catch (e2) { /* closed */ }
+            return undefined;
+          }
         });
       });
-      function pcConnected(ws) {
-        const p = pcOf(id);
-        if (url.pathname === '/v1/pc') {
-          if (p.control) { try { p.control.close(4000, 'replaced'); } catch (e) { /* closed */ } }
-          p.control = ws;
-          ws.on('close', () => { if (p.control === ws) p.control = null; });
-          ws.on('message', () => {}); // keep-alive pings of the PC
-          ws.send(JSON.stringify({ type: 'hello' }));
-          log(`pc online (${id.slice(0, 6)}…)`);
-          return undefined;
-        }
-        const sid = url.searchParams.get('sid') || '';
-        const w = waiting.get(sid);
-        if (!w || w.id !== id) return ws.close(4404);
-        waiting.delete(sid);
-        clearTimeout(w.timer);
-        return pipe(id, sid, w.phone, ws);
-      }
     }
 
     if (url.pathname === '/v1/phone') {
-      const p = pcOf(id);
+      const p = pcs.get(id);
+      if (!p || !p.control) return reject('404 Not Found');      // the PC is not online (or not allowed away from home)
       const t = now();
       p.opened = p.opened.filter((x) => t - x < 60000);
-      if (!p.control) return reject('404 Not Found');      // the PC is not online (or not allowed away from home)
-      if (p.opened.length >= LIMITS.openPerMinute || p.streams.size + waiting.size >= LIMITS.streamsPerPc * 4) return reject('429 Too Many Requests');
-      if ([...p.streams.values()].length >= LIMITS.streamsPerPc) return reject('429 Too Many Requests');
+      if (p.opened.length >= LIMITS.openPerMinute || p.streams.size >= LIMITS.streamsPerPc
+          || p.waiting.size >= LIMITS.waitingPerPc || waiting.size >= LIMITS.waitingTotal) return reject('429 Too Many Requests');
       p.opened.push(t);
       return wss.handleUpgrade(req, socket, head, (phone) => {
         const sid = crypto.randomBytes(16).toString('base64url');
-        const timer = setTimeout(() => { waiting.delete(sid); try { phone.close(4504); } catch (e) { /* closed */ } }, LIMITS.pcWaitMs);
+        const forget = () => { if (waiting.delete(sid)) { p.waiting.delete(sid); dropIfUnused(id); } };
+        const timer = setTimeout(() => { forget(); try { phone.close(4504); } catch (e) { /* closed */ } }, LIMITS.pcWaitMs);
         waiting.set(sid, { id, phone, timer });
-        phone.on('close', () => { if (waiting.has(sid)) { clearTimeout(timer); waiting.delete(sid); } });
+        p.waiting.add(sid);
+        phone.on('close', () => { clearTimeout(timer); forget(); });
         // bytes of the phone before "ready" would be lost: the phone waits for "ready" before its TLS handshake
         try { p.control.send(JSON.stringify({ type: 'open', sid })); } catch (e) { phone.close(4404); }
       });
     }
     return reject('404 Not Found');
+  }
+
+  function pcConnected(ws, url, id) {
+    const p = pcOf(id);
+    if (url.pathname === '/v1/pc') {
+      if (p.control) { try { p.control.close(4000, 'replaced'); } catch (e) { /* closed */ } }
+      p.control = ws;
+      ws.on('close', () => { if (p.control === ws) p.control = null; dropIfUnused(id); });
+      ws.on('message', () => {}); // keep-alive pings of the PC
+      ws.send(JSON.stringify({ type: 'hello' }));
+      log(`pc online (${id.slice(0, 6)}…)`);
+      return undefined;
+    }
+    const sid = url.searchParams.get('sid') || '';
+    const w = waiting.get(sid);
+    if (!w || w.id !== id) { ws.close(4404); dropIfUnused(id); return undefined; }
+    waiting.delete(sid);
+    p.waiting.delete(sid);
+    clearTimeout(w.timer);
+    return pipe(id, sid, w.phone, ws);
+  }
+
+  server.on('upgrade', (req, socket, head) => {
+    try {
+      handleUpgrade(req, socket, head);
+    } catch (e) {
+      log(`upgrade failed: ${e.message}`);
+      try { socket.destroy(); } catch (e2) { /* closed */ }
+    }
   });
 
-  return { server, stats: () => ({ pcs: [...pcs.values()].filter((p) => p.control).length, streams: [...pcs.values()].reduce((n, p) => n + p.streams.size, 0) }) };
+  return { server, stats: () => ({ pcs: [...pcs.values()].filter((p) => p.control).length, records: pcs.size, waiting: waiting.size, streams: [...pcs.values()].reduce((n, p) => n + p.streams.size, 0) }) };
 }
 
 if (require.main === module) {
@@ -182,6 +248,8 @@ if (require.main === module) {
   const host = process.env.HOST || '127.0.0.1';
   const { server } = createRelay({ dataDir: process.env.RELAY_DATA || path.join(__dirname, 'data'), log: (m) => console.log(new Date().toISOString(), m) });
   server.listen(port, host, () => console.log(`StarkLLM relay on ${host}:${port}`));
+  // a bug in a handler must not take every PC offline
+  process.on('uncaughtException', (e) => console.error(new Date().toISOString(), 'uncaught', e && e.message));
 }
 
 module.exports = { createRelay, LIMITS };

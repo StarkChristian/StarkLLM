@@ -23,6 +23,7 @@ const FEATURES = {
   model_download: 'Download of an AI model by the local Ollama',
   ui: 'A request of the app window to another host',
   phone_link: 'A paired phone on the home network (Settings > Phone; incoming)',
+  phone_relay: 'Phones away from home: the connection to the StarkLLM relay (only encrypted bytes pass)',
   web_task: 'StarkLLM\'s browser window: a web task the user started in the chat (the sites of the task, and the local AI model)',
   unattributed: 'A connection that did not go through the network layer'
 };
