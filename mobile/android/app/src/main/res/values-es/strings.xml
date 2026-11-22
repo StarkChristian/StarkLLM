@@ -205,4 +205,5 @@
     </plurals>
     <string name="error_away_off">Este teléfono solo puede llegar al PC en su red doméstica. Para usarlo fuera de casa, permítalo en el PC en Ajustes &gt; Teléfono.</string>
     <string name="error_pair_at_home">Vincule el teléfono en su red doméstica, en la misma red wifi que el PC.</string>
+    <string name="connected_away">Conectado · fuera de casa</string>
 </resources>

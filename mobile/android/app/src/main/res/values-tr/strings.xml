@@ -204,4 +204,5 @@
     </plurals>
     <string name="error_away_off">Bu telefon bilgisayara yalnızca ev ağınızda ulaşabilir. Evden uzakta kullanmak için bilgisayarda Ayarlar &gt; Telefon bölümünden izin verin.</string>
     <string name="error_pair_at_home">Telefonu ev ağınızda, bilgisayarla aynı Wi-Fi’da eşleyin.</string>
+    <string name="connected_away">Bağlı · evden uzakta</string>
 </resources>

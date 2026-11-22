@@ -138,7 +138,8 @@ internal fun HomeScreen(state: UiState, vm: AppViewModel, activity: FragmentActi
         }
     )
     StarkScaffold(topBar = {
-        Bar(state.link?.pcName ?: stringResource(R.string.app_name), subtitle = if (state.hello != null) stringResource(R.string.connected) else null,
+        Bar(state.link?.pcName ?: stringResource(R.string.app_name),
+            subtitle = state.hello?.let { stringResource(if (it.viaRelay) R.string.connected_away else R.string.connected) },
             dot = state.hello != null, onMenu = openDrawer) {
             IconButton(onClick = vm::refreshAll) { Icon(Icons.Filled.Refresh, stringResource(R.string.refresh)) }
         }

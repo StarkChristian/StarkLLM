@@ -31,6 +31,8 @@ data class Hello(
     @SerialName("signed_in") val signedIn: Boolean = false,
     /** what this phone may do, set on the PC (Settings > Phone): ask, work or manage; older PCs send none (= work) */
     val level: String = "work",
+    /** this answer came through the StarkLLM relay: the phone is away from home (2.6) */
+    @SerialName("via_relay") val viaRelay: Boolean = false,
 )
 
 @Serializable
