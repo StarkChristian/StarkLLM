@@ -1,7 +1,8 @@
 # Phones away from home (2.6.0)
 
-Status: built on `dev/2.6.0`, tested end to end (`relay/e2e.test.js`) and through a temporary relay; the permanent
-relay address (`relay.starkllm.com`) still has to be set up by the owner (see "Running the relay").
+Status: built on `dev/2.6.0`, tested end to end (`relay/e2e.test.js`, `relay/limits.test.js`) and on the real phone.
+The relay runs at `wss://relay.starkllm.com` (since 23 Nov 2026): a user service on the home server
+(`relay/starkllm-relay.service`, 127.0.0.1:8787) behind the server2000 Cloudflare tunnel.
 
 ## What the user gets
 
