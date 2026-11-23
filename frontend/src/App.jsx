@@ -1254,7 +1254,9 @@ export default function App() {
   const handleExportChat = (format = 'md') => {
     if (format === 'docx' || format === 'pdf') {
       const found = chats.find(c => c.id === activeChatId)?.title;
-      const title = !found ? 'StarkLLM' : found === 'New Chat' ? t('New Chat') : found;
+      // a chat whose title is not written yet is named after its first question
+      const firstQuestion = (messages.find(m => m.role === 'user')?.content || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+      const title = (!found || found === 'New Chat') ? (firstQuestion || (found ? t('New Chat') : 'StarkLLM')) : found;
       return exportAsDocument(format, title, messages);
     }
     exportChat(messages, chats, activeChatId, format);

@@ -75,12 +75,15 @@ function addressOf(text) {
   return `https://duckduckgo.com/?q=${encodeURIComponent(s)}`;
 }
 
+let failedUrl = '';
 function barState() {
   if (!win || win.isDestroyed()) return null;
   const wc = pageOf(win);
   const h = wc.navigationHistory;
+  const now = wc.getURL();
+  if (isWeb(now)) failedUrl = '';
   return {
-    url: wc.getURL(),
+    url: now.startsWith('data:') && failedUrl ? failedUrl : now,
     title: wc.getTitle(),
     loading: wc.isLoading(),
     canBack: Boolean(h && h.canGoBack()),
@@ -178,6 +181,20 @@ function openWindow() {
   win.on('resize', fit);
   const wc = page.webContents;
   for (const e of ['did-navigate', 'did-navigate-in-page', 'did-start-loading', 'did-stop-loading', 'page-title-updated']) wc.on(e, () => sendBar());
+  wc.on('did-fail-load', (_event, code, _desc, url, isMainFrame) => {
+    if (!isMainFrame || code === -3 || !isWeb(url)) return;   // -3: the user or a new address stopped it
+    const offline = getShared().isOffline();
+    const local = !offline && /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.)/.test(hostOf(url));
+    const text = offline ? t('StarkLLM is fully offline: web pages are not opened.')
+      : local ? t('StarkLLM\'s browser does not open pages of this PC or your home network (for example your router).')
+        : t('This page could not be opened.');
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const html = `<!doctype html><meta charset="utf-8"><title>${esc(t('Not opened'))}</title>`
+      + '<body style="font:15px Segoe UI,system-ui,sans-serif;margin:48px;color:#1c2230;background:#f3f4f8">'
+      + `<h2 style="margin:0 0 12px">${esc(t('Not opened'))}</h2><p>${esc(text)}</p><p style="color:#5b6478;word-break:break-all">${esc(url)}</p>`;
+    failedUrl = url;
+    wc.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`).catch(() => {});
+  });
   wc.on('page-title-updated', (_event, title) => {
     if (win && !win.isDestroyed()) win.setTitle(`${title} · ${t('StarkLLM web task')}`);
   });
@@ -766,4 +783,4 @@ function stopForOffline() {
   stopCommands();
 }
 
-module.exports = { register, stopForOffline, stopCommands, shutdown, PARTITION, readSchedules, unsuitableFolder: (d) => unsuitableFolder(d), addressOf };
+module.exports = { register, stopForOffline, stopCommands, shutdown, PARTITION, readSchedules, unsuitableFolder: (d) => unsuitableFolder(d), addressOf, refreshBar: () => sendBar() };

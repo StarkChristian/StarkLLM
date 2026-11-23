@@ -1458,5 +1458,7 @@
   "Phones away from home": "Téléphones hors de chez vous",
   "A phone you allow below can also reach this PC when it is not in your home network, through the StarkLLM relay. The connection stays encrypted from the phone to this PC: the relay passes on encrypted bytes only and never sees a question, an answer or a document.": "Un téléphone que vous autorisez ci-dessous peut aussi joindre ce PC hors de votre réseau domestique, via le relais StarkLLM. La connexion reste chiffrée du téléphone jusqu’à ce PC : le relais ne transmet que des octets chiffrés et ne voit jamais une question, une réponse ou un document.",
   "Also away from home (through the relay)": "Aussi hors de chez vous (via le relais)",
-  "Result of the tool:": "Résultat de l’outil :"
+  "Result of the tool:": "Résultat de l’outil :",
+  "Blocked (this PC or home network)": "Bloqué (ce PC ou réseau domestique)",
+  "Phones away from home (StarkLLM relay)": "Téléphones hors de chez vous (relais StarkLLM)"
 }

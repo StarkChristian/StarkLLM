@@ -29,13 +29,16 @@ function featureLabel(key) {
     case 'engine_build': return t('Engine build (packages)');
     case 'ui': return t('Request of the app window');
     case 'phone_link': return t('Paired phone (incoming)');
+    case 'phone_relay': return t('Phones away from home (StarkLLM relay)');
     case 'web_task': return t('Web task (StarkLLM browser window)');
     case 'unattributed': return t('Not through the network layer');
     default: return key;
   }
 }
 
-function outcomeLabel(o) {
+function outcomeLabel(o, error) {
+  if (o === 'blocked' && error === 'local address') return t('Blocked (this PC or home network)');
+  if (o === 'blocked' && error && error !== 'offline mode') return t('Blocked');
   if (o === 'blocked') return t('Blocked (offline)');
   if (o === 'error') return t('Failed');
   return t('Sent');
@@ -186,7 +189,7 @@ export default function PrivacyPanel({ token }) {
                   <td>{e.source === 'app' ? t('App') : t('Engine')}</td>
                   <td>{bytes(e.bytes_out)}</td>
                   <td>{bytes(e.bytes_in)}</td>
-                  <td title={e.error || ''}>{outcomeLabel(e.outcome)}</td>
+                  <td title={e.error || ''}>{outcomeLabel(e.outcome, e.error)}</td>
                 </tr>
               ))}
             </tbody>

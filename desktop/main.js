@@ -90,6 +90,7 @@ function initApp() {
     i18n.setLanguage(code);
     if (tray) tray.setToolTip(t('StarkLLM — Local AI Desktop'));
     refreshTrayMenu();
+    try { require('./webtask').refreshBar(); } catch (e) { /* no browser window */ }
   });
   // Settings > About in the web UI (only the app's own page may ask)
   ipcMain.on('desktop:local-token', (event) => {

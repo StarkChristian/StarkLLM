@@ -1458,5 +1458,7 @@
   "Phones away from home": "Evden uzaktaki telefonlar",
   "A phone you allow below can also reach this PC when it is not in your home network, through the StarkLLM relay. The connection stays encrypted from the phone to this PC: the relay passes on encrypted bytes only and never sees a question, an answer or a document.": "Aşağıda izin verdiğiniz bir telefon, ev ağınızın dışındayken de StarkLLM aktarıcısı üzerinden bu bilgisayara ulaşabilir. Bağlantı telefondan bu bilgisayara kadar şifreli kalır: aktarıcı yalnızca şifreli baytları iletir ve hiçbir soruyu, yanıtı veya belgeyi görmez.",
   "Also away from home (through the relay)": "Evden uzaktayken de (aktarıcı üzerinden)",
-  "Result of the tool:": "Aracın sonucu:"
+  "Result of the tool:": "Aracın sonucu:",
+  "Blocked (this PC or home network)": "Engellendi (bu bilgisayar veya ev ağı)",
+  "Phones away from home (StarkLLM relay)": "Evden uzaktaki telefonlar (StarkLLM aktarıcısı)"
 }

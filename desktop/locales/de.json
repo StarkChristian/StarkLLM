@@ -141,5 +141,9 @@
   "Start page": "Startseite",
   "Search or enter a web address": "Suchen oder Webadresse eingeben",
   "StarkLLM is working here": "StarkLLM arbeitet hier",
-  "You have taken over": "Sie haben übernommen"
+  "You have taken over": "Sie haben übernommen",
+  "StarkLLM is fully offline: web pages are not opened.": "StarkLLM ist vollständig offline: Webseiten werden nicht geöffnet.",
+  "StarkLLM's browser does not open pages of this PC or your home network (for example your router).": "Der Browser von StarkLLM öffnet keine Seiten dieses PCs oder Ihres Heimnetzes (zum Beispiel Ihres Routers).",
+  "This page could not be opened.": "Diese Seite konnte nicht geöffnet werden.",
+  "Not opened": "Nicht geöffnet"
 }

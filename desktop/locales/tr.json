@@ -141,5 +141,9 @@
   "Start page": "Başlangıç sayfası",
   "Search or enter a web address": "Arayın veya bir web adresi girin",
   "StarkLLM is working here": "StarkLLM burada çalışıyor",
-  "You have taken over": "Kontrolü siz aldınız"
+  "You have taken over": "Kontrolü siz aldınız",
+  "StarkLLM is fully offline: web pages are not opened.": "StarkLLM tamamen çevrimdışı: web sayfaları açılmaz.",
+  "StarkLLM's browser does not open pages of this PC or your home network (for example your router).": "StarkLLM’in tarayıcısı bu bilgisayarın veya ev ağınızın sayfalarını açmaz (örneğin modeminiz).",
+  "This page could not be opened.": "Bu sayfa açılamadı.",
+  "Not opened": "Açılmadı"
 }
