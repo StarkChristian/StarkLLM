@@ -130,6 +130,22 @@ test('the window: requests to this PC pass, others are recorded, and offline the
   assert.strictEqual(g.list().filter((x) => x.outcome === 'blocked').length, 2);
 });
 
+test('a main-process request announced with wrapFetch is listed once, not again by the window session hook', async () => {
+  const g = createGuard({ dir: null });
+  const s = fakeSession();
+  g.attachSession(s);
+  const url = 'https://api.github.com/repos/StarkChristian/StarkLLM/releases/latest';
+  const fetchFn = async (u) => {
+    assert.deepStrictEqual(await ask(s, u, 40), {});   // net.fetch goes through the default session
+    return { status: 200, headers: { get: () => '10' } };
+  };
+  await g.wrapFetch(fetchFn, 'update_check', 'Check')(url);
+  assert.deepStrictEqual(g.list().map((e) => e.feature), ['update_check']);
+  // after the announced request, the same address from the window is recorded again
+  assert.deepStrictEqual(await ask(s, url, 41), {});
+  assert.strictEqual(g.list().length, 2);
+});
+
 test('the StarkLLM browser window (web tasks): its own feature, no way to this PC or the home network', async () => {
   const g = createGuard({ dir: null });
   const s = fakeSession();
