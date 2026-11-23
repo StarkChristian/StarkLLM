@@ -238,7 +238,7 @@ internal fun StatusLine(state: UiState) {
         val ok = state.hello != null
         Box(Modifier.padding(end = 6.dp).size(7.dp).clip(CircleShape).background(if (ok) Connected else MaterialTheme.colorScheme.outline))
         Text(
-            if (ok) stringResource(R.string.connected) else stringResource(R.string.not_connected),
+            if (ok) stringResource(if (state.hello?.viaRelay == true) R.string.connected_away else R.string.connected) else stringResource(R.string.not_connected),
             style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
