@@ -66,6 +66,17 @@ test('registrations of new ids have a cap per minute', async (t) => {
   later.close();
 });
 
+test('a PC that answers pings stays connected across heartbeats', async (t) => {
+  const r = await relay(t, { heartbeatMs: 150 });
+  const ws = await pc(r.port, 'H'.repeat(22), 'k'.repeat(40));
+  let closed = false;
+  ws.on('close', () => { closed = true; });
+  await new Promise((ok) => setTimeout(ok, 800));
+  assert.strictEqual(closed, false, 'the heartbeat must not close a living connection');
+  assert.strictEqual(r.stats().pcs, 1);
+  ws.close();
+});
+
 test('a damaged key file stops the relay instead of freeing every id', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'relay-'));
   fs.writeFileSync(path.join(dir, 'pcs.json'), '{"broken"');

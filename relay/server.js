@@ -50,7 +50,7 @@ function sameHash(a, b) {
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 }
 
-function createRelay({ dataDir = path.join(__dirname, 'data'), log = () => {}, now = () => Date.now() } = {}) {
+function createRelay({ dataDir = path.join(__dirname, 'data'), log = () => {}, now = () => Date.now(), heartbeatMs = 30000 } = {}) {
   fs.mkdirSync(dataDir, { recursive: true });
   const keysPath = path.join(dataDir, 'pcs.json');
   let keys = {};
@@ -152,7 +152,7 @@ function createRelay({ dataDir = path.join(__dirname, 'data'), log = () => {}, n
       ws.alive = false;
       try { ws.ping(); } catch (e) { /* closed */ }
     }
-  }, 30000);
+  }, heartbeatMs);
   beat.unref();
   server.on('close', () => clearInterval(beat));
 
@@ -168,6 +168,7 @@ function createRelay({ dataDir = path.join(__dirname, 'data'), log = () => {}, n
       authPending += 1;
       // the PC shows its secret in its first message (WebSocket clients cannot always send headers)
       return wss.handleUpgrade(req, socket, head, (ws) => {
+        wss.emit('connection', ws, req); // the heartbeat watches it (noServer mode does not emit this by itself)
         let counted = true;
         const done = () => { if (counted) { counted = false; authPending -= 1; } };
         const timer = setTimeout(() => { done(); ws.close(4401); }, 5000);
@@ -198,6 +199,7 @@ function createRelay({ dataDir = path.join(__dirname, 'data'), log = () => {}, n
           || p.waiting.size >= LIMITS.waitingPerPc || waiting.size >= LIMITS.waitingTotal) return reject('429 Too Many Requests');
       p.opened.push(t);
       return wss.handleUpgrade(req, socket, head, (phone) => {
+        wss.emit('connection', phone, req);
         const sid = crypto.randomBytes(16).toString('base64url');
         const forget = () => { if (waiting.delete(sid)) { p.waiting.delete(sid); dropIfUnused(id); } };
         const timer = setTimeout(() => { forget(); try { phone.close(4504); } catch (e) { /* closed */ } }, LIMITS.pcWaitMs);
