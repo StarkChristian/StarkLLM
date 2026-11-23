@@ -33,8 +33,13 @@ the home network first, as before.
    home"; everything else (device token, level, account, cloud models never, web search never) is as at home. Pairing is
    never possible through the relay (`pair-at-home`). Wrong tokens through the relay are counted for the relay together.
    Fully offline closes the relay connection.
-5. **Limits on the relay** (`relay/server.js`): 16 phone connections per PC, 60 new ones per minute, 200 MB per minute,
-   1 MB per message, idle connections closed after 2 minutes, a PC has 10 s to answer a phone.
+5. **Limits on the relay** (`relay/server.js`, after the independent review of 23 Nov 2026): per PC 16 phone connections,
+   8 phones waiting for the PC, 60 new connections per minute, 200 MB per minute; 2000 waiting phones in all; 30 new PC
+   ids per minute; 500 connections that have not shown their secret; 1 MB per message, 8 MB buffered for a slow
+   receiver; a stream without traffic or pings is closed after 6 minutes; a PC has 10 s to answer a phone. A phone of an
+   unknown or offline PC is refused before anything is stored; the key file is written atomically and a damaged one
+   stops the relay; a ping every 30 s finds dead connections. On the PC, wrong tokens through the relay are counted per
+   token, and a connection is marked as relayed once at its TLS handshake (`relay/limits.test.js`, `relay/e2e.test.js`).
 
 ## Direct connection (next step)
 
