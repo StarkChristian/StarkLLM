@@ -27,6 +27,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const crypto = require('crypto');
 const { backend, signtoolPath, inspect, loadAllowlist, findAllowed } = require('./signature');
 
 const AZURE_TIMESTAMP = 'http://timestamp.acs.microsoft.com';
@@ -102,9 +103,69 @@ function runOsslsigncode(mode, files) {
   return { ok: true, output: '' };
 }
 
+// ── Signatures kept for the next build (STARKLLM_SIGN_CACHE, set by release-sign.js) ──
+// Most program files of a release do not change from one build to the next (the engine's Python packages, Tesseract):
+// about 230 of the 233 signatures of a build. The signed copy of a file is kept under the SHA-256 of the unsigned file;
+// the next build puts the same signed copy in place instead of signing the same bytes again. A kept copy is used only
+// when its signature is valid now (signtool verify: certificate, timestamp), and every file is checked again after the
+// build (check-signed.js), so a wrong entry cannot reach a release. The cloud certificate counts signatures (5000 a month).
+function fileSha256(file) {
+  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+}
+
+// files -> { pending: the files still to sign, keys: file -> hash of its unsigned bytes, reused: how many got their copy }
+function reuseKept(files, dir, isValid = hasValidSignature, log = console.log) {
+  const keys = new Map();
+  if (!dir) return { pending: files, keys, reused: 0 };
+  fs.mkdirSync(dir, { recursive: true });
+  let reused = 0;
+  const pending = files.filter((f) => {
+    if (!fs.existsSync(f) || isValid(f)) return true; // already signed: kept by signFilesNow
+    const key = fileSha256(f);
+    keys.set(f, key);
+    const kept = path.join(dir, key);
+    if (!fs.existsSync(kept)) return true;
+    const tmp = `${f}.kept`;
+    fs.copyFileSync(kept, tmp);
+    if (!isValid(tmp)) { fs.rmSync(tmp, { force: true }); return true; }
+    fs.renameSync(tmp, f);
+    reused++;
+    log(`  reused kept signature: ${path.basename(f)}`);
+    return false;
+  });
+  return { pending, keys, reused };
+}
+
+// after signing: the signed copies of the files that were unsigned before, under the hash of their unsigned bytes
+function keepSigned(keys, dir, isValid = hasValidSignature) {
+  if (!dir) return 0;
+  let kept = 0;
+  for (const [f, key] of keys) {
+    const to = path.join(dir, key);
+    if (fs.existsSync(to) || !fs.existsSync(f) || !isValid(f)) continue;
+    fs.copyFileSync(f, `${to}.tmp`);
+    fs.renameSync(`${to}.tmp`, to);
+    kept++;
+  }
+  return kept;
+}
+
 // Signs the files that carry no valid signature yet, in as few signtool calls as possible (one signature per file,
-// the cloud certificate counts signatures). Returns how many files were signed now.
+// the cloud certificate counts signatures); files whose signed copy was kept from an earlier build get that copy.
+// Returns how many files were signed now.
 function signFiles(files, log = console.log) {
+  if (!process.env.STARKLLM_SIGN) return 0;
+  const dir = process.env.STARKLLM_SIGN_CACHE || '';
+  const reuse = reuseKept(files, dir, hasValidSignature, log);
+  if (reuse.reused) log(`  ${reuse.reused} signature(s) reused from earlier builds (${dir})`);
+  try {
+    return signFilesNow(reuse.pending, log);
+  } finally {
+    keepSigned(reuse.keys, dir);
+  }
+}
+
+function signFilesNow(files, log = console.log) {
   const mode = process.env.STARKLLM_SIGN;
   if (!mode) return 0;
   let pending = files;
@@ -160,6 +221,8 @@ module.exports = async function sign(configuration) {
 };
 module.exports.signFile = signFile;
 module.exports.signFiles = signFiles;
+module.exports.reuseKept = reuseKept;
+module.exports.keepSigned = keepSigned;
 module.exports.signArgs = signArgs;
 module.exports.osslsigncodeArgs = osslsigncodeArgs;
 module.exports.signaturesMade = () => signaturesMade;

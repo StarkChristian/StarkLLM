@@ -39,7 +39,7 @@ export default function PromptTemplateModal({ isOpen, onClose, token, onInsertTe
   const fetchTemplates = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/prompts', {
+      const res = await fetch('/api/v1/prompts/', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -77,7 +77,7 @@ export default function PromptTemplateModal({ isOpen, onClose, token, onInsertTe
       const payload = { title, content, tags };
       const url = editingTemplate 
         ? `/api/v1/prompts/${editingTemplate.id}`
-        : '/api/v1/prompts';
+        : '/api/v1/prompts/';
       const method = editingTemplate ? 'PUT' : 'POST';
       
       const res = await fetch(url, {
@@ -132,7 +132,7 @@ export default function PromptTemplateModal({ isOpen, onClose, token, onInsertTe
       setVariableValues(initVals);
       setView('fill');
     } else {
-      onInsertTemplate(template.content);
+      onInsertTemplate(template.content, template);
       onClose();
     }
   };
@@ -145,7 +145,7 @@ export default function PromptTemplateModal({ isOpen, onClose, token, onInsertTe
       const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
       resolved = resolved.replace(regex, variableValues[key]);
     });
-    onInsertTemplate(resolved);
+    onInsertTemplate(resolved, fillingTemplate);
     onClose();
   };
 

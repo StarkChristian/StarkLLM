@@ -130,6 +130,23 @@ test('the window: requests to this PC pass, others are recorded, and offline the
   assert.strictEqual(g.list().filter((x) => x.outcome === 'blocked').length, 2);
 });
 
+test('the StarkLLM browser window (web tasks): its own feature, no way to this PC or the home network', async () => {
+  const g = createGuard({ dir: null });
+  const s = fakeSession();
+  g.attachSession(s, { feature: 'web_task', blockLocal: true });
+  // a web page must not reach the engine, Ollama or a router
+  for (const [k, url] of ['http://127.0.0.1:8000/api/v1/documents', 'http://localhost:11434/api/tags', 'http://192.168.0.1/admin', 'http://[::1]:8000/', 'http://router.local/'].entries()) {
+    assert.deepStrictEqual(await ask(s, url, 20 + k), { cancel: true }, url);
+  }
+  assert.deepStrictEqual(await ask(s, 'https://www.wikipedia.org/', 30), {});
+  const entries = g.list();
+  assert.ok(entries.every((e) => e.feature === 'web_task'));
+  // requests to this PC are only counted (no log line per request); the home network ones are listed
+  assert.deepStrictEqual(entries.filter((e) => e.outcome === 'blocked').map((e) => e.host).sort(), ['192.168.0.1', 'router.local']);
+  g.setOffline(true);
+  assert.deepStrictEqual(await ask(s, 'https://www.wikipedia.org/', 31), { cancel: true });
+});
+
 // ---- the exit test: with the switch on, the real modules send nothing ----
 test('offline: the update check, the Ollama installer and the engine download send nothing', async () => {
   const netguard = require('../netguard');
@@ -178,6 +195,11 @@ const NETWORK_USERS = {
   'engine.js': /getShared\(\)\.wrapFetch|guard\.begin\(/,
   'native-engine.js': /guard\.begin\('engine_download'/,
   'main.js': /guard\.wrapFetch/,
+  // web tasks: the local AI model through the network layer; the window's requests through attachSession
+  'webtask.js': /getShared\(\)\.wrapFetch\(fetch, 'web_task'/,
+  // tool servers on this PC only (mcp-client.js refuses other addresses)
+  'mcp.js': /getShared\(\)\.wrapFetch\(fetch, 'mcp'/,
+  'mcp-client.js': /localUrl\(url\)/,
   // incoming only (Settings > Phone); its calls to the engine stay on 127.0.0.1
   'phonelink.js': /guard\.inbound\('phone_link'/
 };
@@ -205,7 +227,7 @@ test('code that connects to the internet announces itself to the network layer',
 
 test('every web address in the code is one that docs/privacy-network.md knows', () => {
   const known = new Set(['127.0.0.1', 'localhost', 'api.github.com', 'github.com', 'ollama.com', 'ghcr.io', 'www.docker.com', 'www.starkllm.com',
-    'registry.ollama.ai', 'registry-1.docker.io', 'pypi.org', 'deb.debian.org', 'starkllm.com']);
+    'registry.ollama.ai', 'registry-1.docker.io', 'pypi.org', 'deb.debian.org', 'starkllm.com', 'duckduckgo.com']);
   const doc = fs.readFileSync(path.join(DESKTOP, '..', 'docs', 'privacy-network.md'), 'utf8');
   const unknown = [];
   for (const [file, text] of sources) {

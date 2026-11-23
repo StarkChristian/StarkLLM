@@ -356,3 +356,6 @@
   opacity: 0.3;
   animation: pulseRing 2.5s ease-out infinite;
 }
+
+.rowWrapper { display: flex; flex-direction: column; gap: 2px; }
+.rowError { color: #f87171; font-size: 0.8rem; }

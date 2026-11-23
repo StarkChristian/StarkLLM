@@ -3,6 +3,8 @@ import { ShieldCheck, WifiOff, Download, Trash2, RefreshCw, AlertTriangle } from
 import styles from './PrivacyPanel.module.css';
 import { t } from '../i18n';
 import { readOffline, setOffline, onOfflineChange, readNetworkLog, clearNetworkLog, toCsv, download } from '../utils/privacy';
+import { webTaskBridge } from '../utils/webTask';
+import ScheduledWebTasks from './ScheduledWebTasks';
 
 // Settings > Privacy & network (roadmap phase 3, "provable privacy"): the fully offline switch and the list of every
 // outgoing connection of the app and the engine, kept on this PC. The list holds hosts, purposes and sizes, never a
@@ -27,6 +29,7 @@ function featureLabel(key) {
     case 'engine_build': return t('Engine build (packages)');
     case 'ui': return t('Request of the app window');
     case 'phone_link': return t('Paired phone (incoming)');
+    case 'web_task': return t('Web task (StarkLLM browser window)');
     case 'unattributed': return t('Not through the network layer');
     default: return key;
   }
@@ -88,6 +91,24 @@ export default function PrivacyPanel({ token }) {
     const stamp = new Date().toISOString().slice(0, 10);
     if (kind === 'csv') download(`starkllm-network-log-${stamp}.csv`, toCsv(data.entries), 'text/csv;charset=utf-8');
     else download(`starkllm-network-log-${stamp}.json`, JSON.stringify(data.entries, null, 2), 'application/json');
+  };
+  // Web tasks: the StarkLLM browser window keeps its own cookies and sign-ins; this deletes them
+  const [browserCleared, setBrowserCleared] = useState(false);
+  // the user's site rules for web tasks ("always allow" / "never"), set from the questions in the chat
+  const [siteRules, setSiteRules] = useState({});
+  useEffect(() => {
+    const bridge = webTaskBridge();
+    if (!bridge || !bridge.sites) return;
+    bridge.sites().then((r) => setSiteRules((r && r.rules) || {})).catch(() => {});
+  }, []);
+  const removeSiteRule = async (host) => {
+    const r = await webTaskBridge().setSiteRule(host, null);
+    if (r && r.rules) setSiteRules(r.rules);
+  };
+  const clearBrowser = async () => {
+    if (!window.confirm(t('Delete the cookies, sign-ins and stored pages of the StarkLLM browser window? Your own browser is not affected.'))) return;
+    const r = await webTaskBridge().clearData();
+    setBrowserCleared(Boolean(r && r.ok));
   };
   const clear = async () => {
     if (!window.confirm(t('Delete the list of connections? This does not change anything else.'))) return;
@@ -171,6 +192,34 @@ export default function PrivacyPanel({ token }) {
             </tbody>
           </table>
         </div>
+      )}
+      {webTaskBridge() && (
+        <>
+          <h3 className={styles.sub}>{t('StarkLLM browser window (web tasks)')}</h3>
+          <p className={styles.summary}>
+            {t('Web tasks run in a separate browser window with its own storage, never in your own browser. Sites you visited there may have stored cookies or a sign-in.')}
+          </p>
+          <div className={styles.toolbar}>
+            <button type="button" className={styles.btn} onClick={clearBrowser}><Trash2 size={14} /> {t('Delete its cookies and sign-ins')}</button>
+            {browserCleared && <span className={styles.muted}>{t('Deleted.')}</span>}
+          </div>
+          <p className={styles.summary}>
+            {t('Banks, payment, health and government sites: StarkLLM asks before it works there. Adult sites are blocked. Your answers "always" and "never" are listed here.')}
+          </p>
+          {Object.keys(siteRules).length === 0 ? (
+            <p className={styles.muted}>{t('No site rules yet.')}</p>
+          ) : (
+            <ul className={styles.siteRules}>
+              {Object.entries(siteRules).sort(([a], [b]) => a.localeCompare(b)).map(([host, rule]) => (
+                <li key={host}>
+                  <code>{host}</code> <span className={styles.muted}>{rule === 'allow' ? t('always allowed') : t('never')}</span>
+                  <button type="button" className={styles.btn} onClick={() => removeSiteRule(host)}>{t('Remove')}</button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <ScheduledWebTasks />
+        </>
       )}
       <p className={styles.fine}>
         <AlertTriangle size={13} /> {t('The list shows the host and the size, never the address path, a search term or a file name. It is kept on this PC only. Connections of other programs (Ollama itself, Docker, your browser) are not StarkLLM\'s: see docs/verify-privacy.md to check them with Windows tools.')}

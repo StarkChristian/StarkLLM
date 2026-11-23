@@ -23,10 +23,16 @@ import { useToast } from './components/Toast';
 import { useChatFolders } from './hooks/useChatFolders';
 import { useChatSummary } from './hooks/useChatSummary';
 import { exportChat } from './utils/chatExport';
+import { webTaskErrorText } from './utils/webTaskText';
+import { exportItems, exportTitle, saveAsWord, saveAsPdf } from './utils/exportDocs';
+import { readableSource } from './utils/sources';
+import { UI_LOCALE } from './utils/locale';
+import { mcpBridge } from './utils/mcpBridge';
 import { currentCloudHost } from './utils/cloud';
-import { isUploadable } from './utils/uploadTypes';
+import { isUploadable, isRecording } from './utils/uploadTypes';
 import { serverDate } from './utils/time';
 import { t, language } from './i18n';
+import { initialWebTask, reduceWebTask, answered as webTaskAnswered, webTaskBridge, previousWebTask, WEB_TASK_TAG } from './utils/webTask';
 
 const NO_ANSWER_TEXT = '*[The model returned no answer. Try again, raise the token limit, or choose another model.]*';
 
@@ -44,6 +50,7 @@ export default function App() {
   // Multi-chat state
   const [chats, setChats] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
+  useEffect(() => { activeChatIdRef.current = activeChatId; }, [activeChatId]);
   const [chatSearchQuery, setChatSearchQuery] = useState('');
   const chatSearchQueryRef = useRef(chatSearchQuery);
   useEffect(() => {
@@ -72,6 +79,24 @@ export default function App() {
   }, [token]);
   const [useKb, setUseKb] = useState(false);
   const [useWebSearch, setUseWebSearch] = useState(false);
+  // a second local model that answers the same question, to compare (docs/roadmap-2026-12.md, R4); '' is off
+  const [compareModel, setCompareModel] = useState('');
+  // Web tasks (docs/web-tasks.md): only in the desktop app, which has the browser window
+  const [useWebTask, setUseWebTask] = useState(false);
+  // the terminal of tasks: a project folder the user chose in the folder dialog of the desktop app
+  // the folder is kept per workspace; the terminal is on only while the user turned it on (not after a restart)
+  const [terminalFolder, setTerminalFolderState] = useState(null);
+  const [useTerminal, setUseTerminal] = useState(false);
+  const terminalFolderKey = (wsId) => `webtask_folder_${wsId || 0}`;
+  const terminalWsRef = useRef(0);
+  const setTerminalFolder = (f) => {
+    setTerminalFolderState(f);
+    if (!f) setUseTerminal(false);
+    try { const k = terminalFolderKey(terminalWsRef.current); if (f) localStorage.setItem(k, JSON.stringify(f)); else localStorage.removeItem(k); } catch (e) { /* private window */ }
+  };
+  const webTaskRunningRef = useRef(false);
+  const liveWebTaskRef = useRef(null); // the running web task: { id, chatId, user, card }
+  const activeChatIdRef = useRef(null);
   const offline = useOffline(token); // the fully offline switch (Settings > Privacy & network)
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(false);
   const [workspacesError, setWorkspacesError] = useState(null);
@@ -106,6 +131,8 @@ export default function App() {
   });
 
   const handleLogout = () => {
+    // the phones paired with this account are no longer paired (Settings > Phone, desktop app only)
+    try { const old = localStorage.getItem('token'); if (old) window.starkllmDesktop?.phoneLink?.signedOut?.(old); } catch (e) { /* not the desktop app */ }
     setToken(null);
     setUsername('');
     localStorage.removeItem('token');
@@ -157,6 +184,8 @@ export default function App() {
   useEffect(() => {
     if (token) {
       localStorage.setItem('token', token);
+      // the phone link: phones paired with this account use this session (desktop app only)
+      try { window.starkllmDesktop?.phoneLink?.setUserSession?.(token); } catch (e) { /* not the desktop app */ }
       fetchWorkspaces();
       fetchMe();
     } else {
@@ -299,7 +328,9 @@ export default function App() {
       if (!res.ok) return;
       const data = await res.json();
       setActiveChatId(data.chat_id);
-      setMessages(
+      const live = liveWebTaskRef.current;
+      const withLive = (msgs) => (live && live.chatId === data.chat_id ? [...msgs.filter(m => !m.greeting), live.user, live.card] : msgs);
+      setMessages(withLive(
         data.messages && data.messages.length > 0
           // An empty saved answer (older versions stored them) would otherwise show the "thinking" dots forever;
           // saved source chips come back in the same shape the live response headers produce.
@@ -318,8 +349,8 @@ export default function App() {
                 webSources: m.sources.web || [],
                 cloudHost: m.sources.cloud || null,
               } : m))
-          : [{ role: 'assistant', content: 'Chat loaded. How can I help you?', timestamp: new Date() }]
-      );
+          : [{ role: 'assistant', content: t('Chat loaded. How can I help you?'), timestamp: new Date(), greeting: true }]
+      ));
     } catch (err) {
       console.error('Error loading chat:', err);
     }
@@ -539,12 +570,323 @@ export default function App() {
     }
   };
 
+  // ── Web task: StarkLLM does the task on websites in its own browser window (desktop app) ──
+  const updateWebTask = (fn) => {
+    const live = liveWebTaskRef.current;
+    if (live) {
+      live.card = { ...live.card, webTask: fn(live.card.webTask) };
+      setMessages(prev => (prev.some(m => m.liveId === live.id) ? prev.map(m => (m.liveId === live.id ? { ...m, webTask: live.card.webTask } : m)) : prev));
+      return;
+    }
+    setMessages(prev => {
+      const msgs = [...prev];
+      const k = msgs.length - 1;
+      if (k < 0 || !msgs[k].webTask) return prev;
+      msgs[k] = { ...msgs[k], webTask: fn(msgs[k].webTask) };
+      return msgs;
+    });
+  };
+  // the answer text of the running web task, only on its own card (the user may be in another chat)
+  const setWebTaskContent = (content) => {
+    const live = liveWebTaskRef.current;
+    if (!live) return;
+    live.card = { ...live.card, content };
+    setMessages(prev => prev.map(m => (m.liveId === live.id ? { ...m, content } : m)));
+  };
+
+  const handleWebTaskReply = async (qid, answer) => {
+    const bridge = webTaskBridge();
+    updateWebTask(w => webTaskAnswered(w, qid));
+    if (bridge) await bridge.reply(qid, answer);
+  };
+
+  // "Save this page to the workspace": the text the StarkLLM window shows, kept as a document (no new download)
+  const handleSaveWebTaskPage = async () => {
+    const bridge = webTaskBridge();
+    if (!bridge || !activeWorkspace) return false;
+    try {
+      const page = await bridge.pageText();
+      if (!page || page.error) return false;
+      const res = await fetch(`/api/v1/documents/${activeWorkspace.id}/ingest-page`, {
+        method: 'POST',
+        headers: getHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ url: page.url, title: page.title, text: page.text }),
+      });
+      return res.ok;
+    } catch (e) {
+      console.error('Saving the page failed:', e);
+      return false;
+    }
+  };
+
+  // "Save as a reusable web task": a template with the tag web-task (Templates in the chat), kept by the engine
+  const handleSaveWebTaskTemplate = async (task) => {
+    try {
+      const res = await fetch('/api/v1/prompts/', {
+        method: 'POST',
+        headers: getHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ title: String(task).replace(/\s+/g, ' ').trim().slice(0, 60), content: task, tags: WEB_TASK_TAG }),
+      });
+      return res.ok;
+    } catch (e) {
+      console.error('Saving the web task failed:', e);
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    const wsId = activeWorkspace ? activeWorkspace.id : 0;
+    terminalWsRef.current = wsId;
+    try {
+      const f = JSON.parse(localStorage.getItem(terminalFolderKey(wsId)) || 'null');
+      setTerminalFolderState(f && f.folder ? f : null);
+    } catch (e) {
+      setTerminalFolderState(null);
+    }
+    setUseTerminal(false);
+  }, [activeWorkspace && activeWorkspace.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleChooseTerminalFolder = async () => {
+    const bridge = webTaskBridge();
+    if (!bridge || !bridge.chooseFolder) return '';
+    const r = await bridge.chooseFolder();
+    if (r && r.ok) { setTerminalFolder({ folder: r.folder, name: r.name }); setUseTerminal(true); return 'ok'; }
+    return r && r.error === 'unsuitable' ? 'unsuitable' : '';
+  };
+
+  // "Undo the file changes" of the last task with the terminal
+  const handleUndoTerminal = async (taskId) => {
+    const bridge = webTaskBridge();
+    if (!bridge || !bridge.undo) return false;
+    const r = await bridge.undo(taskId);
+    if (r && r.error === 'not-latest') return 'not-latest';
+    return Boolean(r && r.ok);
+  };
+
+  const handleWebTask = async (text) => {
+    const bridge = webTaskBridge();
+    const messagesBefore = messages;
+    let taskChatId = activeChatId;
+    if (!taskChatId && activeWorkspace) {
+      // the task gets its chat right away, so the user can leave it and come back to the running task
+      try {
+        const res = await fetch(`/api/v1/chat/sessions/${activeWorkspace.id}`, { method: 'POST', headers: getHeaders() });
+        if (res.ok) {
+          const newChat = await res.json();
+          taskChatId = newChat.id;
+          setChats(prev => [newChat, ...prev]);
+          setActiveChatId(newChat.id);
+        }
+      } catch (e) { /* the task still runs; it gets its chat when it is saved */ }
+    }
+    const live = {
+      id: `webtask-${Date.now()}`,
+      chatId: taskChatId,
+      user: { role: 'user', content: text, timestamp: new Date() },
+      card: null,
+    };
+    live.card = { role: 'assistant', content: '', timestamp: new Date(), webTask: { ...initialWebTask(text), model: currentModel }, liveId: live.id };
+    liveWebTaskRef.current = live;
+    setMessages(prev => [...prev.filter(m => !m.greeting).map(m => (m.compare ? { ...m, compare: null } : m)), live.user, live.card]);
+    const fail = (message) => {
+      updateWebTask(w => ({ ...w, status: 'error', error: message }));
+      setWebTaskContent(message);
+      liveWebTaskRef.current = null;
+    };
+    if ((localStorage.getItem('llm_provider') || 'ollama') !== 'ollama' || !currentModel) {
+      fail(t('Web tasks use a local AI model on this PC. Choose a local model (Ollama) in the model list.'));
+      return;
+    }
+    setIsGenerating(true);
+    webTaskRunningRef.current = true;
+    let state = initialWebTask();
+    let off = () => {};
+    const ended = new Promise((resolve) => {
+      off = bridge.onEvent((e) => {
+        state = reduceWebTask(state, e);
+        updateWebTask(w => reduceWebTask(w, e));
+        if (e.type === 'ended') resolve();
+      });
+    });
+    try {
+      // a follow-up continues in the same window, with the task before it and its answer
+      const r = await bridge.start({ task: text, model: currentModel, language: language(), previous: previousWebTask(messagesBefore), folder: useTerminal && terminalFolder ? terminalFolder.folder : '' });
+      if (!r || r.error) {
+        if (r && r.error === 'folder') setTerminalFolder(null);
+        const why = r && r.error === 'folder' ? t('The project folder can no longer be used. Choose it again with Terminal.')
+          : r && r.error === 'offline' ? t('StarkLLM is fully offline: web tasks are off.')
+          : r && r.error === 'busy' ? t('A web task is already running. Wait for it or stop it.')
+            : t('The web task could not start.');
+        fail(why);
+        return;
+      }
+      await ended;
+      const pageLink = /^https?:\/\/\S+$/.test(state.url || '') ? `\n\n[${String(state.title || state.url).replace(/[\[\]()<>*_`]/g, '').slice(0, 120) || state.url}](${state.url})` : '';
+      const content = state.status === 'done' ? state.answer + pageLink
+        : state.status === 'stopped' ? t('The web task was stopped.')
+          : t('The web task was not finished.') + (state.error ? ` ${webTaskErrorText(state.error)}` : '');
+      setWebTaskContent(content);
+      if (state.status === 'done' && activeWorkspace) {
+        // keep it in the chat history, with the page it came from
+        const res = await fetch('/api/v1/chat/web-task', {
+          method: 'POST',
+          headers: getHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ workspace_id: activeWorkspace.id, chat_id: taskChatId, task: text, answer: state.answer, url: state.url, title: state.title }),
+        });
+        if (res.ok) {
+          const { chat_id } = await res.json();
+          // only when the user is still on the task's chat
+          if (!taskChatId && chat_id && !activeChatIdRef.current) setActiveChatId(chat_id);
+          refreshChatList(activeWorkspace.id).catch(() => {});
+        }
+      }
+    } catch (err) {
+      fail(t('The web task could not start.'));
+      console.error('Web task error:', err);
+    } finally {
+      off();
+      liveWebTaskRef.current = null;
+      webTaskRunningRef.current = false;
+      setIsGenerating(false);
+    }
+  };
+
+  // ── A question about an image (docs/roadmap-2026-12.md, R2): a vision model of the local Ollama answers ──
+  const handleImageQuestion = async (text, file) => {
+    if (!activeWorkspace) {
+      setMessages(prev => [...prev, { role: 'assistant', content: t('Please create or select a workspace first.') }]);
+      return;
+    }
+    const question = String(text || '').trim();
+    setMessages(prev => [...prev.map(m => (m.compare ? { ...m, compare: null } : m)),
+      { role: 'user', content: question || t('Describe this image.'), image: URL.createObjectURL(file), imageName: file.name || '', imageFile: file, timestamp: new Date() },
+      { role: 'assistant', content: '', timestamp: new Date() }]);
+    const setAnswer = (content, extra = {}) => setMessages(prev => {
+      const msgs = [...prev];
+      msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content, ...extra };
+      return msgs;
+    });
+    if ((localStorage.getItem('llm_provider') || 'ollama') !== 'ollama') {
+      setAnswer(t('Questions about images use a local AI model on this PC. Choose a local model (Ollama) in the model list.'));
+      return;
+    }
+    setIsGenerating(true);
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    try {
+      const form = new FormData();
+      form.append('workspace_id', String(activeWorkspace.id));
+      if (activeChatId) form.append('chat_id', String(activeChatId));
+      form.append('message', question || t('Describe this image.'));
+      if (currentModel) form.append('model', currentModel);
+      form.append('language', language());
+      form.append('image', file, file.name || 'image.png');
+      const res = await fetch('/api/v1/chat/image', { method: 'POST', headers: getHeaders(), body: form, signal: controller.signal });
+      if (res.status === 401) { handleLogout(); return; }
+      if (res.status === 409) {
+        const j = await res.json().catch(() => ({}));
+        setAnswer(t('None of the installed AI models can see images. Install a vision model, for example {model} (about 6 GB), in the model list, then ask again.', { model: (j.detail && j.detail.suggest) || 'qwen2.5vl:7b' }));
+        return;
+      }
+      if (res.status === 400) { setAnswer(t('This image cannot be used. Use a PNG, JPEG, WebP or GIF image of up to 20 MB.')); return; }
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      const chatIdHeader = res.headers.get('X-Chat-ID');
+      if (chatIdHeader && !activeChatId) {
+        setActiveChatId(parseInt(chatIdHeader, 10));
+        refreshChatList(activeWorkspace.id).catch(() => {});
+      }
+      const used = decodeURIComponent(res.headers.get('X-Image-Model') || '');
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let full = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        full += decoder.decode(value, { stream: true });
+        setAnswer(full);
+      }
+      setAnswer(full || t('The question about the image could not be answered.'), used ? { imageModel: used } : {});
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error('Image question error:', err);
+        setAnswer(t('The question about the image could not be answered.'));
+      }
+    } finally {
+      setIsGenerating(false);
+      abortControllerRef.current = null;
+    }
+  };
+
+  // ── Two models side by side (docs/roadmap-2026-12.md, R4) ──
+  const updateCompare = (fn) => setMessages(prev => {
+    const msgs = [...prev];
+    const k = msgs.length - 1;
+    if (k < 0 || msgs[k].role !== 'assistant') return prev;
+    msgs[k] = { ...msgs[k], compare: fn(msgs[k].compare || {}) };
+    return msgs;
+  });
+
+  const runComparison = async (body, primaryModel, signal) => {
+    updateCompare(() => ({ model: body.model, primaryModel: primaryModel || '', content: '', status: 'running' }));
+    const started = performance.now();
+    try {
+      const res = await fetch('/api/v1/chat/', { method: 'POST', headers: getHeaders({ 'Content-Type': 'application/json' }), signal, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let full = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        full += decoder.decode(value, { stream: true });
+        updateCompare(c => ({ ...c, content: full }));
+      }
+      const sec = Math.max(0.1, (performance.now() - started) / 1000);
+      const tokens = Math.max(1, Math.round(full.trim().split(/\s+/).filter(Boolean).length * 1.3));
+      updateCompare(c => ({ ...c, content: full, status: full.trim() ? 'done' : 'error', timeSec: sec.toFixed(1), tokPerSec: (tokens / sec).toFixed(1) }));
+    } catch (err) {
+      updateCompare(c => ({ ...c, status: err.name === 'AbortError' ? 'stopped' : 'error' }));
+    }
+  };
+
+  // "Keep this answer": the second model's answer becomes the answer of the chat (saved by the engine)
+  const handleKeepCompared = async (index, keepSecond) => {
+    const msg = messages[index];
+    if (!msg || !msg.compare) return;
+    if (!keepSecond) {
+      setMessages(prev => prev.map((m, k) => (k === index ? { ...m, compare: null } : m)));
+      return;
+    }
+    const c = msg.compare;
+    const question = index > 0 && messages[index - 1].role === 'user' ? messages[index - 1].content : '';
+    if (!question) { toast.error(t('The answer could not be kept.')); return; }
+    try {
+      const res = await fetch(`/api/v1/chat/session/${activeChatId}/keep-answer`, {
+        method: 'POST', headers: getHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ content: c.content, question }),
+      });
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      setMessages(prev => prev.map((m, k) => (k === index ? {
+        ...m, content: c.content, compare: null, answeredBy: c.model,
+        speedStats: c.tokPerSec ? { tokPerSec: c.tokPerSec, tokens: Math.round(Number(c.tokPerSec) * Number(c.timeSec)), timeSec: c.timeSec } : m.speedStats,
+      } : m)));
+    } catch (e) {
+      console.error('Keeping the answer failed:', e);
+      toast.error(t('The answer could not be kept.'));
+    }
+  };
+
   const handleSendMessage = async (text) => {
     if (!activeWorkspace) {
       setMessages(prev => [...prev, { role: 'assistant', content: t('Please create or select a workspace first.') }]);
       return;
     }
-    setMessages(prev => [...prev, { role: 'user', content: text, timestamp: new Date() }]);
+    // a web task, or a task in the project folder (the terminal works also while StarkLLM is fully offline)
+    if (webTaskBridge() && ((useWebTask && !offline) || (useTerminal && terminalFolder))) {
+      await handleWebTask(text);
+      return;
+    }
+    // a comparison that was not decided closes with the next question ("Keep this answer" replaces the newest answer)
+    setMessages(prev => [...prev.map(m => (m.compare ? { ...m, compare: null } : m)), { role: 'user', content: text, timestamp: new Date() }]);
     setMessages(prev => [...prev, { role: 'assistant', content: '', timestamp: new Date() }]);
     setIsGenerating(true);
 
@@ -580,11 +922,16 @@ export default function App() {
           ? (savedCustomModel || currentModel || 'deepseek-chat')
           : (currentModel || undefined);
 
+        // the tools of the user's MCP servers that are turned on (desktop app)
+        let extraTools = [];
+        try { const b = mcpBridge(); if (b && savedProvider === 'ollama') { const r = await b.enabledTools(); extraTools = (r && r.tools) || []; } } catch (e) { extraTools = []; }
+
         const response = await fetch('/api/v1/chat/', {
           method: 'POST',
           headers: getHeaders({ 'Content-Type': 'application/json' }),
           signal: controller.signal,
           body: JSON.stringify({
+            extra_tools: extraTools,
             workspace_id: activeWorkspace.id,
             chat_id: activeChatId,
             message: text,
@@ -635,7 +982,13 @@ export default function App() {
 
       const webTitles = webSourcesHeader ? webSourcesHeader.split(',').filter(Boolean) : [];
       const webUrls = webSourcesUrlsHeader ? webSourcesUrlsHeader.split(',').filter(Boolean) : [];
-      const webSourcesData = webTitles.map((title, idx) => ({
+      // titles may contain commas: the JSON header keeps them whole (older engines send only the lists)
+      let webSourcesData = null;
+      try {
+        const j = JSON.parse(decodeURIComponent(response.headers.get('X-Web-Sources-Json') || ''));
+        if (Array.isArray(j)) webSourcesData = j.filter(x => x && x.title).map(x => ({ title: String(x.title), url: String(x.url || '') }));
+      } catch { webSourcesData = null; }
+      if (!webSourcesData) webSourcesData = webTitles.map((title, idx) => ({
         title,
         url: webUrls[idx] || ''
       }));
@@ -687,7 +1040,8 @@ export default function App() {
       const tokPerSec = (totalTokens / totalElapsedSec).toFixed(1);
 
       // An error message streamed by the backend is not generated text: no speed badge for it.
-      if (!fullText.trimStart().startsWith('Error generating response')) setMessages(prev => {
+      const primaryOk = !fullText.trimStart().startsWith('Error generating response');
+      if (primaryOk) setMessages(prev => {
         const msgs = [...prev];
         const prevMsg = msgs[msgs.length - 1];
         if (prevMsg && prevMsg.role === 'assistant') {
@@ -702,6 +1056,26 @@ export default function App() {
         }
         return msgs;
       });
+
+      if (primaryOk && compareModel && savedProvider === 'ollama' && compareModel !== effectiveModel) {
+        clearTimeout(timeoutId); // the second model has its own time: loading it can take minutes
+        await runComparison({
+          workspace_id: activeWorkspace.id,
+          chat_id: parseInt(response.headers.get('X-Chat-ID') || currentChatId, 10),
+          message: text,
+          model: compareModel,
+          provider: 'ollama',
+          stream: true,
+          compare: true,
+          language: language(),
+          today: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })(),
+          use_knowledge_base: useKb,
+          use_web_search: useWebSearch && !offline,
+          use_hybrid_search: localStorage.getItem('rag_hybrid_search') !== 'false',
+          use_query_rewriting: localStorage.getItem('rag_query_rewriting') !== 'false',
+          use_context_compression: localStorage.getItem('rag_context_compression') !== 'false',
+        }, effectiveModel, controller.signal);
+      }
 
     } catch (err) {
       if (isTimeout) {
@@ -769,6 +1143,11 @@ export default function App() {
   };
 
   const handleStopGeneration = () => {
+    if (webTaskRunningRef.current) {
+      const bridge = webTaskBridge();
+      if (bridge) bridge.stop();
+      return;
+    }
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -831,11 +1210,16 @@ export default function App() {
     const userMsgIndex = index - 1;
     const userMsg = messages[userMsgIndex];
     if (userMsg.role !== 'user') return;
+    if (!userMsg.imageFile && /\n\n🖼 [^\n]+$/.test(userMsg.content || '')) {
+      toast.warning(t('The image of this question is not kept. Add the image again to ask about it.'));
+      return;
+    }
     
     const success = await handleTruncateChat(userMsgIndex);
     if (!success) return;
     
     setMessages(prev => prev.slice(0, userMsgIndex));
+    if (userMsg.imageFile) { await handleImageQuestion(userMsg.content, userMsg.imageFile); return; }
     await handleSendMessage(userMsg.content);
   };
 
@@ -843,12 +1227,45 @@ export default function App() {
     const success = await handleTruncateChat(index);
     if (!success) return;
 
+    const edited = messages[index];
     setMessages(prev => prev.slice(0, index));
+    if (edited && edited.imageFile) { await handleImageQuestion(newText, edited.imageFile); return; }
     await handleSendMessage(newText);
   };
 
+  // Word and PDF (docs/roadmap-2026-12.md, R1): a whole chat, or one question with its answer
+  const exportAsDocument = async (format, title, msgs) => {
+    const items = exportItems(msgs, UI_LOCALE, serverDate, readableSource); // engine times are UTC: shown in local time like the chat
+    if (!items.length) return;
+    const args = {
+      title: exportTitle(title), items, headers: getHeaders(), lang: language(), dir: document.documentElement.dir || 'ltr',
+      words: { user: t('You'), assistant: 'StarkLLM', sources: t('Sources'), exported: t('Exported from StarkLLM') },
+      dateText: new Date().toLocaleDateString(UI_LOCALE),
+    };
+    try {
+      const ok = format === 'docx' ? await saveAsWord(args) : await saveAsPdf(args);
+      if (ok === false) toast.error(t('The export did not work.'));
+    } catch (e) {
+      console.error('Export failed:', e);
+      toast.error(t('The export did not work.'));
+    }
+  };
+
   const handleExportChat = (format = 'md') => {
+    if (format === 'docx' || format === 'pdf') {
+      const found = chats.find(c => c.id === activeChatId)?.title;
+      const title = !found ? 'StarkLLM' : found === 'New Chat' ? t('New Chat') : found;
+      return exportAsDocument(format, title, messages);
+    }
     exportChat(messages, chats, activeChatId, format);
+  };
+
+  const handleExportAnswer = (index, format) => {
+    const answer = messages[index];
+    if (!answer) return;
+    const question = index > 0 && messages[index - 1].role === 'user' ? messages[index - 1] : null;
+    const title = String((question ? question.content : answer.content) || 'StarkLLM').replace(/\s+/g, ' ').trim().slice(0, 60);
+    return exportAsDocument(format, title, question ? [question, answer] : [answer]);
   };
 
   const handleFileUpload = async (file) => {
@@ -856,6 +1273,10 @@ export default function App() {
     const formData = new FormData();
     formData.append('file', file);
     setMessages(prev => [...prev, { role: 'system', content: t('Uploading {name}…', { name: file.name }) }]);
+    if (isRecording(file.name)) {
+      // the speech model writes the recording down on this PC: that takes a while
+      setMessages(prev => [...prev, { role: 'system', content: t('Recordings (meetings, voice memos) are written down with times on this PC by a large speech model. The first recording downloads it once (about 1.6 GB). Writing down takes about as long as the recording, or less.') }]);
+    }
 
     let response;
     try {
@@ -1214,6 +1635,8 @@ export default function App() {
               onRegenerate={handleRegenerateMessage}
               onEdit={handleEditMessage}
               onExport={handleExportChat}
+              onExportAnswer={handleExportAnswer}
+              onKeepCompared={handleKeepCompared}
               onSummarize={activeChatId ? handleSummarizeChat : null}
               onRetryMessage={handleSendMessage}
               onSelectStarter={handleSendMessage}
@@ -1222,8 +1645,26 @@ export default function App() {
               onUpload={handleFileUpload}
               newestDocument={[...workspaceDocs].filter(d => d.status === 'indexed').sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0]?.filename}
               token={token}
+              webTaskActions={webTaskBridge() ? {
+                onReply: handleWebTaskReply,
+                onShowWindow: () => webTaskBridge().showWindow(),
+                onPause: () => webTaskBridge().pause(),
+                onResume: () => webTaskBridge().resume(),
+                onSavePage: handleSaveWebTaskPage,
+                onSaveTask: handleSaveWebTaskTemplate,
+                onUndo: handleUndoTerminal,
+                onSchedule: async (task, rule) => {
+                  const b = webTaskBridge();
+                  if (!b || !b.schedules) return false;
+                  const r = await b.schedules.add({ task, rule, model: currentModel, language: language(), workspaceId: activeWorkspace && activeWorkspace.id });
+                  return Boolean(r && r.ok);
+                },
+              } : null}
             />
             <InputBar 
+              onSendImage={handleImageQuestion}
+              compareModel={compareModel}
+              onSetCompareModel={setCompareModel}
               onSendMessage={handleSendMessage} 
               onFileUpload={handleFileUpload}
               useKb={useKb}
@@ -1231,6 +1672,14 @@ export default function App() {
               useWebSearch={useWebSearch && !offline}
               offline={offline}
               onToggleWebSearch={() => setUseWebSearch(!useWebSearch)}
+              webTaskAvailable={Boolean(webTaskBridge())}
+              useWebTask={useWebTask && !offline}
+              onToggleWebTask={() => setUseWebTask(!useWebTask)}
+              terminalFolder={webTaskBridge() ? terminalFolder : null}
+              useTerminal={useTerminal}
+              onToggleTerminal={() => setUseTerminal(!useTerminal)}
+              onChooseTerminalFolder={handleChooseTerminalFolder}
+              onClearTerminalFolder={() => setTerminalFolder(null)}
               cloudHost={currentCloudHost()}
               onOpenSettings={() => setActiveView('settings')}
               isGenerating={isGenerating}

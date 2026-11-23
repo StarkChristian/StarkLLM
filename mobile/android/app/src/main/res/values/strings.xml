@@ -34,7 +34,7 @@
     <string name="error_unpaired">This phone is no longer paired with the PC. Pair it again.</string>
     <string name="error_pc_offline">StarkLLM on the PC is fully offline, so it does not accept the phone right now.</string>
     <string name="error_server">StarkLLM on the PC could not do this. Try again in a moment.</string>
-    <string name="several_accounts">StarkLLM on this PC has several accounts. Signing in from the phone comes in a later version.</string>
+    <string name="several_accounts">StarkLLM on the PC has no signed-in account for this phone. Open StarkLLM on the PC and sign in. If the PC has several accounts, pair this phone again while your account is signed in on the PC.</string>
     <string name="workspaces">Workspaces</string>
     <string name="no_workspaces">No workspaces yet. Create one in StarkLLM on your PC.</string>
     <string name="new_chat">New chat</string>

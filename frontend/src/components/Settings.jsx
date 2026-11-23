@@ -12,6 +12,7 @@ import { AVAILABLE_THEMES, applyTheme, themeText } from '../utils/themes';
 import { UPLOAD_EXTENSIONS } from '../utils/uploadTypes';
 import OtherAppsPanel from './OtherAppsPanel';
 import PrivacyPanel from './PrivacyPanel';
+import McpServers from './McpServers';
 import PhoneSettings, { hasPhoneLink } from './PhoneSettings';
 import { t, language, setLanguage } from '../i18n';
 import { languageName } from '../i18n/locales';
@@ -1021,6 +1022,7 @@ print(response.choices[0].message.content)`;
               <div className={styles.infoBox} style={{ marginTop: '1.2rem' }}>
                 <strong>{t('Zero-Cloud Guarantee:')}</strong> {t('Tool execution runs 100% on your local machine. No external MCP registry is contacted, and every tool call requires manual user confirmation before running.')}
               </div>
+              <McpServers />
             </div>
           )}
 

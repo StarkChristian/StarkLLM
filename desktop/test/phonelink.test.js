@@ -511,3 +511,62 @@ test('a device without a pairing is listed as refused, once per ten minutes', as
   assert.strictEqual(refused.length, 1);
   assert.strictEqual(refused[0].error, 'not paired');
 });
+
+// ---- several accounts on one PC (owner, 22 Nov 2026)
+
+test('a phone belongs to the account signed in on the PC when it paired, and uses only that session', async (t) => {
+  const sessions = new Map([['anna', 'ANNA-SESSION'], ['ben', 'BEN-SESSION']]);
+  const expired = [];
+  const s = await setup(t, { link: { sessionFor: (u) => sessions.get(u) || null, sessionExpired: (u) => expired.push(u) } });
+  s.api.token = null; // several accounts: no local user's session
+  await s.link.setEnabled(true);
+  const q = new URL(s.link.startPairing({ user: 'anna' }).uri).searchParams;
+  const port = s.link.status().port;
+  const r = await request(port, { method: 'POST', path: '/phone/v1/pair', body: { code: q.get('c'), name: 'Phone A' }, pin: q.get('f') });
+  assert.strictEqual(r.status, 200);
+  assert.strictEqual(s.link.status().devices[0].user, 'anna');
+  const headers = { [DEVICE_HEADER]: r.json.token };
+  const hello = await request(port, { path: '/phone/v1/hello', headers, pin: q.get('f') });
+  assert.strictEqual(hello.json.signed_in, true);
+  await request(port, { path: '/api/v1/workspaces/', headers, pin: q.get('f') });
+  assert.strictEqual(s.engine.seen.at(-1).headers.authorization, 'Bearer ANNA-SESSION');
+  // the account is no longer signed in on the PC: no other account's session is used
+  sessions.delete('anna');
+  const later = await request(port, { path: '/phone/v1/hello', headers, pin: q.get('f') });
+  assert.strictEqual(later.json.signed_in, false);
+});
+
+test('a phone paired without an account uses the local user, as before', async (t) => {
+  const s = await paired(t);
+  const hello = await request(s.port, { path: '/phone/v1/hello', headers: { [DEVICE_HEADER]: s.token }, pin: s.pin });
+  assert.strictEqual(hello.json.signed_in, true);
+  assert.strictEqual(s.link.status().devices[0].user, '');
+});
+
+test('a phone keeps its own sealed session after a restart, and loses its pairing when its account signs out', async (t) => {
+  const seal = (x) => Buffer.from(`sealed:${x}`).toString('base64');
+  const unseal = (x) => Buffer.from(x, 'base64').toString().replace(/^sealed:/, '');
+  const s = await setup(t, { link: { seal, unseal } });
+  s.api.token = null;
+  await s.link.setEnabled(true);
+  const q = new URL(s.link.startPairing({ user: 'anna', session: 'ANNA-PHONE-SESSION' }).uri).searchParams;
+  const port = s.link.status().port;
+  const r = await request(port, { method: 'POST', path: '/phone/v1/pair', body: { code: q.get('c'), name: 'Phone A' }, pin: q.get('f') });
+  assert.strictEqual(r.status, 200);
+  const saved = fs.readFileSync(path.join(s.dir, 'phone-link.json'), 'utf8');
+  assert.ok(!saved.includes('ANNA-PHONE-SESSION'), 'the session is not in the file as plain text');
+  s.link.stop();
+  const again = s.make();
+  t.after(() => again.stop());
+  await again.setEnabled(true);
+  const port2 = again.status().port;
+  const headers = { [DEVICE_HEADER]: r.json.token };
+  const hello = await request(port2, { path: '/phone/v1/hello', headers, pin: q.get('f') });
+  assert.strictEqual(hello.json.signed_in, true);
+  await request(port2, { path: '/api/v1/workspaces/', headers, pin: q.get('f') });
+  assert.strictEqual(s.engine.seen.at(-1).headers.authorization, 'Bearer ANNA-PHONE-SESSION');
+  again.removeDevicesOf('anna');
+  assert.strictEqual(again.status().devices.length, 0);
+  const gone = await request(port2, { path: '/phone/v1/hello', headers, pin: q.get('f') });
+  assert.strictEqual(gone.status, 401);
+});

@@ -298,7 +298,7 @@ export default function Sidebar({
               <div className={styles.chatInfo}>
                 <span className={styles.chatName}>
                   {chat.is_pinned && <Pin size={10} className={styles.pinnedIcon} />}
-                  {chat.title || t('Untitled')}
+                  {!chat.title ? t('Untitled') : chat.title === 'New Chat' ? t('New Chat') : chat.title}
                 </span>
                 <div className={styles.chatMeta}>
                   {chat.content_match && chatSearchQuery.trim() && (

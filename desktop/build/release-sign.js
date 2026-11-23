@@ -85,6 +85,13 @@ async function main() {
   fs.mkdirSync(o.work, { recursive: true });
   fs.writeFileSync(countFile, '');
   process.env.STARKLLM_SIGN_COUNT_FILE = countFile;
+  // signed copies of unchanged files are reused by the next build (sign.js): STARKLLM_SIGN_CACHE=off turns it off
+  if (process.env.STARKLLM_SIGN_CACHE === 'off') delete process.env.STARKLLM_SIGN_CACHE;
+  else if (!process.env.STARKLLM_SIGN_CACHE) {
+    // one folder per certificate: copies signed with a test certificate never meet the release certificate
+    const who = (process.env.STARKLLM_CERT_SHA1 || process.env.STARKLLM_CERT_SUBJECT || process.env.STARKLLM_SIGN_PFX || 'default').replace(/[^\w.-]+/g, '_').slice(0, 80);
+    process.env.STARKLLM_SIGN_CACHE = path.join(require('os').homedir(), '.starkllm-signed-files', `${process.env.STARKLLM_SIGN || 'none'}-${who}`);
+  }
   if (names.length && fs.existsSync(updateYml)) {
     // app-update.yml is written by electron-builder from package.json: an app folder built before publisherName was set has none
     const have = [].concat(require('js-yaml').load(fs.readFileSync(updateYml, 'utf8')).publisherName || []);

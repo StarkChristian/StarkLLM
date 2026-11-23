@@ -189,6 +189,9 @@ async def upload_document(
 
     # Validate file extension
     ALLOWED_EXTENSIONS = {'pdf', 'txt', 'png', 'jpg', 'jpeg', 'webp', 'tif', 'tiff', 'md', 'markdown', 'csv', 'docx', 'xlsx', 'epub', 'pptx', 'html', 'json', 'xml', 'log'}
+    # recordings (meetings, voice memos): written down with times by the speech model on this PC (R3)
+    from app.services.recordings import RECORDING_EXTENSIONS, MAX_BYTES as RECORDING_MAX_BYTES
+    ALLOWED_EXTENSIONS = ALLOWED_EXTENSIONS | {e.lstrip('.') for e in RECORDING_EXTENSIONS}
     ext = (file.filename.rsplit('.', 1)[-1] if '.' in file.filename else '').lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
@@ -218,15 +221,16 @@ async def upload_document(
         logger.error(f"Failed to save uploaded file '{file.filename}': {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to save file to disk: {str(e)[:200]}")
 
-    # Validate file size after saving (100MB limit)
-    MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB
+    # Validate file size after saving (100 MB; recordings 500 MB)
+    is_recording = f".{ext}" in RECORDING_EXTENSIONS
+    MAX_FILE_SIZE = RECORDING_MAX_BYTES if is_recording else 100 * 1024 * 1024
     actual_size = vault.size(file_path)
     if actual_size > MAX_FILE_SIZE:
         os.remove(file_path)
         size_mb = actual_size / (1024 * 1024)
         raise HTTPException(
             status_code=413,
-            detail=f"File too large ({size_mb:.1f} MB). Maximum allowed size is 100 MB."
+            detail=f"File too large ({size_mb:.1f} MB). Maximum allowed size is {MAX_FILE_SIZE // (1024 * 1024)} MB."
         )
     if actual_size == 0:
         os.remove(file_path)
@@ -384,6 +388,79 @@ async def ingest_url(
         "created_at": doc.created_at.isoformat() if doc.created_at else None,
         "file_size": actual_size,
         "source_url": target_url
+    }
+
+
+class IngestPageRequest(BaseModel):
+    url: str
+    title: str = ""
+    text: str
+
+
+@router.post("/{workspace_id}/ingest-page")
+async def ingest_page(
+    workspace_id: int,
+    req: IngestPageRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    Keep a page of a web task (docs/web-tasks.md) as a document of the workspace: the text that StarkLLM's browser
+    window shows, sent by the desktop app. Unlike ingest-url the engine fetches nothing: no connection, and the page
+    is the one the user saw (after a search or a sign-in), not a fresh copy.
+    """
+    ws = db.query(models.Workspace).filter(
+        models.Workspace.id == workspace_id,
+        models.Workspace.user_id == current_user.id
+    ).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    target_url = req.url.strip()
+    if not re.match(r"^https?://\S+$", target_url) or len(target_url) > 2000:
+        raise HTTPException(status_code=400, detail="Invalid URL. Must begin with http:// or https://")
+    clean_text = (req.text or "").strip()[:500000]
+    if len(clean_text) < 30:
+        raise HTTPException(status_code=400, detail="The page contains no text to keep.")
+
+    import hashlib
+    import time
+    from urllib.parse import urlparse
+
+    page_title = re.sub(r'[\\/*?:"<>|\r\n\t]', "", (req.title or "").strip())[:60] or urlparse(target_url).netloc[:60]
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+    unique_prefix = hashlib.md5(f"{workspace_id}_{time.time()}".encode()).hexdigest()[:8]
+    safe_filename = f"{page_title or 'webpage'}.md"
+    file_disk_name = _disk_name(unique_prefix, safe_filename)
+    file_path = os.path.join(settings.UPLOAD_DIR, file_disk_name)
+    markdown_content = f"# {page_title}\n\n**Source URL:** {target_url}\n\n---\n\n{clean_text}"
+    vault.write_text(file_path, markdown_content)
+    actual_size = vault.size(file_path)
+
+    doc = models.Document(
+        workspace_id=workspace_id,
+        filename=safe_filename,
+        filepath=file_path,
+        file_type="md",
+        status=DocStatus.UPLOADING,
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+
+    thread = threading.Thread(
+        target=_index_document_background,
+        args=(doc.id, workspace_id, current_user.id, file_path),
+        daemon=True,
+    )
+    thread.start()
+
+    return {
+        "id": doc.id,
+        "filename": doc.filename,
+        "status": doc.status,
+        "file_size": actual_size,
+        "source_url": target_url,
     }
 
 
@@ -1078,6 +1155,9 @@ async def get_document_file(
         "webp": "image/webp",
         "html": "text/plain; charset=utf-8",  # never rendered as a page from this origin
         "csv": "text/csv; charset=utf-8",
+        # recordings play in the document viewer
+        "mp3": "audio/mpeg", "m4a": "audio/mp4", "aac": "audio/aac", "wav": "audio/wav", "ogg": "audio/ogg", "oga": "audio/ogg",
+        "opus": "audio/ogg", "flac": "audio/flac", "webm": "audio/webm", "mp4": "video/mp4", "mov": "video/quicktime",
     }
     media_type = media_map.get(ext, "application/octet-stream")
     return vault.file_response(doc.filepath, media_type, doc.filename)
@@ -1192,7 +1272,13 @@ async def get_document_content(
         "pages": pages,
         "full_text": full_text,
         "is_image": ext in PICTURE_FILE_TYPES,
+        "is_recording": f".{ext}" in _recording_extensions(),
     }
+
+
+def _recording_extensions():
+    from app.services.recordings import RECORDING_EXTENSIONS
+    return RECORDING_EXTENSIONS
 
 
 @router.get("/{workspace_id}/documents/lookup")

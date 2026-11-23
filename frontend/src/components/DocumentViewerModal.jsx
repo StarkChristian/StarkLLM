@@ -35,9 +35,9 @@ export default function DocumentViewerModal({
   const markRef = useRef(null);
   useEscape(onClose, isOpen);
 
-  // The original photo, loaded with the login token (a plain <img src> would not send it)
+  // The original photo or recording, loaded with the login token (a plain <img src> would not send it)
   useEffect(() => {
-    if (!docData?.is_image || !docData?.id) return undefined;
+    if (!(docData?.is_image || docData?.is_recording) || !docData?.id) return undefined;
     let url = null;
     let alive = true;
     fetch(`/api/v1/documents/${workspaceId}/documents/${docData.id}/file`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
@@ -236,7 +236,11 @@ export default function DocumentViewerModal({
             </div>
           ) : (
             <div>
-              {imageUrl && currentPage === 1 && (
+              {imageUrl && docData?.is_recording && currentPage === 1 && (
+                // a recording: play it while reading what was said (the times in the text are positions in it)
+                <audio className={styles.audio} controls preload="metadata" src={imageUrl} />
+              )}
+              {imageUrl && !docData?.is_recording && currentPage === 1 && (
                 <img
                   className={styles.image}
                   src={imageUrl}

@@ -182,7 +182,26 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
 
   if (!isOpen) return null;
 
+  // the catalog of the engine (llm_service.RECOMMENDED) describes its models in English
+  const modelDescription = (m) => ({
+    'llama3.2:3b': t('Meta’s compact model for fast chat, e-mails and light work with local documents.'),
+    'deepseek-r1:8b': t('An open reasoning model, strong in mathematics, logic and analysis.'),
+    'qwen2.5-coder:7b': t('A local model for programming, with Python, JavaScript, Go, Rust and more.'),
+    'mistral:7b': t('A popular Mistral model that understands long texts and works well with the knowledge base.'),
+    'phi3.5:mini': t('A small Microsoft model with good reasoning and writing, and fast answers.'),
+    'nomic-embed-text:latest': t('The model that turns document passages into vectors for the search of the knowledge base.'),
+  }[m.name] || m.description);
+  const modelTagline = (m) => ({
+    'llama3.2:3b': t('Very fast and light, for every computer'),
+    'deepseek-r1:8b': t('Careful reasoning, step by step'),
+    'qwen2.5-coder:7b': t('Writing, fixing and explaining code'),
+    'mistral:7b': t('Steady and precise, good with documents'),
+    'phi3.5:mini': t('Small and efficient, from Microsoft'),
+    'nomic-embed-text:latest': t('Precise search of your documents'),
+  }[m.name] || m.tagline);
   const categories = ['All', 'General / Fast', 'Reasoning / Math', 'Coding', 'General / RAG', 'Compact', 'Embedding'];
+  const categoryLabel = (c) => ({ All: t('All'), 'General / Fast': t('General / Fast'), 'Reasoning / Math': t('Reasoning / Math'), Coding: t('Coding'),
+    'General / RAG': t('General / documents'), Compact: t('Compact'), Embedding: t('Embedding') }[c] || c);
 
   const filteredCatalog = activeCategory === 'All' 
     ? catalog 
@@ -292,7 +311,7 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
                     className={`${styles.catBtn} ${activeCategory === cat ? styles.catBtnActive : ''}`}
                     onClick={() => setActiveCategory(cat)}
                   >
-                    {cat}
+                    {categoryLabel(cat)}
                   </button>
                 ))}
               </div>
@@ -310,8 +329,8 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
                           </span>
                         )}
                       </div>
-                      <div className={styles.tagline}>{model.tagline}</div>
-                      <p className={styles.description}>{model.description}</p>
+                      <div className={styles.tagline}>{modelTagline(model)}</div>
+                      <p className={styles.description}>{modelDescription(model)}</p>
                       
                       <div className={styles.metaRow}>
                         <span className={styles.metaBadge}>

@@ -1,0 +1,29 @@
+Ask your documents from your phone. The phone asks, your PC answers: documents, the search index and the AI model stay on your Windows PC.
+
+This app is the phone companion of StarkLLM, the free private document assistant for Windows. It needs StarkLLM 2.4.0 or later on your PC: www.starkllm.com
+
+HOW IT WORKS
+• Turn it on at the PC: In StarkLLM on your Windows PC, open Settings > Phone and turn the phone link on. It is off by default.
+• Pair with a QR code: Choose "Show QR code" on the PC and scan it once with the app. You can pair several PCs, for example at home and in the office.
+• Home network only: The phone reaches the PC only in your home network. The connection is encrypted with the PC's own certificate, which the phone pins, so nobody else in the network can pose as your PC.
+
+WHAT THE APP DOES
+• Ask about your documents: Questions go to StarkLLM on your PC; the answer streams in, with the documents it used.
+• Send letters and files: Take a photo of a letter, pick photos or files (PDF, EPUB, Word, PowerPoint, text, images) or use "Share" in other apps. The PC reads them, also the text in photos; photos are deleted on the phone after sending.
+• Dictation: Hold the microphone button. The speech model on your PC turns it into text, not an online service.
+• Deadlines: Overdue, today, this week and later, as on the PC. Optional reminders check the PC while the phone is at home, and a home-screen widget shows the next three.
+• Three levels per phone: On the PC you choose what each phone may do: ask only; also send documents; also start a backup now and switch StarkLLM fully offline, each confirmed with your fingerprint on the phone.
+• App lock, themes, languages: App lock with your fingerprint, 13 themes, and the six languages of StarkLLM: English, German, Spanish, French, Italian and Turkish.
+
+YOUR DOCUMENTS STAY ON YOUR PC
+• Documents, the search index and the AI model stay on the PC. The phone keeps only what it shows (the chat list, the open chat, the next deadlines) and its settings.
+• No account, no cloud, no push service, no analytics.
+• A question from the phone never goes online: no web search and no cloud models.
+
+REQUIREMENTS
+• Phone: Android 10 or later
+• PC: StarkLLM 2.4.0 or later on Windows 10 or 11
+• Network: Phone and PC in the same home network
+Not in this first version: access away from home, an app for iPhone, and signing in from the phone when StarkLLM on the PC has several accounts.
+
+Free and open source. No account, no ads, no in-app purchases.

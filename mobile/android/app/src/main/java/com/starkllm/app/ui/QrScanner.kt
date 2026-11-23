@@ -4,6 +4,9 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
+import android.util.Size
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.runtime.Composable
@@ -52,8 +55,16 @@ fun QrScanner(onCode: (String) -> Unit, onError: () -> Unit, modifier: Modifier 
                         else -> throw IllegalStateException("no camera")
                     }
                     val preview = Preview.Builder().build().also { it.setSurfaceProvider(view.surfaceProvider) }
+                    // 1280x720 frames: the default 640x480 made the dense pairing code readable only from one distance
                     val analysis = ImageAnalysis.Builder()
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .setResolutionSelector(
+                            ResolutionSelector.Builder()
+                                .setResolutionStrategy(
+                                    ResolutionStrategy(Size(1280, 720), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER),
+                                )
+                                .build(),
+                        )
                         .build()
                     val reader = QRCodeReader()
                     analysis.setAnalyzer(analyzer) { image ->
@@ -95,12 +106,20 @@ private fun decode(image: ImageProxy, reader: QRCodeReader): String? {
     val plane = image.planes[0]
     val buffer = plane.buffer
     val data = ByteArray(buffer.remaining()).also { buffer.get(it) }
-    val source = PlanarYUVLuminanceSource(data, plane.rowStride, image.height, 0, 0, image.width, image.height, false)
-    return try {
-        reader.decode(BinaryBitmap(HybridBinarizer(source)), HINTS).text
-    } catch (e: ReaderException) {
-        null
-    } finally {
-        reader.reset()
+    val w = image.width
+    val h = image.height
+    // the whole frame first, then its middle square (where the user points the phone; the code fills more of it)
+    val side = minOf(w, h) * 3 / 4
+    val areas = listOf(intArrayOf(0, 0, w, h), intArrayOf((w - side) / 2, (h - side) / 2, side, side))
+    for (a in areas) {
+        val source = PlanarYUVLuminanceSource(data, plane.rowStride, h, a[0], a[1], a[2], a[3], false)
+        try {
+            return reader.decode(BinaryBitmap(HybridBinarizer(source)), HINTS).text
+        } catch (e: ReaderException) {
+            // not found in this part: try the next one
+        } finally {
+            reader.reset()
+        }
     }
+    return null
 }

@@ -16,10 +16,13 @@ const { autoUpdater } = require('electron-updater');
 const i18n = require('./i18n');
 const { t } = i18n;
 const { initShared } = require('./netguard');
+const webtask = require('./webtask');
 const { askOfflineChoice } = require('./offline-choice');
 const { desktopKey, setEngineOffline, switchOffline } = require('./engine-offline');
 const { createPhoneLink } = require('./phonelink');
 const { qrMatrix } = require('./qr');
+const exportPdf = require('./export-pdf');
+const mcp = require('./mcp');
 
 let mainWindow = null;
 let tray = null;
@@ -106,6 +109,10 @@ function initApp() {
   });
   // Settings > Privacy: the fully offline switch and the list of connections of the app (only the app's own page may ask)
   const fromApp = (event) => Boolean(event.senderFrame && sameOrigin(event.senderFrame.url, APP_URL));
+  exportPdf.register(ipcMain, { fromApp }); // chats and answers as PDF (docs/roadmap-2026-12.md, R1)
+  // tool servers (MCP) the user added: started by the desktop app, each call after a yes in the chat (docs/roadmap-2026-12.md, R6)
+  mcp.register(ipcMain, { fromApp, offline: () => require('./netguard').getShared().isOffline(), log: logLine });
+  app.on('will-quit', () => mcp.stopAll());
   const privacyState = () => ({ offline: guard.isOffline(), localCounts: guard.localCounts() });
   ipcMain.handle('privacy:get', (event) => (fromApp(event) ? privacyState() : { error: 'not allowed' }));
   // sets the app and the engine (engine-offline.js); the answer says what the engine did
@@ -121,6 +128,8 @@ function initApp() {
     return { ok: true };
   });
   registerPhoneLinkHandlers();
+  webtask.register(ipcMain, { fromApp, log: logLine });
+  app.on("will-quit", () => webtask.stopCommands()); // commands of a web task end with StarkLLM
   registerProtectionHandlers();
   registerUnlockHandlers();
   lockEngineOnQuit();
@@ -176,6 +185,8 @@ function createMainWindow() {
       spellcheck: true
     }
   });
+  // a scheduled web task runs in a hidden window: it ends with the main window, so StarkLLM does not stay open unseen
+  mainWindow.on('closed', () => webtask.shutdown());
 
   // Load splash screen first
   splashShownAt = Date.now();
@@ -292,6 +303,48 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // Single user on this PC: the backend signs in a "local" user when it gets the key derived from the engine's
 // SECRET_KEY (see backend/app/api/auth.py, desktop-session). Refused (409) once other accounts exist.
 let localToken = null;
+// The phone link: the session of each account signed in in this window (account -> session), in memory only. A phone
+// paired while an account was signed in here uses that account (Settings > Phone; several accounts on one PC).
+const phoneSessions = new Map();
+
+async function accountOf(token) {
+  if (!token) return '';
+  try {
+    const res = await guard.wrapFetch((u, o) => net.fetch(u, o), 'local_engine', 'Which account is signed in, for the phone link')(`${apiUrl()}/api/v1/auth/me`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return '';
+    const me = await res.json();
+    return typeof me.username === 'string' ? me.username : '';
+  } catch (e) {
+    return '';
+  }
+}
+
+async function keepPhoneSession(token) {
+  const user = await accountOf(String(token || ''));
+  if (user) phoneSessions.set(user, String(token));
+  return user;
+}
+
+// a long session for a phone of this account (it outlives restarts; a new password or signing out here ends it)
+async function phoneSessionFor(token) {
+  try {
+    const res = await guard.wrapFetch((u, o) => net.fetch(u, o), 'local_engine', 'A session for a paired phone')(`${apiUrl()}/api/v1/auth/phone-session`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'X-Desktop-Key': desktopKey(engineSecret()) }, signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return '';
+    return (await res.json()).access_token || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+// Windows encryption for the phones' sessions; asked when used (before Electron is ready it says "not available")
+function phoneSealAvailable() {
+  try {
+    return Boolean(safeStorage && safeStorage.isEncryptionAvailable && safeStorage.isEncryptionAvailable())
+      && !(typeof safeStorage.getSelectedStorageBackend === 'function' && safeStorage.getSelectedStorageBackend() === 'basic_text');
+  } catch (e) {
+    return false;
+  }
+}
 
 async function fetchLocalSession() {
   try {
@@ -467,6 +520,13 @@ function phone() {
       guard,
       getApi: () => ({ url: apiUrl(), token: localToken }),
       refreshToken: fetchLocalSession,
+      sessionFor: (user) => phoneSessions.get(user) || null,
+      sessionExpired: (user) => phoneSessions.delete(user),
+      seal: (text) => {
+        if (!phoneSealAvailable()) throw new Error('Windows encryption is not available');
+        return safeStorage.encryptString(text).toString('base64');
+      },
+      unseal: (data) => safeStorage.decryptString(Buffer.from(data, 'base64')),
       log: logLine,
       version: app.getVersion(),
       onChange: () => {
@@ -507,8 +567,19 @@ function registerPhoneLinkHandlers() {
   };
   ipcMain.handle('phone:status', allowed(() => phone().status()));
   ipcMain.handle('phone:enable', allowed((on) => phone().setEnabled(Boolean(on))));
-  ipcMain.handle('phone:pair', allowed(() => {
-    const p = phone().startPairing();
+  ipcMain.handle('phone:user-session', allowed(async (token) => ({ ok: Boolean(await keepPhoneSession(token)) })));
+  // signing out in the window: the phones of that account are no longer paired
+  ipcMain.handle('phone:signed-out', allowed(async (token) => {
+    const user = await accountOf(String(token || ''));
+    if (!user) return { ok: false };
+    phoneSessions.delete(user);
+    phone().removeDevicesOf(user);
+    return { ok: true };
+  }));
+  ipcMain.handle('phone:pair', allowed(async (token) => {
+    const user = await keepPhoneSession(token);
+    const session = user ? await phoneSessionFor(String(token)) : '';
+    const p = phone().startPairing({ user, session });
     return p.error ? p : { ...p, qr: qrMatrix(p.uri) };
   }));
   ipcMain.handle('phone:cancel-pair', allowed(() => phone().cancelPairing()));
@@ -591,6 +662,8 @@ function createTray() {
 // The switch lives in the app and in the engine; Settings and the tray menu set both (engine-offline.js: "offline"
 // wins, and the engine accepts the desktop app with the key derived from its SECRET_KEY, whoever is signed in).
 async function switchAppAndEngineOffline(on, from) {
+  if (on) webtask.stopForOffline(); // a web task that runs ends with the switch
+  if (on) mcp.stopAll(); // tool servers end with the offline switch
   const setEngine = (value) => setEngineOffline({
     fetchFn: guard.wrapFetch((u, o) => net.fetch(u, o), 'local_engine', 'Fully offline switch of the engine on this PC'),
     apiUrl: apiUrl(), key: desktopKey(engineSecret()), on: value

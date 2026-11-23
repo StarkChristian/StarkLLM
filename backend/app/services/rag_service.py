@@ -15,6 +15,7 @@ from app .services .llm_service import llm_service
 from app .services import vault 
 from app .services .protected_collection import wrap as protect_collection 
 from app .services .vision_service import vision_service 
+from app.services.recordings import RECORDING_EXTENSIONS, stamp
 from app .services .ocr_service import ocr_service ,PICTURE_EXTENSIONS 
 from app .services import untrusted 
 try :
@@ -499,6 +500,21 @@ class RAGService :
                                 "locator": f"Slide {slide['number']}",
                             })
                             ids.append(f"{prefix}_{basename}_s{slide['number']}_c{i}")
+
+            # ---------------------------------------------------------------- recordings (docs/roadmap-2026-12.md, R3)
+            elif file_ext in RECORDING_EXTENSIONS:
+                from app.services.recordings import transcribe
+                heard = transcribe(read_path)
+                for idx, part in enumerate(heard["passages"]):
+                    chunks.append(part["text"])
+                    metadatas.append({
+                        "source": file_path,
+                        "type": "recording",
+                        "chunk": idx + 1,
+                        "start": round(part["start"], 1),
+                        "locator": f"Time {stamp(part['start'])}",
+                    })
+                    ids.append(f"{prefix}_{basename}_t{idx}")
 
             # ---------------------------------------------------------------- XLSX
             elif file_ext == ".xlsx":

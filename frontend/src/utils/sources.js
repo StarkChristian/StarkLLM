@@ -19,6 +19,7 @@ export function readableLocator(locator) {
   if ((p = rest.match(/^Page (\d+)$/))) where = t('Page {page}', { page: p[1] });
   else if (rest === 'Image') where = t('Photo');
   else if ((p = rest.match(/^Chunk (\d+)$/))) where = t('Part {part}', { part: p[1] });
+  else if ((p = rest.match(/^Time (\d{2}:\d{2}:\d{2})$/))) where = t('at {time}', { time: p[1] });
   else if ((p = rest.match(/^Sheet '(.+)' \(chunk (\d+)\)$/))) where = t('Sheet "{sheet}"', { sheet: p[1] });
   else if ((p = rest.match(/^Section: '(.+)'(?: \(chunk \d+\)| Chunk \d+)?$/))) where = t('Section "{section}"', { section: p[1] });
   return how ? `${where}, ${how}` : where;
