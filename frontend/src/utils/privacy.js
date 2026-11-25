@@ -89,7 +89,8 @@ export function onOfflineChange(cb) {
   return () => window.removeEventListener(OFFLINE_EVENT, handler);
 }
 
-export async function readNetworkLog(token, limit = 500) {
+// the desktop keeps the last 3000 app rows; one web task alone can make about 300 (MSI 42), so all of them are shown
+export async function readNetworkLog(token, limit = 3000) {
   let engine = [];
   let status = null;
   let features = {};
