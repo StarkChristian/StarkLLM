@@ -172,8 +172,8 @@ class StarkApi(
         check(execute("POST", path, body.toRequestBody(JSON_TYPE))).use { json.decodeFromString(serializer, it.body.string()) }
     }
 
-    suspend fun pair(code: String, deviceName: String): PairResponse =
-        post("/phone/v1/pair", json.encodeToString(PairRequest.serializer(), PairRequest(code, deviceName)), PairResponse.serializer())
+    suspend fun pair(code: String, deviceName: String, earlier: Link? = null): PairResponse =
+        post("/phone/v1/pair", json.encodeToString(PairRequest.serializer(), PairRequest(code, deviceName, earlier?.deviceId, earlier?.token)), PairResponse.serializer())
 
     suspend fun hello(): Hello = get("/phone/v1/hello", Hello.serializer())
 

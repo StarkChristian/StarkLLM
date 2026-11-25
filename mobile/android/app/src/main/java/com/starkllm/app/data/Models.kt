@@ -12,7 +12,13 @@ import kotlinx.serialization.json.contentOrNull
 val json = Json { ignoreUnknownKeys = true; explicitNulls = false; coerceInputValues = true }
 
 @Serializable
-data class PairRequest(val code: String, val name: String)
+data class PairRequest(
+    val code: String,
+    val name: String,
+    // the earlier pairing of this phone with the same PC: the PC replaces it instead of listing the phone twice
+    val replaces: String? = null,
+    @SerialName("replaces_token") val replacesToken: String? = null,
+)
 
 @Serializable
 data class PairResponse(

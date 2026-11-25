@@ -313,18 +313,29 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
     const user = pairing.user || '';
     const session = pairing.session || '';
     pairing = null;
-    if (state.devices.length >= MAX_DEVICES) {
+    const replacing = typeof body.replaces === 'string' && typeof body.replaces_token === 'string' && deviceFor(body.replaces_token);
+    if (state.devices.length >= MAX_DEVICES && !(replacing && replacing.id === body.replaces)) {
       onChange();
       return send(res, 409, { error: 'too-many-devices' });
     }
+    // the same phone pairing again: it proves its earlier pairing with that pairing's token, and the new entry replaces it
+    const earlier = typeof body.replaces === 'string' && typeof body.replaces_token === 'string' ? deviceFor(body.replaces_token) : null;
+    const replaced = earlier && earlier.id === body.replaces && (earlier.user || '') === user ? earlier : null;
     const token = crypto.randomBytes(32).toString('base64url');
     const at = new Date(now()).toISOString();
     const device = { id: crypto.randomBytes(8).toString('hex'), name: cleanName(body.name) || 'Phone', created: at, lastSeen: at,
-      tokenHash: hash(token).toString('hex'), level: DEFAULT_LEVEL, ...(user ? { user } : {}) };
+      tokenHash: hash(token).toString('hex'), level: replaced ? levelOf(replaced) : DEFAULT_LEVEL, ...(user ? { user } : {}),
+      ...(replaced && replaced.away ? { away: true } : {}) };
     keepSession(device, session);
+    if (replaced) {
+      state.devices = state.devices.filter((d) => d.id !== replaced.id);
+      memorySessions.delete(replaced.id);
+      for (const [socket, deviceId] of sockets) if (deviceId === replaced.id) socket.destroy();
+    }
     state.devices.push(device);
     save();
-    log(`phone link: "${device.name}" paired`);
+    if (replaced) syncRelay();
+    log(`phone link: "${device.name}" paired${replaced ? ' again (replaces its earlier pairing)' : ''}`);
     onChange();
     return send(res, 200, { device_id: device.id, token, pc_name: pcName, version, level: device.level });
   }

@@ -177,7 +177,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _state.update { it.copy(busy = true, notice = null) }
             try {
-                val r = StarkApi(info.addresses, info.port, info.fingerprint, token = null).pair(info.code, deviceName())
+                val earlier = store.all().firstOrNull { it.fingerprint == info.fingerprint }
+                val r = StarkApi(info.addresses, info.port, info.fingerprint, token = null).pair(info.code, deviceName(), earlier)
                 val link = Link(r.pcName.ifBlank { info.pcName }, info.addresses, info.port, info.fingerprint, r.deviceId, r.token, info.relayUrl, info.relayId)
                 store.save(link)
                 switchTo(link)
