@@ -447,7 +447,7 @@ private fun Answer(line: ChatLine) {
                         Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                             Row(Modifier.padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Icon(StarkIcons.Document, null, Modifier.size(13.dp), tint = MaterialTheme.colorScheme.primary)
-                                Text(name, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                Text(readableSource(name), style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.padding(start = 5.dp).widthIn(max = 220.dp))
                             }
                         }
@@ -745,4 +745,28 @@ private fun TypingDots() {
             )
         }
     }
+}
+
+// The engine names a source "file (locator)" in English: "letter.pdf (Page 2 (OCR))", "IMG_1.jpg (Image (OCR))",
+// "notes.md (Chunk 3)", "talk.m4a (Time 00:01:05)". The locator is shown in the app's language (as on the PC).
+private val SOURCE = Regex("""^(.*?\.[A-Za-z0-9]{1,8})\s*\((.*)\)\s*$""")
+private val HOW = Regex("""^(.*?)\s*\((OCR|Vision)\)$""")
+private val PAGE = Regex("""^Page (\d+)$""")
+private val CHUNK = Regex("""^Chunk (\d+)$""")
+private val TIME = Regex("""^Time (\d{2}:\d{2}:\d{2})$""")
+
+@Composable
+internal fun readableSource(label: String): String {
+    val m = SOURCE.matchEntire(label.trim()) ?: return label
+    var rest = m.groupValues[2].trim()
+    val how = HOW.matchEntire(rest)?.let { h ->
+        rest = h.groupValues[1]
+        stringResource(if (h.groupValues[2] == "OCR") R.string.src_ocr else R.string.src_vision)
+    }
+    val where = PAGE.matchEntire(rest)?.let { stringResource(R.string.src_page, it.groupValues[1]) }
+        ?: (if (rest == "Image") stringResource(R.string.src_photo) else null)
+        ?: CHUNK.matchEntire(rest)?.let { stringResource(R.string.src_part, it.groupValues[1]) }
+        ?: TIME.matchEntire(rest)?.let { stringResource(R.string.src_at, it.groupValues[1]) }
+        ?: rest
+    return "${m.groupValues[1]} · " + (if (how != null) "$where, $how" else where)
 }

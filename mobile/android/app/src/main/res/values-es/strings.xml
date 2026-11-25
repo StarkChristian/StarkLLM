@@ -207,4 +207,10 @@
     <string name="error_pair_at_home">Vincule el teléfono en su red doméstica, en la misma red wifi que el PC.</string>
     <string name="connected_away">Conectado · fuera de casa</string>
     <string name="error_unreachable_away">No se puede llegar al PC. ¿Está encendido y StarkLLM en marcha? En casa: ¿están el teléfono y el PC en la misma red wifi? Fuera de casa: ¿está este teléfono permitido fuera de casa en el PC (Ajustes &gt; Teléfono)?</string>
+    <string name="src_page">Página %1$s</string>
+    <string name="src_photo">Foto</string>
+    <string name="src_part">Parte %1$s</string>
+    <string name="src_at">a las %1$s</string>
+    <string name="src_ocr">leído de la imagen</string>
+    <string name="src_vision">descrito por el modelo de imágenes</string>
 </resources>

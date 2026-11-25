@@ -207,4 +207,10 @@
     <string name="error_pair_at_home">Associez le téléphone sur votre réseau domestique, sur le même Wi-Fi que le PC.</string>
     <string name="connected_away">Connecté · hors de chez vous</string>
     <string name="error_unreachable_away">Le PC est injoignable. Est-il allumé et StarkLLM est-il lancé ? À la maison : le téléphone et le PC sont-ils sur le même Wi-Fi ? Hors de chez vous : ce téléphone est-il autorisé hors de chez vous sur le PC (Paramètres &gt; Téléphone) ?</string>
+    <string name="src_page">Page %1$s</string>
+    <string name="src_photo">Photo</string>
+    <string name="src_part">Partie %1$s</string>
+    <string name="src_at">à %1$s</string>
+    <string name="src_ocr">lu depuis l\'image</string>
+    <string name="src_vision">décrit par le modèle d\'images</string>
 </resources>

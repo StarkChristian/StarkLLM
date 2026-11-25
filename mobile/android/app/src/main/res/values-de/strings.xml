@@ -206,4 +206,10 @@
     <string name="error_pair_at_home">Koppeln Sie das Telefon im Heimnetz, im selben WLAN wie der PC.</string>
     <string name="connected_away">Verbunden · unterwegs</string>
     <string name="error_unreachable_away">Der PC ist nicht erreichbar. Ist er an und läuft StarkLLM? Zu Hause: Sind Telefon und PC im selben WLAN? Unterwegs: Ist dieses Telefon auf dem PC für unterwegs erlaubt (Einstellungen &gt; Telefon)?</string>
+    <string name="src_page">Seite %1$s</string>
+    <string name="src_photo">Foto</string>
+    <string name="src_part">Teil %1$s</string>
+    <string name="src_at">um %1$s Uhr</string>
+    <string name="src_ocr">aus dem Bild gelesen</string>
+    <string name="src_vision">vom Bildmodell beschrieben</string>
 </resources>
