@@ -137,7 +137,7 @@ function initApp() {
   registerBackupHandlers();
   ipcMain.handle('updates:check', async (event) => {
     if (!event.senderFrame || !sameOrigin(event.senderFrame.url, APP_URL)) return { error: 'not allowed' };
-    const r = await updater.check({ manual: true });
+    const r = await updater.check({ manual: true, inPage: true }); // the page shows the result: no message box
     return { latest: r && r.latest, error: r && r.error, upToDate: Boolean(r && !r.error && !r.show) };
   });
   // Electron grants every permission to every page unless told otherwise: only the app's own page, only what it uses

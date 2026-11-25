@@ -319,3 +319,16 @@ test('a "page not found" page is marked for the model (MSI 36: guessed aachen.de
   const msgs = buildMessages({ task: 'x', language: 'German', history: [], snap: nf, note: '', extraText: '', previous: null });
   assert.ok(msgs.map((m) => m.content).join(' ').includes('this page does not exist'));
 });
+
+// 2.5.0 acceptance test: Spanish answers of a task in the project folder used "tú". The polite rule stands in the system
+// prompt with and without the terminal, and again at the end of every step's message.
+test('the polite form of address reaches every answer path, also the terminal', () => {
+  const terminal = { folderName: 'proyecto', shell: 'PowerShell', memory: () => '' };
+  for (const opts of [{}, { terminal }, { terminal, browserOn: false }]) {
+    const [system, user] = buildMessages({ task: '¿Qué hace este proyecto?', language: 'Spanish', history: [], snap: null, overview: 'a.js', ...opts });
+    assert.match(system.content, /usted/);
+    assert.match(system.content, /never the familiar form/);
+    assert.match(user.content, /polite form of address[\s\S]*usted/);
+    assert.ok(user.content.trim().endsWith(')'), 'the reminder is the last thing the model reads');
+  }
+});

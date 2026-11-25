@@ -129,6 +129,13 @@ function isSecretField(info) {
   return SECRET_FIELD.test(String(info.label || ''));
 }
 
+// The app addresses the user politely, and so does every answer of a task, with or without the terminal and in
+// whatever language it is written (2.5.0 acceptance test: Spanish terminal answers used "tú"). Small models forget a
+// rule that stands only in the system prompt, so it is repeated at the end of each step's message.
+function politeRule(language) {
+  return `Write the question for ask_user and the answer of finish in ${language}, in the polite form of address of that language (for example "Sie" in German, "vous" in French, "usted" in Spanish, "Lei" in Italian, "siz" in Turkish), never the familiar form ("du", "tu", "tú", "sen"). This holds for every answer, also about files and commands, and also when you write in another language.`;
+}
+
 function systemPrompt(language, { terminal = null, browserOn = true } = {}) {
   const lines = [
     'You are the web assistant of StarkLLM, a private assistant on the user\'s own PC. You control a browser window that the user watches, to do the user\'s task on websites.',
@@ -145,7 +152,7 @@ function systemPrompt(language, { terminal = null, browserOn = true } = {}) {
     '- Do not invent facts: answer only from what you saw on the pages. Name the site you used.',
     '- When the task asks for the cheapest, best, earliest or similar, compare every result on the page (all prices or dates) before you answer. Results are often already on the page: you do not need to click "Book", "Select" or "Details" to see a price.',
     '- When the task is done or you have the answer, call finish. If the task cannot be done, call finish and say why.',
-    `- Write the question for ask_user and the answer of finish in ${language}, in the polite form of address of that language (for example "Sie" in German, "vous" in French, "usted" in Spanish, "Lei" in Italian, "siz" in Turkish).`,
+    `- ${politeRule(language)}`,
   ];
   if (!browserOn) {
     lines[0] = 'You are the assistant of StarkLLM, a private assistant on the user\'s own PC. StarkLLM is fully offline now: there is no browser and no internet, only the project folder.';
@@ -229,7 +236,7 @@ function buildMessages({ task, language, history, snap, note, extraText, previou
   }
   parts.push('', terminal ? 'Browser:' : 'Current page:', pageMessage(snap, { terminal, browserOn }));
   if (extraText) parts.push('', '<untrusted_web_page_text full="true">', extraText, '</untrusted_web_page_text>');
-  parts.push('', 'Call one tool now.');
+  parts.push('', 'Call one tool now.', `(${politeRule(language)})`);
   return [{ role: 'system', content: systemPrompt(language, { terminal, browserOn }) }, { role: 'user', content: parts.join('\n') }];
 }
 

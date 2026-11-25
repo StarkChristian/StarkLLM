@@ -739,6 +739,10 @@ async def image_question(
     chat_id: Optional[int] = Form(None),
     model: Optional[str] = Form(None, max_length=200),
     language: Optional[str] = Form(None, max_length=20),
+    # a follow-up question about the same image: the question and answer just before it (2.5.0 acceptance test: a
+    # second question about an image was answered from a web page saved in the workspace)
+    previous_question: str = Form("", max_length=4000),
+    previous_answer: str = Form("", max_length=20000),
     image: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
@@ -779,7 +783,10 @@ async def image_question(
     db.add(models.Message(chat_id=chat_obj.id, role="user", content=f"{question}\n\n🖼 {name}"))
     db.commit()
     the_chat = chat_obj.id
-    msgs = iq.messages_for(question, image_b64, language_name(language) or "the language of the question")
+    # the app's language (as before); without one, the language of the question. The polite form goes with either.
+    answer_language = language_name(language) or (language_of(message) if message.strip() else None) or "the language of the question"
+    previous = (previous_question, previous_answer) if previous_question.strip() and previous_answer.strip() else None
+    msgs = iq.messages_for(question, image_b64, answer_language, previous)
 
     def answer():
         parts = []
@@ -1542,7 +1549,7 @@ WEB SEARCH
                             "; when the message is too short to tell, answer in the language of the documents")
                          + ". Names, amounts, dates and reference numbers from a document stay exactly as written in it.\n")
         # the app addresses the user politely; the answer does the same (a German tool answer said "bestätige")
-        _polite = {"German": "Sie", "French": "vous", "Spanish": "usted", "Turkish": "siz"}.get(_lang or _ui_lang or "")
+        _polite = {"German": "Sie", "French": "vous", "Spanish": "usted", "Italian": "Lei", "Turkish": "siz"}.get(_lang or _ui_lang or "")
         if _polite:
             language_rule += f"Address the user politely ({_polite}), as the app does.\n"
         safety_section = _safety_section(warnings)

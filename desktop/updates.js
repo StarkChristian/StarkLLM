@@ -142,12 +142,15 @@ function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null,
     return res.json();
   }
 
-  // manual: started from the tray menu, so also say "up to date" or why the check failed.
-  async function check({ manual = false } = {}) {
+  // manual: the user asked (tray menu or Settings > About): a new version is offered at once, without the minimum age.
+  // inPage: asked in Settings > About, which shows "up to date" or why the check failed itself; only the tray menu
+  // gets those as a message box (2.5.0 acceptance test: a hidden "newest version" box stayed behind the window).
+  async function check({ manual = false, inPage = false } = {}) {
+    const tell = manual && !inPage;
     if (guard.isOffline()) {
       log('update check skipped: the app is fully offline');
-      if (manual) {
-        // not awaited: Settings > About shows the result at once instead of "Checking..." until the dialog is closed
+      if (tell) {
+        // not awaited: the check returns at once instead of waiting until the message box is closed
         dialog.showMessageBox(parent(), { type: 'info', title: 'StarkLLM', message: t('StarkLLM is fully offline.'), detail: t('It does not look for updates. Turn off "Fully offline" in Settings > Privacy to check for a new version.') }).catch(() => {});
       }
       return { error: 'offline' };
@@ -157,7 +160,7 @@ function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null,
       release = await fetchLatest();
     } catch (e) {
       log(`update check failed: ${e.message}`);
-      if (manual) {
+      if (tell) {
         dialog.showMessageBox(parent(), { type: 'warning', title: 'StarkLLM', message: t('Could not check for updates.'), detail: t('{error}\n\nYou can also look at {page}.', { error: e.message, page: DOWNLOAD_PAGE }) }).catch(() => {});
       }
       return { error: e.message };
@@ -166,7 +169,7 @@ function createUpdater({ app, dialog, shell, net, getWindow, autoUpdater = null,
     const d = decide(release, current, manual ? {} : readSettings(), { minAgeMs: manual ? 0 : AUTO_MIN_RELEASE_AGE_MS });
     log(`update check: current ${current}, latest ${d.latest || '?'}${d.show ? ' (newer)' : ''}${d.tooNew ? ` (published less than a day ago, offered after ${d.offerAfter})` : ''}`);
     if (!d.show) {
-      if (manual) dialog.showMessageBox(parent(), { type: 'info', title: 'StarkLLM', message: t('StarkLLM {version} is the newest version.', { version: current }) }).catch(() => {});
+      if (tell) dialog.showMessageBox(parent(), { type: 'info', title: 'StarkLLM', message: t('StarkLLM {version} is the newest version.', { version: current }) }).catch(() => {});
       return d;
     }
     if (selfUpdate) return offerSelfUpdate(d, current);

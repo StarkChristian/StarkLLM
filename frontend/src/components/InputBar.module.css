@@ -308,3 +308,6 @@
 
 /* the microphone while it records */
 .recordingBtn { color: #ef4444; background: rgba(239, 68, 68, 0.12); }
+/* the dictation button while recording: a red square and the word "Stop" */
+.recordingBtn { gap: 4px; padding: 6px 10px; border-radius: 999px; }
+.recordingStopLabel { font-size: 0.85rem; font-weight: 600; color: #ef4444; }

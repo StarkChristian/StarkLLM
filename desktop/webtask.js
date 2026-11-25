@@ -60,6 +60,22 @@ function isWeb(url) {
   return /^https?:\/\//i.test(String(url || ''));
 }
 
+// A link with target="_blank" or a window.open() of the page (2.5.0 acceptance test: "Öffnungszeiten" on
+// serviceportal.aachen.de did nothing): never a new window; a web address opens in the same page instead, like a
+// normal click, so it goes through the same checks (will-navigate, the network layer, and the site rules of a task,
+// which look at the page after each step). The page is loaded after the handler has returned, not from inside it,
+// so the refused new window cannot take the navigation with it. Anything but http/https is dropped.
+function openHereHandler(wc, later = setImmediate) {
+  return ({ url }) => {
+    if (isWeb(url)) {
+      later(() => {
+        if (!wc.isDestroyed()) wc.loadURL(url).catch(() => {});
+      });
+    }
+    return { action: 'deny' };
+  };
+}
+
 const BAR_HEIGHT = 48;
 // the page of a window: the WebContentsView under the address bar (the hidden window of scheduled runs has no bar)
 function pageOf(w) {
@@ -199,10 +215,7 @@ function openWindow() {
     if (win && !win.isDestroyed()) win.setTitle(`${title} · ${t('StarkLLM web task')}`);
   });
   // links that would open a new window open here; nothing but web addresses
-  wc.setWindowOpenHandler(({ url }) => {
-    if (isWeb(url)) wc.loadURL(url).catch(() => {});
-    return { action: 'deny' };
-  });
+  wc.setWindowOpenHandler(openHereHandler(wc));
   wc.on('will-navigate', (event, url) => { if (!isWeb(url)) event.preventDefault(); });
   win.on('page-title-updated', (event) => event.preventDefault());
   win.on('closed', () => {
@@ -252,7 +265,7 @@ function openBackgroundWindow() {
     webPreferences: { partition: PARTITION, sandbox: true, contextIsolation: true, nodeIntegration: false, spellcheck: false },
   });
   const wc = bgWin.webContents;
-  wc.setWindowOpenHandler(({ url }) => { if (isWeb(url)) wc.loadURL(url).catch(() => {}); return { action: 'deny' }; });
+  wc.setWindowOpenHandler(openHereHandler(wc));
   wc.on('will-navigate', (event, url) => { if (!isWeb(url)) event.preventDefault(); });
   bgWin.on('closed', () => { bgWin = null; });
   return bgWin;
@@ -783,4 +796,4 @@ function stopForOffline() {
   stopCommands();
 }
 
-module.exports = { register, stopForOffline, stopCommands, shutdown, PARTITION, readSchedules, unsuitableFolder: (d) => unsuitableFolder(d), addressOf, refreshBar: () => sendBar() };
+module.exports = { register, stopForOffline, stopCommands, shutdown, PARTITION, readSchedules, unsuitableFolder: (d) => unsuitableFolder(d), addressOf, openHereHandler, refreshBar: () => sendBar() };

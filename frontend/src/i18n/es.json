@@ -1460,5 +1460,9 @@
   "Also away from home (through the relay)": "También fuera de casa (a través del relé)",
   "Result of the tool:": "Resultado de la herramienta:",
   "Blocked (this PC or home network)": "Bloqueado (este PC o la red doméstica)",
-  "Phones away from home (StarkLLM relay)": "Teléfonos fuera de casa (relé de StarkLLM)"
+  "Phones away from home (StarkLLM relay)": "Teléfonos fuera de casa (relé de StarkLLM)",
+  "Follow-up:": "Pregunta de seguimiento:",
+  "Your next question is also about the image {name}.": "Su próxima pregunta también se refiere a la imagen {name}.",
+  "Ask without the image": "Preguntar sin la imagen",
+  "Stop recording": "Detener la grabación"
 }

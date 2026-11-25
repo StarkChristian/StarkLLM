@@ -32,7 +32,7 @@ import { currentCloudHost } from './utils/cloud';
 import { isUploadable, isRecording } from './utils/uploadTypes';
 import { serverDate } from './utils/time';
 import { t, language } from './i18n';
-import { initialWebTask, reduceWebTask, answered as webTaskAnswered, webTaskBridge, previousWebTask, WEB_TASK_TAG } from './utils/webTask';
+import { initialWebTask, reduceWebTask, answered as webTaskAnswered, webTaskBridge, previousWebTask, WEB_TASK_TAG, selfContainedTask, withLiveTask, isUntitledChat, chatTitleOf } from './utils/webTask';
 
 const NO_ANSWER_TEXT = '*[The model returned no answer. Try again, raise the token limit, or choose another model.]*';
 
@@ -98,6 +98,12 @@ export default function App() {
   const liveWebTaskRef = useRef(null); // the running web task: { id, chatId, user, card }
   const activeChatIdRef = useRef(null);
   const offline = useOffline(token); // the fully offline switch (Settings > Privacy & network)
+  // "Fully offline" turns web tasks off; they stay off when it is turned off again (2.5.0 acceptance test: the
+  // "Web task" switch was on again by itself after "Fully offline" was turned off)
+  useEffect(() => { if (offline) setUseWebTask(false); }, [offline]);
+  // the image of the last question about an image in this chat: the next question goes to the vision model with it
+  // (2.5.0 acceptance test: a second question about an image was answered from a web page saved in the workspace)
+  const [imageFollowUp, setImageFollowUp] = useState(null); // { file, name, chatId, question, answer }
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(false);
   const [workspacesError, setWorkspacesError] = useState(null);
   const [hasFetchedWorkspaces, setHasFetchedWorkspaces] = useState(false);
@@ -328,8 +334,11 @@ export default function App() {
       if (!res.ok) return;
       const data = await res.json();
       setActiveChatId(data.chat_id);
+      // another chat: the next question is no longer about the image of the chat before
+      setImageFollowUp(null);
+      // the running web task of this chat (also one that waits for the user's answer) comes back with its card
       const live = liveWebTaskRef.current;
-      const withLive = (msgs) => (live && live.chatId === data.chat_id ? [...msgs.filter(m => !m.greeting), live.user, live.card] : msgs);
+      const withLive = (msgs) => withLiveTask(msgs, live, data.chat_id);
       setMessages(withLive(
         data.messages && data.messages.length > 0
           // An empty saved answer (older versions stored them) would otherwise show the "thinking" dots forever;
@@ -490,6 +499,7 @@ export default function App() {
       const newChat = await res.json();
       setChats(prev => [newChat, ...prev]);
       setActiveChatId(newChat.id);
+      setImageFollowUp(null);
       setActiveView('chat');
       setMessages([{ role: 'assistant', content: t('New chat started. What shall we work on?') }]);
     } catch (err) {
@@ -667,6 +677,7 @@ export default function App() {
     const bridge = webTaskBridge();
     const messagesBefore = messages;
     let taskChatId = activeChatId;
+    const title = chatTitleOf(text);
     if (!taskChatId && activeWorkspace) {
       // the task gets its chat right away, so the user can leave it and come back to the running task
       try {
@@ -679,13 +690,29 @@ export default function App() {
         }
       } catch (e) { /* the task still runs; it gets its chat when it is saved */ }
     }
+    // the chat is named after the task at once, so it can be told apart from empty "New Chat"s while the task runs or
+    // waits for an answer (2.5.0 acceptance test: a waiting task's chat was taken for an empty one)
+    const taskChat = chats.find(c => c.id === taskChatId);
+    if (taskChatId && title && (!taskChat || isUntitledChat(taskChat.title))) {
+      fetch(`/api/v1/chat/session/${taskChatId}`, {
+        method: 'PATCH',
+        headers: getHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ title }),
+      }).then(res => {
+        if (res.ok) setChats(prev => prev.map(c => (c.id === taskChatId && isUntitledChat(c.title) ? { ...c, title } : c)));
+      }).catch(() => { /* the title comes when the task is saved */ });
+    }
+    // a follow-up continues in the same window, with the task before it and its answer; saved or repeated, it is
+    // the whole task (the one before and the follow-up)
+    const previous = previousWebTask(messagesBefore);
+    const fullTask = selfContainedTask(text, previous, t('Follow-up:'));
     const live = {
       id: `webtask-${Date.now()}`,
       chatId: taskChatId,
       user: { role: 'user', content: text, timestamp: new Date() },
       card: null,
     };
-    live.card = { role: 'assistant', content: '', timestamp: new Date(), webTask: { ...initialWebTask(text), model: currentModel }, liveId: live.id };
+    live.card = { role: 'assistant', content: '', timestamp: new Date(), webTask: { ...initialWebTask(text), model: currentModel, fullTask }, liveId: live.id };
     liveWebTaskRef.current = live;
     setMessages(prev => [...prev.filter(m => !m.greeting).map(m => (m.compare ? { ...m, compare: null } : m)), live.user, live.card]);
     const fail = (message) => {
@@ -709,8 +736,7 @@ export default function App() {
       });
     });
     try {
-      // a follow-up continues in the same window, with the task before it and its answer
-      const r = await bridge.start({ task: text, model: currentModel, language: language(), previous: previousWebTask(messagesBefore), folder: useTerminal && terminalFolder ? terminalFolder.folder : '' });
+      const r = await bridge.start({ task: text, model: currentModel, language: language(), previous, folder: useTerminal && terminalFolder ? terminalFolder.folder : '' });
       if (!r || r.error) {
         if (r && r.error === 'folder') setTerminalFolder(null);
         const why = r && r.error === 'folder' ? t('The project folder can no longer be used. Choose it again with Terminal.')
@@ -752,11 +778,13 @@ export default function App() {
   };
 
   // ── A question about an image (docs/roadmap-2026-12.md, R2): a vision model of the local Ollama answers ──
-  const handleImageQuestion = async (text, file) => {
+  // followUp: a question about the image of the question before ({ question, answer } of that one)
+  const handleImageQuestion = async (text, file, followUp = null) => {
     if (!activeWorkspace) {
       setMessages(prev => [...prev, { role: 'assistant', content: t('Please create or select a workspace first.') }]);
       return;
     }
+    setImageFollowUp(null);
     const question = String(text || '').trim();
     setMessages(prev => [...prev.map(m => (m.compare ? { ...m, compare: null } : m)),
       { role: 'user', content: question || t('Describe this image.'), image: URL.createObjectURL(file), imageName: file.name || '', imageFile: file, timestamp: new Date() },
@@ -780,6 +808,10 @@ export default function App() {
       form.append('message', question || t('Describe this image.'));
       if (currentModel) form.append('model', currentModel);
       form.append('language', language());
+      if (followUp && followUp.question && followUp.answer) {
+        form.append('previous_question', String(followUp.question).slice(0, 4000));
+        form.append('previous_answer', String(followUp.answer).slice(0, 20000));
+      }
       form.append('image', file, file.name || 'image.png');
       const res = await fetch('/api/v1/chat/image', { method: 'POST', headers: getHeaders(), body: form, signal: controller.signal });
       if (res.status === 401) { handleLogout(); return; }
@@ -795,6 +827,7 @@ export default function App() {
         setActiveChatId(parseInt(chatIdHeader, 10));
         refreshChatList(activeWorkspace.id).catch(() => {});
       }
+      const imageChatId = chatIdHeader ? parseInt(chatIdHeader, 10) : activeChatId;
       const used = decodeURIComponent(res.headers.get('X-Image-Model') || '');
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -806,6 +839,10 @@ export default function App() {
         setAnswer(full);
       }
       setAnswer(full || t('The question about the image could not be answered.'), used ? { imageModel: used } : {});
+      // the next question in this chat is about the same image, until the user removes it or leaves the chat
+      if (full.trim() && imageChatId) {
+        setImageFollowUp({ file, name: file.name || '', chatId: imageChatId, question: question || t('Describe this image.'), answer: full });
+      }
     } catch (err) {
       if (err.name !== 'AbortError') {
         console.error('Image question error:', err);
@@ -883,6 +920,13 @@ export default function App() {
     // a web task, or a task in the project folder (the terminal works also while StarkLLM is fully offline)
     if (webTaskBridge() && ((useWebTask && !offline) || (useTerminal && terminalFolder))) {
       await handleWebTask(text);
+      return;
+    }
+    // a question right after an answer about an image, in the same chat: about that image, answered from it (not
+    // from the documents of the workspace); the user can remove the image above the message box
+    if (imageFollowUp && imageFollowUp.chatId && String(imageFollowUp.chatId) === String(activeChatId) && String(text || '').trim()) {
+      const f = imageFollowUp;
+      await handleImageQuestion(text, f.file, { question: f.question, answer: f.answer });
       return;
     }
     // a comparison that was not decided closes with the next question ("Keep this answer" replaces the newest answer)
@@ -1665,6 +1709,8 @@ export default function App() {
             />
             <InputBar 
               onSendImage={handleImageQuestion}
+              imageFollowUp={imageFollowUp && String(imageFollowUp.chatId) === String(activeChatId) ? imageFollowUp.name || 'image.png' : ''}
+              onClearImageFollowUp={() => setImageFollowUp(null)}
               compareModel={compareModel}
               onSetCompareModel={setCompareModel}
               onSendMessage={handleSendMessage} 

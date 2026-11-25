@@ -1460,5 +1460,9 @@
   "Also away from home (through the relay)": "Evden uzaktayken de (aktarıcı üzerinden)",
   "Result of the tool:": "Aracın sonucu:",
   "Blocked (this PC or home network)": "Engellendi (bu bilgisayar veya ev ağı)",
-  "Phones away from home (StarkLLM relay)": "Evden uzaktaki telefonlar (StarkLLM aktarıcısı)"
+  "Phones away from home (StarkLLM relay)": "Evden uzaktaki telefonlar (StarkLLM aktarıcısı)",
+  "Follow-up:": "Ek soru:",
+  "Your next question is also about the image {name}.": "Bir sonraki sorunuz da {name} görseliyle ilgili.",
+  "Ask without the image": "Görsel olmadan sorun",
+  "Stop recording": "Kaydı durdurun"
 }

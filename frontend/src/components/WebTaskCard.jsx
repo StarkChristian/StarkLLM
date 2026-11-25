@@ -236,7 +236,7 @@ export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onRe
   };
   const saveTask = async () => {
     setTaskSaved('saving');
-    const ok = await onSaveTask(task.task);
+    const ok = await onSaveTask(task.fullTask || task.task); // a follow-up is saved with the task it follows
     setTaskSaved(ok ? 'saved' : 'failed');
   };
   const save = async () => {
@@ -322,7 +322,7 @@ export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onRe
       )}
       {task.status === 'done' && onSchedule && task.task && !task.folder && (
         <div className={styles.saveRow}>
-          <RepeatForm onSchedule={onSchedule} task={task.task} />
+          <RepeatForm onSchedule={onSchedule} task={task.fullTask || task.task} />
         </div>
       )}
       {task.status === 'error' && smallModel(task.model) && (

@@ -261,3 +261,22 @@ test('startInstaller reports a start and a refusal', async () => {
   const thrown = await startInstaller('a.exe', [], () => { throw new Error('EINVAL'); });
   assert.strictEqual(thrown.ok, false);
 });
+
+// 2.5.0 acceptance test: "Check for updates" in Settings > About left a hidden "newest version" message box. The page
+// shows that result itself; only the tray menu gets a message box. A newer version is still offered.
+test('a check from Settings shows no message box for "up to date" or a failure; the tray menu does', async () => {
+  const page = harness({ release: { tag_name: 'v2.0.3' } });
+  const r = await page.u.check({ manual: true, inPage: true });
+  assert.strictEqual(r.show, false);
+  assert.strictEqual(page.calls.dialogs.length, 0);
+  const failed = harness({ fail: true });
+  assert.ok((await failed.u.check({ manual: true, inPage: true })).error);
+  assert.strictEqual(failed.calls.dialogs.length, 0);
+  const tray = harness({ release: { tag_name: 'v2.0.3' } });
+  await tray.u.check({ manual: true });
+  assert.strictEqual(tray.calls.dialogs.length, 1);
+  assert.match(tray.calls.dialogs[0], /2\.0\.3 is the newest version/);
+  const newer = harness({ answers: [1] });
+  await newer.u.check({ manual: true, inPage: true });
+  assert.match(newer.calls.dialogs[0], /2\.1\.0 is available/);
+});
