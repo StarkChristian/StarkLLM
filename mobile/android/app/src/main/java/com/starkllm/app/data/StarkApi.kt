@@ -54,6 +54,8 @@ class StarkApi(
     private val onAddressWorked: (String) -> Unit = {},
     relayUrl: String? = null,
     relayId: String? = null,
+    /** called when the way to the PC changes: true = through the relay (away from home), false = home network */
+    private val onRouteChanged: (Boolean) -> Unit = {},
 ) {
     private val client = Pinning.client(fingerprint, base)
     // away from home: the same pinned TLS, over a WebSocket to the StarkLLM relay (RelaySocket.kt)
@@ -74,8 +76,8 @@ class StarkApi(
     val viaRelay: Boolean get() = current == RELAY
     @Volatile private var current: String? = null
 
-    constructor(link: Link, base: OkHttpClient = OkHttpClient(), onAddressWorked: (String) -> Unit = {}) :
-        this(link.addresses, link.port, link.fingerprint, link.token, base, onAddressWorked, link.relayUrl, link.relayId)
+    constructor(link: Link, base: OkHttpClient = OkHttpClient(), onAddressWorked: (String) -> Unit = {}, onRouteChanged: (Boolean) -> Unit = {}) :
+        this(link.addresses, link.port, link.fingerprint, link.token, base, onAddressWorked, link.relayUrl, link.relayId, onRouteChanged)
 
     private fun url(address: String, path: String) = "https://${if (address == RELAY) Relay.HOST else address}:$port$path"
 
@@ -109,8 +111,10 @@ class StarkApi(
                     continue
                 }
                 if (current != address) {
+                    val wasRelay = current == RELAY
                     current = address
                     if (address != RELAY) onAddressWorked(address)
+                    if (wasRelay != (address == RELAY)) onRouteChanged(address == RELAY)
                 }
                 return res
             } catch (e: SSLException) {

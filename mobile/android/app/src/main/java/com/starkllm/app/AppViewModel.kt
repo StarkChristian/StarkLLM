@@ -126,7 +126,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun connect(link: Link) {
-        api = StarkApi(link, onAddressWorked = { store.preferAddress(link.id, it) })
+        api = StarkApi(link, onAddressWorked = { store.preferAddress(link.id, it) }, onRouteChanged = { away ->
+            // the top bar says "away" from the way the last answer really came, not only from the hello at the start
+            _state.update { s -> s.hello?.takeIf { it.viaRelay != away }?.let { s.copy(hello = it.copy(viaRelay = away)) } ?: s }
+        })
     }
 
     private fun deviceName(): String =
