@@ -16,7 +16,7 @@
     <string name="suggestion_3">Quanto devo pagare, ed entro quando?</string>
     <string name="copy">Copia</string>
     <string name="copied">Copiato</string>
-    <string name="privacy_note">I vostri documenti e il modello di IA restano sul vostro PC. Il telefono si collega cifrato tramite la rete di casa e mostra solo le risposte.</string>
+    <string name="privacy_note">I tuoi documenti e il modello di IA restano sul tuo PC. Il telefono si collega tramite la rete di casa o, se lo consenti sul PC, fuori casa tramite il relay di StarkLLM; in entrambi i casi cifrato dal telefono al PC, e mostra solo le risposte.</string>
     <string name="scan_button">Scansiona codice QR</string>
     <string name="scan_hint">Inquadrate il codice QR sullo schermo del vostro PC.</string>
     <string name="camera_permission_needed">StarkLLM usa la fotocamera solo quando toccate: per leggere il codice QR del vostro PC o fotografare una lettera per il PC. Non viene registrato nulla in background.</string>
@@ -203,4 +203,14 @@
         <item quantity="many">%d di scadenze aperte</item>
         <item quantity="other">%d scadenze aperte</item>
     </plurals>
+    <string name="error_away_off">Questo telefono può raggiungere il PC solo nella rete di casa. Per usarlo fuori casa, consentilo sul PC in Impostazioni &gt; Telefono.</string>
+    <string name="error_pair_at_home">Abbina il telefono nella rete di casa, nella stessa rete Wi-Fi del PC.</string>
+    <string name="connected_away">Connesso · fuori casa</string>
+    <string name="error_unreachable_away">Il PC non è raggiungibile. È acceso e StarkLLM è in esecuzione? A casa: telefono e PC sono nella stessa rete Wi-Fi? Fuori casa: questo telefono è consentito fuori casa sul PC (Impostazioni &gt; Telefono)?</string>
+    <string name="src_page">Pagina %1$s</string>
+    <string name="src_photo">Foto</string>
+    <string name="src_part">Parte %1$s</string>
+    <string name="src_at">alle %1$s</string>
+    <string name="src_ocr">letto dall\'immagine</string>
+    <string name="src_vision">descritto dal modello di immagini</string>
 </resources>

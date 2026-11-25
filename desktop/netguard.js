@@ -23,6 +23,7 @@ const FEATURES = {
   model_download: 'Download of an AI model by the local Ollama',
   ui: 'A request of the app window to another host',
   phone_link: 'A paired phone on the home network (Settings > Phone; incoming)',
+  phone_relay: 'Phones away from home: the connection to the StarkLLM relay (only encrypted bytes pass)',
   web_task: 'StarkLLM\'s browser window: a web task the user started in the chat (the sites of the task, and the local AI model)',
   unattributed: 'A connection that did not go through the network layer'
 };
@@ -68,6 +69,7 @@ function createGuard({ dir = null, now = () => new Date(), maxBytes = 2 * 1024 *
   let asked = false; // the user has been asked once (first start) whether to go fully offline
   let memory = []; // used when there is no folder
   const localCounts = {};
+  const announced = new Map(); // url -> open begin() calls (main-process requests already recorded)
   let nextId = 1;
   const statePath = dir && path.join(dir, 'privacy.json');
   const logPath = dir && path.join(dir, 'network-log.jsonl');
@@ -195,8 +197,19 @@ function createGuard({ dir = null, now = () => new Date(), maxBytes = 2 * 1024 *
       }
       const host = viaHost || hostOf(url);
       const u = safeUrl(url);
+      // the session hook (attachSession) sees this request too: it must not record it a second time
+      const key = String(url);
+      if (!viaHost) announced.set(key, (announced.get(key) || 0) + 1);
+      let released = false;
+      const release = () => {
+        if (released || viaHost) return;
+        released = true;
+        const n = (announced.get(key) || 1) - 1;
+        if (n > 0) announced.set(key, n); else announced.delete(key);
+      };
       const entry = guard.record({ feature, host, purpose, scheme: u.protocol.replace(':', ''), port: u.port ? Number(u.port) : null, method, bytes_out: bytesOut, bytes_in: null, via: via ? 'local Ollama' : '' });
       const done = (patch) => {
+        release();
         if (entry) append({ ...entry, ...patch });
       };
       return {
@@ -270,6 +283,7 @@ function createGuard({ dir = null, now = () => new Date(), maxBytes = 2 * 1024 *
           localCounts[feature] = (localCounts[feature] || 0) + 1;
           return callback({});
         }
+        if (!blockLocal && announced.has(details.url)) return callback({});   // already recorded by begin()
         if (offline) {
           guard.record({ feature, host, purpose: feature === 'ui' ? 'Blocked request of the app window' : 'Blocked request of the StarkLLM browser window', scheme: schemeOf(details.url), method: details.method, outcome: 'blocked', error: 'offline mode' });
           return callback({ cancel: true });

@@ -129,6 +129,13 @@ function isSecretField(info) {
   return SECRET_FIELD.test(String(info.label || ''));
 }
 
+// The app addresses the user politely, and so does every answer of a task, with or without the terminal and in
+// whatever language it is written (2.5.0 acceptance test: Spanish terminal answers used "tú"). Small models forget a
+// rule that stands only in the system prompt, so it is repeated at the end of each step's message.
+function politeRule(language) {
+  return `Write the question for ask_user and the answer of finish in ${language}, in the polite form of address of that language (for example "Sie" in German, "vous" in French, "usted" in Spanish, "Lei" in Italian, "siz" in Turkish), never the familiar form ("du", "tu", "tú", "sen"). This holds for every answer, also about files and commands, and also when you write in another language.`;
+}
+
 function systemPrompt(language, { terminal = null, browserOn = true } = {}) {
   const lines = [
     'You are the web assistant of StarkLLM, a private assistant on the user\'s own PC. You control a browser window that the user watches, to do the user\'s task on websites.',
@@ -140,10 +147,13 @@ function systemPrompt(language, { terminal = null, browserOn = true } = {}) {
     '- Never type passwords, payment card numbers, bank details, one-time codes or ID numbers, and never solve a CAPTCHA. When a page needs one of these or a sign-in, call ask_user so the user does it in the window.',
     '- On a cookie banner choose the most private option (reject, necessary only).',
     '- If the task names a website (for example Wikipedia or a company), open it directly with open_url. Use search_web only when you do not know the right site. Prefer the official site of a company or service.',
+    '- Do not make up deeper addresses of a site (like /de/service/umzug): open its start page or a link you saw, then follow links or use the site\'s own search.',
+    '- When a page says it does not exist (404, "not found"), its links are only the general menu of the site: go back, or use the site\'s search or search_web, instead of clicking there.',
     '- Do not invent facts: answer only from what you saw on the pages. Name the site you used.',
+    '- If you did not find what was asked, say so and give the link of the best page. Never add "usual" or "typical" values, opening hours, prices, phone numbers or addresses that no page showed.',
     '- When the task asks for the cheapest, best, earliest or similar, compare every result on the page (all prices or dates) before you answer. Results are often already on the page: you do not need to click "Book", "Select" or "Details" to see a price.',
     '- When the task is done or you have the answer, call finish. If the task cannot be done, call finish and say why.',
-    `- Write the question for ask_user and the answer of finish in ${language}, in the polite form of address of that language (for example "Sie" in German, "vous" in French, "usted" in Spanish, "Lei" in Italian, "siz" in Turkish).`,
+    `- ${politeRule(language)}`,
   ];
   if (!browserOn) {
     lines[0] = 'You are the assistant of StarkLLM, a private assistant on the user\'s own PC. StarkLLM is fully offline now: there is no browser and no internet, only the project folder.';
@@ -177,6 +187,14 @@ function describeElement(e) {
   return s;
 }
 
+// a "page not found" page: the model must not take its menu for the answer (MSI §36, aachen.de)
+const NOT_FOUND = /(^|[^0-9])404([^0-9]|$)|not found|page not available|seite nicht gefunden|nicht gefunden|introuvable|page non trouv|no encontrad|página no existe|non trovata|pagina non esiste|bulunamad|sayfa yok/i;
+function isNotFoundPage(snap) {
+  if (!snap) return false;
+  if (NOT_FOUND.test(String(snap.title || ''))) return true;
+  return NOT_FOUND.test(String(snap.text || '').slice(0, 300));
+}
+
 function pageMessage(snap, { terminal = null, browserOn = true } = {}) {
   if (!snap && !browserOn) return 'No browser: StarkLLM is fully offline.';
   if (!snap && terminal) return 'No web page is open. Open one only if the task needs something from the web.';
@@ -184,6 +202,7 @@ function pageMessage(snap, { terminal = null, browserOn = true } = {}) {
   const lines = [
     `Address: ${snap.url}`,
     `Title: ${snap.title}`,
+    ...(isNotFoundPage(snap) ? ['NOTE: this page does not exist (error 404 / not found). Its links are only the site menu, not your answer: go back, or use the site search or search_web.'] : []),
     'Elements:',
     ...(snap.elements.length ? snap.elements.map(describeElement) : ['(none)']),
     '',
@@ -218,7 +237,7 @@ function buildMessages({ task, language, history, snap, note, extraText, previou
   }
   parts.push('', terminal ? 'Browser:' : 'Current page:', pageMessage(snap, { terminal, browserOn }));
   if (extraText) parts.push('', '<untrusted_web_page_text full="true">', extraText, '</untrusted_web_page_text>');
-  parts.push('', 'Call one tool now.');
+  parts.push('', 'Call one tool now.', `(${politeRule(language)})`);
   return [{ role: 'system', content: systemPrompt(language, { terminal, browserOn }) }, { role: 'user', content: parts.join('\n') }];
 }
 
@@ -568,4 +587,4 @@ function searchAddress(query) {
   return 'https://duckduckgo.com/?q=' + encodeURIComponent(query) + '&ia=web';
 }
 
-module.exports = { runTask, TOOLS, toolsFor, isRisky, isSecretField, parseCall, buildMessages, webUrl, systemPrompt, siteKind, MAX_STEPS, MAX_STEPS_TERMINAL };
+module.exports = { runTask, TOOLS, toolsFor, isRisky, isSecretField, parseCall, buildMessages, webUrl, systemPrompt, siteKind, MAX_STEPS, MAX_STEPS_TERMINAL, isNotFoundPage };

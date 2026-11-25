@@ -133,5 +133,17 @@
   "Choose the project folder for the terminal": "Choisissez le dossier du projet pour le terminal",
   "StarkLLM: the answer changed": "StarkLLM : la réponse a changé",
   "Save as PDF": "Enregistrer en PDF",
-  "Save": "Enregistrer"
+  "Save": "Enregistrer",
+  "Back": "Précédent",
+  "Forward": "Suivant",
+  "Reload": "Actualiser",
+  "Stop loading": "Arrêter le chargement",
+  "Start page": "Page d’accueil",
+  "Search or enter a web address": "Rechercher ou saisir une adresse web",
+  "StarkLLM is working here": "StarkLLM travaille ici",
+  "You have taken over": "Vous avez pris la main",
+  "StarkLLM is fully offline: web pages are not opened.": "StarkLLM est entièrement hors ligne : les pages web ne sont pas ouvertes.",
+  "StarkLLM's browser does not open pages of this PC or your home network (for example your router).": "Le navigateur de StarkLLM n’ouvre pas les pages de ce PC ni de votre réseau domestique (par exemple votre routeur).",
+  "This page could not be opened.": "Cette page n’a pas pu être ouverte.",
+  "Not opened": "Non ouverte"
 }

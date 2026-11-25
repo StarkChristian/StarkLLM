@@ -1447,5 +1447,22 @@
   "account {name}": "account {name}",
   "Your question is sent to DuckDuckGo (if it does not answer, to Mullvad Leta, then Mojeek).": "La Sua domanda viene inviata a DuckDuckGo (se non risponde, a Mullvad Leta, poi a Mojeek).",
   "Send the result to the assistant": "Invia il risultato all'assistente",
-  "Result of the tool:": "Risultato dello strumento:"
+  "Open the browser": "Apri il browser",
+  "Open StarkLLM's browser window and use it yourself, with its own address bar": "Apri la finestra del browser di StarkLLM e usala tu stesso, con la sua barra degli indirizzi",
+  "Connected to the StarkLLM relay.": "Connesso al relay di StarkLLM.",
+  "Connecting to the StarkLLM relay…": "Connessione al relay di StarkLLM…",
+  "The StarkLLM relay cannot be reached right now; StarkLLM tries again.": "Il relay di StarkLLM non è raggiungibile ora; StarkLLM riprova.",
+  "The StarkLLM relay refused this PC.": "Il relay di StarkLLM ha rifiutato questo PC.",
+  "Fully offline: phones away from home are off.": "Completamente offline: i telefoni fuori casa sono disattivati.",
+  "No phone may be used away from home yet: allow it for a phone below.": "Nessun telefono può ancora essere usato fuori casa: consentilo qui sotto per un telefono.",
+  "Phones away from home": "Telefoni fuori casa",
+  "A phone you allow below can also reach this PC when it is not in your home network, through the StarkLLM relay. The connection stays encrypted from the phone to this PC: the relay passes on encrypted bytes only and never sees a question, an answer or a document.": "Un telefono che consenti qui sotto può raggiungere questo PC anche fuori dalla rete di casa, tramite il relay di StarkLLM. La connessione resta cifrata dal telefono fino a questo PC: il relay inoltra solo dati cifrati e non vede mai una domanda, una risposta o un documento.",
+  "Also away from home (through the relay)": "Anche fuori casa (tramite il relay)",
+  "Result of the tool:": "Risultato dello strumento:",
+  "Blocked (this PC or home network)": "Bloccato (questo PC o rete di casa)",
+  "Phones away from home (StarkLLM relay)": "Telefoni fuori casa (relay di StarkLLM)",
+  "Follow-up:": "Domanda successiva:",
+  "Your next question is also about the image {name}.": "Anche la Sua prossima domanda riguarda l’immagine {name}.",
+  "Ask without the image": "Chiedere senza l’immagine",
+  "Stop recording": "Interrompere la registrazione"
 }

@@ -457,7 +457,7 @@ SCAM = {
     "ai_to": r"(?:hinweis|hinweise|anweisung|anweisungen|nachricht|note|notes|instruction|instructions|message|"
              r"instrucciones?|istruzioni|talimat\w*|not)\s+"
              r"(?:für|an|for|to|pour|à|para|per|a)\s+(?:alle\s+|all\s+|les\s+|las\s+|le\s+)?(?:digitale\w*\s+)?"
-             r"(?:ki|ai|ia|assistent\w*|assistant\w*|asistente\w*|assistente\w*|chatbot\w*|sprachmodell\w*|language model\w*|"
+             r"(?:ki|ai|ia|a[l1|]\s+(?:assistant\w*|model\w*)|assistent\w*|assistant\w*|asistente\w*|assistente\w*|chatbot\w*|sprachmodell\w*|language model\w*|"
              r"llm\w*|yapay zeka\w*)"
              r"|yapay zeka\s+(?:asistan\w*|model\w*)\s+için\s+(?:not|talimat\w*)",
     "ignore_instructions": r"\b(?:ignore|disregard) (?:all |any )?(?:previous|prior|above) (?:instructions|rules)"

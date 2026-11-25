@@ -16,7 +16,7 @@
     <string name="suggestion_3">Ne kadar ödemem gerekiyor ve ne zamana kadar?</string>
     <string name="copy">Kopyala</string>
     <string name="copied">Kopyalandı</string>
-    <string name="privacy_note">Belgeleriniz ve yapay zekâ modeli bilgisayarınızda kalır. Telefon ev ağınız üzerinden şifreli bağlanır ve yalnızca yanıtları gösterir.</string>
+    <string name="privacy_note">Belgeleriniz ve yapay zekâ modeli bilgisayarınızda kalır. Telefon ev ağınız üzerinden ya da bilgisayarda izin verirseniz evden uzakta StarkLLM aktarıcısı üzerinden bağlanır; her iki durumda da telefondan bilgisayara kadar şifrelidir ve yalnızca yanıtları gösterir.</string>
     <string name="scan_button">QR kodunu tara</string>
     <string name="scan_hint">Kamerayı bilgisayarınızın ekranındaki QR koduna doğrultun.</string>
     <string name="camera_permission_needed">StarkLLM kamerayı yalnızca siz dokunduğunuzda kullanır: bilgisayarınızın QR kodunu okumak ya da bilgisayarınız için bir mektubu fotoğraflamak için. Arka planda hiçbir şey kaydedilmez.</string>
@@ -202,4 +202,14 @@
         <item quantity="one">%d açık son tarih</item>
         <item quantity="other">%d açık son tarih</item>
     </plurals>
+    <string name="error_away_off">Bu telefon bilgisayara yalnızca ev ağınızda ulaşabilir. Evden uzakta kullanmak için bilgisayarda Ayarlar &gt; Telefon bölümünden izin verin.</string>
+    <string name="error_pair_at_home">Telefonu ev ağınızda, bilgisayarla aynı Wi-Fi’da eşleyin.</string>
+    <string name="connected_away">Bağlı · evden uzakta</string>
+    <string name="error_unreachable_away">Bilgisayara ulaşılamıyor. Açık mı ve StarkLLM çalışıyor mu? Evde: telefon ve bilgisayar aynı Wi-Fi’da mı? Evden uzakta: bu telefona bilgisayarda evden uzakta izin verildi mi (Ayarlar &gt; Telefon)?</string>
+    <string name="src_page">Sayfa %1$s</string>
+    <string name="src_photo">Fotoğraf</string>
+    <string name="src_part">Bölüm %1$s</string>
+    <string name="src_at">saat %1$s</string>
+    <string name="src_ocr">görselden okundu</string>
+    <string name="src_vision">görsel model tarafından betimlendi</string>
 </resources>

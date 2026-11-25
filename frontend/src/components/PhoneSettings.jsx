@@ -107,6 +107,15 @@ export default function PhoneSettings() {
   };
   const check = (r) => { if (r && r.error) throw new Error(say(r.error, r.message)); return r; };
 
+  const setAway = (on) => run('away', async () => { check(await api.setAway(on)); });
+  const setDeviceAway = (d, on) => run(`away-${d.id}`, async () => { check(await api.setDeviceAway(d.id, on)); });
+  const relayText = (s) => ({
+    online: t('Connected to the StarkLLM relay.'), connecting: t('Connecting to the StarkLLM relay…'),
+    retrying: t('The StarkLLM relay cannot be reached right now; StarkLLM tries again.'),
+    refused: t('The StarkLLM relay refused this PC.'), offline: t('Fully offline: phones away from home are off.'),
+    off: t('No phone may be used away from home yet: allow it for a phone below.'),
+  }[s] || '');
+
   const toggle = () => run('enable', async () => {
     const s = check(await api.setEnabled(!(status && status.enabled)));
     if (!s.enabled) setPairing(null);
@@ -161,6 +170,21 @@ export default function PhoneSettings() {
         {on && <div className={styles.hint}>{t('Windows may ask once whether StarkLLM may be reached on networks. Allow it for private networks (your home) only.')}</div>}
       </div>
 
+      {on && status.relay && status.relay.available && (
+        <div style={card}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'space-between' }}>
+            <div>
+              <strong>{t('Phones away from home')}</strong>
+              <div className={styles.hint}>{t('A phone you allow below can also reach this PC when it is not in your home network, through the StarkLLM relay. The connection stays encrypted from the phone to this PC: the relay passes on encrypted bytes only and never sees a question, an answer or a document.')}</div>
+              {status.away && <div className={styles.hint}>{relayText(status.relay.state)}</div>}
+            </div>
+            <button className={status.away ? 'btn-secondary' : 'btn-primary'} disabled={busy === 'away'} onClick={() => setAway(!status.away)}>
+              {busy === 'away' ? <Loader size={16} className="spinner" /> : null} {status.away ? t('Turn off') : t('Turn on')}
+            </button>
+          </div>
+        </div>
+      )}
+
       {on && status.listening && (
         <div style={card}>
           <h4 style={{ margin: 0 }}>{t('Pair a phone')}</h4>
@@ -205,6 +229,12 @@ export default function PhoneSettings() {
                   </select>
                 </label>
                 <div className={styles.hint}>{LEVEL_HINTS[d.level || 'work']}</div>
+                {status.away && status.relay && status.relay.available && (
+                  <label className={styles.hint} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                    <input type="checkbox" checked={Boolean(d.away)} disabled={busy === `away-${d.id}`} onChange={(e) => setDeviceAway(d, e.target.checked)} />
+                    {t('Also away from home (through the relay)')}
+                  </label>
+                )}
               </div>
               <button className="btn-secondary" disabled={busy === `remove-${d.id}`} onClick={() => remove(d)} title={t('Remove')}>
                 <Trash2 size={16} /> {t('Remove')}

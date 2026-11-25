@@ -6,9 +6,9 @@ import { useToast } from './Toast';
 import { UPLOAD_ACCEPT } from '../utils/uploadTypes';
 import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
-import { isWebTaskTemplate } from '../utils/webTask';
+import { isWebTaskTemplate, webTaskBridge } from '../utils/webTask';
 
-export default function InputBar({ onSendImage, compareModel, onSetCompareModel, onSendMessage, onFileUpload, useKb, onToggleKb, useWebSearch, onToggleWebSearch, webTaskAvailable, useWebTask, onToggleWebTask, terminalFolder, useTerminal, onToggleTerminal, onChooseTerminalFolder, onClearTerminalFolder, offline, cloudHost, onOpenSettings, isGenerating, onStopGeneration, token, activeWorkspace, onOpenKbSettings }) {
+export default function InputBar({ onSendImage, imageFollowUp = '', onClearImageFollowUp, compareModel, onSetCompareModel, onSendMessage, onFileUpload, useKb, onToggleKb, useWebSearch, onToggleWebSearch, webTaskAvailable, useWebTask, onToggleWebTask, terminalFolder, useTerminal, onToggleTerminal, onChooseTerminalFolder, onClearTerminalFolder, offline, cloudHost, onOpenSettings, isGenerating, onStopGeneration, token, activeWorkspace, onOpenKbSettings }) {
   const toast = useToast();
   const [text, setText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -245,6 +245,17 @@ export default function InputBar({ onSendImage, compareModel, onSetCompareModel,
         {useWebTask && (
           <span className={styles.onlineNote} role="status">{t('StarkLLM opens its own browser window and works on websites. It asks you before buying, booking or sending anything.')}</span>
         )}
+        {useWebTask && webTaskBridge() && webTaskBridge().openBrowser && (
+          <button
+            className={styles.kbToggle}
+            onClick={async () => { const r = await webTaskBridge().openBrowser(); if (r && r.error === 'offline') toast.error(t('Web tasks are off while StarkLLM is fully offline')); }}
+            title={t("Open StarkLLM's browser window and use it yourself, with its own address bar")}
+            type="button"
+          >
+            <Globe size={16} />
+            {t('Open the browser')}
+          </button>
+        )}
         {webTaskAvailable && onChooseTerminalFolder && !terminalFolder && (
           <button
             className={styles.kbToggle}
@@ -331,6 +342,15 @@ export default function InputBar({ onSendImage, compareModel, onSetCompareModel,
           <button type="button" onClick={clearImage} title={t('Remove the image')} aria-label={t('Remove the image')}><X size={14} /></button>
         </div>
       )}
+      {!pendingImage && imageFollowUp && (
+        <div className={styles.imageChip} role="status">
+          <ImagePlus size={14} />
+          <span>{t('Your next question is also about the image {name}.', { name: imageFollowUp })}</span>
+          {onClearImageFollowUp && (
+            <button type="button" onClick={onClearImageFollowUp} title={t('Ask without the image')} aria-label={t('Ask without the image')}><X size={14} /></button>
+          )}
+        </div>
+      )}
       <div className={styles.inputWrapper}>
         <div style={{ display: 'flex', gap: '4px' }}>
           <button className={styles.iconBtn} onClick={() => setIsTemplatesOpen(true)} title={t('Prompt Templates')}>
@@ -392,12 +412,18 @@ export default function InputBar({ onSendImage, compareModel, onSetCompareModel,
         )}
 
         <div className={styles.actions}>
+          {/* while recording, the button says "Stop" in words (2.5.0 acceptance test: a tester recorded 35 s before
+              finding how to end it) */}
           <button
+            type="button"
             className={`${styles.iconBtn} ${isRecording ? styles.recordingBtn : ''}`}
             onClick={toggleRecording}
-            title={t('Record voice message')}
+            title={isRecording ? t('Stop recording') : t('Record voice message')}
+            aria-label={isRecording ? t('Stop recording') : t('Record voice message')}
           >
-            {isRecording ? <Square size={24} color="red" /> : <Mic size={24} />}
+            {isRecording ? (
+              <><Square size={18} color="red" fill="red" /><span className={styles.recordingStopLabel}>{t('Stop')}</span></>
+            ) : <Mic size={24} />}
           </button>
           {isGenerating ? (
             <button className={`${styles.iconBtn} ${styles.stopBtn}`} onClick={onStopGeneration} title={t('Stop generating')}>

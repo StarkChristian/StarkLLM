@@ -135,9 +135,39 @@ function pageScript() {
   function rect(i) {
     const el = document.querySelector(`[${ATTR}="${Number(i)}"]`);
     if (!el) return null;
-    el.scrollIntoView({ block: 'center', inline: 'center' });
+    el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
     const r = el.getBoundingClientRect();
     return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), kind: kindOf(el), role: roleOf(el), label: labelOf(el) };
+  }
+
+  // after the wait: the centre of element i again, and whether a click there really reaches it (not a banner, not
+  // another element of a page that was still scrolling)
+  function hit(i) {
+    const el = document.querySelector(`[${ATTR}="${Number(i)}"]`);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    const x = Math.round(r.left + r.width / 2);
+    const y = Math.round(r.top + r.height / 2);
+    const inView = r.width > 0 && r.height > 0 && x >= 0 && y >= 0 && x < window.innerWidth && y < window.innerHeight;
+    const at = inView ? document.elementFromPoint(x, y) : null;
+    return { x, y, ok: Boolean(at && (at === el || el.contains(at) || at.contains(el))) };
+  }
+
+  // the address a click on element i leads to, when it is (inside) a link to another page; null otherwise
+  function linkOf(i) {
+    const el = document.querySelector(`[${ATTR}="${Number(i)}"]`);
+    const a = el && el.closest('a[href]');
+    if (!a || !/^https?:/i.test(a.href)) return null;
+    const here = location.href.split('#')[0];
+    return a.href.split('#')[0] === here ? null : a.href;
+  }
+
+  // the click inside the page, for an element a click at its point does not reach
+  function clickHere(i) {
+    const el = document.querySelector(`[${ATTR}="${Number(i)}"]`);
+    if (!el) return false;
+    el.click();
+    return true;
   }
 
   // before typing: focus the field and select what is in it, so typed text replaces it
@@ -175,7 +205,7 @@ function pageScript() {
     return clean(root ? root.innerText : '', 12000);
   }
 
-  window.__starkllm = { snapshot, rect, focusField, choose, scrollPage, read };
+  window.__starkllm = { snapshot, rect, hit, linkOf, clickHere, focusField, choose, scrollPage, read };
 }
 
 // The source to run in the page: defines window.__starkllm once (a navigation removes it again).

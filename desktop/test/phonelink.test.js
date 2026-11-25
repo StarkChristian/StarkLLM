@@ -118,6 +118,28 @@ test('the phone link is off until the user turns it on', async (t) => {
 
 // ---- pairing
 
+test('the same phone pairing again replaces its earlier entry (proved by its token) and keeps level and away', async (t) => {
+  const s = await paired(t);
+  s.link.setDeviceAway(s.deviceId, true);
+  const { uri } = s.link.startPairing();
+  const q = new URL(uri).searchParams;
+  // a wrong token for the earlier entry: a second entry, the earlier one stays
+  const other = await request(s.port, { method: 'POST', path: '/phone/v1/pair', body: { code: q.get('c'), name: 'Other', replaces: s.deviceId, replaces_token: 'nope' }, pin: q.get('f') });
+  assert.strictEqual(other.status, 200);
+  assert.strictEqual(s.link.status().devices.length, 2);
+  const q2 = new URL(s.link.startPairing().uri).searchParams;
+  const again = await request(s.port, { method: 'POST', path: '/phone/v1/pair', body: { code: q2.get('c'), name: 'Galaxy Z Flip5', replaces: s.deviceId, replaces_token: s.token }, pin: q2.get('f') });
+  assert.strictEqual(again.status, 200);
+  const devices = s.link.status().devices;
+  assert.strictEqual(devices.length, 2);
+  assert.ok(!devices.some((d) => d.id === s.deviceId));
+  const mine = devices.find((d) => d.id === again.json.device_id);
+  assert.strictEqual(mine.away, true);
+  // the old token no longer works
+  const old = await request(s.port, { path: '/phone/v1/hello', headers: { [DEVICE_HEADER]: s.token }, pin: s.pin });
+  assert.strictEqual(old.status, 401);
+});
+
 test('a phone pairs with the one-time code of the QR code, and the code works once', async (t) => {
   const s = await setup(t);
   const st = await s.link.setEnabled(true);
@@ -170,7 +192,7 @@ test('wrong codes block the address that sent them, not the pairing; the pairing
 test('a paired phone reaches the allowed engine calls with the local session; the device token stays here', async (t) => {
   const s = await paired(t);
   const hello = await request(s.port, { path: '/phone/v1/hello', headers: { [DEVICE_HEADER]: s.token }, pin: s.pin });
-  assert.deepStrictEqual(hello.json, { pc_name: 'GEEKOM', version: '2.4.0', device_id: s.deviceId, signed_in: true, level: 'work' });
+  assert.deepStrictEqual(hello.json, { pc_name: 'GEEKOM', version: '2.4.0', device_id: s.deviceId, signed_in: true, level: 'work', away: false, via_relay: false });
   const r = await request(s.port, { path: '/api/v1/workspaces/?x=1', headers: { [DEVICE_HEADER]: s.token, accept: 'application/json', cookie: 'a=b' } });
   assert.strictEqual(r.status, 200);
   const seen = s.engine.seen.at(-1);

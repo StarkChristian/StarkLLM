@@ -90,6 +90,7 @@ function initApp() {
     i18n.setLanguage(code);
     if (tray) tray.setToolTip(t('StarkLLM — Local AI Desktop'));
     refreshTrayMenu();
+    try { require('./webtask').refreshBar(); } catch (e) { /* no browser window */ }
   });
   // Settings > About in the web UI (only the app's own page may ask)
   ipcMain.on('desktop:local-token', (event) => {
@@ -136,7 +137,7 @@ function initApp() {
   registerBackupHandlers();
   ipcMain.handle('updates:check', async (event) => {
     if (!event.senderFrame || !sameOrigin(event.senderFrame.url, APP_URL)) return { error: 'not allowed' };
-    const r = await updater.check({ manual: true });
+    const r = await updater.check({ manual: true, inPage: true }); // the page shows the result: no message box
     return { latest: r && r.latest, error: r && r.error, upToDate: Boolean(r && !r.error && !r.show) };
   });
   // Electron grants every permission to every page unless told otherwise: only the app's own page, only what it uses
@@ -519,9 +520,14 @@ function phone() {
       dir: path.join(app.getPath('userData'), 'phone'),
       guard,
       getApi: () => ({ url: apiUrl(), token: localToken }),
+      // tests of phones away from home in the home network: only connections through the relay (127.0.0.1) are taken
+      ...(process.env.STARKLLM_PHONE_RELAY_ONLY === '1' ? { remoteAllowed: (address) => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(String(address)) } : {}),
       refreshToken: fetchLocalSession,
       sessionFor: (user) => phoneSessions.get(user) || null,
       sessionExpired: (user) => phoneSessions.delete(user),
+      // phones away from home (docs/phone-away.md); STARKLLM_RELAY_URL for tests
+      relayUrl: process.env.STARKLLM_RELAY_URL || 'wss://relay.starkllm.com',
+      createRelay: (opts) => require('./phone-relay').createRelayClient(opts),
       seal: (text) => {
         if (!phoneSealAvailable()) throw new Error('Windows encryption is not available');
         return safeStorage.encryptString(text).toString('base64');
@@ -585,6 +591,8 @@ function registerPhoneLinkHandlers() {
   ipcMain.handle('phone:cancel-pair', allowed(() => phone().cancelPairing()));
   ipcMain.handle('phone:remove', allowed((id) => phone().removeDevice(String(id || ''))));
   ipcMain.handle('phone:set-level', allowed((id, level) => phone().setLevel(String(id || ''), String(level || ''))));
+  ipcMain.handle('phone:set-away', allowed((on) => phone().setAway(Boolean(on))));
+  ipcMain.handle('phone:set-device-away', allowed((id, on) => phone().setDeviceAway(String(id || ''), Boolean(on))));
 }
 
 let backupTimer = null;

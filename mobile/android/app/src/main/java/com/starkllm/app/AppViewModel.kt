@@ -126,7 +126,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun connect(link: Link) {
-        api = StarkApi(link, onAddressWorked = { store.preferAddress(link.id, it) })
+        api = StarkApi(link, onAddressWorked = { store.preferAddress(link.id, it) }, onRouteChanged = { away ->
+            // the top bar says "away" from the way the last answer really came, not only from the hello at the start
+            _state.update { s -> s.hello?.takeIf { it.viaRelay != away }?.let { s.copy(hello = it.copy(viaRelay = away)) } ?: s }
+        })
     }
 
     private fun deviceName(): String =
@@ -138,7 +141,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val problem = (e as? ApiException)?.problem ?: Problem.UNREACHABLE
         // only the paired PC's own "not-paired" removes the pairing; another device at its address (WRONG_PC) does not
         if (problem.removesPairing) forgetCurrent()
-        _state.update { it.copy(notice = Notice(problem)) }
+        val unreachable = problem == Problem.UNREACHABLE || problem == Problem.UNREACHABLE_AWAY || problem == Problem.WRONG_PC
+        _state.update { it.copy(notice = Notice(problem), hello = if (unreachable) null else it.hello) }
     }
 
     /** Runs a request; a removed pairing sends the user back to the pairing screen. */
@@ -176,8 +180,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _state.update { it.copy(busy = true, notice = null) }
             try {
-                val r = StarkApi(info.addresses, info.port, info.fingerprint, token = null).pair(info.code, deviceName())
-                val link = Link(r.pcName.ifBlank { info.pcName }, info.addresses, info.port, info.fingerprint, r.deviceId, r.token)
+                val earlier = store.all().firstOrNull { it.fingerprint == info.fingerprint }
+                val r = StarkApi(info.addresses, info.port, info.fingerprint, token = null).pair(info.code, deviceName(), earlier)
+                val link = Link(r.pcName.ifBlank { info.pcName }, info.addresses, info.port, info.fingerprint, r.deviceId, r.token, info.relayUrl, info.relayId)
                 store.save(link)
                 switchTo(link)
             } catch (e: CancellationException) {

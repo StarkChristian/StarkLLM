@@ -70,6 +70,8 @@ contextBridge.exposeInMainWorld('starkllmDesktop', {
     cancelPairing: () => ipcRenderer.invoke('phone:cancel-pair'),
     removeDevice: (id) => ipcRenderer.invoke('phone:remove', String(id || '')),
     setLevel: (id, level) => ipcRenderer.invoke('phone:set-level', String(id || ''), String(level || '')),
+    setAway: (on) => ipcRenderer.invoke('phone:set-away', Boolean(on)),
+    setDeviceAway: (id, on) => ipcRenderer.invoke('phone:set-device-away', String(id || ''), Boolean(on)),
     onChange: (cb) => {
       const handler = () => cb();
       ipcRenderer.on('phone:changed', handler);
@@ -100,6 +102,7 @@ contextBridge.exposeInMainWorld('starkllmDesktop', {
     // the text of the page the window shows, to save it to the workspace
     pageText: () => ipcRenderer.invoke('webtask:page'),
     showWindow: () => ipcRenderer.invoke('webtask:show'),
+    openBrowser: () => ipcRenderer.invoke('webtask:open-browser'),
     // scheduled web tasks (docs/roadmap-2026-12.md, R5): looking only, run by the desktop app
     schedules: {
       list: () => ipcRenderer.invoke('webtask:schedules'),

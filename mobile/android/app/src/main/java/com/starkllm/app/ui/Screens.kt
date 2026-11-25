@@ -238,7 +238,7 @@ internal fun StatusLine(state: UiState) {
         val ok = state.hello != null
         Box(Modifier.padding(end = 6.dp).size(7.dp).clip(CircleShape).background(if (ok) Connected else MaterialTheme.colorScheme.outline))
         Text(
-            if (ok) stringResource(R.string.connected) else stringResource(R.string.not_connected),
+            if (ok) stringResource(if (state.hello?.viaRelay == true) R.string.connected_away else R.string.connected) else stringResource(R.string.not_connected),
             style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
@@ -263,6 +263,7 @@ internal fun Mark(size: Dp) {
 internal fun problemText(problem: Problem?): String = stringResource(
     when (problem) {
         Problem.UNREACHABLE -> R.string.error_unreachable
+        Problem.UNREACHABLE_AWAY -> R.string.error_unreachable_away
         Problem.WRONG_PC -> R.string.error_wrong_pc
         Problem.CODE_CLOSED -> R.string.error_code_closed
         Problem.WRONG_CODE -> R.string.error_wrong_code
@@ -271,6 +272,8 @@ internal fun problemText(problem: Problem?): String = stringResource(
         Problem.PC_OFFLINE -> R.string.error_pc_offline
         Problem.NOT_SIGNED_IN -> R.string.several_accounts
         Problem.NOT_ALLOWED -> R.string.error_not_allowed
+        Problem.AWAY_OFF -> R.string.error_away_off
+        Problem.PAIR_AT_HOME -> R.string.error_pair_at_home
         Problem.SERVER, null -> R.string.error_server
     }
 )

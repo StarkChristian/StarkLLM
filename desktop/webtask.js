@@ -12,7 +12,7 @@
 //    that folder only, each change and command after the user's yes, the file changes can be undone afterwards.
 //    Commands run as the user, with the user's rights, without the secrets of StarkLLM's own environment;
 //  * scheduled web tasks (schedule-core.js) run in a hidden window and only look.
-const { app, BrowserWindow, session, dialog, Notification } = require('electron');
+const { app, BrowserWindow, WebContentsView, ipcMain: barIpc, session, dialog, Notification } = require('electron');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -60,29 +60,167 @@ function isWeb(url) {
   return /^https?:\/\//i.test(String(url || ''));
 }
 
+// A link with target="_blank" or a window.open() of the page (2.5.0 acceptance test: "Öffnungszeiten" on
+// serviceportal.aachen.de did nothing): never a new window; a web address opens in the same page instead, like a
+// normal click, so it goes through the same checks (will-navigate, the network layer, and the site rules of a task,
+// which look at the page after each step). The page is loaded after the handler has returned, not from inside it,
+// so the refused new window cannot take the navigation with it. Anything but http/https is dropped.
+function openHereHandler(wc, later = setImmediate) {
+  return ({ url }) => {
+    if (isWeb(url)) {
+      later(() => {
+        if (!wc.isDestroyed()) wc.loadURL(url).catch(() => {});
+      });
+    }
+    return { action: 'deny' };
+  };
+}
+
+const BAR_HEIGHT = 48;
+// the page of a window: the WebContentsView under the address bar (the hidden window of scheduled runs has no bar)
+function pageOf(w) {
+  return w && w.page ? w.page.webContents : w.webContents;
+}
+
+// "aachen.de" -> https://aachen.de, a web address as it is, anything else -> a DuckDuckGo search
+function addressOf(text) {
+  const s = String(text || '').trim();
+  if (!s) return '';
+  if (/^https?:\/\//i.test(s)) return s;
+  if (!/\s/.test(s) && /^[^/]+\.[a-z]{2,}(:\d+)?(\/.*)?$/i.test(s)) return `https://${s}`;
+  return `https://duckduckgo.com/?q=${encodeURIComponent(s)}`;
+}
+
+let failedUrl = '';
+function barState() {
+  if (!win || win.isDestroyed()) return null;
+  const wc = pageOf(win);
+  const h = wc.navigationHistory;
+  const now = wc.getURL();
+  if (isWeb(now)) failedUrl = '';
+  return {
+    url: now.startsWith('data:') && failedUrl ? failedUrl : now,
+    title: wc.getTitle(),
+    loading: wc.isLoading(),
+    canBack: Boolean(h && h.canGoBack()),
+    canForward: Boolean(h && h.canGoForward()),
+    task: current && !current.scheduled ? (current.signal.paused ? 'paused' : 'running') : '',
+    words: {
+      back: t('Back'), forward: t('Forward'), reload: t('Reload'), stop: t('Stop loading'), home: t('Start page'),
+      placeholder: t('Search or enter a web address'), working: t('StarkLLM is working here'),
+      paused: t('You have taken over'),
+    },
+  };
+}
+
+function sendBar() {
+  const s = barState();
+  if (s && !win.webContents.isDestroyed()) win.webContents.send('webbar:state', s);
+}
+
+// the user uses the bar: a running task waits (like "Take over"); a step it is doing now finishes first (at most 15 s),
+// so it cannot type into the page the user opens
+async function userTakesOver() {
+  if (!current || current.scheduled) return;
+  if (!current.signal.paused) {
+    current.signal.paused = true;
+    sendBar();
+  }
+  const until = Date.now() + 15000;
+  while (current && !current.atPause && !current.signal.stopped && Date.now() < until) await sleep(100);
+}
+
+let barReady = false;
+function registerBar() {
+  if (barReady) return;
+  barReady = true;
+  const fromBar = (event) => win && !win.isDestroyed() && event.sender === win.webContents;
+  barIpc.on('webbar:go', async (event, what) => {
+    if (!fromBar(event)) return;
+    if (what === 'refresh') return sendBar();
+    await userTakesOver();
+    if (!win || win.isDestroyed()) return;
+    const wc = pageOf(win);
+    const h = wc.navigationHistory;
+    if (what === 'back' && h && h.canGoBack()) h.goBack();
+    else if (what === 'forward' && h && h.canGoForward()) h.goForward();
+    else if (what === 'reload') wc.reload();
+    else if (what === 'stop') wc.stop();
+    else if (what === 'home') wc.loadURL('https://duckduckgo.com/').catch(() => {});
+    sendBar();
+  });
+  barIpc.on('webbar:open', async (event, text) => {
+    if (!fromBar(event)) return;
+    const url = addressOf(text);
+    if (!isWeb(url)) return;
+    await userTakesOver();
+    if (!win || win.isDestroyed()) return;
+    pageOf(win).loadURL(url).catch(() => {});
+    sendBar();
+  });
+}
+
+// open StarkLLM's browser for the user's own use (no task): the start page
+function openBrowserForUser() {
+  const w = openWindow();
+  if (!isWeb(pageOf(w).getURL())) pageOf(w).loadURL('https://duckduckgo.com/').catch(() => {});
+  w.show();
+  w.focus();
+  return { ok: true };
+}
+
 function openWindow() {
   if (win && !win.isDestroyed()) return win;
   prepareSession();
+  registerBar();
   win = new BrowserWindow({
     width: 1180,
-    height: 860,
+    height: 860 + BAR_HEIGHT,
     show: !backgroundRun,
     title: t('StarkLLM web task'),
     autoHideMenuBar: true,
-    webPreferences: { partition: PARTITION, sandbox: true, contextIsolation: true, nodeIntegration: false, spellcheck: false },
+    webPreferences: { preload: path.join(__dirname, 'webtask-bar-preload.js'), sandbox: true, contextIsolation: true, nodeIntegration: false, spellcheck: false },
   });
-  const wc = win.webContents;
+  win.webContents.loadFile(path.join(__dirname, 'webtask-bar.html')).catch(() => {});
+  // the bar never navigates anywhere
+  win.webContents.on('will-navigate', (event) => event.preventDefault());
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  const page = new WebContentsView({ webPreferences: { partition: PARTITION, sandbox: true, contextIsolation: true, nodeIntegration: false, spellcheck: false } });
+  win.contentView.addChildView(page);
+  win.page = page;
+  const fit = () => {
+    if (!win || win.isDestroyed()) return;
+    const [w, h] = win.getContentSize();
+    page.setBounds({ x: 0, y: BAR_HEIGHT, width: w, height: Math.max(0, h - BAR_HEIGHT) });
+  };
+  fit();
+  win.on('resize', fit);
+  const wc = page.webContents;
+  for (const e of ['did-navigate', 'did-navigate-in-page', 'did-start-loading', 'did-stop-loading', 'page-title-updated']) wc.on(e, () => sendBar());
+  wc.on('did-fail-load', (_event, code, _desc, url, isMainFrame) => {
+    if (!isMainFrame || code === -3 || !isWeb(url)) return;   // -3: the user or a new address stopped it
+    const offline = getShared().isOffline();
+    const local = !offline && /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.)/.test(hostOf(url));
+    const text = offline ? t('StarkLLM is fully offline: web pages are not opened.')
+      : local ? t('StarkLLM\'s browser does not open pages of this PC or your home network (for example your router).')
+        : t('This page could not be opened.');
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const html = `<!doctype html><meta charset="utf-8"><title>${esc(t('Not opened'))}</title>`
+      + '<body style="font:15px Segoe UI,system-ui,sans-serif;margin:48px;color:#1c2230;background:#f3f4f8">'
+      + `<h2 style="margin:0 0 12px">${esc(t('Not opened'))}</h2><p>${esc(text)}</p><p style="color:#5b6478;word-break:break-all">${esc(url)}</p>`;
+    failedUrl = url;
+    wc.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`).catch(() => {});
+  });
+  wc.on('page-title-updated', (_event, title) => {
+    if (win && !win.isDestroyed()) win.setTitle(`${title} · ${t('StarkLLM web task')}`);
+  });
   // links that would open a new window open here; nothing but web addresses
-  wc.setWindowOpenHandler(({ url }) => {
-    if (isWeb(url)) wc.loadURL(url).catch(() => {});
-    return { action: 'deny' };
-  });
+  wc.setWindowOpenHandler(openHereHandler(wc));
   wc.on('will-navigate', (event, url) => { if (!isWeb(url)) event.preventDefault(); });
-  win.on('page-title-updated', (event, title) => {
-    event.preventDefault();
-    if (!win.isDestroyed()) win.setTitle(`${title} · ${t('StarkLLM web task')}`);
-  });
+  win.on('page-title-updated', (event) => event.preventDefault());
   win.on('closed', () => {
+    const pageContents = page && page.webContents;
+    if (pageContents && !pageContents.isDestroyed()) pageContents.close();
     win = null;
     if (current) current.signal.stopped = true; // closing the window ends the task
     for (const resolve of pending.values()) resolve({ ok: false });
@@ -128,7 +266,7 @@ function openBackgroundWindow() {
     webPreferences: { partition: PARTITION, sandbox: true, contextIsolation: true, nodeIntegration: false, spellcheck: false },
   });
   const wc = bgWin.webContents;
-  wc.setWindowOpenHandler(({ url }) => { if (isWeb(url)) wc.loadURL(url).catch(() => {}); return { action: 'deny' }; });
+  wc.setWindowOpenHandler(openHereHandler(wc));
   wc.on('will-navigate', (event, url) => { if (!isWeb(url)) event.preventDefault(); });
   bgWin.on('closed', () => { bgWin = null; });
   return bgWin;
@@ -142,10 +280,10 @@ function closeBackgroundWindow() {
 function electronBrowser(getWindow = openWindow) {
   const hidden = getWindow !== openWindow;
   const current = () => (hidden ? bgWin : win);
-  const w = () => getWindow().webContents;
+  const w = () => pageOf(getWindow());
   return {
     // a follow-up task continues on the page the window shows
-    hasPage: () => { const x = current(); return Boolean(x && !x.isDestroyed() && isWeb(x.webContents.getURL())); },
+    hasPage: () => { const x = current(); return Boolean(x && !x.isDestroyed() && isWeb(pageOf(x).getURL())); },
     async open(url) {
       const wc = w();
       if (!hidden && !win.isVisible()) win.show();
@@ -166,9 +304,23 @@ function electronBrowser(getWindow = openWindow) {
       const r = await inPage(wc, `window.__starkllm.rect(${Number(i)})`);
       if (!r) throw new Error('the element is no longer on the page');
       await sleep(150); // scrolling into view
-      wc.sendInputEvent({ type: 'mouseDown', x: r.x, y: r.y, button: 'left', clickCount: 1 });
-      wc.sendInputEvent({ type: 'mouseUp', x: r.x, y: r.y, button: 'left', clickCount: 1 });
+      const h = await inPage(wc, `window.__starkllm.hit(${Number(i)})`);
+      const before = wc.getURL();
+      const link = await inPage(wc, `window.__starkllm.linkOf(${Number(i)})`).catch(() => null);
+      if (h && h.ok) {
+        wc.sendInputEvent({ type: 'mouseMove', x: h.x, y: h.y });
+        wc.sendInputEvent({ type: 'mouseDown', x: h.x, y: h.y, button: 'left', clickCount: 1 });
+        wc.sendInputEvent({ type: 'mouseUp', x: h.x, y: h.y, button: 'left', clickCount: 1 });
+      } else {
+        // something else is at that point (a banner, a page still scrolling): click the element itself
+        if (!(await inPage(wc, `window.__starkllm.clickHere(${Number(i)})`))) throw new Error('the element is no longer on the page');
+      }
       await settle(wc);
+      // a link that the click did not follow (MSI §43: the page stayed where it was): click it inside the page
+      if (link && h && h.ok && !wc.isDestroyed() && wc.getURL() === before
+          && (await inPage(wc, `window.__starkllm.clickHere(${Number(i)})`).catch(() => false))) {
+        await settle(wc);
+      }
       return r;
     },
     async focusInfo(i) { return inPage(w(), `window.__starkllm.focusField(${Number(i)})`); },
@@ -490,7 +642,12 @@ function register(ipcMain, { fromApp, log = () => {} }) {
     };
     const sender = event.sender;
     current = { id, signal, sender };
-    const send = (e) => { if (!sender.isDestroyed()) sender.send('webtask:event', { id, ...e }); };
+    const send = (e) => {
+      if (!sender.isDestroyed()) sender.send('webtask:event', { id, ...e });
+      // the loop is waiting at its pause point (nothing of the task acts on the page now)
+      if (current && current.id === id && (e.type === 'paused' || e.type === 'resumed')) current.atPause = e.type === 'paused';
+      if (['started', 'paused', 'resumed', 'ended'].includes(e.type)) sendBar();
+    };
     let q = 0;
     const ask = (question) => new Promise((resolve) => {
       const qid = `${id}-q${++q}`;
@@ -506,8 +663,8 @@ function register(ipcMain, { fromApp, log = () => {} }) {
       : null;
     send({ type: 'started', task, folder: terminal ? terminal.folderName : '', taskId: id });
     // a new task (not a follow-up) does not see the page of an earlier one
-    if (!(prev && prev.task) && win && !win.isDestroyed() && isWeb(win.webContents.getURL())) {
-      await win.webContents.loadURL('about:blank').catch(() => {});
+    if (!(prev && prev.task) && win && !win.isDestroyed() && isWeb(pageOf(win).getURL())) {
+      await pageOf(win).loadURL('about:blank').catch(() => {});
     }
     if (terminal) { lastTerminal = terminal; lastTerminalTask = id; }
     const rules = readRules();
@@ -602,15 +759,19 @@ function register(ipcMain, { fromApp, log = () => {} }) {
   ipcMain.handle('webtask:resume', allowed(async () => {
     if (!current) return { error: 'not-running' };
     current.signal.resume();
+    sendBar();
     return { ok: true };
   }));
+
+  // the user's own use of StarkLLM's browser (the web task chip in the chat)
+  ipcMain.handle('webtask:open-browser', allowed(async () => (getShared().isOffline() ? { error: 'offline' } : openBrowserForUser())));
 
   // "Save the page to the workspace": the text the window shows now (also after a sign-in or a search), for the
   // engine to keep as a document. Only the page of StarkLLM's own window, only when no task runs.
   ipcMain.handle('webtask:page', allowed(async () => {
     if (current) return { error: 'busy' };
     if (!win || win.isDestroyed()) return { error: 'no-window' };
-    const wc = win.webContents;
+    const wc = pageOf(win);
     const url = wc.getURL();
     if (!isWeb(url)) return { error: 'no-page' };
     const text = await inPage(wc, 'window.__starkllm.read()');
@@ -650,4 +811,4 @@ function stopForOffline() {
   stopCommands();
 }
 
-module.exports = { register, stopForOffline, stopCommands, shutdown, PARTITION, readSchedules, unsuitableFolder: (d) => unsuitableFolder(d) };
+module.exports = { register, stopForOffline, stopCommands, shutdown, PARTITION, readSchedules, unsuitableFolder: (d) => unsuitableFolder(d), addressOf, openHereHandler, refreshBar: () => sendBar() };

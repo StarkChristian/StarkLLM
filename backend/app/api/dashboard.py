@@ -432,7 +432,10 @@ def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool 
         if is_machine_document(pages, item["filename"]):
             continue  # a log, table, JSON or note: its timestamps and dates are not deadlines
         full = "\n".join(text for _, text in sorted(pages.items()))
-        if any(f["kind"] in ("scam_signs", "ai_instructions", "hidden_text") for f in findings([{"file": item["filename"], "text": full}])):
+        kinds = {f["kind"] for f in findings([{"file": item["filename"], "text": full}])}
+        if kinds & {"ai_instructions", "hidden_text"}:
+            item["ai_note"] = True  # the note is ignored: the letter's own dates and amounts stay (MSI §43)
+        if "scam_signs" in kinds:
             item["suspicious"] = True  # a scam's "deadline" is not something to do
             facts = document_facts_cached(pages, item["filename"])
             _describe_letter(item, facts, pages)

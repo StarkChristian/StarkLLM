@@ -29,8 +29,8 @@ val Connected = Color(0xFF22C55E)
 // and Material's default sizes then look oversized. These sizes follow the system setting but start smaller.
 private val Compact = Typography().let { d ->
     d.copy(
-        headlineSmall = d.headlineSmall.copy(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold),
-        titleLarge = d.titleLarge.copy(fontSize = 19.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold),
+        headlineSmall = d.headlineSmall.copy(fontSize = 21.sp, lineHeight = 27.sp, fontWeight = FontWeight.SemiBold),
+        titleLarge = d.titleLarge.copy(fontSize = 18.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold),
         titleMedium = d.titleMedium.copy(fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold),
         titleSmall = d.titleSmall.copy(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium),
         bodyLarge = d.bodyLarge.copy(fontSize = 15.sp, lineHeight = 22.sp, letterSpacing = 0.1.sp),
@@ -42,15 +42,21 @@ private val Compact = Typography().let { d ->
     )
 }
 
-/** Larger system text is followed by half: 130 % becomes 115 %, 200 % becomes 150 % (owner's review, Galaxy Z Flip5). */
-fun dampedFontScale(system: Float): Float = if (system > 1f) 1f + (system - 1f) / 2f else system
+/** Larger system text is followed by 40 %: 130 % becomes 112 %, 200 % becomes 140 % (owner's review, Galaxy Z Flip5). */
+fun dampedFontScale(system: Float): Float = if (system > 1f) 1f + (system - 1f) * 0.4f else system
+
+/** A larger display zoom ("Bildschirmzoom") is followed by half; a smaller one as it is. stable: the device's own density. */
+fun dampedDensity(current: Float, stable: Float): Float = if (stable > 0f && current > stable) stable + (current - stable) / 2f else current
 
 @Composable
 fun StarkTheme(themeId: String = SYSTEM_THEME, content: @Composable () -> Unit) {
     val density = LocalDensity.current
     val theme = themeFor(themeId, isSystemInDarkTheme())
     CompositionLocalProvider(
-        LocalDensity provides Density(density.density, dampedFontScale(density.fontScale)),
+        LocalDensity provides Density(
+            dampedDensity(density.density, android.util.DisplayMetrics.DENSITY_DEVICE_STABLE / 160f),
+            dampedFontScale(density.fontScale),
+        ),
         LocalStarkTheme provides theme,
     ) {
         // dark status bar icons on the light themes, light ones on the dark themes

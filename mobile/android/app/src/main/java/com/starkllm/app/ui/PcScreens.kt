@@ -373,19 +373,23 @@ private val THEME_NAMES = mapOf(
 @Composable
 private fun ThemePicker(selected: String, onSelect: (String) -> Unit) {
     val systemDark = isSystemInDarkTheme()
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        ThemeTile(themeFor(SYSTEM_THEME, systemDark), stringResource(R.string.theme_system), selected == SYSTEM_THEME, split = true) { onSelect(SYSTEM_THEME) }
-        THEMES.forEach { t ->
-            ThemeTile(t, stringResource(THEME_NAMES[t.id] ?: R.string.theme_dark), selected == t.id) { onSelect(t.id) }
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val gap = 10.dp
+        val tile = (maxWidth - gap * 2) / 3
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(gap), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            ThemeTile(themeFor(SYSTEM_THEME, systemDark), stringResource(R.string.theme_system), selected == SYSTEM_THEME, split = true, width = tile) { onSelect(SYSTEM_THEME) }
+            THEMES.forEach { t ->
+                ThemeTile(t, stringResource(THEME_NAMES[t.id] ?: R.string.theme_dark), selected == t.id, width = tile) { onSelect(t.id) }
+            }
         }
     }
 }
 
 /** A small picture of the theme: its background (and pattern), a card, a question bubble in its gradient */
 @Composable
-private fun ThemeTile(t: AppTheme, name: String, selected: Boolean, split: Boolean = false, onClick: () -> Unit) {
+private fun ThemeTile(t: AppTheme, name: String, selected: Boolean, split: Boolean = false, width: androidx.compose.ui.unit.Dp = 90.dp, onClick: () -> Unit) {
     val border = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-    Column(Modifier.width(90.dp).clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.width(width).clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             Modifier.fillMaxWidth().height(62.dp).clip(RoundedCornerShape(14.dp))
                 .border(if (selected) 2.dp else 1.dp, border, RoundedCornerShape(14.dp)),
@@ -410,7 +414,12 @@ private fun ThemeTile(t: AppTheme, name: String, selected: Boolean, split: Boole
                 }
             }
         }
-        Text(name, style = MaterialTheme.typography.labelSmall, maxLines = 2, textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 5.dp, bottom = 2.dp))
+        Text(name,
+            style = MaterialTheme.typography.labelMedium.copy(
+                hyphens = androidx.compose.ui.text.style.Hyphens.Auto,
+                lineBreak = androidx.compose.ui.text.style.LineBreak.Paragraph,
+            ),
+            maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 6.dp, bottom = 2.dp, start = 2.dp, end = 2.dp))
     }
 }

@@ -124,8 +124,9 @@ function homeAddresses(interfaces = os.networkInterfaces()) {
   return out.sort((x, y) => rank(x) - rank(y)).slice(0, MAX_ADDRESSES);
 }
 
-function pairingUri({ pcName, addresses, port, fingerprint, code }) {
+function pairingUri({ pcName, addresses, port, fingerprint, code, relay = null }) {
   const q = new URLSearchParams({ v: '1', n: pcName, a: addresses.join(','), p: String(port), f: fingerprint, c: code });
+  if (relay && relay.url && relay.id) { q.set('r', relay.url); q.set('i', relay.id); }
   return `starkllm://pair?${q.toString()}`;
 }
 
@@ -165,10 +166,11 @@ function send(res, status, body) {
  * signed in on the PC uses it); sessionExpired(user): the engine refused it (401).
  * seal(text) -> string / unseal(string) -> text: Windows encryption (safeStorage) for each phone's own session in
  * phone-link.json; without it the session stays in memory only.
+ * relayUrl: the StarkLLM relay for phones away from home (docs/phone-away.md); createRelay: phone-relay.js (tests).
  * pcStatus(): what the desktop app knows about this PC for the phone (backup, protection); no secrets.
  * actions: { name: async () => result } for PHONE_ACTIONS, run for phones at the level "manage".
  */
-function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, sessionFor = () => null, sessionExpired = () => {}, seal = null, unseal = null, log = () => {}, version = '', pcName = os.hostname(),
+function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, sessionFor = () => null, sessionExpired = () => {}, seal = null, unseal = null, relayUrl = '', createRelay = null, log = () => {}, version = '', pcName = os.hostname(),
   interfaces = () => os.networkInterfaces(), now = () => Date.now(), firstPort = FIRST_PORT, listenHost = '0.0.0.0',
   remoteAllowed = (address) => ['lan', 'this_pc'].includes(classify(plainAddress(address))), onChange = () => {},
   pcStatus = () => ({}), actions = {} }) {
@@ -178,7 +180,8 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
   let state = { enabled: false, port: null, devices: [] };
   try {
     const saved = JSON.parse(fs.readFileSync(statePath, 'utf8'));
-    state = { enabled: saved.enabled === true, port: Number(saved.port) || null, devices: Array.isArray(saved.devices) ? saved.devices : [] };
+    state = { enabled: saved.enabled === true, port: Number(saved.port) || null, devices: Array.isArray(saved.devices) ? saved.devices : [],
+      away: saved.away === true, relay: saved.relay && typeof saved.relay.id === 'string' ? saved.relay : null };
   } catch (e) {
     // first use: off
   }
@@ -190,6 +193,35 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
   const sockets = new Map();     // open TLS connection -> device id (once it showed a token)
   const rawSockets = new Set();  // every open connection, also during the handshake (closed by stop())
   const failures = new Map();    // address -> { count, until }
+  // phones away from home: the connection to the relay, and the local ports of the connections it brings in
+  let relay = null;
+  let relayState = 'off';
+  const relayedPorts = new Set();
+  function relayIdentity() {
+    if (!state.relay) {
+      state.relay = { id: crypto.randomBytes(16).toString('base64url'), key: crypto.randomBytes(32).toString('base64url') };
+      save();
+    }
+    return state.relay;
+  }
+  const relayedSockets = new WeakSet();
+  const fromRelay = (socket) => Boolean(socket) && ['127.0.0.1', '::1'].includes(plainAddress(socket.remoteAddress)) && relayedPorts.has(socket.remotePort);
+  const isRelayed = (socket) => Boolean(socket) && relayedSockets.has(socket);
+  function syncRelay() {
+    const wanted = Boolean(server && state.away && relayUrl && createRelay && state.devices.some((d) => d.away) && !guard.isOffline());
+    if (wanted && !relay) {
+      const r = relayIdentity();
+      relay = createRelay({ url: relayUrl, id: r.id, key: r.key, localPort: () => port, guard, log,
+        onRelayed: (p, on) => { if (on) relayedPorts.add(p); else relayedPorts.delete(p); },
+        onState: (s) => { relayState = s; onChange(); } });
+      relay.start();
+    } else if (!wanted && relay) {
+      relay.stop();
+      relay = null;
+      relayState = 'off';
+      relayedPorts.clear();
+    }
+  }
   const probes = new Map();      // address -> when a device without a pairing from there was last listed
 
   function save() {
@@ -229,6 +261,8 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
       log(`phone link: ${address} blocked for 10 minutes after repeated wrong codes or passwords`);
     }
     failures.set(address, f);
+    // many different keys (random tokens through the relay): the oldest are forgotten
+    if (failures.size > 2048) failures.delete(failures.keys().next().value);
   };
 
   // A device without a pairing (or with a removed one) is listed in Settings > Privacy & network as refused, at most
@@ -279,18 +313,29 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
     const user = pairing.user || '';
     const session = pairing.session || '';
     pairing = null;
-    if (state.devices.length >= MAX_DEVICES) {
+    const replacing = typeof body.replaces === 'string' && typeof body.replaces_token === 'string' && deviceFor(body.replaces_token);
+    if (state.devices.length >= MAX_DEVICES && !(replacing && replacing.id === body.replaces)) {
       onChange();
       return send(res, 409, { error: 'too-many-devices' });
     }
+    // the same phone pairing again: it proves its earlier pairing with that pairing's token, and the new entry replaces it
+    const earlier = typeof body.replaces === 'string' && typeof body.replaces_token === 'string' ? deviceFor(body.replaces_token) : null;
+    const replaced = earlier && earlier.id === body.replaces && (earlier.user || '') === user ? earlier : null;
     const token = crypto.randomBytes(32).toString('base64url');
     const at = new Date(now()).toISOString();
     const device = { id: crypto.randomBytes(8).toString('hex'), name: cleanName(body.name) || 'Phone', created: at, lastSeen: at,
-      tokenHash: hash(token).toString('hex'), level: DEFAULT_LEVEL, ...(user ? { user } : {}) };
+      tokenHash: hash(token).toString('hex'), level: replaced ? levelOf(replaced) : DEFAULT_LEVEL, ...(user ? { user } : {}),
+      ...(replaced && replaced.away ? { away: true } : {}) };
     keepSession(device, session);
+    if (replaced) {
+      state.devices = state.devices.filter((d) => d.id !== replaced.id);
+      memorySessions.delete(replaced.id);
+      for (const [socket, deviceId] of sockets) if (deviceId === replaced.id) socket.destroy();
+    }
     state.devices.push(device);
     save();
-    log(`phone link: "${device.name}" paired`);
+    if (replaced) syncRelay();
+    log(`phone link: "${device.name}" paired${replaced ? ' again (replaces its earlier pairing)' : ''}`);
     onChange();
     return send(res, 200, { device_id: device.id, token, pc_name: pcName, version, level: device.level });
   }
@@ -455,7 +500,9 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
   }
 
   async function handle(req, res) {
-    const address = plainAddress(req.socket.remoteAddress);
+    const viaRelay = isRelayed(req.socket);
+    // wrong tokens through the relay are counted per token (one stranger cannot block every phone away from home)
+    const address = viaRelay ? `relay:${hash(String(req.headers[DEVICE_HEADER] || '')).toString('hex').slice(0, 16)}` : plainAddress(req.socket.remoteAddress);
     if (guard.isOffline()) return send(res, 503, { error: 'offline' });
     if (blocked(address)) return send(res, 429, { error: 'try-later' });
     let url;
@@ -465,6 +512,7 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
       return send(res, 400, { error: 'bad-request' });
     }
     if (req.method === 'POST' && url.pathname === '/phone/v1/pair') {
+      if (viaRelay) return send(res, 403, { error: 'pair-at-home' });   // pairing only in the home network
       try {
         guard.inbound('phone_link', address, 'A phone asked to pair (Settings > Phone)');
       } catch (e) {
@@ -478,9 +526,10 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
       probed(address);
       return send(res, 401, { error: 'not-paired' });
     }
+    if (viaRelay && !(state.away && device.away)) return send(res, 403, { error: 'away-off' });
     if (!sockets.get(req.socket)) {
       try {
-        guard.inbound('phone_link', address, 'A paired phone on the home network (Settings > Phone)');
+        guard.inbound('phone_link', viaRelay ? 'StarkLLM relay' : address, viaRelay ? 'A paired phone away from home, through the StarkLLM relay (encrypted end to end)' : 'A paired phone on the home network (Settings > Phone)');
       } catch (e) {
         return send(res, 503, { error: 'offline' });
       }
@@ -490,7 +539,7 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
     const level = levelOf(device);
     if (req.method === 'GET' && url.pathname === '/phone/v1/hello') {
       const api = apiFor(device);
-      return send(res, 200, { pc_name: pcName, version, device_id: device.id, signed_in: Boolean(api.token), level });
+      return send(res, 200, { pc_name: pcName, version, device_id: device.id, signed_in: Boolean(api.token), level, away: Boolean(state.away && device.away), via_relay: viaRelay });
     }
     if (req.method === 'GET' && url.pathname === '/phone/v1/status') {
       let pc = {};
@@ -534,6 +583,7 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
         raw.on('close', () => rawSockets.delete(raw));
       });
       s.on('secureConnection', (socket) => {
+        if (fromRelay(socket)) relayedSockets.add(socket);
         sockets.set(socket, null);
         socket.on('close', () => sockets.delete(socket));
       });
@@ -574,6 +624,7 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
           save();
         }
         log(`phone link: listening on port ${port}`);
+        syncRelay();
         onChange();
         return;
       } catch (e) {
@@ -590,6 +641,7 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
 
   function stop() {
     pairing = null;
+    if (relay) { relay.stop(); relay = null; relayState = 'off'; relayedPorts.clear(); }
     if (!server) return;
     const s = server;
     server = null;
@@ -615,7 +667,8 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
       offline: guard.isOffline(),
       error: lastError,
       pairing: pairing ? { expiresAt: pairing.expires } : null,
-      devices: state.devices.map((d) => ({ id: d.id, name: d.name, created: d.created, lastSeen: d.lastSeen, level: levelOf(d), user: d.user || '' }))
+      devices: state.devices.map((d) => ({ id: d.id, name: d.name, created: d.created, lastSeen: d.lastSeen, level: levelOf(d), user: d.user || '', away: Boolean(d.away) })),
+      away: state.away, relay: { available: Boolean(relayUrl && createRelay), state: relayState }
     };
   }
 
@@ -639,10 +692,28 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
       if (state.devices.length >= MAX_DEVICES) return { error: 'too-many-devices' };
       pairing = { code: crypto.randomBytes(16).toString('base64url'), expires: now() + PAIR_MS, user: String(opts.user || '').slice(0, 200),
         session: typeof opts.session === 'string' ? opts.session : '' };
-      return { uri: pairingUri({ pcName, addresses, port, fingerprint, code: pairing.code }), expiresAt: pairing.expires, addresses, port };
+      return { uri: pairingUri({ pcName, addresses, port, fingerprint, code: pairing.code, relay: relayUrl && createRelay ? { url: relayUrl, id: relayIdentity().id } : null }), expiresAt: pairing.expires, addresses, port };
     },
     cancelPairing() {
       pairing = null;
+      return status();
+    },
+    // Settings > Phone: phones away from home at all (through the relay), and per phone
+    setAway(on) {
+      state.away = Boolean(on);
+      save();
+      syncRelay();
+      log(`phone link: phones away from home ${state.away ? 'allowed' : 'off'}`);
+      return status();
+    },
+    setDeviceAway(id, on) {
+      const device = state.devices.find((d) => d.id === id);
+      if (!device) return { error: 'bad-request' };
+      device.away = Boolean(on);
+      save();
+      syncRelay();
+      // a phone that may no longer come from outside loses its open relayed connections at once
+      if (!device.away) for (const [socket, deviceId] of sockets) if (deviceId === id && isRelayed(socket)) socket.destroy();
       return status();
     },
     // Settings > Phone: what this phone may do (LEVELS)
@@ -662,6 +733,7 @@ function createPhoneLink({ dir, guard, getApi, refreshToken = async () => {}, se
       if (state.devices.length !== before) {
         memorySessions.delete(id);
         save();
+        syncRelay();
         for (const [socket, deviceId] of sockets) if (deviceId === id) socket.destroy();
         log('phone link: a phone was removed');
       }

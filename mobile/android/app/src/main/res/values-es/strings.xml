@@ -16,7 +16,7 @@
     <string name="suggestion_3">¿Cuánto tengo que pagar y hasta cuándo?</string>
     <string name="copy">Copiar</string>
     <string name="copied">Copiado</string>
-    <string name="privacy_note">Sus documentos y el modelo de IA se quedan en su PC. El teléfono se conecta cifrado por su red doméstica y solo muestra las respuestas.</string>
+    <string name="privacy_note">Sus documentos y el modelo de IA se quedan en su PC. El teléfono se conecta por su red doméstica o, si lo permite en el PC, fuera de casa a través del relé de StarkLLM; en ambos casos cifrado del teléfono al PC, y solo muestra las respuestas.</string>
     <string name="scan_button">Escanear código QR</string>
     <string name="scan_hint">Apunte la cámara al código QR de la pantalla de su PC.</string>
     <string name="camera_permission_needed">StarkLLM usa la cámara solo cuando usted toca: para leer el código QR de su PC o fotografiar una carta para su PC. No se graba nada en segundo plano.</string>
@@ -203,4 +203,14 @@
         <item quantity="many">%d de plazos abiertos</item>
         <item quantity="other">%d plazos abiertos</item>
     </plurals>
+    <string name="error_away_off">Este teléfono solo puede llegar al PC en su red doméstica. Para usarlo fuera de casa, permítalo en el PC en Ajustes &gt; Teléfono.</string>
+    <string name="error_pair_at_home">Vincule el teléfono en su red doméstica, en la misma red wifi que el PC.</string>
+    <string name="connected_away">Conectado · fuera de casa</string>
+    <string name="error_unreachable_away">No se puede llegar al PC. ¿Está encendido y StarkLLM en marcha? En casa: ¿están el teléfono y el PC en la misma red wifi? Fuera de casa: ¿está este teléfono permitido fuera de casa en el PC (Ajustes &gt; Teléfono)?</string>
+    <string name="src_page">Página %1$s</string>
+    <string name="src_photo">Foto</string>
+    <string name="src_part">Parte %1$s</string>
+    <string name="src_at">a las %1$s</string>
+    <string name="src_ocr">leído de la imagen</string>
+    <string name="src_vision">descrito por el modelo de imágenes</string>
 </resources>

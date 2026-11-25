@@ -1447,5 +1447,22 @@
   "account {name}": "compte {name}",
   "Your question is sent to DuckDuckGo (if it does not answer, to Mullvad Leta, then Mojeek).": "Votre question est envoyée à DuckDuckGo (s’il ne répond pas, à Mullvad Leta, puis à Mojeek).",
   "Send the result to the assistant": "Envoyer le résultat à l'assistant",
-  "Result of the tool:": "Résultat de l’outil :"
+  "Open the browser": "Ouvrir le navigateur",
+  "Open StarkLLM's browser window and use it yourself, with its own address bar": "Ouvrir la fenêtre de navigateur de StarkLLM et l’utiliser vous-même, avec sa propre barre d’adresse",
+  "Connected to the StarkLLM relay.": "Connecté au relais StarkLLM.",
+  "Connecting to the StarkLLM relay…": "Connexion au relais StarkLLM…",
+  "The StarkLLM relay cannot be reached right now; StarkLLM tries again.": "Le relais StarkLLM est injoignable pour le moment ; StarkLLM réessaie.",
+  "The StarkLLM relay refused this PC.": "Le relais StarkLLM a refusé ce PC.",
+  "Fully offline: phones away from home are off.": "Entièrement hors ligne : les téléphones hors de chez vous sont désactivés.",
+  "No phone may be used away from home yet: allow it for a phone below.": "Aucun téléphone ne peut encore être utilisé hors de chez vous : autorisez-le ci-dessous pour un téléphone.",
+  "Phones away from home": "Téléphones hors de chez vous",
+  "A phone you allow below can also reach this PC when it is not in your home network, through the StarkLLM relay. The connection stays encrypted from the phone to this PC: the relay passes on encrypted bytes only and never sees a question, an answer or a document.": "Un téléphone que vous autorisez ci-dessous peut aussi joindre ce PC hors de votre réseau domestique, via le relais StarkLLM. La connexion reste chiffrée du téléphone jusqu’à ce PC : le relais ne transmet que des octets chiffrés et ne voit jamais une question, une réponse ou un document.",
+  "Also away from home (through the relay)": "Aussi hors de chez vous (via le relais)",
+  "Result of the tool:": "Résultat de l’outil :",
+  "Blocked (this PC or home network)": "Bloqué (ce PC ou réseau domestique)",
+  "Phones away from home (StarkLLM relay)": "Téléphones hors de chez vous (relais StarkLLM)",
+  "Follow-up:": "Question complémentaire :",
+  "Your next question is also about the image {name}.": "Votre prochaine question porte aussi sur l’image {name}.",
+  "Ask without the image": "Demander sans l’image",
+  "Stop recording": "Arrêter l’enregistrement"
 }

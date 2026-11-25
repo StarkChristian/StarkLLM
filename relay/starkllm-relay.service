@@ -1,0 +1,15 @@
+[Unit]
+Description=StarkLLM relay (phones away from home; passes encrypted bytes only)
+After=network-online.target
+
+[Service]
+Type=simple
+Environment=PORT=8787
+Environment=HOST=127.0.0.1
+Environment=RELAY_DATA=%h/starkllm-relay/data
+ExecStart=%h/.nvm/versions/node/v24.18.1/bin/node %h/starkllm-relay/app/server.js
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

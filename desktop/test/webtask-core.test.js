@@ -307,3 +307,28 @@ test('a site the user allows is not asked about again in the same task', async (
   });
   assert.strictEqual(asked, 1);
 });
+
+test('a "page not found" page is marked for the model (MSI 36: guessed aachen.de addresses)', () => {
+  const { isNotFoundPage, buildMessages } = require('../webtask-core');
+  const nf = { url: 'https://www.aachen.de/de/verwaltung/wohnen/umzug-ummeldung', title: '404-Seite | Stadt Aachen', elements: [{ i: 24, role: 'link', label: 'Öffnungszeiten' }], text: 'Die Seite wurde nicht gefunden.' };
+  assert.strictEqual(isNotFoundPage(nf), true);
+  assert.strictEqual(isNotFoundPage({ title: 'Seite nicht gefunden', text: '' }), true);
+  assert.strictEqual(isNotFoundPage({ title: 'Page introuvable', text: '' }), true);
+  assert.strictEqual(isNotFoundPage({ title: 'Bürgerservice | Stadt Aachen', text: 'Öffnungszeiten Mo–Fr 8–12 Uhr, Telefon 0241 4320' }), false);
+  assert.strictEqual(isNotFoundPage({ title: 'Einwohner 2404', text: 'Aachen hat 249.070 Einwohner' }), false);
+  const msgs = buildMessages({ task: 'x', language: 'German', history: [], snap: nf, note: '', extraText: '', previous: null });
+  assert.ok(msgs.map((m) => m.content).join(' ').includes('this page does not exist'));
+});
+
+// 2.5.0 acceptance test: Spanish answers of a task in the project folder used "tú". The polite rule stands in the system
+// prompt with and without the terminal, and again at the end of every step's message.
+test('the polite form of address reaches every answer path, also the terminal', () => {
+  const terminal = { folderName: 'proyecto', shell: 'PowerShell', memory: () => '' };
+  for (const opts of [{}, { terminal }, { terminal, browserOn: false }]) {
+    const [system, user] = buildMessages({ task: '¿Qué hace este proyecto?', language: 'Spanish', history: [], snap: null, overview: 'a.js', ...opts });
+    assert.match(system.content, /usted/);
+    assert.match(system.content, /never the familiar form/);
+    assert.match(user.content, /polite form of address[\s\S]*usted/);
+    assert.ok(user.content.trim().endsWith(')'), 'the reminder is the last thing the model reads');
+  }
+});

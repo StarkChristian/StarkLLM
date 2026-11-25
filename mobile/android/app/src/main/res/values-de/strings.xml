@@ -16,7 +16,7 @@
     <string name="suggestion_3">Wie viel muss ich bis wann bezahlen?</string>
     <string name="copy">Kopieren</string>
     <string name="copied">Kopiert</string>
-    <string name="privacy_note">Ihre Dokumente und das KI-Modell bleiben auf Ihrem PC. Das Telefon verbindet sich verschlüsselt über Ihr Heimnetz und zeigt nur die Antworten.</string>
+    <string name="privacy_note">Ihre Dokumente und das KI-Modell bleiben auf Ihrem PC. Das Telefon verbindet sich über Ihr Heimnetz oder, wenn Sie es auf dem PC erlauben, unterwegs über das StarkLLM-Relay; in beiden Fällen verschlüsselt vom Telefon bis zum PC, und es zeigt nur die Antworten.</string>
     <string name="scan_button">QR-Code scannen</string>
     <string name="scan_hint">Richten Sie die Kamera auf den QR-Code auf dem Bildschirm Ihres PCs.</string>
     <string name="camera_permission_needed">StarkLLM nutzt die Kamera nur, wenn Sie tippen: um den QR-Code Ihres PCs zu lesen oder einen Brief für Ihren PC zu fotografieren. Im Hintergrund wird nichts aufgenommen.</string>
@@ -202,4 +202,14 @@
         <item quantity="one">%d offene Frist</item>
         <item quantity="other">%d offene Fristen</item>
     </plurals>
+    <string name="error_away_off">Dieses Telefon darf den PC nur im Heimnetz erreichen. Um es unterwegs zu nutzen, erlauben Sie es auf dem PC unter Einstellungen &gt; Telefon.</string>
+    <string name="error_pair_at_home">Koppeln Sie das Telefon im Heimnetz, im selben WLAN wie der PC.</string>
+    <string name="connected_away">Verbunden · unterwegs</string>
+    <string name="error_unreachable_away">Der PC ist nicht erreichbar. Ist er an und läuft StarkLLM? Zu Hause: Sind Telefon und PC im selben WLAN? Unterwegs: Ist dieses Telefon auf dem PC für unterwegs erlaubt (Einstellungen &gt; Telefon)?</string>
+    <string name="src_page">Seite %1$s</string>
+    <string name="src_photo">Foto</string>
+    <string name="src_part">Teil %1$s</string>
+    <string name="src_at">um %1$s Uhr</string>
+    <string name="src_ocr">aus dem Bild gelesen</string>
+    <string name="src_vision">vom Bildmodell beschrieben</string>
 </resources>
