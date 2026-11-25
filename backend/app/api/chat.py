@@ -39,8 +39,10 @@ except ImportError:
         DDGS = None
 
 # Web search: one engine at a time, the next only when one fails (the library's "auto" asks several at once).
-# DuckDuckGo first; Mullvad's Leta (Brave results, no account, no tracking) and Mojeek (own index) when it does not answer.
-WEB_SEARCH_ENGINES = [("duckduckgo", "duckduckgo.com"), ("mullvad_brave", "leta.mullvad.net"), ("mojeek", "mojeek.com")]
+# DuckDuckGo first; Startpage (privacy search) and Mojeek (own index) when it does not answer. Engines the library does not
+# know are never named: it then asks several engines at once ("mullvad_brave" was removed from it, MSI §43).
+WEB_SEARCH_ENGINES = [("duckduckgo", "duckduckgo.com"), ("startpage", "startpage.com"), ("mojeek", "mojeek.com")]
+WIKIPEDIA_AGENT = "StarkLLM/2.6 (https://starkllm.com; local document assistant)"
 _SEARCH_REGIONS = {"German": "de-de", "Spanish": "es-es", "French": "fr-fr", "Italian": "it-it", "Turkish": "tr-tr",
                    "Portuguese": "pt-pt", "Dutch": "nl-nl", "Polish": "pl-pl", "Russian": "ru-ru"}
 
@@ -49,6 +51,45 @@ def search_regions(language):
     """the results of the question's language first, then without a region (English: only the library's default)"""
     r = _SEARCH_REGIONS.get(language or "")
     return [r, "wt-wt"] if r else ["us-en"]
+
+
+_QUESTION_WORDS = set("""
+what which who whom whose when where why how is are was were do does did can could should would will the a an of in on at
+to for from by with about and or me my i you your it its this that there current currently today now please tell
+was wer wie wo wann warum welche welcher welches ist sind war waren der die das den dem des ein eine einer einen in im
+am an auf aus bei mit von zu zum zur und oder ich mir mein du dein es gibt hoch viel viele aktuell aktuelle aktuellen
+heute derzeit bitte sag sagen
+que quel quelle quels quelles qui quoi quand où comment pourquoi est sont le la les un une des du de en au aux et ou je
+me mon il elle actuel actuelle aujourd'hui
+qué cuál cuáles quién cuándo dónde cómo por es son el la los las un una del de en y o yo mi actual hoy
+che quale quali chi quando dove come perché è sono il lo la gli le un una del della di in e o io mio attuale oggi
+ne nedir nasıl nerede ne zaman kim hangi bir ve veya bu şu güncel bugün
+o a os as um uma do da de em e ou eu meu qual quais quem quando onde como atual hoje
+wat welke wie wanneer waar waarom hoe is zijn de het een van in en of ik mijn huidige vandaag
+""".split())
+
+
+def wiki_keywords(query: str) -> str:
+    """the words of a question that Wikipedia's search can match (no question words, articles or marks)"""
+    words = re.findall(r"[\w'’-]+", query or "")
+    kept = [w for w in words if w.lower() not in _QUESTION_WORDS]
+    return " ".join(kept or words)[:300]
+
+
+def wikipedia_search(query: str, lang: str, get=None) -> list:
+    """Wikipedia's public search API (no account, no key, an official interface for programs): the intros of the
+    three best articles, as web results. The last resort when no search engine answers."""
+    lang = lang if re.fullmatch(r"[a-z]{2,3}", lang or "") else "en"
+    host = f"{lang}.wikipedia.org"
+    params = {"action": "query", "generator": "search", "gsrsearch": wiki_keywords(query), "gsrlimit": 3, "prop": "extracts|info",
+              "exintro": 1, "explaintext": 1, "exsentences": 8, "inprop": "url", "format": "json", "formatversion": 2}
+    get = get or (lambda url, **kw: netguard.get(url, feature="web_search",
+                                                 purpose="Web search the user switched on for this question", **kw))
+    resp = get(f"https://{host}/w/api.php", params=params, headers={"User-Agent": WIKIPEDIA_AGENT}, timeout=15)
+    resp.raise_for_status()
+    pages = sorted(((resp.json().get("query") or {}).get("pages") or []), key=lambda p: p.get("index", 99))
+    return [{"title": p.get("title", "Wikipedia"), "href": p.get("fullurl") or f"https://{host}/wiki/{p.get('title', '')}",
+             "body": (p.get("extract") or "")[:1500]} for p in pages if (p.get("extract") or "").strip()]
 
 
 def search_query(message: str) -> str:
@@ -1157,6 +1198,8 @@ async def chat(
                                 with netguard.external("web_search", host, purpose="Web search the user switched on for this question"):
                                     with DDGS() as ddgs:
                                         for r in ddgs.text(query, max_results=5, backend=backend, region=region):
+                                            if not str(r.get('href', '')).startswith(('https://', 'http://')):
+                                                continue  # an ad's redirect ("/clev?...") is no source
                                             results.append({
                                                 'title': r.get('title', 'Unknown'),
                                                 'href': r.get('href', ''),
@@ -1173,7 +1216,23 @@ async def chat(
                             failed += 1
                         if results:
                             break
-                    if not results and failed == len(WEB_SEARCH_ENGINES):
+                    if not results:
+                        # no engine answered (they refuse automated requests at times): Wikipedia's own API, in the
+                        # question's language first
+                        wiki_langs = list(dict.fromkeys([regions[0].split("-")[0] if regions[0] != "us-en" else "en", "en"]))
+                        for lang in wiki_langs:
+                            try:
+                                results = wikipedia_search(query, lang)
+                            except Exception as e:
+                                if isinstance(e, netguard.OfflineBlocked):
+                                    raise
+                                logger.warning(f"Web search with {lang}.wikipedia.org did not work: {e}")
+                                continue
+                            if results:
+                                break
+                        else:
+                            failed += 1
+                    if not results and failed >= len(WEB_SEARCH_ENGINES):
                         web_failed[0] = True
                     return results
 
@@ -1254,7 +1313,7 @@ async def chat(
                 if e["ui"] not in target:
                     target.append(e["ui"])
         warnings = (await asyncio.to_thread(_document_warnings, ws_results, kb_results, req.workspace_id, current_user.id,
-                                        req.message, bool(getattr(req, "use_web_search", False) and web_context))
+                                        req.message, bool(getattr(req, "use_web_search", False)))
                     if (ws_results or kb_results) else [])
 
         # How sure it is that the question is about the documents (the same test that picks the prompt mode below):

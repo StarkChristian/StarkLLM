@@ -153,6 +153,15 @@ function pageScript() {
     return { x, y, ok: Boolean(at && (at === el || el.contains(at) || at.contains(el))) };
   }
 
+  // the address a click on element i leads to, when it is (inside) a link to another page; null otherwise
+  function linkOf(i) {
+    const el = document.querySelector(`[${ATTR}="${Number(i)}"]`);
+    const a = el && el.closest('a[href]');
+    if (!a || !/^https?:/i.test(a.href)) return null;
+    const here = location.href.split('#')[0];
+    return a.href.split('#')[0] === here ? null : a.href;
+  }
+
   // the click inside the page, for an element a click at its point does not reach
   function clickHere(i) {
     const el = document.querySelector(`[${ATTR}="${Number(i)}"]`);
@@ -196,7 +205,7 @@ function pageScript() {
     return clean(root ? root.innerText : '', 12000);
   }
 
-  window.__starkllm = { snapshot, rect, hit, clickHere, focusField, choose, scrollPage, read };
+  window.__starkllm = { snapshot, rect, hit, linkOf, clickHere, focusField, choose, scrollPage, read };
 }
 
 // The source to run in the page: defines window.__starkllm once (a navigation removes it again).

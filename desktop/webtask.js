@@ -219,7 +219,8 @@ function openWindow() {
   wc.on('will-navigate', (event, url) => { if (!isWeb(url)) event.preventDefault(); });
   win.on('page-title-updated', (event) => event.preventDefault());
   win.on('closed', () => {
-    if (page && !page.webContents.isDestroyed()) page.webContents.close();
+    const pageContents = page && page.webContents;
+    if (pageContents && !pageContents.isDestroyed()) pageContents.close();
     win = null;
     if (current) current.signal.stopped = true; // closing the window ends the task
     for (const resolve of pending.values()) resolve({ ok: false });
@@ -304,7 +305,10 @@ function electronBrowser(getWindow = openWindow) {
       if (!r) throw new Error('the element is no longer on the page');
       await sleep(150); // scrolling into view
       const h = await inPage(wc, `window.__starkllm.hit(${Number(i)})`);
+      const before = wc.getURL();
+      const link = await inPage(wc, `window.__starkllm.linkOf(${Number(i)})`).catch(() => null);
       if (h && h.ok) {
+        wc.sendInputEvent({ type: 'mouseMove', x: h.x, y: h.y });
         wc.sendInputEvent({ type: 'mouseDown', x: h.x, y: h.y, button: 'left', clickCount: 1 });
         wc.sendInputEvent({ type: 'mouseUp', x: h.x, y: h.y, button: 'left', clickCount: 1 });
       } else {
@@ -312,6 +316,11 @@ function electronBrowser(getWindow = openWindow) {
         if (!(await inPage(wc, `window.__starkllm.clickHere(${Number(i)})`))) throw new Error('the element is no longer on the page');
       }
       await settle(wc);
+      // a link that the click did not follow (MSI §43: the page stayed where it was): click it inside the page
+      if (link && h && h.ok && !wc.isDestroyed() && wc.getURL() === before
+          && (await inPage(wc, `window.__starkllm.clickHere(${Number(i)})`).catch(() => false))) {
+        await settle(wc);
+      }
       return r;
     },
     async focusInfo(i) { return inPage(w(), `window.__starkllm.focusField(${Number(i)})`); },
