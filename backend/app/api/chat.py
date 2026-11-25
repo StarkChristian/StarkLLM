@@ -50,7 +50,7 @@ _SEARCH_REGIONS = {"German": "de-de", "Spanish": "es-es", "French": "fr-fr", "It
 def search_regions(language):
     """the results of the question's language first, then without a region (English: only the library's default)"""
     r = _SEARCH_REGIONS.get(language or "")
-    return [r, "wt-wt"] if r else ["us-en"]
+    return [r, "wt-wt"] if r else ["us-en", "uk-en"]
 
 
 _QUESTION_WORDS = set("""
@@ -1586,6 +1586,8 @@ WEB SEARCH RESULTS (LIVE DATA)
 - NEVER say "I don't have access to real-time data", "I cannot browse the internet", or "my knowledge cutoff is..." when web search results ARE provided above. That is INCORRECT — the data IS right there.
 - If the user asks about current prices, news, weather, or any real-time topic and web results are provided, extract the relevant information and present it clearly.
 - Example: If the user asks "What is the Bitcoin price?" and the web results contain pricing data, you MUST report that price — do NOT deflect.
+- If the web results do not contain the answer, say so briefly and give the link of the most relevant result. Do not
+  fill in rates, prices, dates or other numbers from your own knowledge.
 
 """ if web_section and not web_empty else f"""═══════════════════════════════════════
 WEB SEARCH

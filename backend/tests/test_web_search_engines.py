@@ -10,8 +10,8 @@ from app.api.chat import search_regions, search_query, wikipedia_search, wiki_ke
 def test_a_question_in_another_language_asks_for_that_language_first():
     assert search_regions("Spanish") == ["es-es", "wt-wt"]
     assert search_regions("German") == ["de-de", "wt-wt"]
-    assert search_regions("English") == ["us-en"]
-    assert search_regions(None) == ["us-en"]
+    assert search_regions("English") == ["us-en", "uk-en"]  # MSI §44: us-en gave no results at all
+    assert search_regions(None) == ["us-en", "uk-en"]
 
 
 def test_the_query_leaves_out_spanish_and_french_marks():
