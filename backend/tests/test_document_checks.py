@@ -172,6 +172,8 @@ def test_a_fake_letter_that_only_came_along_gives_no_warning():
         asked = _document_warnings([rent, fake], [], ws_id, user_id, "Ich habe eine Mahnung vom Finanzamt bekommen. Echt?")
         assert {f["kind"] for f in asked} >= {"ai_instructions", "scam_signs"}
         top = _document_warnings([fake, rent], [], ws_id, user_id, "Was soll ich tun?")  # the best match counts
+        # a web question answered from the web: the best (weak) match alone gives no warning (MSI 42 D3)
+        assert _document_warnings([fake, rent], [], ws_id, user_id, "Wie hoch ist die Mehrwertsteuer?", web_answered=True) == []
         assert {f["kind"] for f in top} >= {"scam_signs"}
     finally:
         rag_service.chroma_client.delete_collection(f"user_{user_id}_workspace_{ws_id}")

@@ -542,7 +542,8 @@ def _is_about(message: str, file: str, text: str, others=()) -> bool:
     return not any(_about_words(message, f, t, generic=False) for f, t in others if f != file)
 
 
-def _document_warnings(ws_results, kb_results, workspace_id: int, user_id: int, message: str = "") -> list:
+def _document_warnings(ws_results, kb_results, workspace_id: int, user_id: int, message: str = "",
+                       web_answered: bool = False) -> list:
     """Rule-based warnings about the retrieved passages (see document_checks). When a passage asks for payment to an
     account, the other letters of the same sender in the workspace are looked up too, so a fake letter is compared
     with the real ones even if those were not retrieved for this question."""
@@ -576,7 +577,8 @@ def _document_warnings(ws_results, kb_results, workspace_id: int, user_id: int, 
     others = list(texts.items())
 
     def relevant(file):
-        return file in top or _is_about(message, file, texts.get(file, ""), others)
+        # with web results, the best document match of a web question (VAT rate, weather) is no reason for a warning
+        return (file in top and not web_answered) or _is_about(message, file, texts.get(file, ""), others)
 
     out = []
     for f in found:
@@ -1252,7 +1254,7 @@ async def chat(
                 if e["ui"] not in target:
                     target.append(e["ui"])
         warnings = (await asyncio.to_thread(_document_warnings, ws_results, kb_results, req.workspace_id, current_user.id,
-                                        req.message)
+                                        req.message, bool(getattr(req, "use_web_search", False) and web_context))
                     if (ws_results or kb_results) else [])
 
         # How sure it is that the question is about the documents (the same test that picks the prompt mode below):

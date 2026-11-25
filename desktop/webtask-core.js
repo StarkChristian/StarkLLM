@@ -150,6 +150,7 @@ function systemPrompt(language, { terminal = null, browserOn = true } = {}) {
     '- Do not make up deeper addresses of a site (like /de/service/umzug): open its start page or a link you saw, then follow links or use the site\'s own search.',
     '- When a page says it does not exist (404, "not found"), its links are only the general menu of the site: go back, or use the site\'s search or search_web, instead of clicking there.',
     '- Do not invent facts: answer only from what you saw on the pages. Name the site you used.',
+    '- If you did not find what was asked, say so and give the link of the best page. Never add "usual" or "typical" values, opening hours, prices, phone numbers or addresses that no page showed.',
     '- When the task asks for the cheapest, best, earliest or similar, compare every result on the page (all prices or dates) before you answer. Results are often already on the page: you do not need to click "Book", "Select" or "Details" to see a price.',
     '- When the task is done or you have the answer, call finish. If the task cannot be done, call finish and say why.',
     `- ${politeRule(language)}`,

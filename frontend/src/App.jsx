@@ -1316,6 +1316,8 @@ export default function App() {
 
   const handleFileUpload = async (file) => {
     if (!activeWorkspace) { toast.warning(t('Please create or select a workspace before uploading files.')); return; }
+    // a new document or recording: the next question is about it, not about the image of the last answer (MSI 42 C)
+    setImageFollowUp(null);
     const formData = new FormData();
     formData.append('file', file);
     setMessages(prev => [...prev, { role: 'system', content: t('Uploading {name}…', { name: file.name }) }]);

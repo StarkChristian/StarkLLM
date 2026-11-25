@@ -303,8 +303,14 @@ function electronBrowser(getWindow = openWindow) {
       const r = await inPage(wc, `window.__starkllm.rect(${Number(i)})`);
       if (!r) throw new Error('the element is no longer on the page');
       await sleep(150); // scrolling into view
-      wc.sendInputEvent({ type: 'mouseDown', x: r.x, y: r.y, button: 'left', clickCount: 1 });
-      wc.sendInputEvent({ type: 'mouseUp', x: r.x, y: r.y, button: 'left', clickCount: 1 });
+      const h = await inPage(wc, `window.__starkllm.hit(${Number(i)})`);
+      if (h && h.ok) {
+        wc.sendInputEvent({ type: 'mouseDown', x: h.x, y: h.y, button: 'left', clickCount: 1 });
+        wc.sendInputEvent({ type: 'mouseUp', x: h.x, y: h.y, button: 'left', clickCount: 1 });
+      } else {
+        // something else is at that point (a banner, a page still scrolling): click the element itself
+        if (!(await inPage(wc, `window.__starkllm.clickHere(${Number(i)})`))) throw new Error('the element is no longer on the page');
+      }
       await settle(wc);
       return r;
     },
