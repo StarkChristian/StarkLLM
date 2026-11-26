@@ -84,7 +84,7 @@ small HTTPS server in the desktop app (Electron main process) in front of it:
 9. **Windows Firewall.** Windows may ask once whether StarkLLM may be reached on networks. StarkLLM never changes the
    firewall itself; the settings page tells the user to allow private networks only.
 
-Away from home is not part of the first version.
+Away from home: since 2.6.0, per phone and only when switched on, through the StarkLLM relay (end-to-end encrypted); see [phone-away.md](phone-away.md).
 
 ## The Android app (`mobile/android`)
 
