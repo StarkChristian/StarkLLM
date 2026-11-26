@@ -1445,7 +1445,7 @@
   "Precise search of your documents": "Recherche précise dans vos documents",
   "Chat loaded. How can I help you?": "Discussion chargée. Comment puis-je vous aider ?",
   "account {name}": "compte {name}",
-  "Your question is sent to DuckDuckGo (if it does not answer, to Mullvad Leta, then Mojeek).": "Votre question est envoyée à DuckDuckGo (s’il ne répond pas, à Mullvad Leta, puis à Mojeek).",
+  "Your question is sent to DuckDuckGo (if it does not answer, to Startpage, then Mojeek, then Wikipedia).": "Votre question est envoyée à DuckDuckGo (s’il ne répond pas, à Startpage, puis à Mojeek, puis à Wikipédia).",
   "Send the result to the assistant": "Envoyer le résultat à l'assistant",
   "Open the browser": "Ouvrir le navigateur",
   "Open StarkLLM's browser window and use it yourself, with its own address bar": "Ouvrir la fenêtre de navigateur de StarkLLM et l’utiliser vous-même, avec sa propre barre d’adresse",

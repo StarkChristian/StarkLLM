@@ -228,7 +228,7 @@ export default function InputBar({ onSendImage, imageFollowUp = '', onClearImage
           {useWebSearch ? t('Web Search ON') : t('Web Search')}
         </button>
         {useWebSearch && (
-          <span className={styles.onlineNote} role="status">{t('Your question is sent to DuckDuckGo (if it does not answer, to Mullvad Leta, then Mojeek).')}</span>
+          <span className={styles.onlineNote} role="status">{t('Your question is sent to DuckDuckGo (if it does not answer, to Startpage, then Mojeek, then Wikipedia).')}</span>
         )}
         {webTaskAvailable && (
           <button
