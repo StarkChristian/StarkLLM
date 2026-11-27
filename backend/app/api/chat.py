@@ -416,7 +416,7 @@ def _safety_section(warnings: list) -> str:
     parts = [fact_block(warnings)]
     seen = set()
     for w in warnings:
-        if w.get("kind") in ("ai_instructions", "scam_signs"):
+        if w.get("kind") in ("ai_instructions", "hidden_text", "scam_signs"):
             continue
         text = note(w)
         if text not in seen:

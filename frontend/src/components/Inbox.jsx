@@ -208,6 +208,7 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
 
         <div className={styles.badges}>
           {doc.suspicious && <span className={styles.badgeDanger}><ShieldAlert size={13} /> {t('Possible scam: do not pay before you checked it with the sender')}</span>}
+          {doc.ai_note && !doc.suspicious && <span className={styles.badgeCaution}><ShieldAlert size={13} /> {t('Check before paying: the letter contains a note to AI assistants or hidden text')}</span>}
           {doc.replaced && <span className={styles.badgeMuted}>{t('Replaced by a newer letter')}</span>}
           {doc.duplicate_of && <span className={styles.badgeMuted}><Copy size={12} /> {t('Same letter as {file}', { file: doc.duplicate_of.filename })}</span>}
         </div>

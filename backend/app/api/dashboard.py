@@ -524,13 +524,18 @@ def document_inbox(db, user_id: int) -> dict:
             facts = {**facts, "dates": [choose_reading(d, choices.get((item["scope"], item["id"], d.get("literal"))))
                                         for d in facts["dates"]]}
         review = reviews.get((item["scope"], item["id"]))
+        # only real signs of a scam make a letter "suspicious"; a note to AI assistants or hidden text alone is ignored
+        # and the letter stays a normal bill with its date, shown with a calm "check before paying" (2.6.1)
+        warned = set(facts.get("warnings") or [])
+        suspicious = "scam_signs" in warned
+        ai_note = not suspicious and bool(warned & {"ai_instructions", "hidden_text"})
         _IS_LETTER[(user_id, item["scope"], item["id"])] = bool(facts.get("letter"))
         # a note, manual, spreadsheet or photo is listed under all documents, but not among the new letters
         status = review.status if review else ("new" if facts.get("letter") and (item["added"] or "") >= recent else "done")
         docs.append({**item, "facts": facts, "status": status, "title": review.title if review else None,
                      "case": (review.case_key if review and review.case_key else facts.get("case")),
-                     "replaced": is_replaced, "suspicious": bool(facts.get("warnings")),
-                     "next": None if is_replaced or facts.get("warnings") else _next_date(facts, today)})
+                     "replaced": is_replaced, "suspicious": suspicious, "ai_note": ai_note,
+                     "next": None if is_replaced or suspicious else _next_date(facts, today)})
 
     # the same letter twice (a photo and the PDF, or added twice): the same text after OCR noise is removed
     first_of = {}

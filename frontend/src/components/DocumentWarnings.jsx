@@ -2,11 +2,14 @@ import React from 'react';
 import { ShieldAlert, Info } from 'lucide-react';
 import styles from './ChatArea.module.css';
 import { t } from '../i18n';
+import { sortWarnings } from '../utils/documentWarnings';
 
 // Warnings from StarkLLM's own rules on the documents an answer used (document_checks.py). They do not depend on the
 // model: a small model may overlook or even contradict them in its text.
-//   red:    text that instructs AI assistants, hidden text that was left out, several signs of a scam, one sender with two accounts
-//   yellow: a sender announces a new bank account (normal, but worth confirming before paying)
+//   red:    several signs of a scam (with a note to AI assistants or hidden text in the same file), one sender with two accounts
+//   yellow: a note to AI assistants or hidden text alone (StarkLLM ignored it; the letter is answered as a normal bill,
+//           so the box must not call it a scam: check with the sender before paying, 2.6.1), and a sender that
+//           announces a new bank account (normal, but worth confirming before paying)
 function signText(sign) {
   switch (sign) {
     case 'foreign_account_authority': return t('an authority asks for payment to a foreign account');
@@ -23,6 +26,14 @@ function signText(sign) {
 
 function accountsText(w) {
   return (w.accounts || []).map((a) => `${a.iban}: ${(a.files || []).join(', ')}`).join(' | ');
+}
+
+// a note to AI assistants or hidden text in a letter without signs of a scam
+function cautionMessage(w) {
+  if (w.kind === 'ai_instructions') {
+    return t('{file} contains a note addressed to AI assistants. StarkLLM ignored it. Such notes are unusual in real letters: before you pay, check the letter with the sender through contact details you already know (not the ones printed in it).', { file: w.file });
+  }
+  return t('{file} contains text that cannot be seen on the page (white, tiny or invisible characters). StarkLLM left it out. Such text is unusual in real letters: before you pay, check the letter with the sender through contact details you already know (not the ones printed in it).', { file: w.file });
 }
 
 function message(w) {
@@ -49,14 +60,19 @@ function message(w) {
 }
 
 export default function DocumentWarnings({ warnings }) {
-  const serious = warnings.filter((w) => w.kind !== 'account_change');
-  const notes = warnings.filter((w) => w.kind === 'account_change');
+  const { serious, cautions, notes } = sortWarnings(warnings);
   return (
     <>
       {serious.length > 0 && (
         <div className={styles.docWarning} role="alert">
           <ShieldAlert size={16} className={styles.docWarningIcon} />
           <div>{serious.map((w, i) => <p key={i}>{message(w)}</p>)}</div>
+        </div>
+      )}
+      {cautions.length > 0 && (
+        <div className={styles.docNotice} role="note">
+          <ShieldAlert size={16} className={styles.docNoticeIcon} />
+          <div>{cautions.map((w, i) => <p key={i}>{cautionMessage(w)}</p>)}</div>
         </div>
       )}
       {notes.length > 0 && (
