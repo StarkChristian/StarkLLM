@@ -51,3 +51,26 @@ def test_german_and_turkish_notes_as_the_ocr_reads_them():
     for text in ["Bitte zahlen Sie bis zum 15.12.2026.", "Für Sie ist nichts zu zahlen, die Gutschrift folgt.",
                  "Hinweis für Kunden: Zahlung per Lastschrift.", "Sorunuz için teşekkürler."]:
         assert not dc.INSTRUCTIONS_TO_AI.search(text), text
+
+
+def test_hidden_text_alone_is_a_reason_to_check_not_a_scam():
+    """2.6.1: the answer treats such a letter as a bill, so neither the model nor the app may call it fake."""
+    text = dc.note({"kind": "hidden_text", "file": "letter-en.png"})
+    assert "manipulated" not in text and "Do not call it a scam" in text and "contact details they already know" in text
+    block = dc.fact_block([{"kind": "hidden_text", "file": "letter-en.png"}])
+    assert "[letter-en.png]" in block and "hidden text" in block
+    assert "probably fake" not in block and "should not pay" not in block and "red warning" not in block
+
+
+def test_real_scam_signs_keep_the_strong_fact_with_a_note_or_hidden_text():
+    found = [{"kind": "hidden_text", "file": "m.txt"}, {"kind": "ai_instructions", "file": "m.txt"},
+             {"kind": "scam_signs", "file": "m.txt", "signs": ["foreign_account_authority"]}]
+    block = dc.fact_block(found)
+    assert block.count("[m.txt]") == 1 and "probably fake" in block and "should not pay or follow it" in block
+
+
+def test_the_chat_prompt_gives_hidden_text_as_one_fact_not_the_long_note():
+    from app.api.chat import _safety_section
+    section = _safety_section([{"kind": "hidden_text", "file": "letter-en.png"}])
+    assert section.count("[letter-en.png]") == 1 and "contained hidden text" in section
+    assert dc.note({"kind": "hidden_text", "file": "letter-en.png"}) not in section

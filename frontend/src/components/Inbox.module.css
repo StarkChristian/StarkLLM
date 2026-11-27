@@ -78,11 +78,13 @@
 
 .badges { display: flex; flex-wrap: wrap; gap: 6px; }
 .badges:empty { display: none; }
-.badgeDanger, .badgeMuted {
+.badgeDanger, .badgeCaution, .badgeMuted {
   display: inline-flex; align-items: center; gap: 5px; font-size: 0.78rem; padding: 2px 9px; border-radius: 999px;
 }
 .badgeDanger { background: rgba(239, 68, 68, 0.14); color: var(--danger); font-weight: 600; }
 .badgeMuted { background: var(--bg-hover); color: var(--text-secondary); }
+/* a note to AI assistants or hidden text alone: check before paying, not a scam (2.6.1) */
+.badgeCaution { background: rgba(245, 158, 11, 0.16); color: var(--warning, #f59e0b); font-weight: 600; }
 
 .facts {
   display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0;

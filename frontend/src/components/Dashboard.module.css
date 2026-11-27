@@ -564,7 +564,7 @@ button.wsRow {
   border: none;
   cursor: pointer;
 }
-.docSuspicious {
+.docSuspicious, .docCaution {
   font-size: 0.72rem;
   padding: 1px 8px;
   border-radius: 999px;
@@ -573,3 +573,5 @@ button.wsRow {
   font-weight: 600;
   white-space: nowrap;
 }
+/* a note to AI assistants or hidden text alone: check before paying, not a scam (2.6.1) */
+.docCaution { background: rgba(245, 158, 11, 0.16); color: var(--warning, #f59e0b); }
