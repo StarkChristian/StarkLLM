@@ -133,6 +133,19 @@ FEE_BEFORE = re.compile(rf"(?:{rule('fee')})(?:\s+(?:de|d['’]|di|del|por)\s+\w
                         re.IGNORECASE)
 # "687,12 EUR (bisher 598,40 EUR)", "6,90 EUR statt bisher 4,90 EUR": the old amount is not what is due
 OLD_BEFORE = re.compile(rf"\b(?:{rule('old_amount')})\W{{0,3}}(?:bisher\W{{0,2}})?$", re.IGNORECASE)
+# "£3.00/m³" (as the OCR reads it also "/m3", "/m?"), "0,32 €/kWh", "0,32 EUR pro kWh", "12,00 € par mois": a price per
+# unit, not an amount to pay. After the amount: a slash and a letter, or a word like "per" and a unit.
+RATE_AFTER = re.compile(rf"[ \t]?/[ \t]?[^\W\d_]\S*|[ \t]*(?:{rule('rate_per')})[ \t]+(?:{rule('rate_unit')})(?!\w)",
+                        re.IGNORECASE)
+# in front of it: "Preis pro kWh: 0,32 €", "Rate per m³ £3.00", "kWh başına 0,32 TL"
+RATE_BEFORE = re.compile(rf"(?<!\w)(?:{rule('rate_per')})[ \t]+(?:{rule('rate_unit')})[ \t]*(?:\([^)\n]{{0,20}}\))?[ \t]*[:=]?[ \t]*$|"
+                         rf"(?<!\w)(?:{rule('rate_unit')})[ \t]+başına[ \t]*:?[ \t]*$", re.IGNORECASE)
+# the label of the sum to pay right in front of it: "Total due £63.40", "Gesamtbetrag: 84,20 EUR", "Montant à payer : 112,30
+# EUR", "the total due of 63.40 GBP", "Total (incl. VAT): £63.40"; not "Subtotal £63.40" or "Ara toplam"
+TOTAL_BEFORE = re.compile(rf"(?<![\w\-])(?<!ara )(?:{rule('total')})(?!\w)[ \t]*(?:\([^)\n]{{0,30}}\))?[ \t]*"
+                          r"(?:of|von|de|di|du|:|=)?[ \t]*:?[ \t]*$", re.IGNORECASE)
+# a sentence about paying or a due day ("Due by: 12 December 2026"); see find_dates
+PAY_DUE = compiled("pay_due")
 # "ab dem 01.02.2027 beträgt Ihr Beitrag …": the day something changes, not something to do or pay
 FROM_DATE = compiled("from_date", r"\b(?:{})\s*$")
 FROM_DATE_AFTER = re.compile(rf"^\s*(?:{rule('from_date_after')})(?![^\W\d_])", re.IGNORECASE)
@@ -383,6 +396,35 @@ def _is_fee(text: str, a) -> bool:
     return bool(FEE_BEFORE.search(before) or OLD_BEFORE.search(before))
 
 
+def _before_on_line(text: str, a) -> str:
+    """The text in front of amount a on its line, after any amount before it on that line (and that amount's "/m³" or
+    "per kWh"): in "Water used  15 m³  £3.00/m³  £45.00" the 45.00 has nothing in front of it."""
+    start = text.rfind("\n", 0, a.start()) + 1
+    for prev in AMOUNT.finditer(text, start, a.start()):
+        if prev.end() <= a.start():
+            per = RATE_AFTER.match(text, prev.end())
+            start = max(prev.end(), per.end() if per else 0)
+    return text[start:a.start()] if start <= a.start() else ""
+
+
+def is_rate(text: str, a) -> bool:
+    """Amount a is a price per unit ("£3.00/m³", "0,32 €/kWh", "Preis pro kWh: 0,32 €"), no amount to pay."""
+    return bool(RATE_AFTER.match(text, a.end()) or RATE_BEFORE.search(_before_on_line(text, a)))
+
+
+def is_total(text: str, a) -> bool:
+    """Amount a stands under the label of the sum to pay ("Total due", "Gesamtbetrag", "Montant à payer")."""
+    return bool(TOTAL_BEFORE.search(_before_on_line(text, a)))
+
+
+def letter_total(text: str):
+    """The one sum to pay the text names under a total label (an AMOUNT match), or None when there is none or the
+    labelled sums differ."""
+    totals = [a for a in AMOUNT.finditer(text or "") if is_total(text, a) and not is_rate(text, a) and not _is_fee(text, a)]
+    values = {amount_parts(a)[1:] for a in totals}
+    return totals[0] if len(values) == 1 else None
+
+
 def _window(sentence: str, start: int, end: int, size: int = 240) -> str:
     """The sentence, or the part of a long one around the date."""
     if len(sentence) <= size:
@@ -420,6 +462,7 @@ def find_dates(text: str, reference: Optional[date] = None, order_hint: Optional
     if reference is None:
         written = letter_date(text or "")
         reference = date.fromisoformat(written) if written else date.today()
+    total = False  # the letter's total, looked up once when needed
     for index, sentence in enumerate(sentences):
         matches = [(m, _parse(m, order)) for pattern in DATE_PATTERNS for m in pattern.finditer(sentence)]
         for m in [*NO_YEAR.finditer(sentence), *NO_YEAR_NAMED.finditer(sentence)]:
@@ -482,13 +525,19 @@ def find_dates(text: str, reference: Optional[date] = None, order_hint: Optional
                     candidates += [(prev, a) for a in reversed(list(AMOUNT.finditer(prev)))]
             if not candidates and index + 1 < len(sentences) and len(sentences[index + 1]) < SHORT_LINE:
                 candidates = [(sentences[index + 1], a) for a in AMOUNT.finditer(sentences[index + 1])]
-            chosen = next((a for t, a in candidates if not _is_fee(t, a)), candidates[0][1] if candidates else None)
+            chosen = _choose_amount(candidates)
+            # "Due by: 12 December 2026" on a line of its own, far from the amounts: a sentence about paying with no
+            # amount of its own is about the letter's total ("Total due £63.40"), when the letter names one
+            if chosen is None and kind in ("deadline", "payment") and not notice and PAY_DUE.search(sentence):
+                if total is False:
+                    total = letter_total(text)
+                chosen = total
             amount = _amount_text(chosen) if chosen else None
             if kind == "appointment" or notice:
                 amount = None
             elif kind == "change":
                 # "ab dem 01.02.2027 beträgt der Beitrag 6,90 EUR": the new amount follows the date
-                after = [a for a in AMOUNT.finditer(sentence) if a.start() > m.end()]
+                after = [a for a in AMOUNT.finditer(sentence) if a.start() > m.end() and not is_rate(sentence, a)]
                 amount = _amount_text(after[0]) if after else None
             found.append(FoundDate(date=when.isoformat(), kind=kind, text=_window(sentence, m.start(), m.end()),
                                    amount=amount, time=time_of_day if kind == "appointment" else None,
@@ -502,6 +551,18 @@ def find_dates(text: str, reference: Optional[date] = None, order_hint: Optional
             if readings:
                 found[-1].ambiguous, found[-1].readings, found[-1].literal = True, readings, m.group(0)
     return found
+
+
+def _choose_amount(candidates):
+    """The amount a date is about, from (text, AMOUNT match) candidates, closest first: never a price per unit, a fee
+    only when nothing else is there, and in the text of the closest amount a labelled total before the others
+    ("Standing charge £18.40 … Total due £63.40, payable by …")."""
+    usable = [(t, a) for t, a in candidates if not is_rate(t, a)]
+    first = next(((t, a) for t, a in usable if not _is_fee(t, a)), None)
+    if first is None:
+        return usable[0][1] if usable else None
+    total = next((a for t, a in usable if t == first[0] and not _is_fee(t, a) and is_total(t, a)), None)
+    return total or first[1]
 
 
 def _without_year(day: int, month: int, reference: date) -> Optional[date]:

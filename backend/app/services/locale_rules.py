@@ -180,6 +180,39 @@ RULES: Dict[str, Dict[str, str]] = {
         "it": r"prima|precedentemente|precedente|anziché|invece di",
         "tr": r"eskiden|önceki|eski|yerine",
     },
+    # the label of the sum to pay: "Total due £63.40", "Gesamtbetrag: 84,20 EUR", "Montant à payer : 112,30 EUR". A
+    # subtotal is none ("Subtotal", "Zwischensumme", "sous-total", "subtotale", "ara toplam"): the label has to stand as
+    # a word of its own (dates_service.TOTAL_BEFORE).
+    "total": {
+        "en": r"total amount due|total due|amount due|balance due|outstanding balance|amount outstanding|total amount|"
+              r"total to pay|total payable|amount payable|amount to pay|grand total|total",
+        "de": r"gesamtbetrag|rechnungsbetrag|zahlbetrag|zahlungsbetrag|endbetrag|gesamtsumme|rechnungssumme|"
+              r"zu zahlender betrag|zu zahlen|offener betrag|fälliger betrag|ausstehender betrag|summe|gesamt",
+        "fr": r"montant total [àa] payer|montant [àa] payer|total [àa] payer|net [àa] payer|montant total|montant d[ûu]|"
+              r"solde [àa] payer|total ttc|total",
+        "es": r"importe total|total a pagar|importe a pagar|total factura|total importe|importe adeudado|total",
+        "it": r"totale da pagare|importo da pagare|importo totale|totale fattura|totale bolletta|totale",
+        "tr": r"[öo]denecek tutar|toplam tutar|genel toplam|toplam bor[çc]|toplam",
+    },
+    # a price per unit is no amount to pay: "0,32 EUR pro kWh", "£3.00 per m³", "12,00 € par mois", "1,50 € al litro".
+    # The word between the price and the unit, then the unit (dates_service.RATE_AFTER / RATE_BEFORE).
+    "rate_per": {
+        "en": r"per|a|an|each", "de": r"pro|je", "fr": r"par", "es": r"por|al", "it": r"per|al|alla",
+    },
+    "rate_unit": {"*": r"m³|m3|m²|m2|cbm|qm|kwh|kw|mwh|wh|litres?|liters?|litros?|litri|litro|lt|l|kg|g|t|km|stück|stk|"
+                       r"pieces?|pcs|units?|items?|unité|unidad|unità|adet|hours?|hrs?|h|std|stunden?|days?|tag|week|woche|"
+                       r"months?|monat|mo|years?|yr|jahr|jour|mois|an|année|semaine|heure|d[íi]a|mes|a[ñn]o|semana|hora|"
+                       r"giorno|mese|anno|settimana|ora|gün|ay|yıl|hafta|saat|ki[şs]i|person|persons|night|nacht|nuit|"
+                       r"noche|notte|gece"},
+    # a sentence about paying or about the day a payment is due: with no amount of its own, the letter's total is meant
+    "pay_due": {
+        "de": r"fällig\w*|zahlbar|zahlen|bezahlen|zahlung\w*|überweis\w*",
+        "en": r"due|payable|pay|payment",
+        "fr": r"[ée]ch[ée]ance|exigible|payable|payer|paiement|r[èe]glement",
+        "es": r"vencimiento|vence|pagadero|pagar|pago",
+        "it": r"scadenza|pagabile|pagare|pagamento",
+        "tr": r"son [öo]deme|[öo]deme\w*|[öo]deyiniz|[öo]denmelidir",
+    },
     # the day something changes: "ab dem 01.02.2027", "à partir du", "a partir del", "dal"
     "from_date": {
         "de": r"ab(?: dem| 1\.)?|gültig ab|wirksam ab",

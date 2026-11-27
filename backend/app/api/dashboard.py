@@ -440,7 +440,9 @@ def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool 
             facts = document_facts_cached(pages, item["filename"])
             _describe_letter(item, facts, pages)
             item["is_letter"] = bool(facts.get("letter"))
-            item["asked_amount"] = next((a.get("value") for a in facts.get("amounts", []) if a.get("value")), None)
+            # the sum asked for: the labelled total comes first, a fee only when nothing else is asked, never a price per unit
+            asked = [a for a in facts.get("amounts", []) if a.get("value") and a.get("role") != "rate"]
+            item["asked_amount"] = next((a["value"] for a in asked if not a.get("role")), asked[0]["value"] if asked else None)
             item["excerpt"] = (pages.get(item["first_page"]) or "")[:700]
             continue
         facts = document_facts_cached(pages, item["filename"])

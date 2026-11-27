@@ -133,6 +133,68 @@ def empty_answer_error(model: str, thought: bool) -> "LLMBackendError":
     return LLMBackendError(f"Model '{model}' returned an empty answer. Try again or choose another model.", "empty_answer", 502)
 
 
+# A chat template that leaks its role header into the answer: llama3.1 through Ollama began an answer in "Compare models"
+# with a line that only said "assistant" (2.6.0, test laptop). A template token ("<|im_start|>assistant",
+# "<|start_header_id|>assistant<|end_header_id|>", "<|assistant|>") at the start is never text and always goes; the bare
+# word ("assistant", "Assistant:", "**Assistant:**", "<assistant>") only when it is the whole first line, so a real
+# first word stays: "Assistant managers should …".
+_ROLE_TOKEN = (r"<\|start_header_id\|>[ \t]*assistant[ \t]*<\|end_header_id\|>|<\|im_start\|>[ \t]*assistant"
+               r"|<\|assistant\|>")
+_ROLE_WORD = r"<assistant>|\[assistant\]|\**[ \t]*assistant[ \t]*\**[ \t]*:?[ \t]*\**"
+_LEADING_ROLE = re.compile(rf"\s*(?:(?:{_ROLE_TOKEN})[ \t]*(?:\r?\n)?|(?:{_ROLE_WORD})[ \t]*\r?\n)", re.IGNORECASE)
+# what a marker looks like while it is still arriving, without spaces, lower case: "assis" can become "assistant\n"
+_ROLE_FORMS = ("<|start_header_id|>assistant<|end_header_id|>", "<|im_start|>assistant", "<|assistant|>", "<assistant>",
+               "[assistant]", "assistant:", "**assistant:**", "**assistant**:")
+
+
+def strip_role_marker(text: str) -> str:
+    """The answer without a leaked role marker at its start (see _LEADING_ROLE)."""
+    if not text:
+        return text
+    for _ in range(2):  # "<|im_start|>assistant\nassistant\n…"
+        m = _LEADING_ROLE.match(text)
+        if not m:
+            break
+        text = text[m.end():].lstrip("\r\n")
+    return text
+
+
+def strip_role_marker_stream(chunks):
+    """strip_role_marker for a streamed answer: the first chunks are held back only while they can still be the start
+    of a marker (the marker may arrive split over several chunks), then everything is passed on unchanged."""
+    held, deciding, after_marker = "", True, False
+    for chunk in chunks:
+        if not deciding:
+            if after_marker and chunk:
+                chunk = chunk.lstrip("\r\n")  # the empty line after the marker, when it comes in the next chunk
+                if not chunk:
+                    continue
+                after_marker = False
+            yield chunk
+            continue
+        held += chunk or ""
+        head = held.lstrip()
+        if not head:
+            continue
+        stripped = strip_role_marker(held)
+        if stripped != held:
+            deciding, after_marker = False, True
+            stripped = stripped.lstrip("\r\n")
+            if stripped:
+                after_marker = False
+                yield stripped
+            continue
+        first = head.split("\n", 1)
+        form = re.sub(r"[ \t]+", "", first[0]).lower()
+        if len(first) == 1 and len(form) <= 48 and (form in ("assistant", "**assistant", "**assistant**") or
+                                                    any(f.startswith(form) for f in _ROLE_FORMS)):
+            continue  # it can still become a marker
+        deciding = False
+        yield held
+    if deciding and held:
+        yield held  # the whole answer was "Assistant" (or less): an answer of its own, kept
+
+
 # Ollama's default context window is small (2048 or 4096 tokens, depending on version and memory). A longer prompt is
 # cut from the front without an error: the system prompt with the retrieved document passages is lost and the model
 # answers "not found" (seen in scenario tests: "truncating input prompt limit=2050 prompt=4263"). Every request asks
@@ -325,7 +387,7 @@ class LLMService:
         if uses_openai_compatible(provider, base_url):
             target_base = base_url or "https://api.openai.com/v1"
             if stream:
-                return self._stream_openai_compatible(target_base, api_key, model, messages, options)
+                return strip_role_marker_stream(self._stream_openai_compatible(target_base, api_key, model, messages, options))
             else:
                 return self._generate_openai_compatible(target_base, api_key, model, messages, options)
 
@@ -352,7 +414,7 @@ class LLMService:
         payload["options"] = options
 
         if stream:
-            return self._stream_response(url, payload)
+            return strip_role_marker_stream(self._stream_response(url, payload))
         else:
             try:
                 response = netguard.post(url, feature="ollama", json=payload, timeout=REQUEST_TIMEOUT_SECONDS)
@@ -362,6 +424,8 @@ class LLMService:
                     raise explain_ollama_error(payload.get("model"), _ollama_error_text(response), response.status_code)
                 data = response.json()
                 message = data.get("message") or {}
+                if message.get("content"):
+                    message["content"] = strip_role_marker(message["content"])
                 if not (message.get("content") or "").strip():
                     raise empty_answer_error(model, bool(message.get("thinking")))
                 return data
@@ -458,7 +522,7 @@ class LLMService:
             response = netguard.post(url, feature="cloud_llm", json=payload, headers=headers, timeout=180)
             response.raise_for_status()
             data = response.json()
-            content = data["choices"][0]["message"]["content"]
+            content = strip_role_marker(data["choices"][0]["message"]["content"])
             if not (content or "").strip():
                 raise empty_answer_error(model, bool(data["choices"][0]["message"].get("reasoning_content")))
             return {"message": {"content": content}}

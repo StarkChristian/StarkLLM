@@ -11,7 +11,7 @@ from typing import Dict, List, Optional
 
 from app.services.dates_service import (
     AMOUNT, OLD_BEFORE, PLACE_DATE, amount_parts, _amount_text, _is_fee, date_order_evidence, find_dates, is_log_line,
-    letter_date, letter_date_line,
+    is_rate, is_total, letter_date, letter_date_line,
 )
 from app.services.document_checks import bank_accounts, findings, ibans
 from app.services import locale_rules
@@ -177,9 +177,12 @@ def references(pages: Dict[int, str]) -> List[Dict]:
 
 def amounts(pages: Dict[int, str], limit: int = 12) -> List[Dict]:
     """Amounts of money with their line. value is as the document writes it plus the currency code ("1.234,56 EUR",
-    "$1,234.56" -> "1,234.56 USD"); number is the same value as "1234.56". role "fee" for fees and "old" for an amount
-    that was replaced ("statt bisher 4,90 EUR"), so they are not taken for what is due."""
-    out, seen = [], set()
+    "$1,234.56" -> "1,234.56 USD"); number is the same value as "1234.56". role "fee" for fees, "old" for an amount
+    that was replaced ("statt bisher 4,90 EUR") and "rate" for a price per unit ("£3.00/m³", "0,32 €/kWh"), so they
+    are not taken for what is due. total is True for the sum to pay under its label ("Total due £63.40",
+    "Gesamtbetrag: 84,20 EUR"): it comes first, and the same sum written again ("Subtotal £63.40", "the total due of
+    63.40 GBP") is not listed a second time."""
+    found, seen = [], set()
     for page in sorted(pages):
         text = pages[page] or ""
         for m in AMOUNT.finditer(text):
@@ -189,12 +192,22 @@ def amounts(pages: Dict[int, str], limit: int = 12) -> List[Dict]:
                 continue
             seen.add((value, line))
             before = text[max(0, m.start() - 30):m.start()]
-            role = "old" if OLD_BEFORE.search(before) else ("fee" if _is_fee(text, m) else None)
+            role = "old" if OLD_BEFORE.search(before) else ("fee" if _is_fee(text, m) else ("rate" if is_rate(text, m) else None))
             _, number, currency = amount_parts(m)
-            out.append(_fact(value, page, line, role=role, number=number, currency=currency))
-            if len(out) >= limit:
-                return out
-    return out
+            found.append(_fact(value, page, line, role=role, number=number, currency=currency,
+                               total=role is None and is_total(text, m)))
+            if len(found) >= 400:  # a letter has a few; a long table is cut, as before
+                break
+    totals = {(a["number"], a["currency"]) for a in found if a["total"]}
+    out, listed = [], set()
+    for a in [a for a in found if a["total"]] + [a for a in found if not a["total"]]:
+        key = (a["number"], a["currency"])
+        if a["role"] is None and key in totals:
+            if key in listed:
+                continue  # the total once
+            listed.add(key)
+        out.append(a)
+    return out[:limit]
 
 
 def accounts(pages: Dict[int, str]) -> List[Dict]:
