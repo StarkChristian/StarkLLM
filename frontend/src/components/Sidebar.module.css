@@ -5,10 +5,10 @@
 .container {
   width: var(--sidebar-width);
   background: var(--sidebar-bg);
-  backdrop-filter: blur(32px) saturate(1.6);
-  -webkit-backdrop-filter: blur(32px) saturate(1.6);
+  backdrop-filter: var(--sidebar-backdrop, blur(32px) saturate(1.6));
+  -webkit-backdrop-filter: var(--sidebar-backdrop, blur(32px) saturate(1.6));
   border-right: 1px solid var(--border-color);
-  box-shadow: 2px 0 24px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--sidebar-shadow, 2px 0 24px rgba(0, 0, 0, 0.4));
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -61,8 +61,8 @@
   gap: 8px;
   margin: 4px 10px 6px;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: var(--field-bg, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--field-border, rgba(255, 255, 255, 0.07));
   border-radius: var(--radius-md);
   cursor: pointer;
   width: calc(100% - 20px);
@@ -95,8 +95,8 @@
   font-size: 0.65rem;
   font-weight: 500;
   color: var(--text-muted);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--kbd-bg, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--kbd-border, rgba(255, 255, 255, 0.1));
   border-radius: 4px;
   padding: 2px 5px;
   letter-spacing: 0.03em;
@@ -130,7 +130,7 @@
 }
 
 .navItem:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--surface-hover, rgba(255, 255, 255, 0.08));
   color: var(--text-primary);
   transform: translateX(2px);
 }
@@ -260,11 +260,11 @@
   right: 10px;
   top: 100%;
   margin-top: 6px;
-  background: rgba(10, 13, 20, 0.75);
+  background: var(--menu-bg, rgba(10, 13, 20, 0.75));
   backdrop-filter: blur(40px) saturate(1.5);
   -webkit-backdrop-filter: blur(40px) saturate(1.5);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--menu-border, rgba(255, 255, 255, 0.12));
+  box-shadow: var(--menu-shadow, 0 16px 48px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1));
   border-radius: var(--radius-lg);
   z-index: 100;
   max-height: 200px;
@@ -318,7 +318,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--field-bg, rgba(255, 255, 255, 0.04));
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   padding: 6px 10px;
@@ -328,7 +328,7 @@
 
 .searchBox:focus-within {
   border-color: rgba(99, 102, 241, 0.4);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--field-bg-focus, rgba(255, 255, 255, 0.06));
   box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
@@ -442,7 +442,7 @@
 
 .chatSelectBtn:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--surface-hover, rgba(255, 255, 255, 0.05));
 }
 
 .chatActive .chatSelectBtn {
@@ -534,11 +534,11 @@
   position: absolute;
   bottom: calc(100% + 4px);
   right: -20px;
-  background: rgba(10, 13, 20, 0.95);
+  background: var(--menu-bg, rgba(10, 13, 20, 0.95));
   backdrop-filter: blur(20px);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8);
+  box-shadow: var(--menu-shadow, 0 8px 24px rgba(0, 0, 0, 0.8));
   padding: 4px;
   z-index: 50;
   width: 140px;
@@ -595,7 +595,7 @@
 .chatTime {
   font-size: 0.62rem;
   color: var(--text-muted);
-  opacity: 0.7;
+  opacity: var(--time-opacity, 0.7);
   line-height: 1;
   white-space: nowrap;
 }
@@ -725,7 +725,7 @@
 }
 
 .folderHeader:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--surface-hover, rgba(255, 255, 255, 0.03));
   color: var(--text-primary);
 }
 

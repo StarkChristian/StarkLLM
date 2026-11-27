@@ -678,10 +678,10 @@ export default function Sidebar({
             title={t('Open AI Studio - Podcast, Briefing, Study Guide')}
             style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(192,132,252,0.12) 100%)', borderColor: 'rgba(99,102,241,0.3)' }}
           >
-            <Sparkles size={18} className={styles.modelIcon} style={{ color: '#c084fc' }} />
+            <Sparkles size={18} className={styles.modelIcon} style={{ color: 'var(--studio-icon, #c084fc)' }} />
             <div className={styles.modelDetails}>
               <span className={styles.modelLabel}>{t('AI Studio')}</span>
-              <span className={styles.modelValue} style={{ color: '#a78bfa' }}>Podcast • Briefing • Quiz</span>
+              <span className={styles.modelValue} style={{ color: 'var(--studio-text, #a78bfa)' }}>Podcast • Briefing • Quiz</span>
             </div>
           </button>
         </div>
