@@ -3,15 +3,15 @@
    ==================================================== */
 
 .widget {
-  background: rgba(10, 13, 20, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: var(--widget-bg, rgba(10, 13, 20, 0.6));
+  border: 1px solid var(--widget-border, rgba(255, 255, 255, 0.07));
   border-radius: var(--radius-lg);
   overflow: hidden;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .widget:hover {
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: var(--widget-border-hover, rgba(255, 255, 255, 0.12));
 }
 
 .expanded {
@@ -118,7 +118,7 @@
   border-radius: 99px;
   font-size: 0.7rem;
   font-weight: 600;
-  color: var(--badge-color, #768396);
+  color: color-mix(in srgb, var(--badge-color, #768396) var(--status-ink, 100%), #000);
   background: rgba(118, 131, 150, 0.1);
   border: 1px solid rgba(118, 131, 150, 0.2);
   white-space: nowrap;
@@ -133,15 +133,15 @@
   width: 26px;
   height: 26px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--widget-soft-bg, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--widget-soft-border, rgba(255, 255, 255, 0.08));
   color: var(--text-muted);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .refreshBtn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--widget-soft-bg-hover, rgba(255, 255, 255, 0.1));
   color: var(--text-primary);
 }
 
@@ -194,7 +194,7 @@
 .detail {
   display: flex;
   flex-direction: column;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid var(--widget-line, rgba(255, 255, 255, 0.05));
   animation: slideDown 0.15s ease;
 }
 
@@ -208,12 +208,12 @@
   align-items: center;
   gap: 10px;
   padding: 10px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--widget-line, rgba(255, 255, 255, 0.04));
   transition: background 0.1s ease;
 }
 
 .row:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--surface-hover, rgba(255, 255, 255, 0.02));
 }
 
 .row:last-child {
@@ -270,7 +270,7 @@
 /* ── Model pills ── */
 .modelList {
   padding: 10px 16px 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-top: 1px solid var(--widget-line, rgba(255, 255, 255, 0.04));
 }
 
 .modelListLabel {
@@ -294,8 +294,8 @@
   border-radius: 99px;
   font-size: 0.7rem;
   font-weight: 500;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--widget-soft-bg, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--widget-soft-border, rgba(255, 255, 255, 0.08));
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -325,7 +325,7 @@
 .skeletonRow {
   height: 14px;
   width: 100%;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--widget-soft-bg, rgba(255, 255, 255, 0.05));
   border-radius: 6px;
   animation: shimmer 1.4s ease-in-out infinite alternate;
 }
@@ -358,4 +358,8 @@
 }
 
 .rowWrapper { display: flex; flex-direction: column; gap: 2px; }
-.rowError { color: #f87171; font-size: 0.8rem; }
+.rowError { color: var(--error-text, #f87171); font-size: 0.8rem; }
+
+/* the row and header icons take their colour inline; the light themes darken it so they stand out on white */
+.rowIcon > svg,
+.headerIcon > svg { color: color-mix(in srgb, currentColor var(--status-ink, 100%), #000); }
