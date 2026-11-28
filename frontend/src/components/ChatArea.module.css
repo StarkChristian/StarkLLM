@@ -620,6 +620,8 @@ button.sourceGroup:focus-visible {
 .docNotice p { margin: 0; }
 .docNotice p + p { margin-top: 6px; }
 .docNoticeIcon { color: var(--warning, #eab308); flex-shrink: 0; margin-top: 2px; }
+.docNoticeList { margin: 4px 0 0; padding-inline-start: 18px; }
+.docNoticeList li + li { margin-top: 2px; }
 
 /* "Save this answer as Word or PDF" (docs/roadmap-2026-12.md, R1) */
 .answerExportMenu {

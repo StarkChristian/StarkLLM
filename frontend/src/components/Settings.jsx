@@ -3,6 +3,7 @@ import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, 
 import styles from './Settings.module.css';
 import BackupRestoreSettings from './BackupRestoreSettings';
 import OcrSettings from './OcrSettings';
+import RerankerSettings from './RerankerSettings';
 import { useLucyVisible } from './Lucy';
 import { setHidden as setLucyHidden } from '../utils/lucy';
 import ProtectionSettings from './ProtectionSettings';
@@ -906,6 +907,8 @@ print(response.choices[0].message.content)`;
               <div className={styles.infoBox}>
                 <strong>{t('Note:')}</strong> {t('These settings are stored on this PC.')}
               </div>
+
+              <RerankerSettings token={token} />
             </div>
           )}
 

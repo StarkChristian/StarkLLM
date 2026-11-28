@@ -1,7 +1,28 @@
 import React from 'react';
-import { ShieldAlert, Info } from 'lucide-react';
+import { ShieldAlert, Info, SearchX } from 'lucide-react';
 import styles from './ChatArea.module.css';
 import { t } from '../i18n';
+import { noSourceActions, splitWarnings } from '../utils/documentHealth';
+
+// "No good source" (2.7, source_quality.py): no passage answered the question well, so the answer did not use any.
+// Says so plainly and what the user can do, instead of a silent "not found" or a guess.
+function NoGoodSource({ warning }) {
+  const actions = noSourceActions(warning);
+  return (
+    <div className={styles.docNotice} role="note">
+      <SearchX size={16} className={styles.docNoticeIcon} />
+      <div>
+        <p><strong>{t('No passage in your documents answers this well.')}</strong> {t('StarkLLM therefore did not answer from them, so as not to guess.')}</p>
+        <p>{t('What you can do:')}</p>
+        <ul className={styles.docNoticeList}>
+          {actions.includes('check') && <li>{t('Check the document: in the document list, "Document health" shows what StarkLLM could read from it.')}</li>}
+          {actions.includes('rephrase') && <li>{t('Ask again in other words, for example with the term the document itself uses.')}</li>}
+          {actions.includes('web') && <li>{t('Turn on web search if the answer may be on the internet.')}</li>}
+        </ul>
+      </div>
+    </div>
+  );
+}
 
 // Warnings from StarkLLM's own rules on the documents an answer used (document_checks.py). They do not depend on the
 // model: a small model may overlook or even contradict them in its text.
@@ -49,10 +70,10 @@ function message(w) {
 }
 
 export default function DocumentWarnings({ warnings }) {
-  const serious = warnings.filter((w) => w.kind !== 'account_change');
-  const notes = warnings.filter((w) => w.kind === 'account_change');
+  const { serious, notes, noSource } = splitWarnings(warnings);
   return (
     <>
+      {noSource && <NoGoodSource warning={noSource} />}
       {serious.length > 0 && (
         <div className={styles.docWarning} role="alert">
           <ShieldAlert size={16} className={styles.docWarningIcon} />

@@ -1208,6 +1208,48 @@ async def get_document_facts(
             "facts": document_facts_cached(_indexed_pages(workspace_id, current_user.id, doc.filepath), doc.filename)}
 
 
+@router.get("/{workspace_id}/documents/{document_id}/health")
+async def get_document_health(
+    workspace_id: int,
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Document health (2.7): what StarkLLM could read from the document (the first part of the text, passages, pages,
+    OCR and its languages) and what may be missing (empty pages, little text, password, tracked changes, flattened
+    tables, a reading error). From the indexed passages and the file itself; see services/document_health.py."""
+    from app.services import document_health
+    ws = db.query(models.Workspace).filter(
+        models.Workspace.id == workspace_id, models.Workspace.user_id == current_user.id).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    doc = db.query(models.Document).filter(
+        models.Document.id == document_id, models.Document.workspace_id == workspace_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    filepath, file_type, status, error = doc.filepath, doc.file_type or "", doc.status, doc.error_message
+
+    def collect():
+        passages = []
+        if filepath:
+            try:
+                got = rag_service.get_or_create_collection(workspace_id, current_user.id).get(
+                    where={"source": filepath}, include=["documents", "metadatas"])
+                passages = list(zip(got.get("documents") or [], got.get("metadatas") or []))
+            except ProtectionLocked:
+                raise
+            except Exception as e:
+                logger.warning(f"document health: passages of document {document_id} not readable: {e}")
+        exists = bool(filepath and os.path.exists(filepath))
+        effective = "missing" if not exists and status == DocStatus.INDEXED else status
+        info = document_health.inspect_file(filepath, file_type) if exists else {}
+        return effective, document_health.health(status=effective, error_message=error, file_type=file_type,
+                                                 passages=passages, file_info=info)
+
+    effective, result = await asyncio.to_thread(collect)
+    return {"id": doc.id, "filename": doc.filename, "file_type": file_type, "status": effective, **result}
+
+
 @router.get("/{workspace_id}/documents/{document_id}/content")
 async def get_document_content(
     workspace_id: int,
