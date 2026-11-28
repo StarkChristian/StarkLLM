@@ -7,6 +7,7 @@ import { useEscape } from '../utils/useEscape';
 import { UI_LOCALE } from '../utils/locale';
 import { downloadFile } from '../utils/download';
 import { provenance, rejectionCode, sortMemories, MEMORY_MAX_CHARS } from '../utils/memory';
+import DialogBox from './DialogBox';
 
 // Long-term memory (2.8): every entry with where it came from; the user edits, pins, deletes, exports. New memory only
 // comes from the user: typed here, "Remember this" on a message, or a suggestion the user accepts.
@@ -198,11 +199,11 @@ export default function MemoryManager({ workspace, token, onClose }) {
 
   return (
     <div className={styles.overlay}>
-      <div className={styles.modal} role="dialog" aria-modal="true" aria-label={t('Long-Term Memory')}>
+      <DialogBox className={styles.modal} onClose={onClose} labelledBy="dlg-memory-title">
         <div className={styles.header}>
           <div className={styles.titleArea}>
             <BrainCircuit size={24} className={styles.icon} />
-            <h2>{t('Long-Term Memory')}</h2>
+            <h2 id="dlg-memory-title">{t('Long-Term Memory')}</h2>
           </div>
           <button className={styles.closeBtn} onClick={onClose} title={t('Close')}>
             <X size={20} />
@@ -326,7 +327,7 @@ export default function MemoryManager({ workspace, token, onClose }) {
             {t('Delete all memory')}
           </button>
         </div>
-      </div>
+      </DialogBox>
     </div>
   );
 }

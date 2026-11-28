@@ -8,6 +8,7 @@ import {
 import { serverDate } from '../utils/time';
 import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
+import DialogBox from './DialogBox';
 
 function useDebounce(value, delay) {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -284,7 +285,7 @@ export default function GlobalSearch({
 
   return (
     <div className={styles.backdrop} onClick={handleBackdropClick}>
-      <div className={styles.modal} ref={containerRef} onKeyDown={handleKeyDown}>
+      <DialogBox className={styles.modal} innerRef={containerRef} onKeyDown={handleKeyDown} onClose={onClose} closeOnEscape={false} label={t('Search everything…')}>
 
         {/* ── Search Input ── */}
         <div className={styles.inputRow}>
@@ -571,7 +572,7 @@ export default function GlobalSearch({
             </span>
           )}
         </div>
-      </div>
+      </DialogBox>
     </div>
   );
 }

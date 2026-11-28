@@ -165,7 +165,7 @@ function AskBox({ ask, onReply }) {
       <div className={styles.askBody}>
         <p>{ask.text}</p>
         <form onSubmit={(e) => { e.preventDefault(); onReply(ask.qid, { ok: Boolean(answer.trim()), text: answer.trim() }); }}>
-          <input className={styles.askInput} value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder={t('Your answer')} autoFocus />
+          <input className={styles.askInput} value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder={t('Your answer')} aria-label={t('Your answer')} autoFocus />
           <div className={styles.askButtons}>
             <button type="button" className={styles.secondary} onClick={() => onReply(ask.qid, { ok: false })}>{t('Skip')}</button>
             <button type="submit" className={styles.primary} disabled={!answer.trim()}>{t('Send')}</button>
@@ -259,7 +259,7 @@ export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onRe
   return (
     <div className={styles.card}>
       <div className={styles.header}>
-        <span className={styles.title}>{header}</span>
+        <span className={styles.title} role="status">{header}</span>
         <span className={styles.actions}>
           {running && !task.ask && onPause && !task.paused && (
             <button type="button" className={styles.link} onClick={onPause} title={t('Pause the task and use the window yourself')}>
@@ -290,14 +290,14 @@ export default function WebTaskCard({ task, onReply, onShowWindow, onPause, onRe
         </details>
       )}
       {task.ask && <AskBox key={task.ask.qid} ask={task.ask} onReply={onReply} />}
-      {task.error && <p className={styles.error}>{webTaskErrorText(task.error)}</p>}
+      {task.error && <p className={styles.error} role="alert">{webTaskErrorText(task.error)}</p>}
       {task.status === 'done' && onSavePage && webPage && (
         <div className={styles.saveRow}>
           <button type="button" className={styles.secondary} onClick={save} disabled={saved === 'saving' || saved === 'saved'}>
             <FilePlus size={14} /> {t('Save this page to the workspace')}
           </button>
-          {saved === 'saved' && <span className={styles.hint}>{t('Saved. You can ask about it like about your other documents.')}</span>}
-          {saved === 'failed' && <span className={styles.error}>{t('The page could not be saved.')}</span>}
+          {saved === 'saved' && <span className={styles.hint} role="status">{t('Saved. You can ask about it like about your other documents.')}</span>}
+          {saved === 'failed' && <span className={styles.error} role="alert">{t('The page could not be saved.')}</span>}
         </div>
       )}
       {task.status === 'done' && onSaveTask && task.task && !task.folder && (

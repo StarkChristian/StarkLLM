@@ -207,17 +207,80 @@ def _shade(paragraph, fill: str):
     props.append(shd)
 
 
-def chat_to_docx(title: str, messages: List[Dict], labels: Optional[Dict[str, str]] = None, date_text: str = "") -> bytes:
+AI_NOTE = "Created with AI assistance (StarkLLM)"
+_CUSTOM_PROPS_CT = "application/vnd.openxmlformats-officedocument.custom-properties+xml"
+_CUSTOM_PROPS_NS = "http://schemas.openxmlformats.org/officeDocument/2006/custom-properties"
+_VT_NS = "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"
+# the format id every custom document property carries (ECMA-376 part 1, 22.3.2.2)
+_CUSTOM_PROP_FMTID = "{D5CDD505-2E9C-101B-9397-08002B2CF9AE}"
+
+
+def generator_name(version: str = "") -> str:
+    """'StarkLLM 2.7.0 (AI-generated content)': who made the file, in its properties (EU AI Act, Article 50(2))."""
+    return f"StarkLLM {version} (AI-generated content)" if version else "StarkLLM (AI-generated content)"
+
+
+def _mark_ai_generated(doc, version: str):
+    """Machine-readable marking of AI-generated content (EU AI Act, Article 50(2)): the core properties (creator,
+    keywords, comments), the application in docProps/app.xml, and a custom property ai_generated=true."""
+    from xml.sax.saxutils import escape
+
+    from docx.opc.constants import RELATIONSHIP_TYPE as RT
+    from docx.opc.packuri import PackURI
+    from docx.opc.part import Part
+
+    generator = generator_name(version)
+    props = doc.core_properties
+    props.author = generator  # dc:creator
+    props.last_modified_by = generator
+    props.keywords = "AI-generated"
+    props.comments = "AI-generated content, created with StarkLLM"
+    package = doc.part.package
+    for part in package.iter_parts():
+        if str(part.partname) == "/docProps/app.xml" and isinstance(getattr(part, "_blob", None), bytes):
+            # the template of python-docx says "Microsoft Macintosh Word" here
+            part._blob = re.sub(rb"<Application>[^<]*</Application>",
+                                b"<Application>" + escape(generator).encode("utf-8") + b"</Application>", part._blob)
+    xml = (
+        "<?xml version='1.0' encoding='UTF-8' standalone='yes'?>\n"
+        f'<Properties xmlns="{_CUSTOM_PROPS_NS}" xmlns:vt="{_VT_NS}">'
+        f'<property fmtid="{_CUSTOM_PROP_FMTID}" pid="2" name="ai_generated"><vt:bool>true</vt:bool></property>'
+        f'<property fmtid="{_CUSTOM_PROP_FMTID}" pid="3" name="generator"><vt:lpwstr>{escape(generator)}</vt:lpwstr></property>'
+        "</Properties>"
+    ).encode("utf-8")
+    custom = Part(PackURI("/docProps/custom.xml"), _CUSTOM_PROPS_CT, xml, package)
+    package.relate_to(custom, RT.CUSTOM_PROPERTIES)
+
+
+def _ai_footer(doc, text: str):
+    """A short visible line at the foot of every page: the reader sees that the content was made with AI."""
+    for section in doc.sections:
+        p = section.footer.paragraphs[0] if section.footer.paragraphs else section.footer.add_paragraph()
+        p.text = ""
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        r = p.add_run(_clean(text))
+        r.font.size = Pt(8)
+        r.font.color.rgb = RGBColor(0x77, 0x77, 0x77)
+
+
+def chat_to_docx(title: str, messages: List[Dict], labels: Optional[Dict[str, str]] = None, date_text: str = "",
+                 version: Optional[str] = None) -> bytes:
     """messages: [{role: 'user'|'assistant', content, time?, sources?: [str]}] -> the bytes of a .docx file.
-    labels: the words of the user's language ({"user", "assistant", "sources", "exported"})."""
-    words = {"user": "You", "assistant": "StarkLLM", "sources": "Sources", "exported": "Exported from StarkLLM"}
+    labels: the words of the user's language ({"user", "assistant", "sources", "exported", "ai_note"}).
+    version: the app version for the document properties (default: the engine's version)."""
+    words = {"user": "You", "assistant": "StarkLLM", "sources": "Sources", "exported": "Exported from StarkLLM",
+             "ai_note": AI_NOTE}
     words.update({k: v for k, v in (labels or {}).items() if isinstance(v, str) and v.strip()})
+    if version is None:
+        from app.core.config import settings
+        version = settings.VERSION
     doc = Document()
     normal = doc.styles["Normal"]
     normal.font.name = "Calibri"
     normal.font.size = Pt(11)
     doc.core_properties.title = _clean(title)[:200]
-    doc.core_properties.author = "StarkLLM"
+    _mark_ai_generated(doc, _clean(version)[:40])
+    _ai_footer(doc, words["ai_note"])
     doc.add_heading(_clean(title) or "StarkLLM", level=1)
     meta = doc.add_paragraph()
     run = meta.add_run(f"{words['exported']}{' · ' + date_text if date_text else ''}")

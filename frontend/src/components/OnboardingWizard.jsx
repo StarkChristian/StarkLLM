@@ -185,16 +185,16 @@ export default function OnboardingWizard({ token, onComplete }) {
   }
 
   return (
-    <div className={styles.wizardContainer}>
+    <main className={styles.wizardContainer}>
       <div className={styles.wizardCard}>
         <div className={styles.wizardHeader}>
-          <h2>{t('Welcome to StarkLLM')}</h2>
+          <h1>{t('Welcome to StarkLLM')}</h1>
           <p>{t('Let\'s make sure your local AI environment is fully set up before we begin.')}</p>
         </div>
 
         <div className={styles.wizardBody}>
           {errorMsg ? (
-            <div className={styles.criticalError}>
+            <div className={styles.criticalError} role="alert">
               <strong>{t('Connection Error:')}</strong> {errorMsg}
               <p>
                 {t('Cannot reach the StarkLLM backend. It may still be starting: press Re-check Status in a moment, or Skip / Proceed anyway.')}
@@ -254,6 +254,6 @@ export default function OnboardingWizard({ token, onComplete }) {
           </button>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

@@ -110,6 +110,12 @@ function initApp() {
   });
   // Settings > Privacy: the fully offline switch and the list of connections of the app (only the app's own page may ask)
   const fromApp = (event) => Boolean(event.senderFrame && sameOrigin(event.senderFrame.url, APP_URL));
+  // Settings > Letters from a folder: the folder dialog (the engine watches the folder; the app only asks for it)
+  ipcMain.handle('watch:choose-folder', async (event) => {
+    if (!fromApp(event)) return { error: 'not allowed' };
+    const r = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory'] });
+    return r.canceled || !r.filePaths[0] ? { canceled: true } : { folder: r.filePaths[0] };
+  });
   exportPdf.register(ipcMain, { fromApp }); // chats and answers as PDF (docs/roadmap-2026-12.md, R1)
   // tool servers (MCP) the user added: started by the desktop app, each call after a yes in the chat (docs/roadmap-2026-12.md, R6)
   mcp.register(ipcMain, { fromApp, offline: () => require('./netguard').getShared().isOffline(), log: logLine });
@@ -130,7 +136,8 @@ function initApp() {
   });
   registerPhoneLinkHandlers();
   webtask.register(ipcMain, { fromApp, log: logLine });
-  app.on("will-quit", () => webtask.stopCommands()); // commands of a web task end with StarkLLM
+  // commands of a web task end with StarkLLM; the browser window's lists are written
+  app.on("will-quit", () => { webtask.stopCommands(); webtask.saveProfile(); });
   registerProtectionHandlers();
   registerUnlockHandlers();
   lockEngineOnQuit();
@@ -573,9 +580,15 @@ function registerPhoneLinkHandlers() {
   };
   ipcMain.handle('phone:status', allowed(() => phone().status()));
   ipcMain.handle('phone:enable', allowed((on) => phone().setEnabled(Boolean(on))));
-  ipcMain.handle('phone:user-session', allowed(async (token) => ({ ok: Boolean(await keepPhoneSession(token)) })));
-  // signing out in the window: the phones of that account are no longer paired
+  // the account signed in in the window: also the owner of the browser window's favourites, history and downloads list
+  ipcMain.handle('phone:user-session', allowed(async (token) => {
+    const user = await keepPhoneSession(token);
+    webtask.setAccount(user);
+    return { ok: Boolean(user) };
+  }));
+  // signing out in the window: the phones of that account are no longer paired; its browser window closes
   ipcMain.handle('phone:signed-out', allowed(async (token) => {
+    webtask.setAccount('');
     const user = await accountOf(String(token || ''));
     if (!user) return { ok: false };
     phoneSessions.delete(user);

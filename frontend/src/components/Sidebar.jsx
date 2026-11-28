@@ -278,6 +278,7 @@ export default function Sidebar({
               onKeyDown={handleRenameKeyDown}
               onBlur={submitRename}
               maxLength={80}
+              aria-label={t('Rename chat')}
             />
             <button className={styles.confirmBtn} onClick={submitRename} title={t('Save')} onMouseDown={e => e.preventDefault()}>
               <Check size={11} />
@@ -293,11 +294,12 @@ export default function Sidebar({
               className={styles.chatSelectBtn}
               onClick={() => onSelectChat(chat)}
               onDoubleClick={(e) => startRename(e, chat)}
+              aria-current={activeChatId === chat.id ? 'true' : undefined}
             >
               <MessageCircle size={13} className={styles.chatIcon} />
               <div className={styles.chatInfo}>
                 <span className={styles.chatName}>
-                  {chat.is_pinned && <Pin size={10} className={styles.pinnedIcon} />}
+                  {chat.is_pinned && <Pin size={10} className={styles.pinnedIcon} aria-label={t('Pinned')} role="img" />}
                   {!chat.title ? t('Untitled') : chat.title === 'New Chat' ? t('New Chat') : chat.title}
                 </span>
                 <div className={styles.chatMeta}>
@@ -327,11 +329,12 @@ export default function Sidebar({
                   className={`${styles.chatActionBtn} ${movingChatId === chat.id ? styles.chatActionActive : ''}`}
                   onClick={(e) => { e.stopPropagation(); setMovingChatId(movingChatId === chat.id ? null : chat.id); }}
                   title={t('Move to folder')}
+                  aria-expanded={movingChatId === chat.id}
                 >
                   <MoveRight size={11} />
                 </button>
                 {movingChatId === chat.id && (
-                  <div className={styles.moveDropdown} onClick={(e) => e.stopPropagation()}>
+                  <div className={styles.moveDropdown} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setMovingChatId(null); } }}>
                     <div className={styles.moveDropdownHeader}>{t('Move to...')}</div>
                     <button className={styles.moveDropdownItem} onClick={() => { onMoveChat(chat.id, null); setMovingChatId(null); }}>
                       <Folder size={12} /> {t('Uncategorized')}
@@ -367,14 +370,14 @@ export default function Sidebar({
   };
 
   return (
-    <div className={styles.container}>
+    <aside className={styles.container} aria-label={t('Sidebar')}>
       {/* ── Brand header ── */}
       <button
         className={styles.brandBtn}
         onClick={() => onViewChange('dashboard')}
         title={t('Go to Dashboard')}
       >
-        <img src="/Logo.png" alt={t('StarkLLM logo')} className={styles.brandLogo} />
+        <img src="/Logo.png" alt="" className={styles.brandLogo} />
         <span className={styles.brandName}>StarkLLM</span>
       </button>
 
@@ -386,21 +389,22 @@ export default function Sidebar({
       >
         <Search size={14} className={styles.globalSearchIcon} />
         <span className={styles.globalSearchLabel}>{t('Search everything…')}</span>
-        <kbd className={styles.globalSearchKbd}>Ctrl K</kbd>
+        <kbd className={styles.globalSearchKbd} aria-hidden="true">Ctrl K</kbd>
       </button>
 
       {/* ── Top navigation ── */}
-      <nav className={styles.nav}>
+      <nav className={styles.nav} aria-label={t('Main navigation')}>
         {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             className={`${styles.navItem} ${activeView === id ? styles.navActive : ''}`}
             onClick={() => onViewChange(id)}
+            aria-current={activeView === id ? 'page' : undefined}
           >
             <Icon size={18} className={styles.navIcon} />
             <span>{label}</span>
             {id === 'inbox' && inboxCount > 0 && (
-              <span className={styles.navBadge} title={t('{count} new letters', { count: inboxCount })}>{inboxCount}</span>
+              <span className={styles.navBadge} title={t('{count} new letters', { count: inboxCount })}><span aria-hidden="true">{inboxCount}</span><span className="sr-only">{t('{count} new letters', { count: inboxCount })}</span></span>
             )}
             {activeView === id && <ChevronRight size={14} className={styles.navChevron} />}
           </button>
@@ -409,7 +413,7 @@ export default function Sidebar({
 
       {/* ── Workspace Selector (compact dropdown) ── */}
       {isChat && (
-        <div className={styles.wsSelector} ref={wsDropdownRef}>
+        <div className={styles.wsSelector} ref={wsDropdownRef} onKeyDown={(e) => { if (e.key === 'Escape' && wsDropdownOpen) { e.stopPropagation(); setWsDropdownOpen(false); } }}>
           <div className={styles.wsSelectorHeader}>
             <span className={styles.sectionLabel}>{t('Workspace')}</span>
             <button
@@ -423,6 +427,8 @@ export default function Sidebar({
           <button
             className={styles.wsDropdownTrigger}
             onClick={() => setWsDropdownOpen(prev => !prev)}
+            aria-expanded={wsDropdownOpen}
+            aria-label={t('Workspace: {name}', { name: activeWorkspace?.name || t('Select workspace…') })}
           >
             <FolderOpen size={14} className={styles.wsDropdownIcon} />
             <span className={styles.wsDropdownLabel}>
@@ -449,6 +455,7 @@ export default function Sidebar({
                 <button
                   key={ws.id}
                   className={`${styles.wsDropdownItem} ${activeWorkspace?.id === ws.id ? styles.wsDropdownActive : ''}`}
+                  aria-current={activeWorkspace?.id === ws.id ? 'true' : undefined}
                   onClick={() => {
                     onSelectWorkspace(ws);
                     onViewChange('chat');
@@ -545,6 +552,7 @@ export default function Sidebar({
                              onKeyDown={handleFolderRenameKeyDown}
                              onBlur={submitRenameFolder}
                              maxLength={50}
+                             aria-label={t('Rename folder')}
                              autoFocus
                            />
                            <button className={styles.confirmBtn} onClick={submitRenameFolder} title={t('Save')} onMouseDown={e => e.preventDefault()}>
@@ -555,14 +563,18 @@ export default function Sidebar({
                            </button>
                          </div>
                       ) : (
-                        <div 
-                          className={styles.folderHeader} 
-                          onClick={() => setCollapsedFolders(prev => ({ ...prev, [folder.id]: !prev[folder.id] }))}
-                          onDoubleClick={(e) => startRenameFolder(e, folder)}
-                        >
-                          <ChevronDown size={12} className={`${styles.folderChevron} ${isCollapsed ? styles.collapsed : ''}`} />
-                          <Folder size={12} className={styles.folderIcon} />
-                          <span className={styles.folderName}>{folder.name}</span>
+                        <div className={styles.folderHeader}>
+                          <button
+                            type="button"
+                            className={styles.folderToggle}
+                            onClick={() => setCollapsedFolders(prev => ({ ...prev, [folder.id]: !prev[folder.id] }))}
+                            onDoubleClick={(e) => startRenameFolder(e, folder)}
+                            aria-expanded={!isCollapsed}
+                          >
+                            <ChevronDown size={12} className={`${styles.folderChevron} ${isCollapsed ? styles.collapsed : ''}`} />
+                            <Folder size={12} className={styles.folderIcon} />
+                            <span className={styles.folderName}>{folder.name}</span>
+                          </button>
                           
                           <div className={styles.folderActions} onClick={e => e.stopPropagation()}>
                             {deletingFolderId === folder.id ? (
@@ -623,6 +635,7 @@ export default function Sidebar({
           <button
             className={styles.sectionHeaderRow}
             onClick={() => setDocsCollapsed(prev => !prev)}
+            aria-expanded={!docsCollapsed}
           >
             <span className={styles.sectionLabel}>
               {t('Documents')}{workspaceDocs.length > 0 ? ` (${workspaceDocs.length})` : ''}
@@ -690,23 +703,24 @@ export default function Sidebar({
       {/* ── User footer ── */}
       <div className={styles.footer}>
         <div className={styles.userInfo}>
-          <div className={styles.avatar}>
+          <div className={styles.avatar} aria-hidden="true">
             {isLocal ? <Monitor size={14} /> : (username ? username[0].toUpperCase() : '?')}
           </div>
           <span className={styles.username}>{isLocal ? t('This PC') : (username || t('User'))}</span>
           <SidebarStatusDot token={token} />
         </div>
-        <div className={styles.footerActions} ref={themePopoverRef}>
+        <div className={styles.footerActions} ref={themePopoverRef} onKeyDown={(e) => { if (e.key === 'Escape' && showThemeMenu) { e.stopPropagation(); setShowThemeMenu(false); } }}>
           <button
             className={styles.themeToggleBtn}
             onClick={() => setShowThemeMenu(prev => !prev)}
             title={t('Color Theme')}
+            aria-expanded={showThemeMenu}
           >
             <Palette size={16} />
           </button>
 
           {showThemeMenu && (
-            <div className={styles.themePopover}>
+            <div className={styles.themePopover} role="group" aria-label={t('Color Theme')}>
               <div className={styles.themePopoverHeader}>
                 <span>{t('Color Theme')}</span>
                 <Palette size={12} />
@@ -716,9 +730,10 @@ export default function Sidebar({
                   key={th.id}
                   className={`${styles.themePopoverItem} ${currentTheme === th.id ? styles.themePopoverItemActive : ''}`}
                   onClick={() => handleSelectTheme(th.id)}
+                  aria-pressed={currentTheme === th.id}
                 >
                   <div className={styles.themeItemLeft}>
-                    <span className={styles.themeMiniDot} style={{ background: th.accent }} />
+                    <span className={styles.themeMiniDot} style={{ background: th.accent }} aria-hidden="true" />
                     <span>{themeText(th.id).name}</span>
                   </div>
                   {currentTheme === th.id && <Check size={14} />}
@@ -734,6 +749,6 @@ export default function Sidebar({
           )}
         </div>
       </div>
-    </div>
+    </aside>
   );
 }

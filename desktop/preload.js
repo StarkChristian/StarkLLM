@@ -36,6 +36,8 @@ contextBridge.exposeInMainWorld('starkllmDesktop', {
     call: (name, args) => ipcRenderer.invoke('mcp:call', String(name || ''), args && typeof args === 'object' ? JSON.parse(JSON.stringify(args)) : {}),
   },
   openKnowledgeFolder: () => ipcRenderer.invoke('kb:open-folder'),
+  // Settings > Letters from a folder: the folder dialog; the page gets the chosen path ({ folder } or { canceled })
+  chooseFolder: () => ipcRenderer.invoke('watch:choose-folder'),
   // download progress of an update: cb({ phase: 'downloading' | 'done', percent }); returns an unsubscribe function
   onUpdateStatus: (cb) => {
     const handler = (_event, status) => cb(status);
