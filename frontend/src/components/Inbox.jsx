@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Inbox as InboxIcon, FileText, Image, Check, RotateCcw, Pencil, X, FolderOpen, CalendarClock, ShieldAlert, Copy, ChevronDown, ChevronRight } from 'lucide-react';
+import { Inbox as InboxIcon, FileText, Image, Check, RotateCcw, Pencil, X, FolderOpen, CalendarClock, ShieldAlert, Copy, ChevronDown, ChevronRight, Briefcase } from 'lucide-react';
 import DocumentViewerModal from './DocumentViewerModal';
 import EmptyState from './EmptyState';
 import Deadlines from './Deadlines';
+import TaxPackDialog from './TaxPackDialog';
 import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
 import { accountLabel } from '../utils/accounts';
@@ -76,6 +77,7 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
   const [viewing, setViewing] = useState(null);
   const [editing, setEditing] = useState(null); // { key, title }
   const [openCase, setOpenCase] = useState(null);
+  const [taxPack, setTaxPack] = useState(false); // the yearly package for the tax advisor
 
   const load = async () => {
     try {
@@ -253,9 +255,12 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
           <h1 className={styles.title}><InboxIcon size={24} /> {t('Inbox')}</h1>
           <p className={styles.subtitle}>{t('What StarkLLM read in your letters. Click a value to see it on the page; mark a letter done when you have dealt with it.')}</p>
         </div>
-        {newDocs.length > 1 && tab === 'new' && (
-          <button className="btn-secondary" onClick={allDone}><Check size={15} /> {t('Mark all as done')}</button>
-        )}
+        <div className={styles.headerActions}>
+          {newDocs.length > 1 && tab === 'new' && (
+            <button className="btn-secondary" onClick={allDone}><Check size={15} /> {t('Mark all as done')}</button>
+          )}
+          <button className="btn-secondary" onClick={() => setTaxPack(true)}><Briefcase size={15} /> {t('Export for my tax advisor')}</button>
+        </div>
       </header>
 
       <div className={styles.tabs} role="tablist">
@@ -332,6 +337,8 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
       )}
 
       {data && tab !== 'deadlines' && <p className={styles.hint}>{t('Found by fixed rules, word for word in your documents. Check the letter before you act on it.')}</p>}
+
+      {taxPack && <TaxPackDialog token={token} onClose={() => setTaxPack(false)} />}
 
       {viewing && (
         <DocumentViewerModal

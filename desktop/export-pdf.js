@@ -43,14 +43,16 @@ async function htmlToPdf(html) {
   }
 }
 
-const SAVE_TYPES = { docx: 'Word', md: 'Markdown', html: 'HTML', json: 'JSON', txt: 'Text' };
+const SAVE_TYPES = { docx: 'Word', md: 'Markdown', html: 'HTML', json: 'JSON', txt: 'Text', zip: 'ZIP' };
+// the tax advisor package (a year of letters) may be larger than a chat export
+const MAX_SAVE = { zip: 500 * 1024 * 1024 };
 
 function register(ipcMain, { fromApp }) {
   // a file the chat page made (Word, Markdown ...): the save dialog of the app, then written where the user chose
   ipcMain.handle('export:save', async (event, name, data) => {
     if (!fromApp(event)) return { error: 'not-allowed' };
     const ext = String(name || '').split('.').pop().toLowerCase();
-    if (!SAVE_TYPES[ext] || !(data instanceof Uint8Array) || data.length > 100 * 1024 * 1024) return { error: 'invalid' };
+    if (!SAVE_TYPES[ext] || !(data instanceof Uint8Array) || data.length > (MAX_SAVE[ext] || 100 * 1024 * 1024)) return { error: 'invalid' };
     try {
       const parent = BrowserWindow.fromWebContents(event.sender);
       const base = String(name).replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim().slice(0, 120) || `StarkLLM.${ext}`;
