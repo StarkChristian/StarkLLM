@@ -279,6 +279,21 @@ class DeadlineDone(Base):
     created_at  = Column(DateTime, default=datetime.utcnow)
 
 
+class LetterProfile(Base):
+    """The user's own name and address for reply letters (services/reply_letters.py), filled in once in Settings.
+    Every field is protected at rest while protection is on. Stays on this PC; nothing is ever sent."""
+    __tablename__ = "letter_profiles"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    user_id     = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    full_name   = Column(ProtectedText("letter_profiles.full_name", locked_value=None), nullable=True)
+    street      = Column(ProtectedText("letter_profiles.street", locked_value=None), nullable=True)
+    postal_code = Column(ProtectedText("letter_profiles.postal_code", locked_value=None), nullable=True)
+    city        = Column(ProtectedText("letter_profiles.city", locked_value=None), nullable=True)
+    country     = Column(ProtectedText("letter_profiles.country", locked_value=None), nullable=True)
+    updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 
 # ---------------------------------------------------------------------------
 # What the user decided about a document goes with the document (MSI night test of 2.3.0, N38)

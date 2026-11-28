@@ -1,0 +1,93 @@
+/* The reply-letter window of the inbox. Colours come from the theme tokens only, so light and pattern themes work. */
+.backdrop {
+  position: fixed; inset: 0; z-index: 9900;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex; align-items: center; justify-content: center;
+  padding: 1.5rem;
+}
+.modal {
+  width: min(1040px, 96vw); max-height: 90vh;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 16px 20px; border-bottom: 1px solid var(--border-color); flex-shrink: 0;
+}
+.headerLeft { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.headerIcon {
+  flex: 0 0 32px; height: 32px; display: grid; place-items: center;
+  border-radius: var(--radius-md); background: var(--bg-active); color: var(--accent-bright);
+}
+.title { margin: 0; font-size: var(--text-base); color: var(--text-primary); }
+.subtitle { margin: 2px 0 0; font-size: 0.8rem; color: var(--text-muted); overflow-wrap: anywhere; }
+.closeBtn {
+  background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 6px;
+  border-radius: var(--radius-md);
+}
+.closeBtn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.body { padding: 18px 20px; overflow-y: auto; flex: 1; min-height: 0; }
+.lead { margin: 0 0 14px; color: var(--text-secondary); line-height: 1.5; }
+.kinds { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.kindBtn {
+  width: 100%; text-align: start; padding: 12px 14px; cursor: pointer;
+  background: var(--bg-card); color: var(--text-primary); font-size: var(--text-sm); font-weight: 600;
+  border: 1px solid var(--border-color); border-radius: var(--radius-md);
+}
+.kindBtn:hover { border-color: var(--accent-bright); color: var(--accent-bright); }
+
+.loading { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 32px 0; color: var(--text-primary); }
+.loading p { margin: 0; }
+.muted { margin: 0; font-size: 0.8rem; color: var(--text-muted); line-height: 1.45; }
+.danger {
+  display: flex; gap: 8px; align-items: flex-start; margin: 0; padding: 12px 14px; line-height: 1.45;
+  border-radius: var(--radius-md); border: 1px solid var(--danger); color: var(--text-primary);
+  background: var(--bg-card);
+}
+
+.draftLayout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; }
+@media (max-width: 820px) { .draftLayout { grid-template-columns: 1fr; } }
+.editor { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.editorHead { display: flex; flex-direction: column; gap: 2px; color: var(--text-primary); }
+.textarea {
+  width: 100%; min-height: 460px; resize: vertical; box-sizing: border-box;
+  padding: 14px 16px; line-height: 1.5; font-family: Calibri, "Segoe UI", Arial, sans-serif; font-size: 0.95rem;
+  background: var(--bg-primary); color: var(--text-primary);
+  border: 1px solid var(--border-color); border-radius: var(--radius-md);
+}
+.textarea:focus { outline: none; border-color: var(--accent-bright); }
+
+.side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.sideTitle { display: flex; align-items: center; gap: 6px; margin: 4px 0 0; font-size: var(--text-sm); color: var(--text-primary); }
+.notice, .legal, .warn {
+  display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; font-size: 0.85rem; line-height: 1.45;
+  border-radius: var(--radius-md); background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary);
+}
+.warn { flex-direction: column; gap: 2px; border-color: var(--warning, #d97706); }
+.legal { border-color: var(--warning, #d97706); }
+.linkBtn {
+  background: none; border: none; padding: 0; cursor: pointer; color: var(--accent-bright);
+  font-size: inherit; text-decoration: underline;
+}
+.deadlines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.deadlines li {
+  display: flex; flex-direction: column; gap: 4px; padding: 10px 12px;
+  border-radius: var(--radius-md); background: var(--bg-card); border: 1px solid var(--border-color);
+}
+.deadlineHead { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; color: var(--text-primary); font-size: 0.85rem; }
+.passed { font-size: 0.75rem; color: var(--text-muted); }
+.source {
+  text-align: start; background: none; border: none; padding: 0; cursor: pointer;
+  color: var(--text-secondary); font-size: 0.8rem; line-height: 1.4; overflow-wrap: anywhere;
+}
+.source:hover { color: var(--accent-bright); }
+
+.footer {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 12px 20px; border-top: 1px solid var(--border-color); flex-shrink: 0;
+}
+.grow { flex: 1; }
