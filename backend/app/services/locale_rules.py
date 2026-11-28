@@ -491,8 +491,8 @@ SCAM = {
              r"instrucciones?|istruzioni|talimat\w*|not)\s+"
              r"(?:für|fur|fuer|an|for|to|pour|à|para|per|a)\s+(?:alle\s+|all\s+|les\s+|las\s+|le\s+)?(?:digitale\w*\s+)?"
              r"(?:ki|k[l1|]-|ai|ia|a[l1|]\s+(?:assistant\w*|model\w*)|assistent\w*|assistant\w*|asistente\w*|assistente\w*|chatbot\w*|sprachmodell\w*|language model\w*|"
-             r"llm\w*|yapay zek[aâ]\w*)"
-             r"|yapay zek[aâ]\s+(?:asistan\w*|model\w*)\s+(?:i[cç]in\s+)?(?:not|talimat\w*)"
+             r"llm\w*|yapay zek[aâä]\w*)"
+             r"|yapay zek[aâä]\s+(?:asistan\w*|model\w*)\s+(?:i[cç]in\s+)?(?:not|talimat\w*)"
              # "answer that nothing has to be paid" said to an assistant (the goal of such notes), in the six languages
              r"|\b(?:antworte\w*|sag\w*|say|answer|reply|tell the user|r[ée]ponds?\w*|dites|responde\w*|rispondi\w*|s[öoé6]yle\w*|yan[ıi]tla\w*)\b"
              r"[^.\n]{0,40}\b(?:nichts zu (?:zahlen|bezahlen)|nothing (?:is due|to pay|has to be paid)|rien [àa] payer|nada (?:que|a) pagar"
