@@ -18,6 +18,7 @@ from app .services .vision_service import vision_service
 from app.services.recordings import RECORDING_EXTENSIONS, stamp
 from app .services .ocr_service import ocr_service ,PICTURE_EXTENSIONS 
 from app .services import untrusted 
+from app .services import reranker as ml_reranker 
 try :
     import pymupdf as fitz 
 except ImportError :
@@ -127,6 +128,24 @@ SCANNED_FORM_PROMPT = (
     "4. Provide a structured summary focusing on what was actually entered "
     "into the document, followed by a detailed transcription."
 )
+
+
+def _cosine (a ,b )->Optional [float ]:
+    try :
+        dot =sum (float (x )*float (y )for x ,y in zip (a ,b ))
+        na =math .sqrt (sum (float (x )*float (x )for x in a ))
+        nb =math .sqrt (sum (float (y )*float (y )for y in b ))
+        return dot /(na *nb )if na and nb else None 
+    except (TypeError ,ValueError ):
+        return None 
+
+
+def ocr_languages_used ()->str :
+    """The Tesseract languages pages are read with now ("deu+eng"); kept with OCR passages for the document health view."""
+    try :
+        return "+".join (ocr_service .status ().get ("languages")or [])
+    except Exception :
+        return ""
 
 
 def _fold(text :str )->str :
@@ -337,7 +356,21 @@ class RAGService :
             elif file_ext in [".txt", ".md"]:
                 with open(read_path, "r", encoding="utf-8-sig", errors="ignore") as f:
                     text = f.read()
-                file_chunks = self._semantic_chunk_text(text)
+                from app.services import meetings
+                if file_ext == ".txt" and meetings.is_transcript(text):
+                    # a meeting written down on this PC ("[00:12:30] ..."): passages with their time, as recordings
+                    for idx, part in enumerate(meetings.transcript_passages(text)):
+                        chunks.append(part["text"])
+                        metadatas.append({
+                            "source": file_path,
+                            "type": "recording",
+                            "chunk": idx + 1,
+                            "start": round(part["start"], 1),
+                            "locator": f"Time {stamp(part['start'])}",
+                        })
+                        ids.append(f"{prefix}_{basename}_t{idx}")
+                    text = ""
+                file_chunks = self._semantic_chunk_text(text) if text else []
                 for idx, chunk in enumerate(file_chunks):
                     if chunk.strip():
                         chunks.append(chunk.strip())
@@ -572,6 +605,7 @@ class RAGService :
             if chunk .strip ():
                 chunks .append (chunk .strip ())
                 metadatas .append ({**base ,"type":"ocr","ocr_confidence":picture .confidence ,
+                "ocr_languages":ocr_languages_used (),
                 "locator":f"{place } (OCR)","chunk":idx +1 })
                 ids .append (f"{id_base }_ocr_{idx }")
                 added +=1
@@ -657,7 +691,8 @@ class RAGService :
         n =min (n_candidates ,count )
         embedding =llm_service .generate_embeddings (self .embedding_model ,query_text )
         where_filter =self ._build_where_filter (filters )
-        query_kwargs ={"query_embeddings":[embedding ],"n_results":n }
+        # the embeddings come back too: the cosine similarity of the best passage is one signal of "no good source"
+        query_kwargs ={"query_embeddings":[embedding ],"n_results":n ,"include":["documents","metadatas","embeddings"]}
         if where_filter :
             query_kwargs ["where"]=where_filter 
         try :
@@ -671,21 +706,30 @@ class RAGService :
         docs =results .get ("documents",[[]])[0 ]
         metas =results .get ("metadatas",[[]])[0 ]
         ids =results .get ("ids",[[]])[0 ]if "ids"in results and results ["ids"]else [None ]*len (docs )
-        return [
-        {
-        "content":doc ,
-        "metadata":metas [i ]if i <len (metas )else {},
-        "id":ids [i ]if i <len (ids )else f"gen_{hashlib .md5 (doc .encode ()).hexdigest ()}"
-        }
-        for i ,doc in enumerate (docs )
-        ]
+        embs =results .get ("embeddings")
+        embs =embs [0 ]if embs is not None and len (embs )else []
+        out =[]
+        for i ,doc in enumerate (docs ):
+            item ={
+            "content":doc ,
+            "metadata":metas [i ]if i <len (metas )else {},
+            "id":ids [i ]if i <len (ids )else f"gen_{hashlib .md5 (doc .encode ()).hexdigest ()}"
+            }
+            if i <len (embs ):
+                item ["_vector_sim"]=_cosine (embedding ,embs [i ])# source_quality.py
+            out .append (item )
+        return out 
 
     def _rerank_or_truncate (
     self ,candidates :List [Dict ],query_text :str ,n_results :int 
     )->List [Dict ]:
-        """Re-rank candidates with FlashRank (if available), else truncate."""
+        """Re-rank candidates: with the multilingual reranker when the user installed it (reranker.py), else with
+        FlashRank's small English model fused with the hybrid order, else truncate."""
         if not candidates :
             return []
+        ranked =self ._rerank_multilingual (candidates ,query_text ,n_results )
+        if ranked is not None :
+            return ranked
         if self .ranker :
             passages =[]
             for i ,r in enumerate (candidates ):
@@ -714,9 +758,49 @@ class RAGService :
             return [candidates [i ]for i in top ]
         return candidates [:n_results ]
 
+    # how the reranker's order is used: "fused" (RRF with the first-stage order) or "score" (its order alone). Fused won
+    # the eval clearly (eval/retrieval: hit@1 96 % against 73 %): the first stage knows exact numbers and names, the
+    # reranker the meaning. The passage goes to the reranker with its file name in front (also better in the eval).
+    RERANK_ORDER ="fused"
+    RERANK_WITH_NAME =True
+
+    def _rerank_multilingual (
+    self ,candidates :List [Dict ],query_text :str ,n_results :int
+    )->Optional [List [Dict ]]:
+        """Second stage with the multilingual cross-encoder: score the first candidates (as many as its time budget
+        allows), fuse its order with the first-stage order, keep the best n_results. Every scored candidate keeps its
+        score in "_rerank_score" (0..1), which source_quality.py reads. None when the reranker is not installed or
+        skipped; then the search goes on exactly as before."""
+        texts =[]
+        for r in candidates [:ml_reranker .MAX_CANDIDATES ]:
+            meta =r .get ("metadata")or {}
+            filename =meta .get ("file_name")or re .sub (r"^[0-9a-f]{8}_","",os .path .basename (meta .get ("source")or meta .get ("file_path")or ""))
+            texts .append ((f"{filename }\n"if filename and self .RERANK_WITH_NAME else "")+(r .get ("content")or ""))
+        scores =ml_reranker .score (query_text ,texts )
+        if scores is None :
+            return None
+        n =len (scores )
+        for c ,sc in zip (candidates ,scores ):
+            c ["_rerank_score"]=sc
+        scored =list (range (n ))
+        if self .RERANK_ORDER =="fused":
+            k =60
+            by_score ={i :pos for pos ,i in enumerate (sorted (scored ,key =lambda i :-scores [i ]))}
+            scored .sort (key =lambda i :-(1.0 /(k +i +1 )+1.0 /(k +by_score [i ]+1 )))
+        else :
+            scored .sort (key =lambda i :-scores [i ])
+        order =scored +list (range (n ,len (candidates )))# not scored (time budget): after them, in first-stage order
+        return [candidates [i ]for i in order [:n_results ]]
+
         # ------------------------------------------------------------------
         # Public query methods
         # ------------------------------------------------------------------
+
+    def _pool_size (self ,wanted :int )->int :
+        """First-stage candidates: at least 15; with the multilingual reranker installed at least MAX_CANDIDATES (20),
+        so it has something to choose from."""
+        n =max (wanted ,15 )
+        return max (n ,ml_reranker .MAX_CANDIDATES )if ml_reranker .ready ()else n
 
     def query (self ,workspace_id :int ,user_id :int ,query_text :str ,n_results :int =3 ,filters :Dict [str ,Any ]=None )->List [Dict [str ,Any ]]:
         """Query the workspace collection (legacy — used when KB toggle is OFF)."""
@@ -727,9 +811,9 @@ class RAGService :
             f"({collection .count ()} item(s))"
             )
             if getattr (settings ,"RAG_HYBRID_SEARCH",True ):
-                candidates =self ._hybrid_query (collection ,query_text ,max (n_results *5 ,15 ),filters )
+                candidates =self ._hybrid_query (collection ,query_text ,self ._pool_size (n_results *5 ),filters )
             else :
-                candidates =self ._raw_query (collection ,query_text ,max (n_results *5 ,15 ),filters )
+                candidates =self ._raw_query (collection ,query_text ,self ._pool_size (n_results *5 ),filters )
             results =self ._rerank_or_truncate (candidates ,query_text ,n_results )
             logger.info (f"RAG: Returning {len (results )} result(s)")
             return results 
@@ -746,9 +830,9 @@ class RAGService :
             f"({collection .count ()} item(s))"
             )
             if getattr (settings ,"RAG_HYBRID_SEARCH",True ):
-                candidates =self ._hybrid_query (collection ,query_text ,max (n_results *5 ,15 ),filters )
+                candidates =self ._hybrid_query (collection ,query_text ,self ._pool_size (n_results *5 ),filters )
             else :
-                candidates =self ._raw_query (collection ,query_text ,max (n_results *5 ,15 ),filters )
+                candidates =self ._raw_query (collection ,query_text ,self ._pool_size (n_results *5 ),filters )
             results =self ._rerank_or_truncate (candidates ,query_text ,n_results )
             logger.info (f"RAG: KB returning {len (results )} result(s)")
             return results 
@@ -777,7 +861,7 @@ class RAGService :
         """
         use_rewrite =use_query_rewriting if use_query_rewriting is not None else getattr (settings ,"RAG_QUERY_REWRITING",True )
         queries =self .rewrite_query (query_text )if use_rewrite else [query_text ]
-        n_candidates =max (n_results *4 ,15 )
+        n_candidates =self ._pool_size (n_results *4 )
         use_hybrid =use_hybrid_search if use_hybrid_search is not None else getattr (settings ,"RAG_HYBRID_SEARCH",True )
 
         # Split filters: folder_id only makes sense on KB, not workspace

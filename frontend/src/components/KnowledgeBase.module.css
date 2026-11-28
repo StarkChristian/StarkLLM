@@ -51,7 +51,7 @@
   align-items: center;
   gap: 6px;
   background-color: var(--accent-color);
-  color: #fff;
+  color: var(--on-accent, #fff);
   border: none;
   border-radius: var(--border-radius);
   padding: 9px 16px;
@@ -755,7 +755,7 @@
 }
 .browserSelectBtn {
   display: inline-flex; align-items: center; gap: 5px;
-  padding: 5px 14px; background: var(--accent-color); color: #fff;
+  padding: 5px 14px; background: var(--accent-color); color: var(--on-accent, #fff);
   border: none; border-radius: var(--radius-md); font-size: 0.82rem; font-weight: 600;
   cursor: pointer; transition: background 0.15s; flex-shrink: 0;
 }
@@ -913,7 +913,7 @@
 .cancelBtn:hover { background-color: rgba(255,255,255,0.05); color: var(--text-primary); }
 .saveBtn {
   background-color: var(--accent-color);
-  color: #fff;
+  color: var(--on-accent, #fff);
   border: none;
   border-radius: var(--border-radius);
   padding: 9px 16px;
@@ -923,3 +923,14 @@
 }
 .saveBtn:hover:not(:disabled) { background-color: var(--accent-hover); }
 .saveBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Accessibility: the arrow that opens a folder is a button (keyboard), it looks as before ── */
+.chevronToggle {
+  padding: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}

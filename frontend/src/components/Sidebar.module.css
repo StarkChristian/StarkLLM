@@ -1241,9 +1241,39 @@
   padding: 0 6px;
   border-radius: 999px;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent, #fff);
   font-size: 0.72rem;
   font-weight: 700;
   line-height: 18px;
   text-align: center;
 }
+
+/* ── Accessibility (docs/accessibility.md) ── */
+/* the row actions show on hover, and also while the keyboard is on the row (WCAG 2.1.1) */
+.chatItem:focus-within .chatActions,
+.folderHeader:focus-within .folderActions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* the folder name opens and closes the folder; a button so the keyboard reaches it (looks as before) */
+.folderToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+/* the time under a chat name: full strength (at 0.7 it was 2.7-3.7:1 in the night themes) */
+.chatTime { opacity: 1; }
+
+/* the initial on the gradient avatar: the same text colour as the buttons on the accent */
+.avatar { color: var(--on-accent, #fff); }

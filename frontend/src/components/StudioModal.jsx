@@ -10,6 +10,7 @@ import { t, language } from '../i18n';
 import { speechLanguage } from '../utils/speech';
 import { useEscape } from '../utils/useEscape';
 import { blockRemoteImages } from '../utils/markdown';
+import DialogBox from './DialogBox';
 
 // Written out per tab so the German check sees every text (a template with the tab id was never translated).
 const focusPlaceholder = (tab) => ({
@@ -189,11 +190,11 @@ export default function StudioModal({
 
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.modal} onClick={e => e.stopPropagation()}>
+      <DialogBox className={styles.modal} onClick={e => e.stopPropagation()} onClose={onClose} labelledBy="dlg-studio-title">
         <div className={styles.header}>
           <div className={styles.headerTitleArea}>
             <Sparkles size={22} color="#c084fc" />
-            <h2 className={styles.title}>
+            <h2 id="dlg-studio-title" className={styles.title}>
               {t('StarkLLM Studio')}
             </h2>
             <span className={styles.studioBadge}>{t('AI Studio Mode')}</span>
@@ -459,7 +460,7 @@ export default function StudioModal({
             </div>
           )}
         </div>
-      </div>
+      </DialogBox>
     </div>
   );
 }

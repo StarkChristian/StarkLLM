@@ -127,8 +127,8 @@ export default function LoginSignup({ onLoginSuccess }) {
             </div>
           )}
           <div className={styles.field}>
-            <label className={styles.label}>{t('Username')}</label>
-            <input
+            <label className={styles.label} htmlFor="login-field-1">{t('Username')}</label>
+            <input id="login-field-1"
               type="text"
               className="input-field"
               placeholder={t('Enter your username')}
@@ -139,8 +139,8 @@ export default function LoginSignup({ onLoginSuccess }) {
             />
           </div>
           <div className={styles.field}>
-            <label className={styles.label}>{t('Password')}</label>
-            <input
+            <label className={styles.label} htmlFor="login-field-2">{t('Password')}</label>
+            <input id="login-field-2"
               type="password"
               className="input-field"
               placeholder={t('Enter your password')}

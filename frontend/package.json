@@ -10,7 +10,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "i18n:check": "node scripts/check-i18n.mjs",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "a11y": "node scripts/a11y-check.mjs"
   },
   "dependencies": {
     "highlight.js": "^11.12.0",
