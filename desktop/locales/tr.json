@@ -145,5 +145,13 @@
   "StarkLLM is fully offline: web pages are not opened.": "StarkLLM tamamen çevrimdışı: web sayfaları açılmaz.",
   "StarkLLM's browser does not open pages of this PC or your home network (for example your router).": "StarkLLM’in tarayıcısı bu bilgisayarın veya ev ağınızın sayfalarını açmaz (örneğin modeminiz).",
   "This page could not be opened.": "Bu sayfa açılamadı.",
-  "Not opened": "Açılmadı"
+  "Not opened": "Açılmadı",
+  "Downloading AI model {model}: {percent} % ({done} of {total})": "Yapay zeka modeli {model} indiriliyor: %{percent} ({done} / {total})",
+  "Downloading AI model {model}: {percent} % ({done} of {total}, about {time} left)": "Yapay zeka modeli {model} indiriliyor: %{percent} ({done} / {total}, yaklaşık {time} kaldı)",
+  "{n} s": "{n} sn",
+  "{n} min": "{n} dk",
+  "{h} h {m} min": "{h} sa {m} dk",
+  "StarkLLM chose {model} because your graphics card with {vram} holds a larger model, which gives more careful answers.": "StarkLLM, {vram} belleğe sahip ekran kartınız daha özenli yanıtlar veren daha büyük bir modeli kaldırabildiği için {model} modelini seçti.",
+  "StarkLLM chose {model} because it fits completely in the {vram} of your graphics card and answers quickly.": "StarkLLM, ekran kartınızın {vram} belleğine tamamen sığdığı ve hızlı yanıt verdiği için {model} modelini seçti.",
+  "StarkLLM chose {model}, a small model that answers quickly on the processor, because this PC has no graphics card of its own for AI.": "StarkLLM, bu bilgisayarda yapay zeka için ayrı bir ekran kartı bulunmadığından, işlemcide hızlı yanıt veren küçük bir model olan {model} modelini seçti."
 }

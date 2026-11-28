@@ -13,6 +13,8 @@ import { UPLOAD_EXTENSIONS } from '../utils/uploadTypes';
 import OtherAppsPanel from './OtherAppsPanel';
 import PrivacyPanel from './PrivacyPanel';
 import McpServers from './McpServers';
+import ModelFitBadge from './ModelFitBadge';
+import { fitLabel, recommendationSentence, hardwareSummary } from '../utils/modelFitText';
 import PhoneSettings, { hasPhoneLink } from './PhoneSettings';
 import { t, language, setLanguage } from '../i18n';
 import { languageName } from '../i18n/locales';
@@ -182,6 +184,8 @@ print(response.choices[0].message.content)`;
   const [maxTokens, setMaxTokens] = useState('');
   const [modelSaved, setModelSaved] = useState(false);
   const [modelLoading, setModelLoading] = useState(false);
+  const [modelFits, setModelFits] = useState({});
+  const [pcInfo, setPcInfo] = useState(null);
 
   // Multi-Provider & Cloud API
   const [provider, setProvider] = useState(localStorage.getItem('llm_provider') || 'ollama');
@@ -201,6 +205,17 @@ print(response.choices[0].message.content)`;
         }
       })
       .catch(err => console.error('Failed to load models', err));
+    // the model picker: whether each installed model fits this PC, and the model recommended for it
+    fetch('/api/v1/chat/models/detailed', { headers: getHeaders() })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (data?.models) setModelFits(Object.fromEntries(data.models.filter(m => m?.name && m.fit).map(m => [m.name, m.fit])));
+      })
+      .catch(() => {});
+    fetch('/api/v1/chat/models/hardware', { headers: getHeaders() })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => { if (data) setPcInfo(data); })
+      .catch(() => {});
   }, []);
 
   const saveModelSettings = async () => {
@@ -797,10 +812,17 @@ print(response.choices[0].message.content)`;
                   >
                     <option value="">{t('Default Backend Model')}</option>
                     {availableModels.filter(m => !isEmbeddingModel(m) || m === modelName).map(m => (
-                      <option key={m} value={m}>{m}</option>
+                      <option key={m} value={m}>{modelFits[m] ? `${m} · ${fitLabel(modelFits[m])}` : m}</option>
                     ))}
                   </select>
                   <p className={styles.hint}>{t('Choose the active local AI model to use for chat.')}</p>
+                  {modelName && <ModelFitBadge fit={modelFits[modelName]} />}
+                  {pcInfo?.recommendation?.text?.name && (
+                    <p className={styles.hint}>
+                      {recommendationSentence(pcInfo.recommendation, pcInfo.hardware)}{' '}
+                      {t('This PC: {hardware}', { hardware: hardwareSummary(pcInfo.hardware) })}
+                    </p>
+                  )}
                 </div>
               )}
 

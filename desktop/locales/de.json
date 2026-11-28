@@ -145,5 +145,13 @@
   "StarkLLM is fully offline: web pages are not opened.": "StarkLLM ist vollständig offline: Webseiten werden nicht geöffnet.",
   "StarkLLM's browser does not open pages of this PC or your home network (for example your router).": "Der Browser von StarkLLM öffnet keine Seiten dieses PCs oder Ihres Heimnetzes (zum Beispiel Ihres Routers).",
   "This page could not be opened.": "Diese Seite konnte nicht geöffnet werden.",
-  "Not opened": "Nicht geöffnet"
+  "Not opened": "Nicht geöffnet",
+  "Downloading AI model {model}: {percent} % ({done} of {total})": "KI-Modell {model} wird heruntergeladen: {percent} % ({done} von {total})",
+  "Downloading AI model {model}: {percent} % ({done} of {total}, about {time} left)": "KI-Modell {model} wird heruntergeladen: {percent} % ({done} von {total}, noch etwa {time})",
+  "{n} s": "{n} s",
+  "{n} min": "{n} Min.",
+  "{h} h {m} min": "{h} Std. {m} Min.",
+  "StarkLLM chose {model} because your graphics card with {vram} holds a larger model, which gives more careful answers.": "StarkLLM hat {model} gewählt, weil Ihre Grafikkarte mit {vram} ein größeres Modell fasst, das sorgfältigere Antworten gibt.",
+  "StarkLLM chose {model} because it fits completely in the {vram} of your graphics card and answers quickly.": "StarkLLM hat {model} gewählt, weil es vollständig in die {vram} Ihrer Grafikkarte passt und schnell antwortet.",
+  "StarkLLM chose {model}, a small model that answers quickly on the processor, because this PC has no graphics card of its own for AI.": "StarkLLM hat {model} gewählt, ein kleines Modell, das auf dem Prozessor schnell antwortet, weil dieser PC keine eigene Grafikkarte für KI hat."
 }
