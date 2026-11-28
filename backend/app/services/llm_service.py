@@ -34,7 +34,69 @@ def cloud_host(provider: str, base_url: str = None):
 
 logger = logging.getLogger(__name__)
 
+# The Model Hub list. "size" is the download (the size on disk); the model picker judges from it whether a model fits
+# the PC (services/model_fit.py). The models of core/model_tiers.json (one per hardware tier) must be listed here.
 RECOMMENDED_MODELS = [
+    {
+        "name": "qwen3:4b",
+        "title": "Qwen 3 (4B)",
+        "tagline": "Small and fast, good answers on every PC",
+        "category": "General / Fast",
+        "size": "2.5 GB",
+        "min_ram": "8 GB",
+        "recommended_ram": "8 GB",
+        "description": "Alibaba's compact Qwen 3 model: fast on the processor or a small graphics card, good with documents and many languages."
+    },
+    {
+        "name": "qwen3:8b",
+        "title": "Qwen 3 (8B)",
+        "tagline": "Balanced quality and speed",
+        "category": "General / RAG",
+        "size": "5.2 GB",
+        "min_ram": "16 GB",
+        "recommended_ram": "16 GB",
+        "description": "The medium Qwen 3 model: careful answers from documents, for a graphics card with 12 GB or more."
+    },
+    {
+        "name": "qwen3:14b",
+        "title": "Qwen 3 (14B)",
+        "tagline": "Careful answers for a large graphics card",
+        "category": "General / RAG",
+        "size": "9.3 GB",
+        "min_ram": "16 GB",
+        "recommended_ram": "32 GB",
+        "description": "The large Qwen 3 model: the most careful answers of the list, for a graphics card with 16 to 24 GB."
+    },
+    {
+        "name": "gemma3:4b",
+        "title": "Gemma 3 (4B)",
+        "tagline": "Reads images, small and fast",
+        "category": "Vision",
+        "size": "3.3 GB",
+        "min_ram": "8 GB",
+        "recommended_ram": "8 GB",
+        "description": "Google's small Gemma 3 model: answers questions about photos, scans and screenshots."
+    },
+    {
+        "name": "qwen2.5vl:7b",
+        "title": "Qwen 2.5 VL (7B)",
+        "tagline": "Reads images and documents precisely",
+        "category": "Vision",
+        "size": "6.0 GB",
+        "min_ram": "16 GB",
+        "recommended_ram": "16 GB",
+        "description": "A Qwen image model that reads text in photos and scans well, for a graphics card with 12 GB or more."
+    },
+    {
+        "name": "gemma3:12b",
+        "title": "Gemma 3 (12B)",
+        "tagline": "Reads images, for a large graphics card",
+        "category": "Vision",
+        "size": "8.1 GB",
+        "min_ram": "16 GB",
+        "recommended_ram": "32 GB",
+        "description": "The larger Gemma 3 model: more careful answers about photos and scans, for a graphics card with 16 GB or more."
+    },
     {
         "name": "llama3.2:3b",
         "title": "Llama 3.2 (3B)",

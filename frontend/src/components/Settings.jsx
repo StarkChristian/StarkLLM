@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal, BrainCircuit, Server, Play, Loader, Key, Globe, Keyboard, ShieldCheck, Lock, ScanText, Smartphone } from 'lucide-react';
+import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal, BrainCircuit, Server, Play, Loader, Key, Globe, Keyboard, ShieldCheck, Lock, ScanText, Smartphone, FolderOpen } from 'lucide-react';
 import styles from './Settings.module.css';
 import BackupRestoreSettings from './BackupRestoreSettings';
 import OcrSettings from './OcrSettings';
+import WatchedFolders from './WatchedFolders';
 import { useLucyVisible } from './Lucy';
 import { setHidden as setLucyHidden } from '../utils/lucy';
 import ProtectionSettings from './ProtectionSettings';
@@ -13,6 +14,8 @@ import { UPLOAD_EXTENSIONS } from '../utils/uploadTypes';
 import OtherAppsPanel from './OtherAppsPanel';
 import PrivacyPanel from './PrivacyPanel';
 import McpServers from './McpServers';
+import ModelFitBadge from './ModelFitBadge';
+import { fitLabel, recommendationSentence, hardwareSummary } from '../utils/modelFitText';
 import PhoneSettings, { hasPhoneLink } from './PhoneSettings';
 import { t, language, setLanguage } from '../i18n';
 import { languageName } from '../i18n/locales';
@@ -27,6 +30,7 @@ const SECTIONS = [
   { id: 'model',    label: t('Model Settings'),icon: Cpu },
   { id: 'rag',      label: t('Document search'), icon: Database },
   { id: 'kb',       label: t('Knowledge Base'), icon: Shield },
+  { id: 'watch',    label: t('Letters from a folder'), icon: FolderOpen },
   { id: 'mcp',      label: t('Local Tools'),   icon: Terminal },
   { id: 'dev-api',  label: t('Other apps'), icon: Server },
   { id: 'privacy',  label: t('Privacy & network'), icon: ShieldCheck },
@@ -183,6 +187,8 @@ print(response.choices[0].message.content)`;
   const [maxTokens, setMaxTokens] = useState('');
   const [modelSaved, setModelSaved] = useState(false);
   const [modelLoading, setModelLoading] = useState(false);
+  const [modelFits, setModelFits] = useState({});
+  const [pcInfo, setPcInfo] = useState(null);
 
   // Multi-Provider & Cloud API
   const [provider, setProvider] = useState(localStorage.getItem('llm_provider') || 'ollama');
@@ -202,6 +208,17 @@ print(response.choices[0].message.content)`;
         }
       })
       .catch(err => console.error('Failed to load models', err));
+    // the model picker: whether each installed model fits this PC, and the model recommended for it
+    fetch('/api/v1/chat/models/detailed', { headers: getHeaders() })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (data?.models) setModelFits(Object.fromEntries(data.models.filter(m => m?.name && m.fit).map(m => [m.name, m.fit])));
+      })
+      .catch(() => {});
+    fetch('/api/v1/chat/models/hardware', { headers: getHeaders() })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => { if (data) setPcInfo(data); })
+      .catch(() => {});
   }, []);
 
   const saveModelSettings = async () => {
@@ -798,10 +815,17 @@ print(response.choices[0].message.content)`;
                   >
                     <option value="">{t('Default Backend Model')}</option>
                     {availableModels.filter(m => !isEmbeddingModel(m) || m === modelName).map(m => (
-                      <option key={m} value={m}>{m}</option>
+                      <option key={m} value={m}>{modelFits[m] ? `${m} · ${fitLabel(modelFits[m])}` : m}</option>
                     ))}
                   </select>
                   <p className={styles.hint}>{t('Choose the active local AI model to use for chat.')}</p>
+                  {modelName && <ModelFitBadge fit={modelFits[modelName]} />}
+                  {pcInfo?.recommendation?.text?.name && (
+                    <p className={styles.hint}>
+                      {recommendationSentence(pcInfo.recommendation, pcInfo.hardware)}{' '}
+                      {t('This PC: {hardware}', { hardware: hardwareSummary(pcInfo.hardware) })}
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -1192,6 +1216,9 @@ print(response.choices[0].message.content)`;
 
           {/* ───── Reading photos and scans (OCR languages) ───── */}
           {shown === 'ocr' && <OcrSettings token={token} />}
+
+          {/* ───── Watched folders for letters ───── */}
+          {shown === 'watch' && <WatchedFolders token={token} />}
 
           {/* ───── Keyboard Shortcuts ───── */}
           {shown === 'shortcuts' && (

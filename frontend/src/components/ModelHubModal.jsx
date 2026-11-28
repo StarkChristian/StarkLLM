@@ -14,8 +14,11 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { useToast } from './Toast';
+import ModelFitBadge from './ModelFitBadge';
 import { t } from '../i18n';
 import DialogBox from './DialogBox';
+import { createDownloadTracker, sortForThisPc, sizeText } from '../utils/modelFit';
+import { durationText, recommendationSentence, hardwareSummary } from '../utils/modelFitText';
 
 export default function ModelHubModal({ isOpen, onClose, token, currentModel, onModelSelect }) {
   const toast = useToast();
@@ -25,6 +28,9 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
   const [loading, setLoading] = useState(false);
   const [activeCategory, setActiveCategory] = useState('All');
   const [customModelName, setCustomModelName] = useState('');
+  // the model picker: this PC's hardware and the chat and image model recommended for it (engine: /models/hardware)
+  const [hardware, setHardware] = useState(null);
+  const [recommendation, setRecommendation] = useState(null);
 
   // Pull progress state
   const [pullingModel, setPullingModel] = useState(null);
@@ -32,7 +38,8 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
     status: '',
     completed: 0,
     total: 0,
-    percent: 0
+    percent: 0,
+    secondsLeft: null
   });
 
   const getHeaders = () => ({
@@ -43,14 +50,21 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
   const loadData = async () => {
     setLoading(true);
     try {
-      const [catRes, instRes] = await Promise.all([
+      const [catRes, instRes, hwRes] = await Promise.all([
         fetch('/api/v1/chat/models/catalog', { headers: getHeaders() }),
-        fetch('/api/v1/chat/models/detailed', { headers: getHeaders() })
+        fetch('/api/v1/chat/models/detailed', { headers: getHeaders() }),
+        fetch('/api/v1/chat/models/hardware', { headers: getHeaders() })
       ]);
 
       if (catRes.ok) {
         const catData = await catRes.json();
-        setCatalog(catData.catalog || []);
+        setCatalog(sortForThisPc(catData.catalog || []));
+      }
+
+      if (hwRes.ok) {
+        const hwData = await hwRes.json();
+        setHardware(hwData.hardware || null);
+        setRecommendation(hwData.recommendation || null);
       }
 
       if (instRes.ok) {
@@ -86,7 +100,9 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
     if (!target) return;
 
     setPullingModel(target);
-    setPullProgress({ status: 'Starting pull...', completed: 0, total: 0, percent: 0 });
+    setPullProgress({ status: t('Starting the download...'), completed: 0, total: 0, percent: 0, secondsLeft: null });
+    // the speed comes from this download's own first seconds: no extra request to test it
+    const tracker = createDownloadTracker();
 
     try {
       const response = await fetch('/api/v1/chat/models/pull', {
@@ -119,15 +135,16 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
               throw new Error(data.error);
             }
 
-            const total = data.total || 0;
-            const completed = data.completed || 0;
-            const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+            // one figure for the whole model: Ollama reports each file of it (a few small ones and one large one)
+            tracker.feed(data);
+            const sum = tracker.state();
 
             setPullProgress({
               status: data.status || t('Downloading...'),
-              completed,
-              total,
-              percent
+              completed: sum.completed,
+              total: sum.total,
+              percent: sum.percent,
+              secondsLeft: sum.secondsLeft
             });
           } catch (e) {
             console.error('Error parsing pull line:', e);
@@ -185,6 +202,12 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
 
   // the catalog of the engine (llm_service.RECOMMENDED) describes its models in English
   const modelDescription = (m) => ({
+    'qwen3:4b': t('Alibaba’s compact Qwen 3 model: fast on the processor or a small graphics card, good with documents and many languages.'),
+    'qwen3:8b': t('The medium Qwen 3 model: careful answers from documents, for a graphics card with 12 GB or more.'),
+    'qwen3:14b': t('The large Qwen 3 model: the most careful answers of the list, for a graphics card with 16 to 24 GB.'),
+    'gemma3:4b': t('Google’s small Gemma 3 model: answers questions about photos, scans and screenshots.'),
+    'qwen2.5vl:7b': t('A Qwen image model that reads text in photos and scans well, for a graphics card with 12 GB or more.'),
+    'gemma3:12b': t('The larger Gemma 3 model: more careful answers about photos and scans, for a graphics card with 16 GB or more.'),
     'llama3.2:3b': t('Meta’s compact model for fast chat, e-mails and light work with local documents.'),
     'deepseek-r1:8b': t('An open reasoning model, strong in mathematics, logic and analysis.'),
     'qwen2.5-coder:7b': t('A local model for programming, with Python, JavaScript, Go, Rust and more.'),
@@ -193,6 +216,12 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
     'nomic-embed-text:latest': t('The model that turns document passages into vectors for the search of the knowledge base.'),
   }[m.name] || m.description);
   const modelTagline = (m) => ({
+    'qwen3:4b': t('Small and fast, good answers on every PC'),
+    'qwen3:8b': t('Balanced quality and speed'),
+    'qwen3:14b': t('Careful answers for a large graphics card'),
+    'gemma3:4b': t('Reads images, small and fast'),
+    'qwen2.5vl:7b': t('Reads images and documents precisely'),
+    'gemma3:12b': t('Reads images, for a large graphics card'),
     'llama3.2:3b': t('Very fast and light, for every computer'),
     'deepseek-r1:8b': t('Careful reasoning, step by step'),
     'qwen2.5-coder:7b': t('Writing, fixing and explaining code'),
@@ -200,9 +229,11 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
     'phi3.5:mini': t('Small and efficient, from Microsoft'),
     'nomic-embed-text:latest': t('Precise search of your documents'),
   }[m.name] || m.tagline);
-  const categories = ['All', 'General / Fast', 'Reasoning / Math', 'Coding', 'General / RAG', 'Compact', 'Embedding'];
+  const categories = ['All', 'General / Fast', 'Reasoning / Math', 'Coding', 'General / RAG', 'Vision', 'Compact', 'Embedding'];
   const categoryLabel = (c) => ({ All: t('All'), 'General / Fast': t('General / Fast'), 'Reasoning / Math': t('Reasoning / Math'), Coding: t('Coding'),
-    'General / RAG': t('General / documents'), Compact: t('Compact'), Embedding: t('Embedding') }[c] || c);
+    'General / RAG': t('General / documents'), Vision: t('Images'), Compact: t('Compact'), Embedding: t('Embedding') }[c] || c);
+  const recommendedText = recommendationSentence(recommendation, hardware);
+  const pcText = hardwareSummary(hardware);
 
   const filteredCatalog = activeCategory === 'All' 
     ? catalog 
@@ -260,7 +291,7 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
               <div className={styles.progressHeader}>
                 <span className={styles.progressTitle}>
                   <Loader2 size={16} className="animate-spin" />
-                  Downloading {pullingModel}...
+                  {t('Downloading {model}...', { model: pullingModel })}
                 </span>
                 <span className={styles.progressPercent}>{pullProgress.percent}%</span>
               </div>
@@ -274,10 +305,23 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
                 <span>{pullProgress.status}</span>
                 {pullProgress.total > 0 && (
                   <span>
-                    {formatBytes(pullProgress.completed)} / {formatBytes(pullProgress.total)}
+                    {/* the size from the start; the time left only once the first seconds of this download measured the speed */}
+                    {pullProgress.secondsLeft == null
+                      ? t('{done} of {total}', { done: sizeText(pullProgress.completed), total: sizeText(pullProgress.total) })
+                      : t('{done} of {total}, about {time} left', { done: sizeText(pullProgress.completed), total: sizeText(pullProgress.total), time: durationText(pullProgress.secondsLeft) })}
                   </span>
                 )}
               </div>
+            </div>
+          )}
+
+          {(pcText || recommendedText) && (
+            <div className={styles.pcBox}>
+              {pcText && <div className={styles.pcHardware}>{t('This PC: {hardware}', { hardware: pcText })}</div>}
+              {recommendedText && <p className={styles.pcRecommendation}>{recommendedText}</p>}
+              {recommendation?.vision?.name && (
+                <div className={styles.pcHardware}>{t('For questions about images: {model}', { model: recommendation.vision.name })}</div>
+              )}
             </div>
           )}
 
@@ -320,8 +364,13 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
               {/* Catalog Grid */}
               <div className={styles.grid}>
                 {filteredCatalog.map(model => (
-                  <div key={model.name} className={styles.card}>
+                  <div key={model.name} className={`${styles.card} ${model.recommended ? styles.recommendedCard : ''}`}>
                     <div>
+                      {model.recommended && (
+                        <span className={styles.recommendedBadge}>
+                          <Sparkles size={11} /> {model.recommended === 'vision' ? t('Recommended for images on this PC') : t('Recommended for this PC')}
+                        </span>
+                      )}
                       <div className={styles.cardTop}>
                         <h3 className={styles.cardName}>{model.title}</h3>
                         {model.is_installed && (
@@ -335,20 +384,16 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
                       
                       <div className={styles.metaRow}>
                         <span className={styles.metaBadge}>
-                          <HardDrive size={11} /> {model.size}
-                        </span>
-                        <span className={`${styles.metaBadge} ${styles.ramBadge}`}>
-                          Min {model.min_ram} RAM
-                        </span>
-                        <span className={styles.metaBadge}>
-                          Rec {model.recommended_ram}
+                          <HardDrive size={11} /> {model.is_installed ? model.size : t('Download: {size}', { size: model.size })}
                         </span>
                       </div>
+                      <ModelFitBadge fit={model.fit} />
+                      <div style={{ height: 12 }} />
                     </div>
 
                     <div className={styles.cardActions}>
                       <span className={styles.metaBadge} style={{ textTransform: 'uppercase' }}>
-                        {model.category}
+                        {categoryLabel(model.category)}
                       </span>
                       {model.is_installed ? (
                         <button 
@@ -426,6 +471,8 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
                               </span>
                             )}
                           </div>
+                          <ModelFitBadge fit={m.fit} />
+                          <div style={{ height: 12 }} />
                         </div>
 
                         <div className={styles.cardActions}>

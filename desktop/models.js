@@ -93,14 +93,18 @@ function best(candidates, table, hw, { penalizeTiny = false, penalizeVisionOnly 
  * hw: { ramBytes, vramBytes }
  * saved: the previous choice ({ text, embedding, vision }) or null
  * existingIndex: documents were indexed before (the embedding model must then stay the same)
- * Returns { text, embedding, vision, pull: [names to download now], notes: [lines for the log] }
+ * recommended: { text, vision } for this PC (model-tiers.js), used instead of the defaults when nothing suitable is
+ *   installed (the first start on a new PC)
+ * Returns { text, embedding, vision, pull: [names to download now], notes: [lines for the log],
+ *   recommendedText: true when the recommended chat model is downloaded now }
  */
-function chooseModels({ installed = [], hw = {}, saved = null, existingIndex = false }) {
+function chooseModels({ installed = [], hw = {}, saved = null, existingIndex = false, recommended = null }) {
   const local = installed.filter((m) => !isCloud(m));
   const official = local.filter((m) => !isModified(m));
   const has = (name) => local.some((m) => m.name === name || m.name === `${name}:latest` || `${m.name}:latest` === name);
   const notes = [];
   const pull = [];
+  let recommendedText = false;
 
   // Search model: fixed once documents exist, because the stored vectors only match the model that made them.
   let embedding;
@@ -127,23 +131,25 @@ function chooseModels({ installed = [], hw = {}, saved = null, existingIndex = f
       text = t.m.name;
       notes.push(`chat model ${text} is installed (${t.where === 'gpu' ? 'fits the graphics card' : 'runs on the processor'})`);
     } else {
-      text = DEFAULTS.text;
+      text = (recommended && recommended.text) || DEFAULTS.text;
+      recommendedText = Boolean(recommended && recommended.text);
       notes.push(`no suitable chat model installed: ${text} will be downloaded`);
       pull.push(text);
     }
   }
 
-  // Image model: an installed model that can see; otherwise llava, downloaded on the first image (not now).
+  // Image model: an installed model that can see; otherwise the one recommended for this PC (without a recommendation
+  // llava), downloaded with the first image (not now).
   let vision;
   if (saved && saved.vision && has(saved.vision)) {
     vision = saved.vision;
   } else {
     const v = best(official.filter(canSee), VISION_RANK, hw);
-    vision = v ? v.m.name : DEFAULTS.vision;
+    vision = v ? v.m.name : ((recommended && recommended.vision) || DEFAULTS.vision);
     notes.push(v ? `image model ${vision} is installed` : `no image model installed: ${vision} is downloaded with the first image`);
   }
 
-  return { text, embedding, vision, pull, notes };
+  return { text, embedding, vision, pull, notes, recommendedText };
 }
 
 module.exports = { chooseModels, DEFAULTS };

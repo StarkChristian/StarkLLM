@@ -14,7 +14,9 @@ const { t, format } = require('./i18n');
 const { getShared, FEATURES: NET_FEATURES } = require('./netguard');
 const { chooseModels } = require('./models');
 const integratedGpu = require('./igpu');
-const { createPullProgress, createModelProgress, throttle, formatBytes } = require('./progress');
+const hardwareInfo = require('./hardware');
+const modelTiers = require('./model-tiers');
+const { createPullProgress, createModelProgress, createSpeedMeter, durationParts, throttle, formatBytes } = require('./progress');
 const native = require('./native-engine');
 
 const OLLAMA_URL = process.env.STARKLLM_OLLAMA_URL || 'http://127.0.0.1:11434';
@@ -305,17 +307,36 @@ async function ollamaDetails() {
   }));
 }
 
-// Total RAM, and the video memory of an NVIDIA card if nvidia-smi is there; without one, the share of the RAM that
-// integrated graphics Ollama uses may take (igpu.js); 0 otherwise.
+// The hardware of this PC (hardware.js): memory, graphics cards (NVIDIA through nvidia-smi, AMD and Intel from the
+// registry, integrated graphics Ollama uses with their share of the memory), processor and free disk space. Written to
+// <data>/hardware.json for the model picker of the engine, which cannot see the graphics card from Docker.
 async function hardware(integrated = null) {
-  const hw = { ramBytes: os.totalmem(), vramBytes: 0 };
-  const r = await run('nvidia-smi', ['--query-gpu=memory.total', '--format=csv,noheader,nounits'], { timeoutMs: 8000 });
-  if (r.code === 0) {
-    const mib = Math.max(0, ...r.lines.map((l) => parseInt(l, 10)).filter(Number.isFinite));
-    hw.vramBytes = mib * 1024 * 1024;
+  const hw = await hardwareInfo.detectHardware({ run, integrated });
+  try {
+    hardwareInfo.writeHardwareFile(userPaths().data, hw);
+  } catch (e) {
+    log('could not save the hardware of this PC: ' + e.message);
   }
-  if (!hw.vramBytes && integrated) hw.vramBytes = integratedGpu.videoMemoryFor(integrated, hw.ramBytes);
+  const cards = hw.gpus.map((g) => `${g.name} (${g.kind}, ${g.vram_total ? size(g.vram_total) : 'shared memory'})`).join('; ');
+  log(`hardware: ${hw.cpu.name || 'processor'} (${hw.cpu.cores} threads), RAM ${size(hw.ram_total)} (${size(hw.ram_free)} free), graphics: ${cards || 'none found'}, free disk for models: ${hw.disk_free == null ? 'unknown' : size(hw.disk_free)}`);
   return hw;
+}
+
+// "about 3 min" for the download time left
+function duration(seconds) {
+  const d = durationParts(seconds);
+  if (d.key === '{n} s') return t('{n} s', d.values);
+  if (d.key === '{n} min') return t('{n} min', d.values);
+  return t('{h} h {m} min', d.values);
+}
+
+// The one sentence that explains the model chosen at the first start, by hardware tier (model_tiers.json).
+function whyThisModel(tier, model, hw) {
+  const card = modelTiers.graphicsCard(hw);
+  const vram = card ? `${Math.round(card.vram_total / 1024 ** 3)} GB` : ''; // video memory as the card is sold: 12 GB
+  if (tier.kind === 'gpu' && tier.gpu_gb >= 20) return t('StarkLLM chose {model} because your graphics card with {vram} holds a larger model, which gives more careful answers.', { model, vram });
+  if (tier.kind === 'gpu') return t('StarkLLM chose {model} because it fits completely in the {vram} of your graphics card and answers quickly.', { model, vram });
+  return t('StarkLLM chose {model}, a small model that answers quickly on the processor, because this PC has no graphics card of its own for AI.', { model });
 }
 
 // Ollama's own log (the per-user install writes it to %LOCALAPPDATA%\Ollama\server.log): the last 512 KB
@@ -415,6 +436,7 @@ function pullModel(name, onStatus) {
 
 function pullModelNow(name, onStatus) {
   const progress = createModelProgress();
+  const speed = createSpeedMeter();
   const show = throttle((text, f) => onStatus(text, f), 250);
   return new Promise((resolve, reject) => {
     const req = http.request(OLLAMA_URL + '/api/pull', { method: 'POST', headers: { 'Content-Type': 'application/json' } }, (res) => {
@@ -435,8 +457,14 @@ function pullModelNow(name, onStatus) {
           if (msg.error) failed = msg.error;
           else if (progress.feed(msg)) {
             // one figure for the whole model (it arrives as a few small files and one large one)
-            const t = progress.totals();
-            show(`Downloading AI model ${name}: ${Math.floor((t.completed / t.total) * 100)} % (${size(t.completed)} of ${size(t.total)})`, t.completed / t.total);
+            // and the time left, measured from this download's own first seconds (no extra speed test)
+            const sum = progress.totals();
+            speed.feed(sum.completed, sum.total);
+            const left = speed.secondsLeft();
+            const values = { model: name, percent: Math.floor((sum.completed / sum.total) * 100), done: size(sum.completed), total: size(sum.total) };
+            show(left == null
+              ? t('Downloading AI model {model}: {percent} % ({done} of {total})', values)
+              : t('Downloading AI model {model}: {percent} % ({done} of {total}, about {time} left)', { ...values, time: duration(left) }), sum.completed / sum.total);
           } else if (msg.status) show(`AI model ${name}: ${msg.status}`);
         }
       });
@@ -513,10 +541,17 @@ async function ensureOllama(status, progress, warnings) {
   }
   status('Looking at the AI models on this PC...');
   const installed = (await ollamaDetails()) || [];
-  const hw = await hardware(gpu.used);
-  const choice = chooseModels({ installed, hw, saved: readSavedModels(), existingIndex: hasIndex(userPaths().data) });
-  log(`models: ${installed.length} installed; RAM ${size(hw.ramBytes)}, video memory ${hw.vramBytes ? size(hw.vramBytes) : 'unknown'}${gpu.used ? ` (integrated graphics: ${gpu.used.name})` : ''}`);
+  const machine = await hardware(gpu.used);
+  const hw = hardwareInfo.forModelChoice(machine);
+  // one recommended chat and image model per hardware tier (model_tiers.json), for a PC without a suitable model
+  const tier = modelTiers.chooseTier(machine, modelTiers.loadTiers(modelTiers.tiersFile(engineDir())));
+  const choice = chooseModels({ installed, hw, saved: readSavedModels(), existingIndex: hasIndex(userPaths().data), recommended: tier });
+  log(`models: ${installed.length} installed; RAM ${size(hw.ramBytes)}, video memory ${hw.vramBytes ? size(hw.vramBytes) : 'unknown'}${gpu.used ? ` (integrated graphics: ${gpu.used.name})` : ''}; hardware tier ${tier ? `${tier.id} (${tier.text}, images ${tier.vision})` : 'unknown (model_tiers.json not found)'}`);
   choice.notes.forEach((n) => log('models: ' + n));
+  // the first start on this PC: the recommended model is preselected and explained in one sentence on the start
+  // screen (the web UI explains it once more on the dashboard, from the engine's /models/hardware)
+  const why = choice.recommendedText && tier && !hasModel(models, choice.text) ? whyThisModel(tier, choice.text, machine) : null;
+  if (why) log('models: ' + why);
   log(`models: chat ${choice.text}, search ${choice.embedding}, images ${choice.vision}; downloading: ${choice.pull.join(', ') || 'nothing'}`);
   useModels(choice);
   try {
@@ -532,7 +567,8 @@ async function ensureOllama(status, progress, warnings) {
       warnings.push(t('The AI model {model} is not on this PC, and StarkLLM is fully offline, so it was not downloaded. Turn off "Fully offline" in Settings > Privacy to download it.', { model: name }));
       continue;
     }
-    status('Downloading AI model {model}...', { model: name });
+    if (why && name === choice.text) status(why);
+    else status('Downloading AI model {model}...', { model: name });
     try {
       await pullWithRetry(name, progress);
       log(`pulled ${name}`);

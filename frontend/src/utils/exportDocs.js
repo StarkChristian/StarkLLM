@@ -106,8 +106,13 @@ export function exportItems(messages, locale, toDate = (v) => new Date(v), reada
     }));
 }
 
-// A light page for printing: the same parts as the Word file
+// The visible note on every exported file (EU AI Act, Article 50); the page sends it in the user's language
+export const AI_NOTE = 'Created with AI assistance (StarkLLM)';
+
+// A light page for printing: the same parts as the Word file. It is marked as AI-generated for machines (meta tags;
+// the desktop app also writes the marking into the PDF's document information) and for people (a line at the foot).
 export function printableHtml(title, items, words, dateText, lang = 'en', dir = 'ltr') {
+  const aiNote = (words && words.ai_note) || AI_NOTE;
   const body = items.map((m) => `
 <section class="${m.role}">
   <div class="who">${esc(m.role === 'user' ? words.user : words.assistant)}${m.time ? ` <span class="time">${esc(m.time)}</span>` : ''}</div>
@@ -119,6 +124,10 @@ export function printableHtml(title, items, words, dateText, lang = 'en', dir = 
 <head>
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">
+<meta name="generator" content="StarkLLM (AI-generated content)">
+<meta name="ai-generated" content="true">
+<meta name="keywords" content="AI-generated">
+<meta name="starkllm-ai-note" content="${esc(aiNote)}">
 <title>${esc(title)}</title>
 <style>
   body { font-family: "Segoe UI", Calibri, Arial, "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif; color: #111; line-height: 1.5; margin: 0; font-size: 11pt; }
@@ -138,12 +147,14 @@ export function printableHtml(title, items, words, dateText, lang = 'en', dir = 
   blockquote { margin: 6pt 0; padding-inline-start: 10pt; border-inline-start: 3px solid #ccc; color: #444; }
   a { color: #1f4fbf; }
   .sources { font-size: 9pt; font-style: italic; color: #555; margin-top: 4pt; }
+  .ai-note { border-top: 1px solid #ddd; margin-top: 10pt; padding-top: 4pt; color: #777; font-size: 8pt; text-align: center; }
 </style>
 </head>
 <body>
 <h1>${esc(title)}</h1>
 <div class="meta">${esc(words.exported)}${dateText ? ` · ${esc(dateText)}` : ''}</div>
 ${body}
+<footer class="ai-note">${esc(aiNote)}</footer>
 </body>
 </html>`;
 }
