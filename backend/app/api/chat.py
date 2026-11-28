@@ -23,6 +23,7 @@ from app.services.memory_service import memory_service, memory_context_and_sourc
 from app.services.mcp_service import mcp_service
 from app.core import netguard
 from app.services import untrusted
+from app.services import source_quality
 from app.core.config import settings
 from app.core.protection import protection
 from app.services import label_search
@@ -549,6 +550,15 @@ def _terms_missing(message: str, workspace_id: int, user_id: int, use_kb: bool) 
     except Exception as e:
         logger.warning(f"term check skipped: {e}")
         return []
+
+
+# told to the model when no passage answers the question well (source_quality.py); the app shows its own notice
+NO_GOOD_SOURCE_NOTE = (
+    "\nNO GOOD SOURCE (checked by StarkLLM): no passage of the user's documents answers this question well, so none is "
+    "given. If the question is about the user's own documents, letters or data, say plainly in one or two sentences, in "
+    "your own words, that you did not find the answer in the documents; do not guess and do not invent names, numbers "
+    "or dates. If it is a general question, answer it from general knowledge and say that this is not from the "
+    "documents. Do not mention or quote this check.\n")
 
 
 # words that are generic for the "not in any document" check but do name a letter ("Ist die Mahnung echt?")
@@ -1277,6 +1287,20 @@ async def chat(
         
         # Unpack RAG
         ws_results, kb_results, ws_context, kb_context = rag_data
+
+        # No passage answers the question well (best reranker score or similarity under the threshold of
+        # services/source_quality.py): the answer must not guess from them. The passages are left out, so neither the
+        # model nor the source chips use them, the model is told to say so, and the app shows a notice with what the
+        # user can do (2.7, option 5).
+        no_source = source_quality.no_good_source(
+            list(ws_results or []) + list(kb_results or []), req.message,
+            strict_document_mode=bool(is_rag_intent and not getattr(req, "use_web_search", False)),
+            whole_document=bool(summary_sources), named_files=bool(matched_filepaths), overview=bool(overview_rows))
+        if no_source:
+            logger.info(f"No good source: best {no_source['signal']} score {no_source['score']}; passages left out")
+            no_source["web"] = bool(getattr(req, "use_web_search", False))
+            ws_results, kb_results, ws_context, kb_context = [], [], "", ""
+            missing_section += NO_GOOD_SOURCE_NOTE
         
         ws_sources = []
         for r in (ws_results or []):
@@ -1316,6 +1340,8 @@ async def chat(
         warnings = (await asyncio.to_thread(_document_warnings, ws_results, kb_results, req.workspace_id, current_user.id,
                                         req.message, bool(getattr(req, "use_web_search", False)))
                     if (ws_results or kb_results) else [])
+        if no_source:
+            warnings = warnings + [no_source]
 
         # How sure it is that the question is about the documents (the same test that picks the prompt mode below):
         # "documents" (strict mode), "maybe" (passages offered, the model decides), "none". With "maybe" the app shows
@@ -1618,7 +1644,7 @@ WEB SEARCH
         _polite = {"German": "Sie", "French": "vous", "Spanish": "usted", "Italian": "Lei", "Turkish": "siz"}.get(_lang or _ui_lang or "")
         if _polite:
             language_rule += f"Address the user politely ({_polite}), as the app does.\n"
-        safety_section = _safety_section(warnings)
+        safety_section = _safety_section([w for w in warnings if w.get("kind") != "no_good_source"])
         system_prompt = f"""You are StarkLLM, a premium private AI assistant with Retrieval-Augmented Generation (RAG) capabilities.
 {custom_instructions_section}
 {workspace_persona_section}

@@ -3,11 +3,12 @@ import styles from './DocumentManager.module.css';
 import { 
   X, FileText, Trash2, Eye, Calendar, HardDrive, File, 
   CheckCircle2, AlertTriangle, RefreshCw, Loader, XCircle,
-  Globe, Link2, Plus, ArrowRight, Video, GitBranch, StickyNote, Search, Upload, ExternalLink, Mic, ListChecks, VolumeX
+  Globe, Link2, Plus, ArrowRight, Video, GitBranch, StickyNote, Search, Upload, ExternalLink, Stethoscope, Mic, ListChecks, VolumeX
 } from 'lucide-react';
 import MeetingRecorder from './MeetingRecorder';
 import MeetingSummary from './MeetingSummary';
 import DocumentViewerModal from './DocumentViewerModal';
+import DocumentHealthModal from './DocumentHealthModal';
 import { useEscape } from '../utils/useEscape';
 import { UPLOAD_ACCEPT } from '../utils/uploadTypes';
 import { useToast } from './Toast';
@@ -119,6 +120,7 @@ export default function DocumentManager({
   const toast = useToast();
   const fileInputRef = useRef(null);
   const [viewing, setViewing] = useState(null);
+  const [health, setHealth] = useState(null); // id of the document whose "Document health" is open
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [previewText, setPreviewText] = useState("");
   const [loadingPreview, setLoadingPreview] = useState(false);
@@ -159,7 +161,7 @@ export default function DocumentManager({
   };
 
   // Escape closes the recorder or the summary first, never the list under a running recording
-  useEscape(onClose, isOpen && !recording && !summaryOf);
+  useEscape(onClose, isOpen && !recording && !summaryOf && !health);
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -839,6 +841,16 @@ export default function DocumentManager({
                         {t('Open')}
                       </button>
                     )}
+                    {!isInProgress(selectedDoc) && (
+                      <button
+                        className={styles.actionBtnSecondary}
+                        onClick={() => setHealth(selectedDoc.id)}
+                        title={t('What StarkLLM could read from this document, and what may be missing')}
+                      >
+                        <Stethoscope size={14} />
+                        {t('Document health')}
+                      </button>
+                    )}
                     <button 
                       className={styles.actionBtnSecondary}
                       onClick={() => handleReindex(selectedDoc.id)}
@@ -977,6 +989,14 @@ export default function DocumentManager({
           workspaceId={workspaceId}
           documentId={viewing}
           token={token}
+        />
+      )}
+      {health && (
+        <DocumentHealthModal
+          workspaceId={workspaceId}
+          documentId={health}
+          token={token}
+          onClose={() => setHealth(null)}
         />
       )}
       {(recording || summaryOf) && (
