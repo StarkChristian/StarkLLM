@@ -12,13 +12,13 @@
   display: flex;
   align-items: flex-end;
   /* theme colours: a fixed dark glass stayed dark on the light themes */
-  background-color: var(--glass-bg);
+  background-color: var(--input-bg, var(--glass-bg));
   border: 1px solid var(--glass-border);
   border-radius: 30px;
   padding: 16px 26px;
   box-shadow: var(--shadow-lg), var(--glass-highlight, inset 0 1px 0 rgba(255,255,255,0.1));
-  backdrop-filter: blur(40px) saturate(1.6);
-  -webkit-backdrop-filter: blur(40px) saturate(1.6);
+  backdrop-filter: var(--input-backdrop, blur(40px) saturate(1.6));
+  -webkit-backdrop-filter: var(--input-backdrop, blur(40px) saturate(1.6));
   gap: 16px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   width: 100%;
@@ -139,7 +139,7 @@
 
 .kbToggleOn:hover {
   background-color: rgba(99, 102, 241, 0.22);
-  color: #fff;
+  color: var(--kb-on-hover-text, #fff);
   border-color: var(--accent-bright);
 }
 

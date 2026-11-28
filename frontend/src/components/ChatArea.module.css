@@ -118,7 +118,7 @@
   background: var(--grad-card);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-xl) var(--radius-xl) 4px var(--radius-xl);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  box-shadow: var(--bubble-shadow, 0 4px 16px rgba(0,0,0,0.4));
 }
 
 .content p {
@@ -225,14 +225,14 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background-color: var(--bg-tertiary);
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  background-color: var(--chip-bg, var(--bg-tertiary));
+  border: 1px solid var(--chip-border, rgba(99, 102, 241, 0.2));
   color: var(--text-secondary);
   font-size: 0.75rem;
   padding: 4px 12px;
   border-radius: 9999px;
   max-width: 100%;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  box-shadow: var(--chip-shadow, 0 2px 8px rgba(0,0,0,0.2));
   transition: all 0.2s ease;
   font-family: inherit;
   text-align: start;
@@ -398,8 +398,8 @@ button.sourceGroup:focus-visible {
 }
 
 .suggestionCard {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--soft-bg, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--soft-border, rgba(255, 255, 255, 0.08));
   border-radius: var(--radius-md);
   padding: 14px 16px;
   text-align: left;
@@ -548,7 +548,7 @@ button.sourceGroup:focus-visible {
   top: 100%;
   right: 0;
   margin-top: 8px;
-  background: rgba(10, 13, 20, 0.85);
+  background: var(--menu-bg, rgba(10, 13, 20, 0.85));
   backdrop-filter: blur(20px) saturate(1.5);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
