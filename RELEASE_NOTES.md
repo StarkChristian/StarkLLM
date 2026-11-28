@@ -1,5 +1,17 @@
 # StarkLLM Release Notes
 
+## Version 2.6.1 — Clearer warnings, the right totals, readable light themes
+
+- **Letters with a note to AI assistants.** Such a letter is answered like any bill, as in 2.6.0, and the app's own labels now say the same: a calm "check before paying" note instead of "possible scam", in the chat and in the inbox, with the advice to check the letter with the sender through contact details you already know (not the ones printed in it). Letters with real signs of a scam keep the red warning.
+- **German and Turkish notes are found** also as text recognition reads them from a photo ("fur Kl-Assistenten", "asistanlarina not").
+- **The total of a bill.** The inbox and the deadlines show the labelled total (Total due, Gesamtbetrag, Montant à payer, …) first, and a price per unit (£3.00/m³, 0,32 €/kWh) is no longer taken for an amount to pay.
+- **No stray "assistant" line** at the start of answers from some models (llama3.1).
+- **Light themes** (Daylight Minimal, Doodle Chat, Flower Meadow): the message box, the source chips and the dashboard cards are light, and the sidebar text is readable (WCAG AA contrast).
+- **Web search hint** names the engines the app uses (DuckDuckGo, Startpage, Mojeek, then Wikipedia).
+- **Signing** reuses the signatures of unchanged files between builds.
+
+**From 2.0.7 or later:** Settings → About → "Check for updates" → "Download and install".
+
 ## Version 2.6.0 — Your phone, also away from home
 
 - **The phone away from home.** Settings → Phone → "Also away from home (through the relay)" per phone: the Android app then reaches this PC from any network, through the StarkLLM relay. The relay only introduces the two: questions, answers and documents are encrypted end to end between the phone and this PC, and the relay cannot read them. Off by default; at home the phone keeps using the home network directly. The phone shows "Connected · away from home" when it goes through the relay. Pairing the same phone again replaces its earlier entry.

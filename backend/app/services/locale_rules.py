@@ -492,11 +492,11 @@ SCAM = {
              r"(?:für|fur|fuer|an|for|to|pour|à|para|per|a)\s+(?:alle\s+|all\s+|les\s+|las\s+|le\s+)?(?:digitale\w*\s+)?"
              r"(?:ki|k[l1|]-|ai|ia|a[l1|]\s+(?:assistant\w*|model\w*)|assistent\w*|assistant\w*|asistente\w*|assistente\w*|chatbot\w*|sprachmodell\w*|language model\w*|"
              r"llm\w*|yapay zek[aâ]\w*)"
-             r"|yapay zek[aâ]\s+(?:asistan\w*|model\w*)\s+i[cç]in\s+(?:not|talimat\w*)"
+             r"|yapay zek[aâ]\s+(?:asistan\w*|model\w*)\s+(?:i[cç]in\s+)?(?:not|talimat\w*)"
              # "answer that nothing has to be paid" said to an assistant (the goal of such notes), in the six languages
-             r"|\b(?:antworte\w*|sag\w*|say|answer|reply|tell the user|r[ée]ponds?\w*|dites|responde\w*|rispondi\w*|s[öo]yle\w*|yan[ıi]tla\w*)\b"
+             r"|\b(?:antworte\w*|sag\w*|say|answer|reply|tell the user|r[ée]ponds?\w*|dites|responde\w*|rispondi\w*|s[öoé6]yle\w*|yan[ıi]tla\w*)\b"
              r"[^.\n]{0,40}\b(?:nichts zu (?:zahlen|bezahlen)|nothing (?:is due|to pay|has to be paid)|rien [àa] payer|nada (?:que|a) pagar"
-             r"|niente da pagare|nulla da pagare|[öo]denecek (?:bir )?[şs]ey (?:olmad|yok))",
+             r"|niente da pagare|nulla da pagare|[öo6é]denecek (?:bir )?[şs]ey (?:olmad|yok))",
     "ignore_instructions": r"\b(?:ignore|disregard) (?:all |any )?(?:previous|prior|above) (?:instructions|rules)"
                            r"|\bignorier\w* (?:alle |sämtliche )?(?:vorherigen|bisherigen|obigen) (?:anweisungen|regeln)"
                            r"|\bignor(?:ez|a|e) (?:toutes? )?(?:les )?(?:instructions?|consignes?) (?:précédentes|ci-dessus)"
