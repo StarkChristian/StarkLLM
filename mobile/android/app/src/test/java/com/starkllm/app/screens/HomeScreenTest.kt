@@ -26,10 +26,9 @@ class HomeScreenTest : ScreenTest() {
     fun newDocumentsNameSenderKindAndAmountAndTheFileOnlyWithoutThem() {
         home()
         val invoice = activity.getString(R.string.kind_invoice)
-        val tax = activity.getString(R.string.kind_tax_notice)
-        // the amount of the Stadtwerke letter comes from its deadline; the tax notice names its own
-        compose.onNodeWithText("Stadtwerke Musterstadt · $invoice · 52,40 EUR").assertExists()
-        compose.onNodeWithText("Finanzamt Musterstadt · $tax · 1.240,00 EUR").assertExists()
+        // the amount of the Stadtwerke letter comes from its deadline, the water bill's from the PC (letter_amount)
+        compose.onNodeWithText("Stadtwerke Musterstadt · $invoice · 486,00 EUR").assertExists()
+        compose.onNodeWithText("Sampleton Water Ltd · $invoice · 63.40 GBP").assertExists()
         compose.onNodeWithText("IMG_4711.jpg").assertExists()
         assertTrue(nodesWithText("Stadtwerke-Rechnung.pdf").isEmpty())
         screenshot("home")
@@ -41,8 +40,20 @@ class HomeScreenTest : ScreenTest() {
         assertEquals(3, compose.onAllNodesWithTag("deadline-row", useUnmergedTree = true).fetchSemanticsNodes().size)
         assertTrue(nodesWithText(activity.getString(R.string.deadline_overdue)).isNotEmpty())
         assertTrue(nodesWithText(activity.getString(R.string.deadline_today)).isNotEmpty())
-        val cut = cutTexts().filter { it.startsWith("deadline-row") || it.startsWith("document-row") }
+        assertDeadlineRowsKeepDateAndAmount()
+        val cut = cutTexts().filter { it.startsWith("document-row") }
         assertTrue("cut off at 130 %: $cut", cut.isEmpty())
+    }
+
+    /** every row: the date on its first line, sender · amount on the second; only a long sender may end with "…" */
+    private fun assertDeadlineRowsKeepDateAndAmount() {
+        val cut = cutTexts()
+        assertTrue("date or amount cut: $cut", cut.none { it.startsWith("deadline-when") || it.startsWith("deadline-amount") })
+        val whens = compose.onAllNodesWithTag("deadline-when", useUnmergedTree = true).fetchSemanticsNodes()
+        val whos = compose.onAllNodesWithTag("deadline-who", useUnmergedTree = true).fetchSemanticsNodes()
+        assertEquals(3, whens.size)
+        whens.zip(whos).forEach { (w, s) -> assertTrue("sender on the line under the date", s.boundsInRoot.top >= w.boundsInRoot.bottom - 1) }
+        assertTrue(nodesWithText("486,00 EUR").isNotEmpty())
     }
 
     @Test
@@ -89,7 +100,8 @@ class HomeScreenTest : ScreenTest() {
         val important = listOf(R.string.home_photo, R.string.nav_deadlines, R.string.recent_documents, R.string.suggestion_1,
             R.string.suggestion_2, R.string.suggestion_3).map { activity.getString(it) }
         assertTrue("cut: $cut", cut.none { c -> important.any { c.endsWith(": $it") } })
-        assertTrue("deadline rows cut: $cut", cut.none { it.startsWith("deadline-row") })
+        assertTrue("headings cut: $cut", cut.none { it.startsWith("deadline-when") || it.startsWith("deadline-amount") })
+        assertDeadlineRowsKeepDateAndAmount()
     }
 
     @Test

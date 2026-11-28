@@ -21,6 +21,14 @@ class LettersTest {
     }
 
     @Test
+    fun theLettersOwnAmountFromThePcBeforeTheDeadlines() {
+        val doc = RecentDocument(1, "Rechnung.pdf", workspaceId = 1, sender = "Stadtwerke", letterAmount = "84,20 EUR")
+        assertEquals("Stadtwerke · Rechnung · 84,20 EUR", documentSummary(doc, "Rechnung", listOf(deadline)))
+        // a suspicious letter's asked amount comes first, as before
+        assertEquals("Stadtwerke · 10,00 EUR", documentSummary(doc.copy(askedAmount = "10,00 EUR"), null, emptyList()))
+    }
+
+    @Test
     fun theFileNameOnlyWithoutSenderAndKind() {
         assertEquals("IMG_1.jpg", documentSummary(RecentDocument(3, "IMG_1.jpg"), null, emptyList()))
         assertEquals("Rechnung.pdf · 52,40 EUR", documentSummary(RecentDocument(1, "Rechnung.pdf", workspaceId = 1, sender = " "), null, listOf(deadline)))
@@ -29,11 +37,12 @@ class LettersTest {
     @Test
     fun theHomeOfThePcIsReadWithTheLetterFacts() {
         val text = """{"today":"2026-11-28","recent":[{"id":4,"scope":"ws","filename":"a.pdf","workspace":"Briefe","workspace_id":1,
-            "added":"2026-11-27","sender":"Stadtwerke","letter_kind":"invoice","asked_amount":null,"first_page":1}],"dates":[]}"""
+            "added":"2026-11-27","sender":"Stadtwerke","letter_kind":"invoice","asked_amount":null,"letter_amount":"84,20 EUR","first_page":1}],"dates":[]}"""
         val doc = json.decodeFromString(Home.serializer(), text).recent.single()
         assertEquals("Stadtwerke", doc.sender)
         assertEquals("invoice", doc.letterKind)
         assertEquals(null, doc.askedAmount)
+        assertEquals("84,20 EUR", doc.letterAmount)
     }
 
     @Test

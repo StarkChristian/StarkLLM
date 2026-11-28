@@ -32,7 +32,7 @@ class OtherScreensTest : ScreenTest() {
         assertEquals(Intent.ACTION_INSERT, intent.action)
         assertEquals(CalendarContract.Events.CONTENT_URI, intent.data)
         assertTrue(intent.getBooleanExtra(CalendarContract.EXTRA_EVENT_ALL_DAY, false))
-        assertEquals("Stadtwerke Musterstadt · 52,40 EUR", intent.getStringExtra(CalendarContract.Events.TITLE))
+        assertEquals("Stadtwerke Musterstadt Energie- und Wasserversorgung GmbH · 486,00 EUR", intent.getStringExtra(CalendarContract.Events.TITLE))
         val begin = LocalDate.parse("2026-11-20").atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         assertEquals(begin, intent.getLongExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, 0))
     }

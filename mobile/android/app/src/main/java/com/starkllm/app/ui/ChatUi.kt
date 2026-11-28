@@ -104,10 +104,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -332,23 +329,30 @@ private fun DeadlinesCard(state: UiState, vm: AppViewModel) {
     }
 }
 
-/** One deadline on the home card: date and how urgent (in its colour), then sender and amount; two lines at most */
+/**
+ * One deadline on the home card, always on two lines: the date and how urgent (in its colour), then sender · amount.
+ * The amount is never cut: a long sender gives way (ends with "…") before it.
+ */
 @Composable
 private fun DeadlineRow(d: Deadline) {
     val color = stateColor(d)
     val date = remember(d.date) { runCatching { LocalDate.parse(d.date).format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)) }.getOrDefault(d.date) }
     val rel = relativeText(d)
-    val what = listOfNotNull(d.sender ?: d.title ?: d.filename, d.amount).joinToString(" · ")
-    val text = buildAnnotatedString {
-        withStyle(SpanStyle(color = color, fontWeight = FontWeight.SemiBold)) {
-            append(date)
-            if (rel.isNotEmpty()) append(" · $rel")
-        }
-        if (what.isNotEmpty()) append("  $what")
-    }
+    val who = d.sender ?: d.title ?: d.filename
     Row(Modifier.padding(top = 8.dp).testTag("deadline-row"), verticalAlignment = Alignment.Top) {
         Box(Modifier.padding(top = 7.dp).size(8.dp).clip(CircleShape).background(color))
-        Text(text, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 8.dp))
+        Column(Modifier.padding(start = 8.dp)) {
+            Text(if (rel.isEmpty()) date else "$date · $rel", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = color, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("deadline-when"))
+            if (who != null || d.amount != null) {
+                Row {
+                    if (who != null) Text(who, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false).testTag("deadline-who"))
+                    if (d.amount != null) Text(if (who != null) " · ${d.amount}" else d.amount, style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1, softWrap = false, modifier = Modifier.testTag("deadline-amount"))
+                }
+            }
+        }
     }
 }
 

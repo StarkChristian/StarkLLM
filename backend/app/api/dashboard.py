@@ -400,6 +400,16 @@ def _describe_letter(item: dict, facts: dict, pages: dict):
     item["first_page"] = min(pages) if pages else 1
 
 
+def letter_amount(facts: dict):
+    """The amount a letter is about, for the phone's list of new documents: the amount of its first deadline or payment
+    date (what is due: "Nachzahlung von 412,00 EUR ist fällig am ..."), else its first amount that is neither a fee nor
+    a replaced one. Not asked_amount, which only a suspicious letter gets (and which the chat's payment overview reads)."""
+    for d in facts.get("dates", []):
+        if d.get("amount"):
+            return d["amount"]
+    return next((a["value"] for a in facts.get("amounts", []) if a.get("value") and a.get("role") not in ("fee", "old")), None)
+
+
 def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool = True, past_days: int = HOME_PAST_DAYS):
     """Newest documents and the dates found in them (deadlines, payments, appointments), oldest date first.
     workspace_id limits the search to one workspace (and the knowledge base when include_kb). Used by the home page
@@ -448,6 +458,7 @@ def document_dates(db, user_id: int, workspace_id: int = None, include_kb: bool 
         if not counts_as_letter({"facts": facts, "file_type": item.get("file_type")}):
             continue
         item["is_letter"] = True
+        item["letter_amount"] = letter_amount(facts)
         fp = facts.get("fingerprint")
         if fp and fp in seen_fp:
             item["duplicate"] = True

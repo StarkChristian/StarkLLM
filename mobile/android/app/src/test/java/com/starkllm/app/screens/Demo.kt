@@ -18,8 +18,10 @@ object Demo {
     val workspace = Workspace(1, "Briefe")
 
     val deadlines = listOf(
-        Deadline("a", "2026-11-20", kind = "payment", amount = "52,40 EUR", sender = "Stadtwerke Musterstadt", filename = "Stadtwerke-Rechnung.pdf",
-            text = "Bitte überweisen Sie die Nachzahlung von 52,40 Euro bis zum 20.11.2026.", days = -8, state = "overdue", workspaceId = 1),
+        // a long sender, as "Assicurazioni del Porto SpA" on the owner's phone: it gives way, the amount is never cut
+        Deadline("a", "2026-11-20", kind = "payment", amount = "486,00 EUR", sender = "Stadtwerke Musterstadt Energie- und Wasserversorgung GmbH",
+            filename = "Stadtwerke-Rechnung.pdf",
+            text = "Bitte überweisen Sie die Nachzahlung von 486,00 Euro bis zum 20.11.2026.", days = -8, state = "overdue", workspaceId = 1),
         Deadline("b", "2026-11-28", sender = "Hausverwaltung Berger", filename = "Ablesung.pdf",
             text = "Die Zählerablesung findet am 28.11.2026 zwischen 8 und 12 Uhr statt.", days = 0, state = "today", workspaceId = 1),
         Deadline("c", "2026-12-01", kind = "payment", amount = "1.240,00 EUR", sender = "Finanzamt Musterstadt", filename = "Steuerbescheid-2025.pdf",
@@ -32,8 +34,11 @@ object Demo {
         today = "2026-11-28",
         recent = listOf(
             RecentDocument(1, "Stadtwerke-Rechnung.pdf", "Briefe", 1, sender = "Stadtwerke Musterstadt", letterKind = "invoice"),
-            RecentDocument(2, "Steuerbescheid-2025.pdf", "Briefe", 1, sender = "Finanzamt Musterstadt", letterKind = "tax_notice", askedAmount = "1.240,00 EUR"),
+            // the PC sends the letter's own amount (letter_amount), though no deadline of it is on the phone
+            RecentDocument(4, "Water-bill.pdf", "Briefe", 1, sender = "Sampleton Water Ltd", letterKind = "invoice", letterAmount = "63.40 GBP"),
             RecentDocument(3, "IMG_4711.jpg", "Briefe", 1),
+            // the home card shows the newest three; this one is the fourth
+            RecentDocument(2, "Steuerbescheid-2025.pdf", "Briefe", 1, sender = "Finanzamt Musterstadt", letterKind = "tax_notice", askedAmount = "1.240,00 EUR"),
         ),
     )
 

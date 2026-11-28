@@ -15,11 +15,13 @@ fun urgencyOf(d: Deadline): Urgency = when {
 
 /**
  * A new document on the home card: "sender · kind · amount" as the PC read them from the letter. The amount is the one
- * the letter asks for, or else the amount of one of its deadlines. The file name only when the PC found neither sender
+ * a suspicious letter asks for, else the letter's own amount (letter_amount), else the amount of one of its deadlines
+ * (an older PC sends no letter_amount). The file name only when the PC found neither sender
  * nor kind (a photo, a note, a letter not read yet). [kind] is the kind already in the app's language, or null.
  */
 fun documentSummary(doc: RecentDocument, kind: String?, deadlines: List<Deadline>): String {
     val amount = doc.askedAmount?.trim()?.takeIf { it.isNotEmpty() }
+        ?: doc.letterAmount?.trim()?.takeIf { it.isNotEmpty() }
         ?: deadlines.firstOrNull { d ->
             d.filename == doc.filename && !d.amount.isNullOrBlank() &&
                 (doc.workspaceId == null || d.workspaceId == null || d.workspaceId == doc.workspaceId)
