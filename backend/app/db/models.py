@@ -293,6 +293,53 @@ from sqlalchemy.orm import Session as _Session  # noqa: E402
 DOCUMENT_LINKED = (DocumentReview, DateChoice, DeadlineReminder, DeadlineDone)
 
 
+
+# ---------------------------------------------------------------------------
+# Letters from e-mail (docs/mail-import.md): an IMAP account whose attachments become documents of a workspace.
+# The password is NOT here: it lives in the Windows key store of the desktop app and only in the engine's memory.
+# ---------------------------------------------------------------------------
+
+class MailAccount(Base):
+    __tablename__ = "mail_accounts"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=False)   # where the letters go
+    host = Column(String, nullable=False)
+    port = Column(Integer, nullable=False)
+    security = Column(String, nullable=False)          # "ssl" (IMAPS) or "starttls"; plain IMAP is refused
+    username = Column(ProtectedText("mail_accounts.username", locked_value="\U0001F512"), nullable=False)
+    folders = Column(ProtectedText("mail_accounts.folders", locked_value="[]"), nullable=False)        # JSON list
+    senders = Column(ProtectedText("mail_accounts.senders", locked_value="[]"), nullable=True)         # JSON list (filter)
+    subjects = Column(ProtectedText("mail_accounts.subjects", locked_value="[]"), nullable=True)       # JSON list (filter)
+    interval_minutes = Column(Integer, default=15, nullable=False)
+    mark_read = Column(Boolean, default=False, nullable=False)   # the only change on the server, and only when asked
+    enabled = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)       # mails before this are imported only on request
+    last_check_at = Column(DateTime, nullable=True)
+    last_error = Column(String, nullable=True)                   # a code (login_failed, tls_failed, ...), no server text
+    state = Column(ProtectedText("mail_accounts.state", locked_value="{}"), nullable=True)  # JSON {folder: {uidvalidity, last_uid}}
+
+
+class MailImport(Base):
+    """One line of the import history: an attachment that was imported, a duplicate, a skipped mail or an error of a
+    check. Sender and subject are untrusted text of a stranger: they are shown in Settings and never given to a model."""
+    __tablename__ = "mail_imports"
+    id = Column(Integer, primary_key=True, index=True)
+    account_id = Column(Integer, ForeignKey("mail_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    outcome = Column(String, nullable=False)           # imported, duplicate, skipped, error
+    folder = Column(ProtectedText("mail_imports.folder", locked_value="\U0001F512"), nullable=True)
+    sender = Column(ProtectedText("mail_imports.sender", locked_value="\U0001F512"), nullable=True)
+    subject = Column(ProtectedText("mail_imports.subject", locked_value="\U0001F512"), nullable=True)
+    mail_date = Column(DateTime, nullable=True)
+    filename = Column(ProtectedText("mail_imports.filename", locked_value="\U0001F512"), nullable=True)
+    sha256 = Column(String, nullable=True)
+    document_id = Column(Integer, nullable=True)
+    detail = Column(String, nullable=True)             # a code: too_large, not_a_pdf, login_failed, ...
+    flagged = Column(Boolean, default=False, nullable=False)   # sender or subject is written to an AI assistant
+
+
 def forget_documents(connection_or_session, scope: str, ids) -> None:
     """Delete everything the user decided about these documents (scope "ws" or "kb")."""
     ids = [i for i in ids if i is not None]

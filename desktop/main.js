@@ -8,6 +8,7 @@ const nativeEngine = require('./native-engine');
 const integratedGpu = require('./igpu');
 const { DataKeyManager, DataKeyError, createSafeStorageKeyStore, deliverKey, lockEngine } = require('./data-key');
 const { createUnlockFlow } = require('./unlock-flow');
+const { MailSecrets, deliverPasswords, forgetPasswords } = require('./mail-secrets');
 const { pathToFileURL } = require('url');
 const { BackupScheduler } = require('./backup-schedule');
 const { createUpdater } = require('./updates');
@@ -132,6 +133,7 @@ function initApp() {
   webtask.register(ipcMain, { fromApp, log: logLine });
   app.on("will-quit", () => webtask.stopCommands()); // commands of a web task end with StarkLLM
   registerProtectionHandlers();
+  registerMailHandlers();
   registerUnlockHandlers();
   lockEngineOnQuit();
   registerBackupHandlers();
@@ -461,13 +463,67 @@ function registerUnlockHandlers() {
   ipcMain.handle('unlock:recover', async (event, recoveryKey) => (fromUnlockPage(event) ? unlockFlow.recover(recoveryKey) : { error: 'not-allowed' }));
 }
 
+// Letters from e-mail (docs/mail-import.md): the passwords of the mail accounts live only in the Windows key store
+// (mail-secrets.js). The page hands a password over once and never gets it back; the engine gets it in memory.
+let mailStore = null;
+let mailDelivered = false;
+function mailSecrets() {
+  if (!mailStore) mailStore = new MailSecrets({ dir: path.join(app.getPath('userData'), 'protection'), keyStore: createSafeStorageKeyStore(safeStorage) });
+  return mailStore;
+}
+
+function engineFetch(purpose) {
+  return guard.wrapFetch((u, o) => net.fetch(u, o), 'local_engine', purpose);
+}
+
+async function deliverMailPasswords(ids) {
+  const secrets = mailSecrets();
+  const passwords = secrets.passwords(ids);
+  const r = await deliverPasswords({ apiUrl: apiUrl(), secret: engineSecret(), passwords, fetchImpl: engineFetch('Mail passwords for the engine on this PC') });
+  if (r.ok && r.known.length) mailDelivered = true;
+  for (const id of r.unknown || []) secrets.remove(id);       // the account was removed in the engine
+  if (!r.ok && Object.keys(passwords).length) logLine(`mail import: the engine refused the passwords (${r.status})`);
+  return r;
+}
+
+function registerMailHandlers() {
+  const allowed = (fn) => async (event, ...args) => {
+    if (!fromAppPage(event)) return { error: 'not-allowed' };
+    try {
+      return await fn(...args);
+    } catch (e) {
+      return { error: e.code || 'failed', message: e.message };
+    }
+  };
+  ipcMain.handle('mail:available', allowed(() => ({ available: mailSecrets().available() })));
+  ipcMain.handle('mail:set-password', allowed(async (id, password) => {
+    mailSecrets().set(id, password);
+    const r = await deliverMailPasswords([Number(id)]);
+    return r.ok ? { ok: true } : { error: 'engine-refused' };
+  }));
+  ipcMain.handle('mail:forget-password', allowed(async (id) => {
+    mailSecrets().remove(id);
+    await forgetPasswords({ apiUrl: apiUrl(), secret: engineSecret(), ids: [Number(id)], fetchImpl: engineFetch('Mail passwords: the engine forgets one') });
+    return { ok: true };
+  }));
+  // Settings opens: the engine may have restarted since the start of the app and lost them
+  ipcMain.handle('mail:deliver', allowed(async () => {
+    const r = await deliverMailPasswords();
+    return { ok: r.ok };
+  }));
+}
+
 let quitLocked = false;
 function lockEngineOnQuit() {
   app.on('before-quit', (event) => {
-    if (quitLocked || !keyManager().status().passphrase) return;
-    event.preventDefault();                       // wait (briefly) until the engine has forgotten the key
+    const lock = keyManager().status().passphrase;
+    if (quitLocked || (!lock && !mailDelivered)) return;
+    event.preventDefault();                       // wait (briefly) until the engine has forgotten the key and the mail passwords
     quitLocked = true;
-    lockEngine({ apiUrl: apiUrl(), secret: engineSecret() }).finally(() => app.quit());
+    Promise.allSettled([
+      lock ? lockEngine({ apiUrl: apiUrl(), secret: engineSecret() }) : null,
+      mailDelivered ? forgetPasswords({ apiUrl: apiUrl(), secret: engineSecret(), fetchImpl: engineFetch('Mail passwords: the engine forgets them') }) : null
+    ]).finally(() => app.quit());
   });
 }
 
@@ -613,6 +669,7 @@ async function showApp() {
     await unlockEngine();
   }
   await fetchLocalSession();
+  deliverMailPasswords().catch((e) => logLine(`mail import: ${e.message}`));
   const rest = SPLASH_MIN_MS - (Date.now() - splashShownAt);
   if (rest > 0) await wait(rest);
   if (!mainWindow || mainWindow.isDestroyed()) return;

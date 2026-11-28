@@ -173,6 +173,38 @@ def _same_document(db, workspace_id: int, path: str, size: int):
     return None
 
 
+def store_document_bytes(db, workspace_id: int, user_id: int, filename: str, data: bytes):
+    """The upload pipeline for a file that does not come from the browser (Letters from e-mail, docs/mail-import.md):
+    stored protected while protection is on, a document of the workspace with the same bytes is kept instead
+    (duplicate), otherwise a new document is read like an upload (text, OCR, facts, the checks for scams and for notes
+    to the AI). Runs the reading in the calling thread: the caller is a background job. Returns (document, duplicate)."""
+    import hashlib
+    import secrets as _secrets
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+    display = os.path.basename((filename or "").replace("\\", "/")) or "attachment"
+    ext = (display.rsplit(".", 1)[-1] if "." in display else "").lower()
+    prefix = hashlib.md5(f"{workspace_id}_{time.time()}_{_secrets.token_hex(4)}".encode()).hexdigest()[:8]
+    file_path = os.path.join(settings.UPLOAD_DIR, _disk_name(prefix, display))
+    try:
+        vault.write_bytes(file_path, data)   # encrypted on disk while protection is on
+    except Exception:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise
+    size = vault.size(file_path)
+    same = _same_document(db, workspace_id, file_path, size)
+    if same is not None:
+        os.remove(file_path)
+        return same, True
+    doc = models.Document(workspace_id=workspace_id, filename=display, filepath=file_path, file_type=ext,
+                          status=DocStatus.UPLOADING)
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+    _index_document_background(doc.id, workspace_id, user_id, file_path)
+    return doc, False
+
+
 @router.post("/{workspace_id}/upload")
 async def upload_document(
     workspace_id: int,
