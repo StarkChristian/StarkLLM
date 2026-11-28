@@ -646,3 +646,9 @@ button.sourceGroup:focus-visible {
 
 /* the marked feedback button (its colours are set inline) */
 .feedbackActive { opacity: 1; }
+
+/* the memories an answer used (2.8) */
+.memorySource {
+  background-color: rgba(99, 102, 241, 0.06);
+  border-color: rgba(99, 102, 241, 0.25);
+}

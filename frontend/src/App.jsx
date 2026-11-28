@@ -11,6 +11,7 @@ import Settings from './components/Settings';
 import ErrorBoundary from './components/ErrorBoundary';
 import DocumentManager from './components/DocumentManager';
 import MemoryManager from './components/MemoryManager';
+import { parseMemoryHeader, memorySources } from './utils/memory';
 import GlobalSearch from './components/GlobalSearch';
 import SummaryModal from './components/SummaryModal';
 import WorkspaceKBModal from './components/WorkspaceKBModal';
@@ -357,6 +358,7 @@ export default function App() {
                 warnings: m.sources.warnings || [],
                 webSources: m.sources.web || [],
                 cloudHost: m.sources.cloud || null,
+                memorySources: memorySources(m.sources.memory),
               } : m))
           : [{ role: 'assistant', content: t('Chat loaded. How can I help you?'), timestamp: new Date(), greeting: true }]
       ));
@@ -1021,6 +1023,7 @@ export default function App() {
       const webSourcesUrlsHeader = response.headers.get('X-Web-Sources-Urls') ? decodeURIComponent(response.headers.get('X-Web-Sources-Urls')) : '';
       const cloudHostHeader = response.headers.get('X-Cloud-Provider') || null;
       const sourcesModeHeader = response.headers.get('X-Sources-Mode') || null;
+      const memoryUsed = parseMemoryHeader(response.headers.get('X-Memory-Sources'));
       let docWarnings = [];
       try { docWarnings = JSON.parse(decodeURIComponent(response.headers.get('X-Doc-Warnings') || '%5B%5D')); } catch { docWarnings = []; }
 
@@ -1060,6 +1063,7 @@ export default function App() {
             sourcesMode: sourcesModeHeader,
             webSources: webSourcesData,
             cloudHost: cloudHostHeader,
+            memorySources: memoryUsed,
             warnings: docWarnings
           };
           return msgs;
@@ -1690,6 +1694,7 @@ export default function App() {
               onSelectStarter={handleSendMessage}
               workspaceId={activeWorkspace?.id}
               chatId={activeChatId}
+              onOpenMemory={() => setShowMemoryManager(true)}
               onUpload={handleFileUpload}
               newestDocument={[...workspaceDocs].filter(d => d.status === 'indexed').sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0]?.filename}
               token={token}
