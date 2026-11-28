@@ -6,6 +6,37 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { t } = require('./i18n');
+const { setPdfInfo } = require('./pdf-info');
+
+// EU AI Act, Article 50: the exported PDF is marked as AI-generated, in its document information (for machines) and
+// with a line at the foot of every page (for people). The page sends that line in the user's language.
+const AI_NOTE = 'Created with AI assistance (StarkLLM)';
+
+const unescapeHtml = (s) => String(s).replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/** The AI note of the page (meta starkllm-ai-note), else the English one. */
+function aiNoteOf(html) {
+  const m = /<meta name="starkllm-ai-note" content="([^"]*)">/.exec(String(html));
+  const note = m ? unescapeHtml(m[1]).trim() : '';
+  return note.slice(0, 200) || AI_NOTE;
+}
+
+/** The page for the printer and the foot of every page: the note goes into the page footer, so the one line at the
+ * end of the page (for the browser's print dialog) is left out here, else the last page would have it twice. */
+function withPageFooter(html) {
+  const note = aiNoteOf(html);
+  return {
+    html: String(html).replace(/<footer class="ai-note">[\s\S]*?<\/footer>/, ''),
+    footerTemplate: `<div style="width:100%;text-align:center;font-size:8px;color:#777;font-family:'Segoe UI',Arial,sans-serif">${escapeHtml(note)}</div>`,
+  };
+}
+
+/** The document information of an exported PDF (machine-readable marking of AI-generated content). */
+function aiPdfInfo(version) {
+  const generator = `StarkLLM${version ? ` ${version}` : ''} (AI-generated content)`;
+  return { Producer: generator, Creator: generator, Keywords: 'AI-generated', Subject: 'AI-generated content, created with StarkLLM' };
+}
 
 const PARTITION = 'starkllm-export'; // in memory only: nothing is kept
 let ready = false;
@@ -29,14 +60,19 @@ function safeName(name) {
 
 async function htmlToPdf(html) {
   const tmp = path.join(os.tmpdir(), `starkllm-export-${process.pid}-${Date.now()}.html`);
-  fs.writeFileSync(tmp, String(html), 'utf8');
+  const page = withPageFooter(html);
+  fs.writeFileSync(tmp, page.html, 'utf8');
   const win = new BrowserWindow({
     show: false,
     webPreferences: { session: exportSession(), javascript: false, sandbox: true, contextIsolation: true, nodeIntegration: false },
   });
   try {
     await win.loadFile(tmp);
-    return await win.webContents.printToPDF({ printBackground: true, pageSize: 'A4', margins: { marginType: 'default' } });
+    const pdf = await win.webContents.printToPDF({
+      printBackground: true, pageSize: 'A4', margins: { marginType: 'default' },
+      displayHeaderFooter: true, headerTemplate: '<span></span>', footerTemplate: page.footerTemplate,
+    });
+    return setPdfInfo(pdf, aiPdfInfo(app.getVersion()));
   } finally {
     win.destroy();
     fs.rm(tmp, { force: true }, () => {});
@@ -87,4 +123,4 @@ function register(ipcMain, { fromApp }) {
   });
 }
 
-module.exports = { register, safeName, htmlToPdf };
+module.exports = { register, safeName, htmlToPdf, withPageFooter, aiNoteOf, aiPdfInfo, AI_NOTE };

@@ -118,3 +118,50 @@ def test_a_signed_in_user_gets_the_word_file():
     assert r.headers["content-type"].startswith("application/vnd.openxmlformats-officedocument.wordprocessingml.document")
     doc = Document(io.BytesIO(r.content))
     assert "Hello" in _all_text(doc)
+    # EU AI Act, Article 50(2): the file from the route is marked as AI-generated with the engine's version
+    from app.core.config import settings
+    assert doc.core_properties.author == f"StarkLLM {settings.VERSION} (AI-generated content)"
+
+
+def _parts(data: bytes):
+    import zipfile
+    z = zipfile.ZipFile(io.BytesIO(data))
+    return {n: z.read(n) for n in z.namelist()}
+
+
+def test_the_word_file_is_marked_as_ai_generated_for_machines():
+    """EU AI Act, Article 50(2): machine-readable marking in the core, app and custom properties."""
+    import re
+    data = chat_to_docx("Bills", [{"role": "assistant", "content": "Hello"}], version="2.7.0")
+    doc = Document(io.BytesIO(data))
+    props = doc.core_properties
+    assert props.author == "StarkLLM 2.7.0 (AI-generated content)"
+    assert props.keywords == "AI-generated"
+    assert "AI-generated" in props.comments
+    parts = _parts(data)
+    assert b"<Application>StarkLLM 2.7.0 (AI-generated content)</Application>" in parts["docProps/app.xml"]
+    assert b"Microsoft" not in parts["docProps/app.xml"]
+    custom = parts["docProps/custom.xml"].decode("utf-8")
+    assert re.search(r'name="ai_generated"><vt:bool>true</vt:bool>', custom)
+    assert "StarkLLM 2.7.0 (AI-generated content)" in custom
+    # the package knows the part: listed in the content types and related from the package
+    assert b'PartName="/docProps/custom.xml"' in parts["[Content_Types].xml"]
+    assert b"custom-properties+xml" in parts["[Content_Types].xml"]
+    assert b'relationships/custom-properties" Target="docProps/custom.xml"' in parts["_rels/.rels"]
+    # python-docx opens the file again without complaint
+    assert "Hello" in _all_text(doc)
+
+
+def test_the_word_file_has_a_visible_ai_note_in_the_users_language():
+    doc = _doc([{"role": "assistant", "content": "Hallo"}], labels={"ai_note": "Mit KI-Unterstützung erstellt (StarkLLM)"},
+               version="2.7.0")
+    footers = [p.text for s in doc.sections for p in s.footer.paragraphs]
+    assert "Mit KI-Unterstützung erstellt (StarkLLM)" in footers
+    # English when the page sends no text for it
+    doc = _doc([{"role": "assistant", "content": "Hello"}], version="2.7.0")
+    assert "Created with AI assistance (StarkLLM)" in [p.text for s in doc.sections for p in s.footer.paragraphs]
+
+
+def test_the_word_file_without_a_known_version():
+    doc = _doc([{"role": "assistant", "content": "Hello"}], version="")
+    assert doc.core_properties.author == "StarkLLM (AI-generated content)"
