@@ -89,6 +89,9 @@ def resume_interrupted_indexing():
         db.close()
     for doc_id, workspace_id, user_id, path in todo:
         if not path or not os.path.exists(path):
+            from app.services import meetings
+            if meetings.resume(doc_id):
+                continue  # a meeting cut off while it was written down: its recording is written down again
             _set_doc_status(doc_id, DocStatus.FAILED, error_message="Indexing was interrupted and the file is no longer "
                             "on this PC. Delete this entry and upload the file again.")
             continue

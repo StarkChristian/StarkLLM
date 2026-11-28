@@ -337,7 +337,21 @@ class RAGService :
             elif file_ext in [".txt", ".md"]:
                 with open(read_path, "r", encoding="utf-8-sig", errors="ignore") as f:
                     text = f.read()
-                file_chunks = self._semantic_chunk_text(text)
+                from app.services import meetings
+                if file_ext == ".txt" and meetings.is_transcript(text):
+                    # a meeting written down on this PC ("[00:12:30] ..."): passages with their time, as recordings
+                    for idx, part in enumerate(meetings.transcript_passages(text)):
+                        chunks.append(part["text"])
+                        metadatas.append({
+                            "source": file_path,
+                            "type": "recording",
+                            "chunk": idx + 1,
+                            "start": round(part["start"], 1),
+                            "locator": f"Time {stamp(part['start'])}",
+                        })
+                        ids.append(f"{prefix}_{basename}_t{idx}")
+                    text = ""
+                file_chunks = self._semantic_chunk_text(text) if text else []
                 for idx, chunk in enumerate(file_chunks):
                     if chunk.strip():
                         chunks.append(chunk.strip())
