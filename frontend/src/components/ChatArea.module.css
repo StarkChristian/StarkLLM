@@ -382,6 +382,15 @@ button.sourceGroup:focus-visible {
   line-height: 1.6;
 }
 
+/* the AI notice of the start page (EU AI Act, Article 50(1)): calm, readable, not a warning */
+.welcomeAiNote {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  max-width: 520px;
+  line-height: 1.5;
+  margin-top: -4px;
+}
+
 .suggestionsGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(260px, 320px));
