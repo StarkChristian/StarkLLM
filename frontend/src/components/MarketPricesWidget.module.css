@@ -1,5 +1,5 @@
 .card {
-  background: linear-gradient(145deg, rgba(22, 27, 39, 0.65) 0%, rgba(14, 17, 23, 0.85) 100%);
+  background: var(--widget-card-bg, linear-gradient(145deg, rgba(22, 27, 39, 0.65) 0%, rgba(14, 17, 23, 0.85) 100%));
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   padding: 24px;
@@ -7,14 +7,14 @@
   flex-direction: column;
   gap: 16px;
   box-shadow: var(--shadow-md);
-  backdrop-filter: blur(8px);
+  backdrop-filter: var(--widget-backdrop, blur(8px));
   position: relative;
   overflow: visible; /* allow config panel to overflow */
   transition: var(--transition-normal);
 }
 
 .card:hover {
-  border-color: rgba(255, 255, 255, 0.1);
+  border-color: var(--widget-border-hover, rgba(255, 255, 255, 0.1));
   box-shadow: var(--shadow-lg), 0 10px 30px -15px rgba(0, 0, 0, 0.5);
 }
 
@@ -34,7 +34,7 @@
 }
 
 .headerIcon {
-  color: rgba(212, 175, 55, 0.8);
+  color: var(--gold-ink, rgba(212, 175, 55, 0.8));
   filter: drop-shadow(0 0 8px rgba(212, 175, 55, 0.3));
 }
 
@@ -157,7 +157,7 @@
 .chip:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: var(--widget-border-hover, rgba(255, 255, 255, 0.12));
 }
 
 .chipActive {
@@ -229,12 +229,12 @@
 }
 
 .up {
-  color: var(--success);
+  color: var(--price-up, var(--success));
   background: rgba(34, 197, 94, 0.1);
 }
 
 .down {
-  color: var(--danger);
+  color: var(--price-down, var(--danger));
   background: rgba(239, 68, 68, 0.1);
 }
 
@@ -252,7 +252,7 @@
 
 .simLabel {
   background: rgba(212, 175, 55, 0.08);
-  color: rgba(212, 175, 55, 0.9);
+  color: var(--gold-text, rgba(212, 175, 55, 0.9));
   padding: 2px 8px;
   border-radius: 9999px;
   font-weight: 600;
