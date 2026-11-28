@@ -77,6 +77,36 @@ export default function App() {
     const timer = setInterval(loadCount, 30000);
     return () => clearInterval(timer);
   }, [token]);
+  // the settings page to open (a notice's "Details" opens Settings > Letters from a folder)
+  const [settingsSection, setSettingsSection] = useState(null);
+  useEffect(() => { if (activeView !== 'settings') setSettingsSection(null); }, [activeView]);
+  // letters imported from a watched folder (Settings > Letters from a folder): a short notice, once per import
+  useEffect(() => {
+    if (!token) return undefined;
+    const check = async () => {
+      try {
+        const res = await fetch('/api/v1/watch-folders/notices', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        const { imported = [], failed = [] } = await res.json();
+        for (const n of imported) {
+          toast.success(n.count === 1
+            ? t('1 letter imported from {folder}', { folder: n.folder })
+            : t('{count} letters imported from {folder}', { count: n.count, folder: n.folder }),
+          8000, { label: t('Open inbox'), onClick: () => setActiveView('inbox') });
+        }
+        for (const n of failed) {
+          toast.error(n.count === 1
+            ? t('1 file from {folder} could not be imported.', { folder: n.folder })
+            : t('{count} files from {folder} could not be imported.', { count: n.count, folder: n.folder }),
+          10000, { label: t('Details'), onClick: () => { setActiveView('settings'); setSettingsSection('watch'); } });
+        }
+        if (imported.length) setInboxCount((c) => c + imported.reduce((sum, n) => sum + n.count, 0));
+      } catch (_) { /* tried again shortly */ }
+    };
+    check();
+    const timer = setInterval(check, 15000);
+    return () => clearInterval(timer);
+  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
   const [useKb, setUseKb] = useState(false);
   const [useWebSearch, setUseWebSearch] = useState(false);
   // a second local model that answers the same question, to compare (docs/roadmap-2026-12.md, R4); '' is off
@@ -1671,7 +1701,7 @@ export default function App() {
         )}
 
         {activeView === 'settings' && (
-          <Settings token={token} username={username} activeWorkspace={activeWorkspace} currentModel={currentModel} />
+          <Settings token={token} username={username} activeWorkspace={activeWorkspace} currentModel={currentModel} section={settingsSection} />
         )}
 
         {activeView === 'chat' && (

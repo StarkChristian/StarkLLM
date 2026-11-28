@@ -56,6 +56,28 @@ def missing_folder_message(folder_id, folder_path) -> str:
     return (f"KB Watcher: folder ID {folder_id} path '{folder_path}' does not exist or cannot be read "
             "(moved, renamed, or on a drive that is not connected). It is checked again when it comes back.")
 
+def folder_files(folder_path: str, extensions, recursive: bool = True) -> dict:
+    """The files of a folder with one of the extensions: {absolute path: os.stat_result}. Hidden subfolders (".x")
+    are skipped. Used by the knowledge base watcher and by the watched folders for letters (watch_service.py, which
+    looks only at the folder itself, not into subfolders)."""
+    found = {}
+    if not os.path.isdir(folder_path):
+        return found
+    try:
+        for root, dirs, files in os.walk(folder_path):
+            dirs[:] = [d for d in dirs if not d.startswith('.')] if recursive else []
+            for file in files:
+                if os.path.splitext(file)[1].lower() in extensions:
+                    full_p = os.path.abspath(os.path.join(root, file))
+                    try:
+                        found[full_p] = os.stat(full_p)
+                    except OSError:
+                        pass
+    except Exception as e:
+        logger.warning(f"Folder snapshot error for '{folder_path}': {e}")
+    return found
+
+
 class KBService:
     def __init__(self):
         self._sync_mutex = threading.Lock()
@@ -835,23 +857,7 @@ class KBService:
             raise
 
     def _take_folder_snapshot(self, folder_path_str: str) -> dict[str, float]:
-        snapshot = {}
-        if not os.path.exists(folder_path_str):
-            return snapshot
-        try:
-            for root, dirs, files in os.walk(folder_path_str):
-                dirs[:] = [d for d in dirs if not d.startswith('.')]
-                for file in files:
-                    ext = os.path.splitext(file)[1].lower()
-                    if ext in SUPPORTED_EXTENSIONS:
-                        full_p = os.path.abspath(os.path.join(root, file))
-                        try:
-                            snapshot[full_p] = os.path.getmtime(full_p)
-                        except OSError:
-                            pass
-        except Exception as e:
-            logger.warning(f"KB Watcher snapshot error for '{folder_path_str}': {e}")
-        return snapshot
+        return {p: st.st_mtime for p, st in folder_files(folder_path_str, SUPPORTED_EXTENSIONS).items()}
 
     def _watcher_loop(self):
         """
