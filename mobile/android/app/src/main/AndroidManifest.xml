@@ -36,6 +36,7 @@
             android:exported="true"
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize"
+            android:resizeableActivity="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|density|uiMode">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -71,6 +72,15 @@
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_deadlines" />
+        </receiver>
+
+        <!-- the same widget for the cover screen of a Galaxy Z Flip (Flex Window); Samsung reads its own metadata -->
+        <receiver android:name=".widget.CoverDeadlinesWidget" android:exported="false" android:label="@string/widget_cover_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_deadlines_cover" />
+            <meta-data android:name="com.samsung.android.appwidget.provider" android:resource="@xml/samsung_widget_cover" />
         </receiver>
 
         <!-- Quick Settings tile "Ask StarkLLM" -->

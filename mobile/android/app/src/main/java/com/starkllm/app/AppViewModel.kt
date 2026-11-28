@@ -21,6 +21,8 @@ import com.starkllm.app.data.LinkStore
 import com.starkllm.app.data.PairingInfo
 import com.starkllm.app.data.PcStatus
 import com.starkllm.app.data.Problem
+import com.starkllm.app.data.QuestionQueue
+import com.starkllm.app.data.QueuedQuestion
 import com.starkllm.app.data.RecentChat
 import com.starkllm.app.data.SharedFiles
 import com.starkllm.app.data.StarkApi
@@ -31,6 +33,8 @@ import com.starkllm.app.widget.DeadlinesWidget
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,6 +43,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import okhttp3.RequestBody
 import java.util.Locale
+import java.util.UUID
 
 sealed interface Screen {
     data object Pair : Screen
@@ -55,6 +60,9 @@ sealed interface Screen {
 
 /** A problem to show; notACode is the phone's own (the camera saw another QR code). */
 data class Notice(val problem: Problem?, val notACode: Boolean = false)
+
+/** A waiting question the PC has answered meanwhile: the home screen offers to open its chat */
+data class Answered(val id: String, val workspace: Workspace, val chatId: Int, val question: String)
 
 /** A short confirmation (not an error): the text and its one argument */
 data class Info(@StringRes val text: Int, val arg: String = "")
@@ -95,6 +103,12 @@ data class UiState(
     /** the look (ui/Themes.kt), as on the PC; "system" follows the phone's dark or light mode */
     val theme: String = "system",
     val introSeen: Boolean = true,
+    /** questions asked while the PC could not be reached, of this PC, oldest first (QuestionQueue) */
+    val queue: List<QueuedQuestion> = emptyList(),
+    /** the waiting question that is being sent right now */
+    val queueSending: String? = null,
+    /** waiting questions the PC answered since the app was opened */
+    val answered: List<Answered> = emptyList(),
 ) {
     val level: String get() = hello?.level ?: "work"
     val answering: Boolean get() = answeringFor != null && (screen as? Screen.Chat)?.nonce == answeringFor
@@ -103,9 +117,14 @@ data class UiState(
     val workspace: Workspace? get() = workspaces?.firstOrNull { it.id == workspaceId } ?: workspaces?.firstOrNull()
 }
 
+private const val RETRY_MS = 30_000L
+
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val store = LinkStore(app)
     private val prefs = AppPrefs(app)
+    private val questions = QuestionQueue.of(app)
+    private var flushing: Job? = null
+    private var retry: Job? = null
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state
     private var api: StarkApi? = null
@@ -120,8 +139,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         store.current()?.let { link ->
             connect(link)
-            _state.update { it.copy(link = link, links = store.all(), screen = Screen.Home) }
+            _state.update { it.copy(link = link, links = store.all(), screen = Screen.Home, queue = questions.forPc(link.id)) }
             refreshAll()
+            if (_state.value.queue.isNotEmpty()) waitForPc()
         }
     }
 
@@ -202,11 +222,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         connect(link)
         _state.update {
             UiState(link = link, links = store.all(), screen = Screen.Home, appLock = it.appLock, reminders = it.reminders, theme = it.theme,
-                model = null, workspaceId = 0, useKnowledgeBase = it.useKnowledgeBase)
+                model = null, workspaceId = 0, useKnowledgeBase = it.useKnowledgeBase, queue = questions.forPc(link.id))
         }
+        flushing?.cancel()
+        retry?.cancel()
         prefs.model = null
         prefs.workspaceId = 0
         refreshAll()
+        if (_state.value.queue.isNotEmpty()) waitForPc()
     }
 
     fun addPc() = _state.update { it.copy(screen = Screen.Pair, scanned = null, notice = null) }
@@ -225,6 +248,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun removePc(id: String) {
         answer?.cancel()
         store.remove(id)
+        questions.removePc(id)
         val next = store.current()
         if (next != null) {
             store.select(next.id)
@@ -246,6 +270,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         val list = a.workspaces()
         _state.update { it.copy(workspaces = list) }
+        sendWaiting()
         viewModelScope.launch { runCatching { loadDashboard(a) } }
         viewModelScope.launch { runCatching { _state.update { it.copy(models = a.models()) } } }
         loadRecent(a, list)
@@ -372,13 +397,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 lines = it.lines + ChatLine("user", question) + ChatLine("assistant", "", streaming = true))
         }
         AnswerService.start(getApplication())
+        // the PC answered at all: a failure after this is a cut-off answer, not a question to keep for later
+        var reached = false
+        val request = ChatRequest(screen.workspace.id, screen.chatId, question, language = Locale.getDefault().language,
+            model = s0.model?.takeIf { it in s0.models }, useKnowledgeBase = s0.useKnowledgeBase)
         answer = viewModelScope.launch {
             try {
-                val request = ChatRequest(screen.workspace.id, screen.chatId, question, language = Locale.getDefault().language,
-                    model = s0.model?.takeIf { it in s0.models }, useKnowledgeBase = s0.useKnowledgeBase)
                 val chatId = a.ask(request, onChat = { id ->
+                    reached = true
                     here { s -> s.copy(screen = (s.screen as Screen.Chat).let { sc -> if (sc.chatId == null) sc.copy(chatId = id) else sc }) }
                 }) { sofar ->
+                    reached = true
                     here { s -> s.copy(lines = s.lines.dropLast(1) + ChatLine("assistant", sofar, streaming = true)) }
                 }
                 // the source line and the quotation check are saved with the answer once it is complete
@@ -391,10 +420,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 here { s -> s.copy(lines = s.lines.map { l -> l.copy(streaming = false) }) }
                 throw e
             } catch (e: Exception) {
-                failed(e)
-                here { s ->
-                    val lines = if (s.lines.isEmpty()) s.lines else s.lines.dropLast(1) + s.lines.last().copy(streaming = false, failed = true)
-                    s.copy(lines = lines)
+                if (!reached && keepsForLater(e) && keep(screen, request)) {
+                    // the question waits on the phone; the chat shows what it showed before it was asked
+                    here { s ->
+                        val lines = s.lines.dropLast(2)
+                        if (screen.chatId == null && lines.isEmpty()) s.copy(lines = lines, screen = screen.from) else s.copy(lines = lines)
+                    }
+                    _state.update { it.copy(hello = null, info = Info(R.string.queue_saved)) }
+                    waitForPc()
+                } else {
+                    failed(e)
+                    here { s ->
+                        val lines = if (s.lines.isEmpty()) s.lines else s.lines.dropLast(1) + s.lines.last().copy(streaming = false, failed = true)
+                        s.copy(lines = lines)
+                    }
                 }
             } finally {
                 _state.update { it.copy(answeringFor = null) }
@@ -406,6 +445,103 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun stop() {
         answer?.cancel()
+    }
+
+    // ---- questions that wait for the PC
+
+    /** the PC could not be reached at all (not: it refused, or another device answered at its address) */
+    private fun keepsForLater(e: Exception): Boolean =
+        (e as? ApiException)?.problem in setOf(Problem.UNREACHABLE, Problem.UNREACHABLE_AWAY, Problem.PC_OFFLINE)
+
+    /** false: there is no PC, or the queue is full (the question is then shown as cut off, as before) */
+    private fun keep(screen: Screen.Chat, request: ChatRequest): Boolean {
+        val link = _state.value.link ?: return false
+        val q = QueuedQuestion(
+            id = UUID.randomUUID().toString(), pcId = link.id, workspaceId = request.workspaceId, workspaceName = screen.workspace.name,
+            chatId = request.chatId, text = request.message, model = request.model, useKnowledgeBase = request.useKnowledgeBase,
+            language = request.language, askedAt = System.currentTimeMillis(),
+        )
+        if (!questions.add(q)) return false
+        _state.update { it.copy(queue = questions.forPc(link.id)) }
+        return true
+    }
+
+    fun cancelQueued(id: String) {
+        if (_state.value.queueSending == id) return      // on its way already: the answer comes as usual
+        questions.remove(id)
+        _state.update { s -> s.copy(queue = s.link?.let { questions.forPc(it.id) }.orEmpty()) }
+    }
+
+    fun openAnswered(a: Answered) {
+        _state.update { s -> s.copy(answered = s.answered.filter { it.id != a.id }) }
+        openChat(a.workspace, ChatSummary(a.chatId, a.question))
+    }
+
+    fun dismissAnswered(id: String) = _state.update { s -> s.copy(answered = s.answered.filter { it.id != id }) }
+
+    /**
+     * While questions wait and the app is open: asks the PC every half minute whether it can be reached again (only the
+     * small hello, to the paired PC); then everything is read again and the questions are sent.
+     */
+    private fun waitForPc() {
+        if (retry?.isActive == true) return
+        retry = viewModelScope.launch {
+            while (isActive && _state.value.queue.any { !it.failed }) {
+                delay(RETRY_MS)
+                if (_state.value.hello != null) {
+                    sendWaiting()
+                    continue
+                }
+                val a = api ?: break
+                val hello = runCatching { a.hello() }.getOrNull() ?: continue
+                _state.update { it.copy(hello = hello, notice = null) }
+                refreshAll()
+            }
+        }
+    }
+
+    /** Sends the waiting questions of this PC, one after the other; stops when the PC cannot be reached again */
+    private fun sendWaiting() {
+        val link = _state.value.link ?: return
+        if (flushing?.isActive == true) return
+        if (questions.forPc(link.id).none { !it.failed }) return
+        flushing = viewModelScope.launch {
+            for (q in questions.forPc(link.id).filter { !it.failed }) {
+                val a = api ?: break
+                if (_state.value.link?.id != q.pcId) break
+                // one answer at a time: the PC's model is busy while another answer is coming in
+                while (_state.value.answeringFor != null) delay(1_000)
+                // cancelled meanwhile (the list above is the one from the start)
+                if (questions.all().none { it.id == q.id }) continue
+                _state.update { it.copy(queueSending = q.id) }
+                try {
+                    val request = ChatRequest(q.workspaceId, q.chatId, q.text, language = q.language, model = q.model,
+                        useKnowledgeBase = q.useKnowledgeBase)
+                    val chatId = a.ask(request) { }
+                    questions.remove(q.id)
+                    val ws = _state.value.workspaces?.firstOrNull { it.id == q.workspaceId } ?: Workspace(q.workspaceId, q.workspaceName)
+                    _state.update { s ->
+                        s.copy(queue = questions.forPc(link.id), answered = s.answered + Answered(q.id, ws, chatId, q.text))
+                    }
+                    // the chat that is open on the screen shows the answer at once
+                    val open = _state.value.screen as? Screen.Chat
+                    if (open != null && open.chatId == chatId && _state.value.answeringFor == null) runCatching { loadChat(a, chatId) }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    if (keepsForLater(e)) {
+                        _state.update { it.copy(hello = null) }
+                        waitForPc()
+                        break
+                    }
+                    questions.markFailed(q.id)
+                    _state.update { it.copy(queue = questions.forPc(link.id)) }
+                } finally {
+                    _state.update { it.copy(queueSending = null) }
+                }
+            }
+            runCatching { _state.value.workspaces?.let { loadRecent(a = api ?: return@runCatching, workspaces = it) } }
+        }
     }
 
     // ---- sending documents and photos

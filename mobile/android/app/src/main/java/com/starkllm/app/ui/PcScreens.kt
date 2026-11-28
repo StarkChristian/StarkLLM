@@ -1,11 +1,15 @@
 package com.starkllm.app.ui
 
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
 import android.Manifest
@@ -63,7 +67,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -111,21 +114,22 @@ internal fun DeadlinesScreen(state: UiState, vm: AppViewModel, openDrawer: () ->
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DeadlineCard(d: Deadline, canChange: Boolean, onToggle: () -> Unit) {
+    val context = LocalContext.current
     val date = remember(d.date) { runCatching { LocalDate.parse(d.date).format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)) }.getOrDefault(d.date) }
+    val color = stateColor(d)
     Surface(shape = CardShape, color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
-            Box(Modifier.padding(top = 6.dp).size(8.dp).clip(CircleShape).background(stateColor(d)))
-            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 6.dp), verticalAlignment = Alignment.Top) {
+            Box(Modifier.padding(top = 6.dp).size(8.dp).clip(CircleShape).background(color))
+            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                // the date and how urgent it is; wraps under each other at large text instead of being cut
+                FlowRow(verticalArrangement = Arrangement.Center) {
                     Text(date, style = MaterialTheme.typography.titleSmall)
-                    val rel = when (d.state) {
-                        "overdue" -> stringResource(R.string.deadline_overdue)
-                        "today" -> stringResource(R.string.deadline_today)
-                        else -> if (d.done) "" else pluralStringResource(R.plurals.deadline_in_days, d.days, d.days)
-                    }
-                    if (rel.isNotEmpty()) Text(" · $rel", style = MaterialTheme.typography.bodySmall, color = stateColor(d))
+                    val rel = relativeText(d)
+                    if (rel.isNotEmpty()) Text(" · $rel", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold), color = color,
+                        modifier = Modifier.align(Alignment.CenterVertically))
                 }
                 val what = listOfNotNull(d.sender ?: d.title, d.amount).joinToString(" · ")
                 if (what.isNotEmpty()) Text(what, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
@@ -138,10 +142,21 @@ private fun DeadlineCard(d: Deadline, canChange: Boolean, onToggle: () -> Unit) 
                             overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp))
                     }
                 }
-            }
-            if (canChange) {
-                TextButton(onClick = onToggle, contentPadding = PaddingValues(horizontal = 8.dp)) {
-                    Text(stringResource(if (d.done) R.string.reopen else R.string.mark_done), style = MaterialTheme.typography.labelMedium)
+                // the actions under the text: beside it they took the text's width at large font sizes
+                FlowRow(Modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (!d.done) {
+                        TextButton(onClick = { CalendarInsert.open(context, d) }, contentPadding = PaddingValues(horizontal = 8.dp),
+                            modifier = Modifier.testTag("add-to-calendar")) {
+                            Icon(StarkIcons.Event, null, Modifier.size(16.dp))
+                            Text(stringResource(R.string.add_to_calendar), Modifier.padding(start = 6.dp), style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                    if (canChange) {
+                        TextButton(onClick = onToggle, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                            Icon(if (d.done) Icons.Filled.Refresh else Icons.Filled.Check, null, Modifier.size(16.dp))
+                            Text(stringResource(if (d.done) R.string.reopen else R.string.mark_done), Modifier.padding(start = 6.dp), style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
                 }
             }
         }
@@ -349,13 +364,15 @@ internal fun SettingsScreen(state: UiState, vm: AppViewModel, activity: Fragment
 @Composable
 private fun SettingSwitch(icon: ImageVector, title: String, hint: String, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
     Surface(shape = CardShape, color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        // the whole row is the switch: TalkBack reads its title, hint and state, and a tap anywhere on it switches
+        Row(Modifier.toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
+            .padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Text(title, style = MaterialTheme.typography.bodyLarge)
                 Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
+            Switch(checked = checked, onCheckedChange = null, enabled = enabled)
         }
     }
 }
@@ -389,7 +406,9 @@ private fun ThemePicker(selected: String, onSelect: (String) -> Unit) {
 @Composable
 private fun ThemeTile(t: AppTheme, name: String, selected: Boolean, split: Boolean = false, width: androidx.compose.ui.unit.Dp = 90.dp, onClick: () -> Unit) {
     val border = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-    Column(Modifier.width(width).clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
+    // TalkBack reads the name and "selected"; the tiles are one group of choices (radio buttons)
+    Column(Modifier.width(width).clip(RoundedCornerShape(14.dp)).selectable(selected = selected, onClick = onClick, role = Role.RadioButton),
+        horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             Modifier.fillMaxWidth().height(62.dp).clip(RoundedCornerShape(14.dp))
                 .border(if (selected) 2.dp else 1.dp, border, RoundedCornerShape(14.dp)),

@@ -69,6 +69,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
@@ -98,7 +100,8 @@ fun StarkApp(vm: AppViewModel, activity: FragmentActivity, shared: Shared?, onSh
         return
     }
     val takePhoto = rememberPhotoCamera(vm)
-    CompositionLocalProvider(LocalTakePhoto provides takePhoto) {
+    val posture = rememberPosture(activity)
+    CompositionLocalProvider(LocalTakePhoto provides takePhoto, LocalPosture provides posture) {
         Box(Modifier.fillMaxSize()) {
             // the theme's background (and pattern) behind every screen, as on the PC
             ThemeBackground(LocalStarkTheme.current)
@@ -336,7 +339,8 @@ internal fun SectionLabel(text: String, start: Dp = 20.dp) {
         text.uppercase(),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = start, end = 20.dp, top = 12.dp, bottom = 8.dp),
+        // a heading for TalkBack: swiping by headings jumps from section to section
+        modifier = Modifier.padding(start = start, end = 20.dp, top = 12.dp, bottom = 8.dp).semantics { heading() },
     )
 }
 

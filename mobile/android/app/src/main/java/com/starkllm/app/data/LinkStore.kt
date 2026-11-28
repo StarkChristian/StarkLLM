@@ -1,16 +1,8 @@
 package com.starkllm.app.data
 
 import android.content.Context
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyProperties
-import android.util.Base64
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
-import java.security.KeyStore
-import javax.crypto.Cipher
-import javax.crypto.KeyGenerator
-import javax.crypto.SecretKey
-import javax.crypto.spec.GCMParameterSpec
 
 /** A paired PC. The token is the phone's key to it. The id is the PC's certificate fingerprint. */
 data class Link(
@@ -41,12 +33,13 @@ private data class StoredLink(
 
 /**
  * Keeps the paired PCs on this phone (home, office, ...). Every device token is encrypted with an AES key that lives in
- * the Android Keystore and cannot be taken out of it; the app has no backup (AndroidManifest.xml), so a token never
- * leaves the phone.
+ * the Android Keystore and cannot be taken out of it (KeystoreBox); the app has no backup (AndroidManifest.xml), so a
+ * token never leaves the phone.
  */
 class LinkStore(context: Context) {
     private val prefs = context.getSharedPreferences("link", Context.MODE_PRIVATE)
     private val listSerializer = ListSerializer(StoredLink.serializer())
+    private val box: Box = KeystoreBox(KEY_ALIAS)
 
     init {
         migrateSingleLink()
@@ -87,7 +80,7 @@ class LinkStore(context: Context) {
         val rest = stored().filter { it.fingerprint != id }
         write(rest)
         if (prefs.getString("current", null) == id) prefs.edit().remove("current").commit()
-        if (rest.isEmpty()) runCatching { keyStore().deleteEntry(KEY_ALIAS) }
+        if (rest.isEmpty()) box.destroy()
     }
 
     private fun stored(): List<StoredLink> =
@@ -113,35 +106,11 @@ class LinkStore(context: Context) {
         prefs.edit().remove("token").remove("iv").remove("fingerprint").remove("pcName").remove("addresses").remove("port").remove("deviceId").commit()
     }
 
-    private fun keyStore() = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+    private fun encrypt(plain: String): Pair<String, String> = box.seal(plain)
 
-    private fun key(): SecretKey {
-        (keyStore().getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
-        val gen = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
-        gen.init(
-            KeyGenParameterSpec.Builder(KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setKeySize(256)
-                .build()
-        )
-        return gen.generateKey()
-    }
-
-    private fun encrypt(plain: String): Pair<String, String> {
-        val cipher = Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.ENCRYPT_MODE, key()) }
-        val out = cipher.doFinal(plain.toByteArray(Charsets.UTF_8))
-        return Base64.encodeToString(out, Base64.NO_WRAP) to Base64.encodeToString(cipher.iv, Base64.NO_WRAP)
-    }
-
-    private fun decrypt(cipherText: String, iv: String): String {
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, Base64.decode(iv, Base64.NO_WRAP)))
-        return String(cipher.doFinal(Base64.decode(cipherText, Base64.NO_WRAP)), Charsets.UTF_8)
-    }
+    private fun decrypt(cipherText: String, iv: String): String = box.open(cipherText, iv)
 
     private companion object {
         const val KEY_ALIAS = "starkllm_link"
-        const val TRANSFORMATION = "AES/GCM/NoPadding"
     }
 }

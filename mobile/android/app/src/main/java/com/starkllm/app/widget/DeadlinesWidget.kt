@@ -28,8 +28,11 @@ class DeadlinesWidget : AppWidgetProvider() {
 
         fun update(context: Context) {
             val manager = AppWidgetManager.getInstance(context)
-            val ids = manager.getAppWidgetIds(ComponentName(context, DeadlinesWidget::class.java))
-            if (ids.isNotEmpty()) render(context, manager, ids)
+            // the home screen's widget and the one on the Galaxy Z Flip's cover screen (CoverDeadlinesWidget)
+            for (kind in listOf(DeadlinesWidget::class.java, CoverDeadlinesWidget::class.java)) {
+                val ids = manager.getAppWidgetIds(ComponentName(context, kind))
+                if (ids.isNotEmpty()) render(context, manager, ids)
+            }
         }
 
         fun line(context: Context, d: Deadline): String {
@@ -39,7 +42,7 @@ class DeadlinesWidget : AppWidgetProvider() {
             return "$mark$date  $what"
         }
 
-        private fun render(context: Context, manager: AppWidgetManager, ids: IntArray) {
+        internal fun render(context: Context, manager: AppWidgetManager, ids: IntArray) {
             val prefs = AppPrefs(context)
             val all = prefs.cachedDeadlines
             val lines = if (prefs.appLock) {

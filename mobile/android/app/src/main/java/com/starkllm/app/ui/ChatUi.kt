@@ -6,6 +6,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.infiniteRepeatable
@@ -54,6 +55,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
@@ -96,6 +98,14 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -110,8 +120,13 @@ import com.starkllm.app.data.ChatLine
 import com.starkllm.app.data.ChatSummary
 import com.starkllm.app.data.Deadline
 import com.starkllm.app.data.Workspace
+import com.starkllm.app.data.Urgency
+import com.starkllm.app.data.documentSummary
 import com.starkllm.app.data.openDeadlines
-import com.starkllm.app.widget.DeadlinesWidget
+import com.starkllm.app.data.urgencyOf
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.util.Calendar
 
 // ---- home
@@ -137,6 +152,8 @@ internal fun HomeScreen(state: UiState, vm: AppViewModel, activity: FragmentActi
             else -> R.string.greeting_evening
         }
     )
+    val compact = isCompactHeight()
+    val tabletop = LocalPosture.current.tabletop
     StarkScaffold(topBar = {
         Bar(state.link?.pcName ?: stringResource(R.string.app_name),
             subtitle = state.hello?.let { stringResource(if (it.viaRelay) R.string.connected_away else R.string.connected) },
@@ -144,49 +161,157 @@ internal fun HomeScreen(state: UiState, vm: AppViewModel, activity: FragmentActi
             IconButton(onClick = vm::refreshAll) { Icon(Icons.Filled.Refresh, stringResource(R.string.refresh)) }
         }
     }) { pad ->
-        Column(Modifier.padding(pad).consumeWindowInsets(pad).fillMaxSize().imePadding()) {
-            NoticeCard(state, vm)
-            // pull down to read everything from the PC again
-            PullToRefreshBox(isRefreshing = state.busy, onRefresh = vm::refreshAll, modifier = Modifier.weight(1f)) {
-            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
-                Spacer(Modifier.height(12.dp))
-                Text(greeting, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(horizontal = 4.dp))
-                Text(stringResource(R.string.home_subtitle), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp))
-                Spacer(Modifier.height(12.dp))
-                DeadlinesCard(state, vm)
-                Spacer(Modifier.height(10.dp))
-                RecentDocumentsCard(state)
-                Spacer(Modifier.height(14.dp))
-                listOf(R.string.suggestion_1, R.string.suggestion_2, R.string.suggestion_3).forEach { res ->
-                    val text = stringResource(res)
-                    Surface(
-                        onClick = { vm.askNew(text) },
-                        enabled = state.workspace != null,
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainer,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
-                    ) { Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp)) }
+        FoldAware(
+            Modifier.padding(pad).consumeWindowInsets(pad).fillMaxSize().imePadding(),
+            upper = {
+                NoticeCard(state, vm)
+                // pull down to read everything from the PC again
+                PullToRefreshBox(isRefreshing = state.busy, onRefresh = vm::refreshAll, modifier = Modifier.weight(1f)) {
+                    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
+                        Spacer(Modifier.height(if (compact) 4.dp else 12.dp))
+                        Text(greeting, style = if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall,
+                            modifier = Modifier.padding(horizontal = 4.dp).semantics { heading() })
+                        if (!compact) {
+                            Text(stringResource(R.string.home_subtitle), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp))
+                        }
+                        Spacer(Modifier.height(if (compact) 8.dp else 12.dp))
+                        // in tabletop posture the camera button is in the lower half, at the hands
+                        if (!tabletop) {
+                            PhotoLetterButton(state)
+                            Spacer(Modifier.height(10.dp))
+                        }
+                        QueueCard(state, vm)
+                        DeadlinesCard(state, vm)
+                        Spacer(Modifier.height(10.dp))
+                        RecentDocumentsCard(state)
+                        if (!tabletop) {
+                            Spacer(Modifier.height(14.dp))
+                            Suggestions(state, vm)
+                        }
+                        Spacer(Modifier.height(12.dp))
+                    }
                 }
-                Spacer(Modifier.height(12.dp))
+            },
+            lower = {
+                if (tabletop) {
+                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
+                        PhotoLetterButton(state)
+                        Spacer(Modifier.height(8.dp))
+                        Suggestions(state, vm)
+                    }
+                }
+                WorkspaceChip(state, vm)
+                InputBar(
+                    state = state, vm = vm, activity = activity,
+                    value = input, onChange = { input = it },
+                    target = state.workspace,
+                    // the text stays in the field when the question was not sent (another answer is still coming in)
+                    onSend = { if (vm.askNew(input)) input = "" },
+                    focus = focus,
+                )
+            },
+        )
+    }
+}
+
+@Composable
+private fun Suggestions(state: UiState, vm: AppViewModel) {
+    listOf(R.string.suggestion_1, R.string.suggestion_2, R.string.suggestion_3).forEach { res ->
+        val text = stringResource(res)
+        Surface(
+            onClick = { vm.askNew(text) },
+            enabled = state.workspace != null,
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        ) { Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp)) }
+    }
+}
+
+/** "Photograph a letter": the camera app takes the photo (no camera code in StarkLLM for it), the PC reads it */
+@Composable
+private fun PhotoLetterButton(state: UiState) {
+    val takePhoto = LocalTakePhoto.current
+    val target = state.workspace
+    val enabled = state.canSend && target != null
+    Surface(
+        onClick = { if (target != null) takePhoto(target) },
+        enabled = enabled,
+        shape = CardShape,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).testTag("photo-letter"),
+    ) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
+                Icon(StarkIcons.Camera, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onPrimary)
             }
+            Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                Text(stringResource(R.string.home_photo), style = MaterialTheme.typography.titleMedium)
+                val hint = when {
+                    !state.canSend -> problemText(com.starkllm.app.data.Problem.NOT_ALLOWED)
+                    target != null -> stringResource(R.string.home_photo_hint, target.name)
+                    else -> null
+                }
+                if (hint != null) Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f))
             }
-            WorkspaceChip(state, vm)
-            InputBar(
-                state = state, vm = vm, activity = activity,
-                value = input, onChange = { input = it },
-                target = state.workspace,
-                // the text stays in the field when the question was not sent (another answer is still coming in)
-                onSend = { if (vm.askNew(input)) input = "" },
-                focus = focus,
-            )
+        }
+    }
+}
+
+/** Questions that wait for the PC, and the ones it answered meanwhile */
+@Composable
+private fun QueueCard(state: UiState, vm: AppViewModel) {
+    if (state.queue.isEmpty() && state.answered.isEmpty()) return
+    Surface(shape = CardShape, color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp).testTag("queue")) {
+        Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(StarkIcons.Schedule, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                Text(stringResource(R.string.queue_title), style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.weight(1f).padding(start = 8.dp).semantics { heading() })
+            }
+            state.answered.forEach { a ->
+                Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Surface(onClick = { vm.openAnswered(a) }, color = Color.Transparent, shape = RoundedCornerShape(8.dp), modifier = Modifier.weight(1f)) {
+                        Column(Modifier.padding(vertical = 4.dp)) {
+                            Text(a.question, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text("${stringResource(R.string.queue_answered)} · ${stringResource(R.string.queue_open)}", style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                    IconButton(onClick = { vm.dismissAnswered(a.id) }) { Icon(Icons.Filled.Close, stringResource(R.string.close), Modifier.size(18.dp)) }
+                }
+            }
+            state.queue.forEach { q ->
+                Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(q.text, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        val status = when {
+                            state.queueSending == q.id -> stringResource(R.string.queue_sending)
+                            q.failed -> stringResource(R.string.queue_failed)
+                            else -> stringResource(R.string.queue_waiting)
+                        }
+                        Text(listOf(q.workspaceName, status).filter { it.isNotBlank() }.joinToString(" · "), style = MaterialTheme.typography.labelMedium,
+                            color = if (q.failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (state.queueSending == q.id) {
+                        CircularProgressIndicator(Modifier.padding(12.dp).size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        IconButton(onClick = { vm.cancelQueued(q.id) }) { Icon(Icons.Filled.Close, stringResource(R.string.queue_cancel), Modifier.size(18.dp)) }
+                    }
+                }
+            }
+            if (state.queue.isNotEmpty()) {
+                Text(stringResource(R.string.queue_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp))
+            }
         }
     }
 }
 
 @Composable
 private fun DeadlinesCard(state: UiState, vm: AppViewModel) {
-    val context = LocalContext.current
     val open = openDeadlines(state.deadlines.orEmpty()).take(3)
     Surface(onClick = { vm.go(Screen.Deadlines) }, shape = CardShape, color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp)) {
@@ -199,24 +324,58 @@ private fun DeadlinesCard(state: UiState, vm: AppViewModel) {
                 Text(stringResource(if (state.deadlines == null) R.string.loading else R.string.no_deadlines), style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
             }
-            open.forEach { d ->
-                Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(7.dp).clip(CircleShape).background(stateColor(d)))
-                    Text(DeadlinesWidget.line(context, d).removePrefix("● "), style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 8.dp))
+            open.forEach { d -> DeadlineRow(d) }
+        }
+    }
+}
+
+/**
+ * One deadline on the home card, always on two lines: the date and how urgent (in its colour), then sender · amount.
+ * The amount is never cut: a long sender gives way (ends with "…") before it.
+ */
+@Composable
+private fun DeadlineRow(d: Deadline) {
+    val color = stateColor(d)
+    val date = remember(d.date) { runCatching { LocalDate.parse(d.date).format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)) }.getOrDefault(d.date) }
+    val rel = relativeText(d)
+    val who = d.sender ?: d.title ?: d.filename
+    Row(Modifier.padding(top = 8.dp).testTag("deadline-row"), verticalAlignment = Alignment.Top) {
+        Box(Modifier.padding(top = 7.dp).size(8.dp).clip(CircleShape).background(color))
+        Column(Modifier.padding(start = 8.dp)) {
+            Text(if (rel.isEmpty()) date else "$date · $rel", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = color, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("deadline-when"))
+            if (who != null || d.amount != null) {
+                Row {
+                    if (who != null) Text(who, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false).testTag("deadline-who"))
+                    if (d.amount != null) Text(if (who != null) " · ${d.amount}" else d.amount, style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1, softWrap = false, modifier = Modifier.testTag("deadline-amount"))
                 }
             }
         }
     }
 }
 
+/** "Overdue", "Due today", "in 3 days": the PC's own count (Deadline.days), never one made on the phone */
 @Composable
-internal fun stateColor(d: Deadline): Color = when (d.state) {
-    "overdue" -> MaterialTheme.colorScheme.error
-    "today" -> Amber
-    "soon" -> MaterialTheme.colorScheme.primary
-    else -> MaterialTheme.colorScheme.outline
+internal fun relativeText(d: Deadline): String = when {
+    d.done -> ""
+    d.state == "overdue" -> stringResource(R.string.deadline_overdue)
+    d.state == "today" -> stringResource(R.string.deadline_today)
+    else -> pluralStringResource(R.plurals.deadline_in_days, d.days, d.days)
 }
+
+/** Overdue red, this week amber, later neutral: from the PC's state of the deadline (data/Letters.kt, urgencyOf) */
+@Composable
+internal fun stateColor(d: Deadline): Color = when (urgencyOf(d)) {
+    Urgency.OVERDUE -> MaterialTheme.colorScheme.error
+    Urgency.THIS_WEEK -> warningColor()
+    Urgency.LATER, Urgency.DONE -> MaterialTheme.colorScheme.onSurfaceVariant
+}
+
+/** Amber that is readable on the theme's cards: the PC's amber on light themes, a lighter one on dark themes */
+@Composable
+internal fun warningColor(): Color = if (MaterialTheme.colorScheme.surfaceContainer.luminance() < 0.5f) AmberOnDark else Amber
 
 @Composable
 private fun RecentDocumentsCard(state: UiState) {
@@ -234,12 +393,40 @@ private fun RecentDocumentsCard(state: UiState) {
                     }
                 }
             }
+            val deadlines = state.deadlines.orEmpty()
             recent.forEach { doc ->
-                Text(listOfNotNull(doc.filename, doc.workspace).joinToString(" · "), style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+                Text(documentSummary(doc, letterKindText(doc.letterKind), deadlines), style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp).testTag("document-row"))
             }
         }
     }
+}
+
+/** The kind of a letter in the app's language; null for a kind the app does not know */
+@Composable
+internal fun letterKindText(kind: String?): String? {
+    val res = when (kind) {
+        "debt_collection" -> R.string.kind_debt_collection
+        "reminder" -> R.string.kind_reminder
+        "fine" -> R.string.kind_fine
+        "tax_notice" -> R.string.kind_tax_notice
+        "payslip" -> R.string.kind_payslip
+        "termination" -> R.string.kind_termination
+        "statement" -> R.string.kind_statement
+        "invoice" -> R.string.kind_invoice
+        "job_offer" -> R.string.kind_job_offer
+        "contract" -> R.string.kind_contract
+        "invitation" -> R.string.kind_invitation
+        "medical" -> R.string.kind_medical
+        "price_change" -> R.string.kind_price_change
+        "payment_notice" -> R.string.kind_payment_notice
+        "notice" -> R.string.kind_notice
+        "insurance" -> R.string.kind_insurance
+        "prize" -> R.string.kind_prize
+        "message" -> R.string.kind_message
+        else -> return null
+    }
+    return stringResource(res)
 }
 
 @Composable
@@ -357,27 +544,56 @@ internal fun ChatScreen(state: UiState, vm: AppViewModel, screen: Screen.Chat, a
         Bar(screen.title.ifBlank { stringResource(R.string.new_chat) }, subtitle = screen.workspace.name, onBack = { vm.back() })
     }) { pad ->
         // the bar insets are in pad already: without consumeWindowInsets the keyboard height counted twice
-        Column(Modifier.padding(pad).consumeWindowInsets(pad).fillMaxSize().imePadding()) {
-            NoticeCard(state, vm)
-            if (state.busy && state.lines.isEmpty()) LinearProgressIndicator(Modifier.fillMaxWidth())
-            if (state.lines.isEmpty() && !state.busy) {
-                EmptyChat(Modifier.weight(1f)) { vm.ask(it) }
-            } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(18.dp),
-                ) {
-                    itemsIndexed(state.lines) { _, line -> if (line.role == "user") Question(line) else Answer(line) }
+        // half folded (flex mode): the answers above the fold, the question field below it
+        FoldAware(
+            Modifier.padding(pad).consumeWindowInsets(pad).fillMaxSize().imePadding(),
+            upper = {
+                NoticeCard(state, vm)
+                if (state.busy && state.lines.isEmpty()) LinearProgressIndicator(Modifier.fillMaxWidth())
+                if (state.lines.isEmpty() && !state.busy) {
+                    EmptyChat(Modifier.weight(1f)) { vm.ask(it) }
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(18.dp),
+                    ) {
+                        itemsIndexed(state.lines) { _, line -> if (line.role == "user") Question(line) else Answer(line) }
+                    }
                 }
+            },
+            lower = {
+                // questions of this chat that wait for the PC
+                state.queue.filter { screen.chatId != null && it.chatId == screen.chatId && it.workspaceId == screen.workspace.id }.forEach { q ->
+                    WaitingQuestion(q.text, sending = state.queueSending == q.id, failed = q.failed) { vm.cancelQueued(q.id) }
+                }
+                InputBar(
+                    state = state, vm = vm, activity = activity,
+                    value = input, onChange = { input = it },
+                    target = screen.workspace,
+                    onSend = { if (vm.ask(input)) input = "" },
+                )
+            },
+        )
+    }
+}
+
+/** A question of this chat that waits for the PC: shown as asked, with its state and Cancel */
+@Composable
+private fun WaitingQuestion(text: String, sending: Boolean, failed: Boolean, onCancel: () -> Unit) {
+    Surface(shape = CardShape, color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).testTag("waiting-question")) {
+        Row(Modifier.padding(start = 14.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(StarkIcons.Schedule, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+            Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                Text(text, style = MaterialTheme.typography.bodyMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(stringResource(when { sending -> R.string.queue_sending; failed -> R.string.queue_failed; else -> R.string.queue_waiting }),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            InputBar(
-                state = state, vm = vm, activity = activity,
-                value = input, onChange = { input = it },
-                target = screen.workspace,
-                onSend = { if (vm.ask(input)) input = "" },
-            )
+            if (sending) CircularProgressIndicator(Modifier.padding(14.dp).size(18.dp), strokeWidth = 2.dp)
+            else IconButton(onClick = onCancel) { Icon(Icons.Filled.Close, stringResource(R.string.queue_cancel), Modifier.size(18.dp)) }
         }
     }
 }
@@ -390,7 +606,7 @@ private fun EmptyChat(modifier: Modifier, onAsk: (String) -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Lucy(Modifier.width(120.dp), description = stringResource(R.string.lucy))
+        if (!isCompactHeight()) Lucy(Modifier.width(120.dp), description = stringResource(R.string.lucy))
         Text(stringResource(R.string.empty_chat_hint), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 14.dp, bottom = 18.dp))
         examples.forEach { example ->
@@ -551,6 +767,8 @@ internal fun InputBar(
                     Box(
                         // 48 dp to touch (Android's minimum touch target); the circle drawn inside is 40 dp
                         Modifier.size(48.dp)
+                            // TalkBack: one button "Hold to talk" (double-tap and hold), not an unlabelled area
+                            .semantics(mergeDescendants = true) { role = Role.Button }
                             .pointerInput(Unit) {
                                 detectTapGestures(onPress = {
                                     if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -659,13 +877,14 @@ private fun AttachSheet(state: UiState, vm: AppViewModel, target: Workspace?, on
             )
             SheetRow(StarkIcons.Chip, stringResource(R.string.model), state.model ?: stringResource(R.string.model_default)) { models = true }
             Surface(shape = CardShape, color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.toggleable(value = state.useKnowledgeBase, role = Role.Switch, onValueChange = vm::setKnowledgeBase)
+                    .padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(StarkIcons.Book, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
                     Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                         Text(stringResource(R.string.use_kb), style = MaterialTheme.typography.bodyLarge)
                         Text(stringResource(R.string.use_kb_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Switch(checked = state.useKnowledgeBase, onCheckedChange = vm::setKnowledgeBase)
+                    Switch(checked = state.useKnowledgeBase, onCheckedChange = null)
                 }
             }
         }

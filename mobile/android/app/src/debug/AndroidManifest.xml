@@ -11,5 +11,7 @@
                 <data android:scheme="starkllm" android:host="pair" />
             </intent-filter>
         </activity>
+        <!-- the screens' tests (src/test) show one screen at a time in this empty activity; not reachable from outside -->
+        <activity android:name=".ScreensTestActivity" android:exported="false" android:theme="@style/Theme.StarkLLM" />
     </application>
 </manifest>

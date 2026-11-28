@@ -210,3 +210,26 @@ def test_dates_of_all_documents_not_only_the_newest_sixty(tmp_path):
         db.close()
         rag_service.chroma_client.delete_collection(f"user_{user_id}_workspace_{ws_id}")
     assert len(items) == 80 and len({d["filename"] for d in dates}) == 80
+
+
+def test_home_names_the_amount_of_each_letter_for_the_phone(tmp_path):
+    soon = (date.today() + timedelta(days=12)).strftime("%d.%m.%Y")
+    letters = [
+        # the amount that is due, not the first one in the letter
+        ("Steuer.pdf", "Finanzamt Rheinstadt\nBescheid über Einkommensteuer 2025\nFestgesetzte Einkommensteuer: 6.842,00 EUR\n"
+                       f"Verbleibende Nachzahlung: 412,00 EUR\nDie Nachzahlung von 412,00 EUR ist fällig am {soon}."),
+        # a bill without a date: its first amount
+        ("Wasser.pdf", "Sampleton Water Ltd\nInvoice\nInvoice number: 55-1234\nTotal: 63.40 GBP"),
+        ("Gewinn.pdf", f"Sie haben 25.000,00 EUR gewonnen. Zahlen Sie die Bearbeitungsgebühr von 450,00 EUR "
+                       f"bis zum {soon} mit Paysafecard-Gutscheinen."),
+    ]
+    (user_id, ws_id), name = _user_with_documents(tmp_path, letters)
+    try:
+        body = client.get("/api/v1/dashboard/home", headers={"Authorization": f"Bearer {create_access_token({'sub': name})}"}).json()
+    finally:
+        rag_service.chroma_client.delete_collection(f"user_{user_id}_workspace_{ws_id}")
+    by_name = {d["filename"]: d for d in body["recent"]}
+    assert by_name["Steuer.pdf"]["letter_amount"] == "412,00 EUR"
+    assert by_name["Wasser.pdf"]["letter_amount"] == "63.40 GBP"
+    # a scam keeps its asked amount and gets no amount to pay on the phone's list
+    assert "letter_amount" not in by_name["Gewinn.pdf"] and by_name["Gewinn.pdf"]["asked_amount"]
