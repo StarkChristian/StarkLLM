@@ -1,16 +1,22 @@
-import { UI_LOCALE } from './locale';
-
 /**
  * Chat Export Utility
  * Handles exporting chat history to Markdown, JSON, HTML, or Plain Text.
+ * Every format is marked as AI-generated (EU AI Act, Article 50): for machines (Markdown front matter, JSON fields,
+ * HTML meta tags) and for people (a short note in the user's language).
+ * No import of the i18n module here: the page passes the locale and the note, so node can test this file.
  */
 
-export function exportChat(messages, chats, activeChatId, format = 'md') {
-  if (!messages || messages.length === 0) return;
+export const AI_NOTE = 'Created with AI assistance (StarkLLM)';
+export const GENERATOR = 'StarkLLM';
 
-  const activeChat = chats.find(c => c.id === activeChatId);
-  const chatTitle = activeChat?.title || 'StarkLLM Chat';
-  const exportDate = new Date().toLocaleString(UI_LOCALE);
+const escHtml = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/** -> { content, ext, mimeType } of a chat export. options: { locale, aiNote, now } */
+export function buildChatExport(messages, chatTitle, format = 'md', options = {}) {
+  const locale = options.locale || undefined;
+  const aiNote = options.aiNote || AI_NOTE;
+  const exportDate = (options.now || new Date()).toLocaleString(locale);
+  const UI_LOCALE = locale;
 
   let content = '';
   let ext = format;
@@ -22,6 +28,9 @@ export function exportChat(messages, chats, activeChatId, format = 'md') {
     content = JSON.stringify({
       title: chatTitle,
       exported_at: exportDate,
+      ai_generated: true,
+      generator: GENERATOR,
+      ai_note: aiNote,
       messages: messages.filter(m => m.role !== 'system')
     }, null, 2);
   } else if (format === 'html') {
@@ -53,7 +62,10 @@ export function exportChat(messages, chats, activeChatId, format = 'md') {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>${chatTitle} - StarkLLM Export</title>
+  <meta name="generator" content="${GENERATOR} (AI-generated content)">
+  <meta name="ai-generated" content="true">
+  <meta name="keywords" content="AI-generated">
+  <title>${escHtml(chatTitle)} - StarkLLM Export</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -110,6 +122,7 @@ export function exportChat(messages, chats, activeChatId, format = 'md') {
     }
     .timestamp { font-size: 0.75rem; color: #94a3b8; }
     .message-body { font-size: 1rem; word-break: break-word; }
+    .ai-note { font-size: 0.75rem; color: #94a3b8; text-align: center; margin-top: 24px; }
     @media print {
       body { background: #fff; color: #000; padding: 0; }
       .print-btn { display: none; }
@@ -123,20 +136,23 @@ export function exportChat(messages, chats, activeChatId, format = 'md') {
   <div class="container">
     <header>
       <div>
-        <h1>${chatTitle}</h1>
+        <h1>${escHtml(chatTitle)}</h1>
         <div class="meta">Exported from StarkLLM on ${exportDate}</div>
       </div>
       <button class="print-btn" onclick="window.print()">🖨️ Print / Save to PDF</button>
     </header>
     ${renderedMessages}
+    <footer class="ai-note">${escHtml(aiNote)}</footer>
   </div>
 </body>
 </html>`;
   } else if (format === 'md') {
     ext = 'md';
     mimeType = 'text/markdown';
+    // front matter for machines (a JSON string is a valid YAML string), the note for people
+    content += `---\ntitle: ${JSON.stringify(String(chatTitle))}\ngenerator: ${GENERATOR}\nai_generated: true\n---\n\n`;
     content += `# ${chatTitle}\n\n`;
-    content += `> Exported from StarkLLM on ${exportDate}\n\n---\n\n`;
+    content += `> Exported from StarkLLM on ${exportDate}\n>\n> ${aiNote}\n\n---\n\n`;
 
     messages.forEach(msg => {
       if (msg.role === 'system') return;
@@ -175,6 +191,8 @@ export function exportChat(messages, chats, activeChatId, format = 'md') {
     mimeType = 'text/plain';
     content += `${chatTitle}\n`;
     content += `Exported from StarkLLM on ${exportDate}\n`;
+    content += `${aiNote}\n`;
+    content += `ai_generated: true\n`;
     content += `${'='.repeat(50)}\n\n`;
 
     messages.forEach(msg => {
@@ -208,6 +226,17 @@ export function exportChat(messages, chats, activeChatId, format = 'md') {
       content += `${'-'.repeat(40)}\n\n`;
     });
   }
+
+  return { content, ext, mimeType };
+}
+
+/** options: { locale, aiNote } (the page passes them in the user's language) */
+export function exportChat(messages, chats, activeChatId, format = 'md', options = {}) {
+  if (!messages || messages.length === 0) return;
+
+  const activeChat = chats.find(c => c.id === activeChatId);
+  const chatTitle = activeChat?.title || 'StarkLLM Chat';
+  const { content, ext, mimeType } = buildChatExport(messages, chatTitle, format, options);
 
   const safeTitle = chatTitle.replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '_');
   const filename = `${safeTitle}_${new Date().toISOString().slice(0, 10)}.${ext}`;
