@@ -237,13 +237,14 @@ export default function ToolCallCard({
           </div>
           <textarea
             className={styles.argsTextarea}
+            aria-label={t('Arguments (Editable):')}
             value={editedArgs}
             onChange={(e) => handleArgsChange(e.target.value)}
             rows={Math.min(8, editedArgs.split('\n').length + 1)}
             disabled={!external && gatePending}
           />
-          {jsonError && <div className={styles.argsError}>{jsonError}</div>}
-          {execError && <div className={styles.argsError}>{execError}</div>}
+          {jsonError && <div className={styles.argsError} role="alert">{jsonError}</div>}
+          {execError && <div className={styles.argsError} role="alert">{execError}</div>}
 
           <div className={styles.btnRow}>
             <button className={styles.cancelBtn} onClick={handleCancel}>

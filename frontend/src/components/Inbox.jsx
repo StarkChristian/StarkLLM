@@ -9,6 +9,7 @@ import { accountLabel } from '../utils/accounts';
 import AmbiguousDate, { ChosenDate } from './AmbiguousDate';
 import { LucyHelper } from './Lucy';
 import styles from './Inbox.module.css';
+import { tabKeys } from '../utils/menuKeys';
 
 // The document inbox (docs/document-inbox-design.md, B4): what StarkLLM read in each new letter, to check and mark
 // done, and the letters grouped into cases by sender. Every fact links to the page it was read from. StarkLLM only
@@ -258,7 +259,7 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
         )}
       </header>
 
-      <div className={styles.tabs} role="tablist">
+      <div className={styles.tabs} role="tablist" aria-label={t('Inbox')} onKeyDown={tabKeys}>
         <button role="tab" aria-selected={tab === 'new'} className={tab === 'new' ? styles.tabActive : styles.tab} onClick={() => setTab('new')}>
           {t('New')} {newDocs.length > 0 && <span className={styles.count}>{newDocs.length}</span>}
         </button>

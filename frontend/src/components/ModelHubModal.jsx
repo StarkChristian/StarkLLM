@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useToast } from './Toast';
 import { t } from '../i18n';
+import DialogBox from './DialogBox';
 
 export default function ModelHubModal({ isOpen, onClose, token, currentModel, onModelSelect }) {
   const toast = useToast();
@@ -209,7 +210,7 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
 
   return (
     <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && !pullingModel && onClose()}>
-      <div className={styles.modal}>
+      <DialogBox className={styles.modal} onClose={onClose} closeOnEscape={false} labelledBy="dlg-models-title">
         {/* Header */}
         <div className={styles.header}>
           <div className={styles.titleGroup}>
@@ -217,7 +218,7 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
               <Cpu size={22} />
             </div>
             <div>
-              <h2 className={styles.title}>{t('StarkLLM Model Hub')}</h2>
+              <h2 id="dlg-models-title" className={styles.title}>{t('StarkLLM Model Hub')}</h2>
               <p className={styles.subtitle}>{t('Discover, download and manage offline local AI models')}</p>
             </div>
           </div>
@@ -455,7 +456,7 @@ export default function ModelHubModal({ isOpen, onClose, token, currentModel, on
             </div>
           )}
         </div>
-      </div>
+      </DialogBox>
     </div>
   );
 }

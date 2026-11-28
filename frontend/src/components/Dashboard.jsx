@@ -98,12 +98,17 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
         p.draw();
       });
       drawLines();
-      animationFrameId = requestAnimationFrame(animate);
+      // "reduce motion" in Windows: the network is drawn once and stands still (WCAG 2.3.3)
+      if (!still.matches) animationFrameId = requestAnimationFrame(animate);
     };
+    const still = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+    const onMotionChange = () => { cancelAnimationFrame(animationFrameId); animate(); };
+    still.addEventListener?.('change', onMotionChange);
     animate();
 
     return () => {
       window.removeEventListener('resize', resizeCanvas);
+      still.removeEventListener?.('change', onMotionChange);
       cancelAnimationFrame(animationFrameId);
     };
   }, []);
@@ -166,7 +171,7 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
 
   return (
     <div className={styles.page}>
-      <canvas ref={canvasRef} className={styles.neuralNetCanvas} />
+      <canvas ref={canvasRef} className={styles.neuralNetCanvas} aria-hidden="true" />
 
       {/* ── Hero: what this is for, and the two things people come here to do ── */}
       <div className={styles.hero}>

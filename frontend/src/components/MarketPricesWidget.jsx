@@ -234,7 +234,7 @@ export default function MarketPricesWidget({ token }) {
         <div className={styles.header}>
           <div className={styles.titleWrap}>
             <Layers className={styles.headerIcon} size={16} />
-            <h3 className={styles.title}>{t('Live Market Indicators')}</h3>
+            <h2 className={styles.title}>{t('Live Market Indicators')}</h2>
           </div>
         </div>
         <p style={{ margin: '0.8rem 0', fontSize: '0.85rem', opacity: 0.8, lineHeight: 1.5 }}>
@@ -251,7 +251,7 @@ export default function MarketPricesWidget({ token }) {
       <div className={styles.header}>
         <div className={styles.titleWrap}>
           <Layers className={styles.headerIcon} size={16} />
-          <h3 className={styles.title}>{t('Live Market Indicators')}</h3>
+          <h2 className={styles.title}>{t('Live Market Indicators')}</h2>
         </div>
         <div className={styles.headerActions}>
           <button

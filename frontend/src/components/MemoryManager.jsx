@@ -4,6 +4,7 @@ import styles from './MemoryManager.module.css';
 import { useToast } from './Toast';
 import { t } from '../i18n';
 import { useEscape } from '../utils/useEscape';
+import DialogBox from './DialogBox';
 
 export default function MemoryManager({ workspace, token, onClose }) {
   useEscape(onClose, true);
@@ -95,11 +96,11 @@ export default function MemoryManager({ workspace, token, onClose }) {
 
   return (
     <div className={styles.overlay}>
-      <div className={styles.modal}>
+      <DialogBox className={styles.modal} onClose={onClose} labelledBy="dlg-memory-title">
         <div className={styles.header}>
           <div className={styles.titleArea}>
             <BrainCircuit size={24} className={styles.icon} />
-            <h2>{t('Long-Term Memory')}</h2>
+            <h2 id="dlg-memory-title">{t('Long-Term Memory')}</h2>
           </div>
           <button className={styles.closeBtn} onClick={onClose}>
             <X size={20} />
@@ -155,7 +156,7 @@ export default function MemoryManager({ workspace, token, onClose }) {
             </button>
           </div>
         )}
-      </div>
+      </DialogBox>
     </div>
   );
 }

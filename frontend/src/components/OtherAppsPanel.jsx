@@ -100,7 +100,7 @@ export default function OtherAppsPanel({ token }) {
               <strong>{t('Allow other apps')}</strong>
               <span className={styles.muted}>{state.enabled ? t('On: programs with a key can connect.') : t('Off: no program can connect, even with a key.')}</span>
             </div>
-            <button type="button" role="switch" aria-checked={state.enabled}
+            <button type="button" role="switch" aria-checked={Boolean(state.enabled)} aria-label={t('Allow other apps')}
               className={`${styles.switch} ${state.enabled ? styles.switchOn : ''}`} onClick={toggle}>
               <span />
             </button>

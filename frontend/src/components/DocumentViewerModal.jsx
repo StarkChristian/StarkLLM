@@ -4,6 +4,7 @@ import { FileText, Download, Search, ChevronLeft, ChevronRight, ExternalLink } f
 import { t } from '../i18n';
 import { useEscape } from '../utils/useEscape';
 import { answerLineRange } from '../utils/sourceLine';
+import DialogBox from './DialogBox';
 
 // The cited passage in the page text, found even when line breaks differ (the index joins sentences with spaces).
 function passageRange(text, passage) {
@@ -165,11 +166,11 @@ export default function DocumentViewerModal({
 
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.modal} onClick={e => e.stopPropagation()}>
+      <DialogBox className={styles.modal} onClick={e => e.stopPropagation()} onClose={onClose} labelledBy="dlg-viewer-title">
         <div className={styles.header}>
           <div className={styles.titleArea}>
             <FileText size={20} color="#818cf8" />
-            <h3 className={styles.title} title={docData?.filename || initialFilename}>
+            <h3 id="dlg-viewer-title" className={styles.title} title={docData?.filename || initialFilename}>
               {docData?.filename || initialFilename || t('Document Viewer')}
             </h3>
             {docData?.file_type && (
@@ -194,10 +195,11 @@ export default function DocumentViewerModal({
 
         <div className={styles.toolbar}>
           <div className={styles.searchBox}>
-            <Search size={14} color="#a1a1aa" />
+            <Search size={14} color="#a1a1aa" aria-hidden="true" />
             <input
               type="text"
               placeholder={t('Search in document...')}
+              aria-label={t('Search in document...')}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
             />
@@ -209,14 +211,16 @@ export default function DocumentViewerModal({
                 className={styles.pageBtn}
                 disabled={currentPage <= 1}
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                aria-label={t('Previous page')}
               >
                 <ChevronLeft size={14} />
               </button>
-              <span>{t('Page {page} of {total}', { page: currentPage, total: totalPages })}</span>
+              <span aria-live="polite">{t('Page {page} of {total}', { page: currentPage, total: totalPages })}</span>
               <button
                 className={styles.pageBtn}
                 disabled={currentPage >= totalPages}
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                aria-label={t('Next page')}
               >
                 <ChevronRight size={14} />
               </button>
@@ -226,12 +230,12 @@ export default function DocumentViewerModal({
 
         <div className={styles.content}>
           {loading ? (
-            <div className={styles.loading}>
+            <div className={styles.loading} role="status">
               <div className={styles.spinner} />
               <span>{t('Extracting and loading document passages...')}</span>
             </div>
           ) : error ? (
-            <div style={{ color: '#ef4444', textAlign: 'center', padding: '2rem' }}>
+            <div role="alert" style={{ color: '#ef4444', textAlign: 'center', padding: '2rem' }}>
               {error}
             </div>
           ) : (
@@ -253,7 +257,7 @@ export default function DocumentViewerModal({
             </div>
           )}
         </div>
-      </div>
+      </DialogBox>
     </div>
   );
 }

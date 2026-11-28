@@ -502,7 +502,7 @@ button.sourceGroup:focus-visible {
 
 .editSaveBtn {
   background: var(--accent-color);
-  color: white;
+  color: var(--on-accent, #fff);
 }
 
 .editSaveBtn:hover {

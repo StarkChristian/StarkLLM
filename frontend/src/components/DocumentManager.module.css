@@ -47,7 +47,7 @@
   border-radius: var(--radius-sm);
   border: none;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent, #fff);
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
