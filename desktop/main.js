@@ -1,5 +1,5 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, dialog, net, session, safeStorage, Notification } = require('electron');
-const { sameOrigin, isWebLink, permissionAllowed } = require('./window-security');
+const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, dialog, net, session, safeStorage, Notification, desktopCapturer } = require('electron');
+const { sameOrigin, isWebLink, permissionAllowed, displayCaptureAllowed } = require('./window-security');
 const fs = require('fs');
 const path = require('path');
 const { diagnose, buildErrorPage } = require('./diagnostics');
@@ -148,11 +148,34 @@ function initApp() {
     return { latest: r && r.latest, error: r && r.error, upToDate: Boolean(r && !r.error && !r.show) };
   });
   // Electron grants every permission to every page unless told otherwise: only the app's own page, only what it uses
+  // "Record a meeting" with the sound of this PC (Windows): the page arms one screen capture through the bridge right
+  // before it asks; the answer is the screen with its sound (loopback), and the page records only the sound
+  let meetingArmedAt = null;
+  ipcMain.handle('meeting:arm-system-audio', (event) => {
+    if (!fromApp(event) || process.platform !== 'win32') return { ok: false };
+    meetingArmedAt = Date.now();
+    return { ok: true };
+  });
+  const allowed = (permission, url, details) => (permission === 'display-capture'
+    ? displayCaptureAllowed(url, APP_URL, meetingArmedAt)
+    : permissionAllowed(permission, url, APP_URL, details));
   session.defaultSession.setPermissionRequestHandler((wc, permission, callback, details) => {
-    callback(permissionAllowed(permission, (details && details.requestingUrl) || wc.getURL(), APP_URL, details || {}));
+    callback(allowed(permission, (details && details.requestingUrl) || wc.getURL(), details || {}));
   });
   session.defaultSession.setPermissionCheckHandler((wc, permission, requestingOrigin, details) =>
-    permissionAllowed(permission, requestingOrigin || (wc && wc.getURL()) || '', APP_URL, details || {}));
+    allowed(permission, requestingOrigin || (wc && wc.getURL()) || '', details || {}));
+  session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+    const armed = meetingArmedAt;
+    meetingArmedAt = null; // one capture per arming
+    const url = (request.frame && request.frame.url) || request.securityOrigin || '';
+    if (!displayCaptureAllowed(url, APP_URL, armed)) {
+      callback({});
+      return;
+    }
+    desktopCapturer.getSources({ types: ['screen'] })
+      .then((sources) => (sources.length ? callback({ video: sources[0], audio: 'loopback' }) : callback({})))
+      .catch((e) => { logLine(`meeting: no screen source for the sound of this PC (${e.message})`); callback({}); });
+  });
   createMainWindow();
   createTray();
   // Also when the engine cannot start: an old version is often the reason.

@@ -1824,6 +1824,7 @@ export default function App() {
           documents={workspaceDocs}
           onDeleteDocument={handleDeleteDocument}
           onUpload={handleFileUpload}
+          onDocumentsChanged={() => { fetchWorkspaceDocs(activeWorkspace.id); startDocPolling(activeWorkspace.id); }}
           token={token}
         />
       )}

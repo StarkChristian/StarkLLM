@@ -4,6 +4,7 @@ import DocumentViewerModal from './DocumentViewerModal';
 import EmptyState from './EmptyState';
 import Deadlines from './Deadlines';
 import TaxPackDialog from './TaxPackDialog';
+import MeetingTasks from './MeetingTasks';
 import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
 import { accountLabel } from '../utils/accounts';
@@ -280,7 +281,10 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
       </div>
 
       {tab === 'deadlines' ? (
-        <Deadlines token={token} onOpen={openDeadline} />
+        <>
+          <MeetingTasks token={token} onOpen={openDeadline} />
+          <Deadlines token={token} onOpen={openDeadline} />
+        </>
       ) : !data ? (
         <p className={styles.note}>{error ? t('The inbox could not be loaded. Is StarkLLM running?') : t('Looking through your documents…')}</p>
       ) : tab === 'cases' ? (

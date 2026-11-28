@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from app.api import (
     workspaces, documents, chat, voice, auth, knowledge_base,
     dashboard, search, prompts, system, mcp, models_router, memory_router, studio,
-    connections, ocr, protection, backup, privacy, watch_folders, tax_pack,
+    connections, ocr, protection, backup, privacy, watch_folders, tax_pack, meetings,
 )
 
 api_router = APIRouter()
@@ -28,3 +28,4 @@ api_router.include_router(ocr.router, prefix="/ocr", tags=["ocr"])
 api_router.include_router(privacy.router, prefix="/privacy", tags=["privacy"])
 api_router.include_router(watch_folders.router, prefix="/watch-folders", tags=["watch-folders"])
 api_router.include_router(tax_pack.router, prefix="/taxpack", tags=["tax package"])
+api_router.include_router(meetings.router, prefix="/meetings", tags=["meetings"])

@@ -3,8 +3,10 @@ import styles from './DocumentManager.module.css';
 import { 
   X, FileText, Trash2, Eye, Calendar, HardDrive, File, 
   CheckCircle2, AlertTriangle, RefreshCw, Loader, XCircle,
-  Globe, Link2, Plus, ArrowRight, Video, GitBranch, StickyNote, Search, Upload, ExternalLink
+  Globe, Link2, Plus, ArrowRight, Video, GitBranch, StickyNote, Search, Upload, ExternalLink, Mic, ListChecks, VolumeX
 } from 'lucide-react';
+import MeetingRecorder from './MeetingRecorder';
+import MeetingSummary from './MeetingSummary';
 import DocumentViewerModal from './DocumentViewerModal';
 import { useEscape } from '../utils/useEscape';
 import { UPLOAD_ACCEPT } from '../utils/uploadTypes';
@@ -111,12 +113,12 @@ export default function DocumentManager({
   documents, 
   onDeleteDocument,
   onUpload,
+  onDocumentsChanged,
   token 
 }) {
   const toast = useToast();
   const fileInputRef = useRef(null);
   const [viewing, setViewing] = useState(null);
-  useEscape(onClose, isOpen);
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [previewText, setPreviewText] = useState("");
   const [loadingPreview, setLoadingPreview] = useState(false);
@@ -134,6 +136,30 @@ export default function DocumentManager({
   const [noteTitle, setNoteTitle] = useState('');
   const [noteContent, setNoteContent] = useState('');
   const [isIngesting, setIsIngesting] = useState(false);
+
+  // Meetings (2.8): which documents are recorded meetings, the recorder and the summary
+  const [meetingsByDoc, setMeetingsByDoc] = useState({});
+  const [recording, setRecording] = useState(false);
+  const [summaryOf, setSummaryOf] = useState(null);
+  const [audioConfirm, setAudioConfirm] = useState(null);
+  const loadMeetings = async () => {
+    if (!token || !workspaceId) return;
+    try {
+      const res = await fetch(`/api/v1/meetings?workspace_id=${workspaceId}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setMeetingsByDoc(Object.fromEntries(((await res.json()).meetings || []).map((m) => [m.document_id, m])));
+    } catch (_) { /* no meeting buttons */ }
+  };
+  useEffect(() => { if (isOpen) loadMeetings(); }, [isOpen, workspaceId, documents]);
+  const deleteAudio = async (meeting) => {
+    if (audioConfirm !== meeting.id) { setAudioConfirm(meeting.id); return; }
+    setAudioConfirm(null);
+    const res = await fetch(`/api/v1/meetings/${meeting.id}/audio`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    if (res.ok) { toast.success?.(t('The audio was deleted. The text of the meeting stays.')); loadMeetings(); }
+    else toast.error(t('The audio could not be deleted.'));
+  };
+
+  // Escape closes the recorder or the summary first, never the list under a running recording
+  useEscape(onClose, isOpen && !recording && !summaryOf);
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -412,6 +438,13 @@ export default function DocumentManager({
                   }}
                 />
               </>
+            )}
+
+            {onUpload && (
+              <button className={styles.uploadBtn} onClick={() => setRecording(true)} title={t('Record a meeting on this PC and write it down')}>
+                <Mic size={14} />
+                <span>{t('Record a meeting')}</span>
+              </button>
             )}
 
             <button 
@@ -818,6 +851,23 @@ export default function DocumentManager({
                       {reindexingIds.has(selectedDoc.id) ? t('Re-indexing...') : reindexSuccessIds.has(selectedDoc.id) ? t('Done') : t('Re-index')}
                     </button>
 
+                    {meetingsByDoc[selectedDoc.id] && selectedDoc.status === 'indexed' && (
+                      <button className={styles.actionBtnSecondary} onClick={() => setSummaryOf(meetingsByDoc[selectedDoc.id])}>
+                        <ListChecks size={14} />
+                        {t('Summarize the meeting')}
+                      </button>
+                    )}
+                    {meetingsByDoc[selectedDoc.id]?.has_audio && meetingsByDoc[selectedDoc.id].status !== 'transcribing' && (
+                      <button
+                        className={styles.actionBtnSecondary}
+                        onClick={() => deleteAudio(meetingsByDoc[selectedDoc.id])}
+                        title={t('Delete the recording; the text of the meeting stays')}
+                      >
+                        <VolumeX size={14} />
+                        {audioConfirm === meetingsByDoc[selectedDoc.id].id ? t('Delete the audio for good?') : t('Delete audio, keep text')}
+                      </button>
+                    )}
+
                     <button 
                       className={`${styles.actionBtnDanger} ${deleteConfirmId === selectedDoc.id ? styles.confirmDanger : ''}`}
                       onClick={() => handleDeleteClick(selectedDoc.id)}
@@ -928,6 +978,26 @@ export default function DocumentManager({
           documentId={viewing}
           token={token}
         />
+      )}
+      {(recording || summaryOf) && (
+        <div onClick={(e) => e.stopPropagation()}>
+          {recording && (
+            <MeetingRecorder
+              token={token}
+              workspaceId={workspaceId}
+              onClose={() => setRecording(false)}
+              onRecorded={() => { onDocumentsChanged?.(); loadMeetings(); }}
+            />
+          )}
+          {summaryOf && (
+            <MeetingSummary
+              token={token}
+              meeting={summaryOf}
+              filename={documents.find((d) => d.id === summaryOf.document_id)?.filename || ''}
+              onClose={() => setSummaryOf(null)}
+            />
+          )}
+        </div>
       )}
     </div>
   );

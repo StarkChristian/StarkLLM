@@ -32,4 +32,15 @@ function permissionAllowed(permission, requestingUrl, appUrl, details = {}) {
   return true;
 }
 
-module.exports = { sameOrigin, isWebLink, permissionAllowed, originOf };
+// "Record a meeting" with the sound of this PC (2.8): a screen capture gives Windows' loopback sound. Allowed only on
+// Windows, only to the app's own page, and only within a few seconds after the page armed it through the bridge (the
+// recorder does that right before it asks), so no other code path gets a picture of the screen.
+const DISPLAY_ARM_MS = 15000;
+
+function displayCaptureAllowed(requestingUrl, appUrl, armedAt, now = Date.now(), platform = process.platform) {
+  if (platform !== 'win32' || !sameOrigin(requestingUrl, appUrl)) return false;
+  if (typeof armedAt !== 'number') return false;
+  return now >= armedAt && now - armedAt <= DISPLAY_ARM_MS;
+}
+
+module.exports = { sameOrigin, isWebLink, permissionAllowed, originOf, displayCaptureAllowed, DISPLAY_ARM_MS };
