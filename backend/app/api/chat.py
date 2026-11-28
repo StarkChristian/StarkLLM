@@ -26,6 +26,7 @@ from app.services import untrusted
 from app.core.config import settings
 from app.core.protection import protection
 from app.services import label_search
+from app.services import household
 from app.api.auth import get_current_user
 from app.api.deps import get_workspace_or_404, get_chat_or_404, get_message_or_404
 from pydantic import BaseModel, Field, field_validator
@@ -711,7 +712,7 @@ def record_web_task(
     task itself runs in the desktop app (its browser window and the local AI model); the engine only stores it."""
     ws = (
         db.query(models.Workspace)
-        .filter(models.Workspace.id == req.workspace_id, models.Workspace.user_id == current_user.id)
+        .filter(models.Workspace.id == req.workspace_id, household.ws_visible(current_user.id))
         .first()
     )
     if not ws:
@@ -719,7 +720,7 @@ def record_web_task(
     if req.chat_id:
         chat_obj = (
             db.query(models.Chat)
-            .filter(models.Chat.id == req.chat_id, models.Chat.workspace_id == ws.id)
+            .filter(models.Chat.id == req.chat_id, models.Chat.workspace_id == ws.id, household.chat_owned(ws, current_user.id))
             .first()
         )
         if not chat_obj:
@@ -727,7 +728,7 @@ def record_web_task(
         if not chat_obj.title or chat_obj.title in ("New Chat", "Untitled Chat"):
             chat_obj.title = req.task.strip()[:50]
     else:
-        chat_obj = models.Chat(workspace_id=ws.id, title=req.task.strip()[:50])
+        chat_obj = models.Chat(workspace_id=ws.id, user_id=current_user.id, title=req.task.strip()[:50])
         db.add(chat_obj)
         db.commit()
         db.refresh(chat_obj)
@@ -795,7 +796,7 @@ async def image_question(
     from app.services import image_question as iq
     ws = (
         db.query(models.Workspace)
-        .filter(models.Workspace.id == workspace_id, models.Workspace.user_id == current_user.id)
+        .filter(models.Workspace.id == workspace_id, household.ws_visible(current_user.id))
         .first()
     )
     if not ws:
@@ -811,14 +812,14 @@ async def image_question(
     if not chosen:
         raise HTTPException(status_code=409, detail={"code": "no-vision-model", "suggest": iq.SUGGESTED_MODEL})
     if chat_id:
-        chat_obj = db.query(models.Chat).filter(models.Chat.id == chat_id, models.Chat.workspace_id == ws.id).first()
+        chat_obj = db.query(models.Chat).filter(models.Chat.id == chat_id, models.Chat.workspace_id == ws.id, household.chat_owned(ws, current_user.id)).first()
         if not chat_obj:
             raise HTTPException(status_code=404, detail="Chat not found")
         if not chat_obj.title or chat_obj.title in ("New Chat", "Untitled Chat"):
             chat_obj.title = (message.strip() or "Image")[:50]
     question = message.strip() or "Describe this image."
     if not chat_id:
-        chat_obj = models.Chat(workspace_id=ws.id, title=question[:50])
+        chat_obj = models.Chat(workspace_id=ws.id, user_id=current_user.id, title=question[:50])
         db.add(chat_obj)
         db.commit()
         db.refresh(chat_obj)
@@ -874,7 +875,7 @@ def keep_compared_answer(
     chat_obj = (
         db.query(models.Chat)
         .join(models.Workspace, models.Chat.workspace_id == models.Workspace.id)
-        .filter(models.Chat.id == chat_id, models.Workspace.user_id == current_user.id)
+        .filter(models.Chat.id == chat_id, household.chat_visible(current_user.id))
         .first()
     )
     if not chat_obj:
@@ -932,7 +933,7 @@ def save_partial_message(
         .join(models.Workspace, models.Chat.workspace_id == models.Workspace.id)
         .filter(
             models.Chat.id == req.chat_id,
-            models.Workspace.user_id == current_user.id,
+            household.chat_visible(current_user.id),
         )
         .first()
     )
@@ -968,7 +969,7 @@ async def chat(
             db.query(models.Workspace)
             .filter(
                 models.Workspace.id == req.workspace_id,
-                models.Workspace.user_id == current_user.id,
+                household.ws_visible(current_user.id),
             )
             .first()
         )
@@ -984,7 +985,7 @@ async def chat(
                 db.query(models.Chat)
                 .filter(
                     models.Chat.id == req.chat_id,
-                    models.Chat.workspace_id == req.workspace_id,
+                    models.Chat.workspace_id == req.workspace_id, household.chat_owned(ws, current_user.id),
                 )
                 .first()
             )
@@ -997,7 +998,7 @@ async def chat(
                 chat_renamed = True
         else:
             chat_obj = models.Chat(
-                workspace_id=req.workspace_id, title=req.message[:50]
+                workspace_id=req.workspace_id, user_id=current_user.id, title=req.message[:50]
             )
             db.add(chat_obj)
             db.commit()
@@ -1107,7 +1108,8 @@ async def chat(
                 rag_filters = None
                 use_kb_for_this_request = req.use_knowledge_base
 
-                if use_kb_for_this_request and ws.active_kb_dir_ids:
+                # the folder choice is the owner's (their folders); in a shared workspace a member asks with their own whole knowledge base
+                if use_kb_for_this_request and ws.active_kb_dir_ids and ws.user_id == current_user.id:
                     try:
                         active_ids = json.loads(ws.active_kb_dir_ids)
                         if isinstance(active_ids, list):
@@ -1263,7 +1265,7 @@ async def chat(
         async def fetch_memory():
             try:
                 return await asyncio.to_thread(
-                    memory_service.retrieve_memory_context, req.message, req.workspace_id
+                    memory_service.retrieve_memory_context, req.message, household.memory_scope(ws, current_user.id)
                 )
             except Exception as e:
                 logger.error(f"Error querying memory: {e}", exc_info=True)
@@ -1670,7 +1672,7 @@ LANGUAGE & WRITING QUALITY
         total_messages = db.query(models.Message).filter(models.Message.chat_id == chat_obj.id).count()
         if not req.compare and total_messages % 5 == 0 and total_messages > 0:
             formatted_history = "\n".join([f"{msg.role.capitalize()}: {msg.content}" for msg in history])
-            background_tasks.add_task(memory_service.summarize_and_store_conversation, formatted_history, req.workspace_id)
+            background_tasks.add_task(memory_service.summarize_and_store_conversation, formatted_history, household.memory_scope(ws, current_user.id))
 
         messages = [{"role": "system", "content": system_prompt}]
         for msg in history:
@@ -1869,7 +1871,7 @@ async def summarize_chat(
         .join(models.Workspace, models.Chat.workspace_id == models.Workspace.id)
         .filter(
             models.Chat.id == chat_id,
-            models.Workspace.user_id == current_user.id,
+            household.chat_visible(current_user.id),
         )
         .first()
     )
@@ -1942,12 +1944,12 @@ async def trigger_summarization(
     current_user: models.User = Depends(get_current_user),
 ):
     try:
-        get_workspace_or_404(db, workspace_id, current_user.id)
+        ws = get_workspace_or_404(db, workspace_id, current_user.id)
         chat_obj = (
             db.query(models.Chat)
             .filter(
                 models.Chat.id == chat_id,
-                models.Chat.workspace_id == workspace_id,
+                models.Chat.workspace_id == workspace_id, household.chat_owned(ws, current_user.id),
             )
             .first()
         )
@@ -1966,7 +1968,7 @@ async def trigger_summarization(
         formatted_history = "\n".join(
             [f"{msg.role.capitalize()}: {msg.content}" for msg in history]
         )
-        memory_service.summarize_and_store_conversation(formatted_history, workspace_id)
+        memory_service.summarize_and_store_conversation(formatted_history, household.memory_scope(ws, current_user.id))
         return {"status": "Memory updated successfully"}
     except HTTPException:
         raise
@@ -1983,9 +1985,10 @@ def list_chats(
     current_user: models.User = Depends(get_current_user),
 ):
     """Return all chat sessions for a workspace, newest first. Optionally search by title or message content."""
-    get_workspace_or_404(db, workspace_id, current_user.id)
+    ws = get_workspace_or_404(db, workspace_id, current_user.id)
+    own = household.chat_owned(ws, current_user.id)   # chats are private, also in a shared workspace
 
-    query = db.query(models.Chat).filter(models.Chat.workspace_id == workspace_id)
+    query = db.query(models.Chat).filter(models.Chat.workspace_id == workspace_id, own)
 
     if q:
         search_pattern = f"%{q}%"
@@ -1997,11 +2000,11 @@ def list_chats(
                 chat_id for chat_id, content in
                 db.query(models.Message.chat_id, models.Message.content)
                 .join(models.Chat, models.Message.chat_id == models.Chat.id)
-                .filter(models.Chat.workspace_id == workspace_id)
+                .filter(models.Chat.workspace_id == workspace_id, own)
                 if needle in (content or "").lower()
             }
             ordered = (db.query(models.Chat.id, models.Chat.title)
-                       .filter(models.Chat.workspace_id == workspace_id)
+                       .filter(models.Chat.workspace_id == workspace_id, own)
                        .order_by(models.Chat.is_pinned.desc(), models.Chat.created_at.desc()))
             hit_ids = [i for i, title in ordered if i in matched_chat_ids or label_search.contains(title, q)]   # titles are protected too
             found = label_search.load_in_order(db.query(models.Chat), models.Chat, hit_ids)
@@ -2019,7 +2022,7 @@ def list_chats(
 
             chats_with_match = (
                 db.query(models.Chat, content_match_exists.label("content_match"))
-                .filter(models.Chat.workspace_id == workspace_id)
+                .filter(models.Chat.workspace_id == workspace_id, own)
                 .filter(
                     or_(
                         models.Chat.title.ilike(search_pattern),
@@ -2068,9 +2071,9 @@ def list_folders(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    get_workspace_or_404(db, workspace_id, current_user.id)
+    ws = get_workspace_or_404(db, workspace_id, current_user.id)
     folders = db.query(models.ChatFolder).filter(
-        models.ChatFolder.workspace_id == workspace_id
+        models.ChatFolder.workspace_id == workspace_id, household.folder_owned(ws, current_user.id)
     ).order_by(models.ChatFolder.created_at.desc()).all()
     return [{"id": f.id, "name": f.name} for f in folders]
 
@@ -2083,7 +2086,7 @@ def create_folder(
     current_user: models.User = Depends(get_current_user),
 ):
     get_workspace_or_404(db, workspace_id, current_user.id)
-    folder = models.ChatFolder(workspace_id=workspace_id, name=req.name)
+    folder = models.ChatFolder(workspace_id=workspace_id, user_id=current_user.id, name=req.name)
     db.add(folder)
     db.commit()
     db.refresh(folder)
@@ -2099,7 +2102,7 @@ def update_folder(
 ):
     folder = db.query(models.ChatFolder).join(models.Workspace).filter(
         models.ChatFolder.id == folder_id,
-        models.Workspace.user_id == current_user.id
+        household.folder_visible(current_user.id)
     ).first()
     if not folder:
         raise HTTPException(status_code=404, detail="Folder not found")
@@ -2118,7 +2121,7 @@ def delete_folder(
 ):
     folder = db.query(models.ChatFolder).join(models.Workspace).filter(
         models.ChatFolder.id == folder_id,
-        models.Workspace.user_id == current_user.id
+        household.folder_visible(current_user.id)
     ).first()
     if not folder:
         raise HTTPException(status_code=404, detail="Folder not found")
@@ -2140,15 +2143,16 @@ def move_chat(
 ):
     chat = db.query(models.Chat).join(models.Workspace).filter(
         models.Chat.id == chat_id,
-        models.Workspace.user_id == current_user.id
+        household.chat_visible(current_user.id)
     ).first()
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
         
     if req.folder_id is not None:
-        folder = db.query(models.ChatFolder).filter(
+        folder = db.query(models.ChatFolder).join(models.Workspace).filter(
             models.ChatFolder.id == req.folder_id,
-            models.ChatFolder.workspace_id == chat.workspace_id
+            models.ChatFolder.workspace_id == chat.workspace_id,
+            household.folder_visible(current_user.id),
         ).first()
         if not folder:
             raise HTTPException(status_code=404, detail="Folder not found or does not belong to this workspace")
@@ -2170,7 +2174,7 @@ def get_session(
         .join(models.Workspace, models.Chat.workspace_id == models.Workspace.id)
         .filter(
             models.Chat.id == chat_id,
-            models.Workspace.user_id == current_user.id,
+            household.chat_visible(current_user.id),
         )
         .first()
     )
@@ -2199,7 +2203,7 @@ def create_chat(
 ):
     """Create a new empty chat session in the given workspace."""
     get_workspace_or_404(db, workspace_id, current_user.id)
-    chat_obj = models.Chat(workspace_id=workspace_id, title="New Chat")
+    chat_obj = models.Chat(workspace_id=workspace_id, user_id=current_user.id, title="New Chat")
     db.add(chat_obj)
     db.commit()
     db.refresh(chat_obj)
@@ -2218,7 +2222,7 @@ def delete_chat(
         .join(models.Workspace, models.Chat.workspace_id == models.Workspace.id)
         .filter(
             models.Chat.id == chat_id,
-            models.Workspace.user_id == current_user.id,
+            household.chat_visible(current_user.id),
         )
         .first()
     )
@@ -2244,7 +2248,7 @@ def rename_chat(
         .join(models.Workspace, models.Chat.workspace_id == models.Workspace.id)
         .filter(
             models.Chat.id == chat_id,
-            models.Workspace.user_id == current_user.id,
+            household.chat_visible(current_user.id),
         )
         .first()
     )
@@ -2272,7 +2276,7 @@ def pin_chat(
         .join(models.Workspace, models.Chat.workspace_id == models.Workspace.id)
         .filter(
             models.Chat.id == chat_id,
-            models.Workspace.user_id == current_user.id,
+            household.chat_visible(current_user.id),
         )
         .first()
     )
@@ -2296,7 +2300,7 @@ def truncate_chat(
         .join(models.Workspace, models.Chat.workspace_id == models.Workspace.id)
         .filter(
             models.Chat.id == req.chat_id,
-            models.Workspace.user_id == current_user.id,
+            household.chat_visible(current_user.id),
         )
         .first()
     )

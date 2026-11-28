@@ -349,12 +349,18 @@ def _check_against_manifest(dest: str, manifest: dict) -> dict:
             raise BackupError("mismatch", "The backup's key does not match its data.")
         report["protected"] = True
 
+    # the documents of shared workspaces have their own keys, wrapped (through the account keys) with the backup's key
+    ws_keys = {}
+    if key is not None and os.path.exists(os.path.join(dest, "db", "starkllm.db")):
+        from app.services.household import file_keys_from_database
+        ws_keys = file_keys_from_database(os.path.join(dest, "db", "starkllm.db"), key)
+
     # documents: the content of every document (decrypted if protected) against the hash taken from the live data
     for rel, info in manifest["documents"].items():
         full = os.path.join(dest, *rel.split("/"))
         h, size = hashlib.sha256(), 0
         try:
-            for block in _content_blocks(full, key):
+            for block in _content_blocks(full, key, ws_keys):
                 h.update(block)
                 size += len(block)
         except crypto.CryptoError:
@@ -426,12 +432,15 @@ def _check_secure_index(db_path: str, key: Optional[bytes], expected: dict) -> i
     return len(got)
 
 
-def _content_blocks(path: str, key: Optional[bytes]):
-    """The content of a document in the unpacked backup: decrypted if it is protected."""
+def _content_blocks(path: str, key: Optional[bytes], ws_keys: Optional[dict] = None):
+    """The content of a document in the unpacked backup: decrypted if it is protected (with the PC's files key, or
+    the files key of the shared workspace named by the key id in the file's header)."""
     if crypto.is_encrypted_file(path):
         if key is None:
             raise crypto.CorruptData("A protected document but no key.")
-        yield from crypto.iter_decrypted(path, crypto.derive_key(key, "files"))
+        files = crypto.derive_key(key, "files")
+        kid = crypto.file_key_id(path)
+        yield from crypto.iter_decrypted(path, (ws_keys or {}).get(kid, files) if kid != crypto.key_id(files) else files)
         return
     with open(path, "rb") as f:
         for block in iter(lambda: f.read(1 << 20), b""):

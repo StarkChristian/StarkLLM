@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from app.api import (
     workspaces, documents, chat, voice, auth, knowledge_base,
     dashboard, search, prompts, system, mcp, models_router, memory_router, studio,
-    connections, ocr, protection, backup, privacy,
+    connections, ocr, protection, backup, privacy, household,
 )
 
 api_router = APIRouter()
@@ -26,3 +26,4 @@ api_router.include_router(mcp.router, prefix="/mcp", tags=["mcp"])
 api_router.include_router(connections.router, prefix="/connections", tags=["connections"])
 api_router.include_router(ocr.router, prefix="/ocr", tags=["ocr"])
 api_router.include_router(privacy.router, prefix="/privacy", tags=["privacy"])
+api_router.include_router(household.router, prefix="/household", tags=["household"])

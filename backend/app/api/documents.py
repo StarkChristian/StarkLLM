@@ -21,6 +21,7 @@ import requests
 from app.services import vault
 from app.core.protection import ProtectionLocked, protection
 from app.services import label_search
+from app.services import household
 from app.api.auth import get_current_user
 
 router = APIRouter()
@@ -182,7 +183,7 @@ async def upload_document(
 ):
     ws = db.query(models.Workspace).filter(
         models.Workspace.id == workspace_id,
-        models.Workspace.user_id == current_user.id
+        household.ws_visible(current_user.id)
     ).first()
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace not found")
@@ -211,7 +212,7 @@ async def upload_document(
     file_path = os.path.join(settings.UPLOAD_DIR, safe_name)
 
     try:
-        with vault.open_write(file_path) as buffer:   # encrypted on disk while protection is on
+        with vault.open_write(file_path, workspace_id) as buffer:   # encrypted on disk while protection is on
             shutil.copyfileobj(file.file, buffer)
     except ProtectionLocked:
         if os.path.exists(file_path):
@@ -260,6 +261,7 @@ async def upload_document(
     # Create DB record immediately with UPLOADING status
     doc = models.Document(
         workspace_id=workspace_id,
+        added_by=current_user.id,
         filename=file.filename,  # Keep original name for display
         filepath=file_path,
         file_type=ext,
@@ -268,6 +270,7 @@ async def upload_document(
     db.add(doc)
     db.commit()
     db.refresh(doc)
+    household.note_document_added(db, doc, current_user.id)   # "Added by Anna" in a shared workspace
 
     # Kick off background indexing thread (does not block the HTTP response)
     thread = threading.Thread(
@@ -306,7 +309,7 @@ async def ingest_url(
     """
     ws = db.query(models.Workspace).filter(
         models.Workspace.id == workspace_id,
-        models.Workspace.user_id == current_user.id
+        household.ws_visible(current_user.id)
     ).first()
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace not found")
@@ -356,12 +359,13 @@ async def ingest_url(
     file_path = os.path.join(settings.UPLOAD_DIR, file_disk_name)
 
     markdown_content = f"# {page_title}\n\n**Source URL:** {target_url}\n\n---\n\n{clean_text}"
-    vault.write_text(file_path, markdown_content)
+    vault.write_text(file_path, markdown_content, workspace_id)
 
     actual_size = vault.size(file_path)
 
     doc = models.Document(
         workspace_id=workspace_id,
+        added_by=current_user.id,
         filename=safe_filename,
         filepath=file_path,
         file_type="md",
@@ -370,6 +374,7 @@ async def ingest_url(
     db.add(doc)
     db.commit()
     db.refresh(doc)
+    household.note_document_added(db, doc, current_user.id)   # "Added by Anna" in a shared workspace
 
     thread = threading.Thread(
         target=_index_document_background,
@@ -411,7 +416,7 @@ async def ingest_page(
     """
     ws = db.query(models.Workspace).filter(
         models.Workspace.id == workspace_id,
-        models.Workspace.user_id == current_user.id
+        household.ws_visible(current_user.id)
     ).first()
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace not found")
@@ -434,11 +439,12 @@ async def ingest_page(
     file_disk_name = _disk_name(unique_prefix, safe_filename)
     file_path = os.path.join(settings.UPLOAD_DIR, file_disk_name)
     markdown_content = f"# {page_title}\n\n**Source URL:** {target_url}\n\n---\n\n{clean_text}"
-    vault.write_text(file_path, markdown_content)
+    vault.write_text(file_path, markdown_content, workspace_id)
     actual_size = vault.size(file_path)
 
     doc = models.Document(
         workspace_id=workspace_id,
+        added_by=current_user.id,
         filename=safe_filename,
         filepath=file_path,
         file_type="md",
@@ -447,6 +453,7 @@ async def ingest_page(
     db.add(doc)
     db.commit()
     db.refresh(doc)
+    household.note_document_added(db, doc, current_user.id)   # "Added by Anna" in a shared workspace
 
     thread = threading.Thread(
         target=_index_document_background,
@@ -493,7 +500,7 @@ async def ingest_youtube(
     """
     ws = db.query(models.Workspace).filter(
         models.Workspace.id == workspace_id,
-        models.Workspace.user_id == current_user.id
+        household.ws_visible(current_user.id)
     ).first()
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace not found")
@@ -578,12 +585,13 @@ async def ingest_youtube(
     )
 
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-    vault.write_text(file_path, markdown_content)
+    vault.write_text(file_path, markdown_content, workspace_id)
 
     actual_size = vault.size(file_path)
 
     doc = models.Document(
         workspace_id=workspace_id,
+        added_by=current_user.id,
         filename=safe_filename,
         filepath=file_path,
         file_type="md",
@@ -592,6 +600,7 @@ async def ingest_youtube(
     db.add(doc)
     db.commit()
     db.refresh(doc)
+    household.note_document_added(db, doc, current_user.id)   # "Added by Anna" in a shared workspace
 
     thread = threading.Thread(
         target=_index_document_background,
@@ -649,7 +658,7 @@ async def ingest_github(
     """
     ws = db.query(models.Workspace).filter(
         models.Workspace.id == workspace_id,
-        models.Workspace.user_id == current_user.id
+        household.ws_visible(current_user.id)
     ).first()
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace not found")
@@ -797,12 +806,13 @@ async def ingest_github(
     file_path = os.path.join(settings.UPLOAD_DIR, file_disk_name)
 
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-    vault.write_text(file_path, markdown_content)
+    vault.write_text(file_path, markdown_content, workspace_id)
 
     actual_size = vault.size(file_path)
 
     doc = models.Document(
         workspace_id=workspace_id,
+        added_by=current_user.id,
         filename=safe_filename,
         filepath=file_path,
         file_type="md",
@@ -811,6 +821,7 @@ async def ingest_github(
     db.add(doc)
     db.commit()
     db.refresh(doc)
+    household.note_document_added(db, doc, current_user.id)   # "Added by Anna" in a shared workspace
 
     thread = threading.Thread(
         target=_index_document_background,
@@ -852,7 +863,7 @@ async def ingest_note(
     """
     ws = db.query(models.Workspace).filter(
         models.Workspace.id == workspace_id,
-        models.Workspace.user_id == current_user.id
+        household.ws_visible(current_user.id)
     ).first()
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace not found")
@@ -874,12 +885,13 @@ async def ingest_note(
     markdown_content = f"# {title}\n\n---\n\n{content}"
 
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-    vault.write_text(file_path, markdown_content)
+    vault.write_text(file_path, markdown_content, workspace_id)
 
     actual_size = vault.size(file_path)
 
     doc = models.Document(
         workspace_id=workspace_id,
+        added_by=current_user.id,
         filename=safe_filename,
         filepath=file_path,
         file_type="md",
@@ -888,6 +900,7 @@ async def ingest_note(
     db.add(doc)
     db.commit()
     db.refresh(doc)
+    household.note_document_added(db, doc, current_user.id)   # "Added by Anna" in a shared workspace
 
     thread = threading.Thread(
         target=_index_document_background,
@@ -919,7 +932,7 @@ def get_documents(
 ):
     ws = db.query(models.Workspace).filter(
         models.Workspace.id == workspace_id,
-        models.Workspace.user_id == current_user.id
+        household.ws_visible(current_user.id)
     ).first()
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace not found")
@@ -930,6 +943,7 @@ def get_documents(
         models.Document.workspace_id == workspace_id
     ).order_by(models.Document.created_at.desc()).all()
 
+    added = household.names(db, [d.added_by for d in docs]) if ws.shared else {}
     result = []
     for d in docs:
         exists = os.path.exists(d.filepath) if d.filepath else False
@@ -954,6 +968,7 @@ def get_documents(
             "status": effective_status,
             "error_message": d.error_message,
             "summary_status": d.summary_status,
+            "added_by": added.get(d.added_by),   # shared workspace: who added it
         })
 
     return result
@@ -969,7 +984,7 @@ def get_document_status(
     """Lightweight polling endpoint: returns current status of a single document."""
     ws = db.query(models.Workspace).filter(
         models.Workspace.id == workspace_id,
-        models.Workspace.user_id == current_user.id
+        household.ws_visible(current_user.id)
     ).first()
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace not found")
@@ -998,7 +1013,7 @@ async def preview_document(
 ):
     ws = db.query(models.Workspace).filter(
         models.Workspace.id == workspace_id,
-        models.Workspace.user_id == current_user.id
+        household.ws_visible(current_user.id)
     ).first()
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace not found")
@@ -1029,7 +1044,7 @@ async def reindex_document(
     """Re-parse and embed a document into ChromaDB with status tracking."""
     ws = db.query(models.Workspace).filter(
         models.Workspace.id == workspace_id,
-        models.Workspace.user_id == current_user.id
+        household.ws_visible(current_user.id)
     ).first()
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace not found")
@@ -1082,7 +1097,7 @@ async def delete_document(
     """Delete a document from DB and remove its vectors from ChromaDB."""
     ws = db.query(models.Workspace).filter(
         models.Workspace.id == workspace_id,
-        models.Workspace.user_id == current_user.id
+        household.ws_visible(current_user.id)
     ).first()
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace not found")
@@ -1093,6 +1108,8 @@ async def delete_document(
     ).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
+    if not household.may_delete_document(db, ws, doc, current_user.id):
+        raise HTTPException(status_code=403, detail="In a shared workspace only the owner and the person who added a document can delete it.")
 
     # Remove vectors from ChromaDB
     try:
@@ -1113,6 +1130,8 @@ async def delete_document(
     except Exception as e:
         logger.warning(f"Could not remove file {doc.filepath} from disk: {e}")
 
+    if ws.shared:
+        household.log(db, ws.id, current_user.id, "document_deleted", detail=doc.filename)
     db.delete(doc)
     db.commit()
     return {"status": "deleted", "document_id": document_id}
@@ -1128,7 +1147,7 @@ async def get_document_file(
     """Serve the raw file with appropriate media type for inline preview/streaming."""
     ws = db.query(models.Workspace).filter(
         models.Workspace.id == workspace_id,
-        models.Workspace.user_id == current_user.id
+        household.ws_visible(current_user.id)
     ).first()
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace not found")
@@ -1197,7 +1216,7 @@ async def get_document_facts(
     each value with the page and line it stands on. Found by rules over the indexed text, never by the model."""
     from app.services.facts_service import document_facts_cached
     ws = db.query(models.Workspace).filter(
-        models.Workspace.id == workspace_id, models.Workspace.user_id == current_user.id).first()
+        models.Workspace.id == workspace_id, household.ws_visible(current_user.id)).first()
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace not found")
     doc = db.query(models.Document).filter(
@@ -1218,7 +1237,7 @@ async def get_document_content(
     """Retrieve extracted text and page breakdown of a document for deep citations."""
     ws = db.query(models.Workspace).filter(
         models.Workspace.id == workspace_id,
-        models.Workspace.user_id == current_user.id
+        household.ws_visible(current_user.id)
     ).first()
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace not found")

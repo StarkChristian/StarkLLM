@@ -19,7 +19,7 @@ def create_workspace(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    db_ws = models.Workspace(name=ws.name, user_id=current_user.id)
+    db_ws = models.Workspace(name=ws.name, user_id=current_user.id, shared=0)
     db.add(db_ws)
     db.commit()
     db.refresh(db_ws)
@@ -31,31 +31,46 @@ def get_workspaces(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    workspaces = db.query(models.Workspace).filter(models.Workspace.user_id == current_user.id).all()
+    from app.services import household
+    workspaces = db.query(models.Workspace).filter(household.ws_visible(current_user.id)).order_by(models.Workspace.id).all()
+    owners = household.names(db, [ws.user_id for ws in workspaces if ws.shared])
     return [
         {
             "id": ws.id,
             "name": ws.name,
-            "active_kb_dir_ids": ws.active_kb_dir_ids,
+            # a member does not see the owner's knowledge-base choice or instructions text to edit; both stay the owner's
+            "active_kb_dir_ids": ws.active_kb_dir_ids if ws.user_id == current_user.id else None,
             "system_prompt": ws.system_prompt,
             "created_at": ws.created_at,
+            "shared": bool(ws.shared),
+            "role": "owner" if ws.user_id == current_user.id else "member",
+            "owner": owners.get(ws.user_id) if ws.shared else None,
         }
         for ws in workspaces
     ]
 
 @router.delete("/{workspace_id}")
 def delete_workspace(
-    workspace_id: int, 
+    workspace_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
     db_ws = db.query(models.Workspace).filter(models.Workspace.id == workspace_id, models.Workspace.user_id == current_user.id).first()
     if db_ws:
-        _purge_workspace_data(db, db_ws, current_user.id)
-        db.delete(db_ws)
-        db.commit()
+        delete_workspace_completely(db, db_ws)
         return {"status": "deleted"}
     raise HTTPException(status_code=404, detail="Workspace not found")
+
+
+def delete_workspace_completely(db: Session, ws: models.Workspace):
+    """Delete a workspace with its documents, chats (in a shared workspace: every member's), memories, and its sharing
+    (members, keys, activity). Only for the owner; the callers check."""
+    from app.services import household
+    _purge_workspace_data(db, ws, ws.user_id)
+    household.purge(db, ws)
+    db.query(models.ChatFolder).filter(models.ChatFolder.workspace_id == ws.id).delete(synchronize_session=False)
+    db.delete(ws)
+    db.commit()
 
 
 def _purge_workspace_data(db: Session, ws: models.Workspace, user_id: int):

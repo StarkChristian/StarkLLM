@@ -12,6 +12,7 @@ from app.api.auth import get_current_user
 from app.services.llm_service import llm_service
 from app.services.locale_rules import language_name
 from app.services import vault
+from app.services import household
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -153,7 +154,7 @@ async def synthesize_studio(
     """
     ws = db.query(models.Workspace).filter(
         models.Workspace.id == workspace_id,
-        models.Workspace.user_id == current_user.id
+        household.ws_visible(current_user.id)
     ).first()
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace not found")

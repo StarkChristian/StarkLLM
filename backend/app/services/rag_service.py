@@ -205,6 +205,9 @@ class RAGService :
         return self .chroma_client
 
     def get_or_create_collection (self ,workspace_id :int ,user_id :int ):
+        # a shared workspace has one index, named after its owner, for all its members (services/household.py)
+        from app .services .household import storage_owner
+        user_id =storage_owner (workspace_id ,user_id )
         name =f"user_{user_id }_workspace_{workspace_id }"
         return protect_collection (self .vector_client ().get_or_create_collection (name =name ))
 
