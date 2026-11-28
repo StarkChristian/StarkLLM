@@ -21,6 +21,8 @@ import { t, language } from '../i18n';
 import { pickVoice } from '../utils/speech';
 import { UPLOAD_ACCEPT } from '../utils/uploadTypes';
 import { blockRemoteImages, escapeHtml } from '../utils/markdown';
+import { chatAnnouncement } from '../utils/announce';
+import { menuKeys } from '../utils/menuKeys';
 
 // The start page of a chat: what StarkLLM is for. The first card opens the file picker, the others ask about the
 // documents of this workspace.
@@ -213,7 +215,7 @@ const ChatMessageRenderer = React.memo(({
   return (
     <div className={`${styles.messageWrapper} ${msg.role === 'user' ? styles.user : ''} ${msg.role === 'system' ? styles.system : ''}`}>
       {msg.role !== 'system' && (
-        <div className={`${styles.avatar} ${msg.role === 'assistant' ? styles.assistantAvatar : ''}`}>
+        <div className={`${styles.avatar} ${msg.role === 'assistant' ? styles.assistantAvatar : ''}`} aria-hidden="true">
           {msg.role === 'user' ? <User size={20} /> : <Bot size={20} color="white" />}
         </div>
       )}
@@ -222,6 +224,7 @@ const ChatMessageRenderer = React.memo(({
         className={`${styles.content} ${msg.role !== 'system' && isRTL(msg.content) ? styles.rtl : ''}`} 
         style={msg.role === 'system' ? { fontStyle: 'italic', color: 'var(--text-secondary)', background: 'transparent', border: 'none', margin: '0 auto' } : {}}
       >
+        {msg.role !== 'system' && <span className="sr-only">{msg.role === 'user' ? t('You wrote:') : t('StarkLLM answered:')}</span>}
         {msg.isError ? null : msg.role !== 'system' ? (
           editingIndex === i ? (
             <div className={styles.editContainer}>
@@ -240,7 +243,7 @@ const ChatMessageRenderer = React.memo(({
           ) : msg.webTask && msg.content === '' ? (
             <WebTaskCard task={msg.webTask} {...(webTaskActions || {})} />
           ) : msg.role === 'assistant' && msg.content === '' ? (
-            <div className={styles.thinking}>
+            <div className={styles.thinking} role="img" aria-label={t('StarkLLM is writing the answer…')}>
               <span className={styles.dot}></span>
               <span className={styles.dot}></span>
               <span className={styles.dot}></span>
@@ -446,12 +449,13 @@ const ChatMessageRenderer = React.memo(({
                     className={styles.actionBtn}
                     onClick={() => setExportOpen(!exportOpen)}
                     title={t('Save this answer as Word or PDF')}
+                    aria-haspopup="menu"
                     aria-expanded={exportOpen}
                   >
                     <FileDown size={14} />
                   </button>
                   {exportOpen && (
-                    <span className={styles.answerExportMenu} role="menu">
+                    <span className={styles.answerExportMenu} role="menu" aria-label={t('Save this answer as Word or PDF')} onKeyDown={(e) => menuKeys(e, () => setExportOpen(false))}>
                       <button role="menuitem" onClick={() => { setExportOpen(false); onExportAnswer(i, 'docx'); }}>{t('Word document (.docx)')}</button>
                       <button role="menuitem" onClick={() => { setExportOpen(false); onExportAnswer(i, 'pdf'); }}>{t('PDF (.pdf)')}</button>
                     </span>
@@ -516,9 +520,21 @@ export default function ChatArea({
   onUpload,
   newestDocument,
   token,
-  webTaskActions
+  webTaskActions,
+  isGenerating = false
 }) {
   const toast = useToast();
+  // screen readers: one line when an answer starts, the answer once when it is finished (not every streamed token)
+  const [announcement, setAnnouncement] = useState('');
+  const wasGenerating = useRef(isGenerating);
+  useEffect(() => {
+    const said = chatAnnouncement(wasGenerating.current, isGenerating, messages[messages.length - 1], {
+      writing: t('StarkLLM is writing the answer…'),
+      answer: t('Answer: {answer}'),
+    });
+    wasGenerating.current = isGenerating;
+    if (said) setAnnouncement(said);
+  }, [isGenerating, messages]);
   const starterFileRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -772,6 +788,7 @@ export default function ChatArea({
 
   return (
     <div className={styles.container}>
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</div>
       {isWelcomeState ? (
         <div className={styles.welcomeContainer}>
           <img src="/Logo.png" alt="StarkLLM" className={styles.welcomeLogo} />
@@ -844,27 +861,29 @@ export default function ChatArea({
                     className={styles.exportBtn}
                     onClick={() => setShowExportMenu(!showExportMenu)}
                     title={t('Export chat')}
+                    aria-haspopup="menu"
+                    aria-expanded={showExportMenu}
                   >
                     <Download size={18} />
                   </button>
                   {showExportMenu && (
-                    <div className={styles.exportMenu}>
-                      <button onClick={() => { onExport('docx'); setShowExportMenu(false); }}>
+                    <div className={styles.exportMenu} role="menu" aria-label={t('Export chat')} onKeyDown={(e) => menuKeys(e, () => setShowExportMenu(false))}>
+                      <button role="menuitem" onClick={() => { onExport('docx'); setShowExportMenu(false); }}>
                         {t('📘 Word document (.docx)')}
                       </button>
-                      <button onClick={() => { onExport('pdf'); setShowExportMenu(false); }}>
+                      <button role="menuitem" onClick={() => { onExport('pdf'); setShowExportMenu(false); }}>
                         {t('📕 PDF (.pdf)')}
                       </button>
-                      <button onClick={() => { onExport('md'); setShowExportMenu(false); }}>
+                      <button role="menuitem" onClick={() => { onExport('md'); setShowExportMenu(false); }}>
                         {t('📄 Markdown (.md)')}
                       </button>
-                      <button onClick={() => { onExport('html'); setShowExportMenu(false); }}>
+                      <button role="menuitem" onClick={() => { onExport('html'); setShowExportMenu(false); }}>
                         {t('🖨️ Printable HTML / PDF (.html)')}
                       </button>
-                      <button onClick={() => { onExport('json'); setShowExportMenu(false); }}>
+                      <button role="menuitem" onClick={() => { onExport('json'); setShowExportMenu(false); }}>
                         {t('📋 Structured Data (.json)')}
                       </button>
-                      <button onClick={() => { onExport('txt'); setShowExportMenu(false); }}>
+                      <button role="menuitem" onClick={() => { onExport('txt'); setShowExportMenu(false); }}>
                         {t('📝 Plain Text (.txt)')}
                       </button>
                     </div>
@@ -873,7 +892,16 @@ export default function ChatArea({
               )}
             </div>
           )}
-          <div className={styles.messages} ref={scrollContainerRef}>
+          <h1 className="sr-only">{t('Chat')}</h1>
+          <div
+            className={styles.messages}
+            ref={scrollContainerRef}
+            role="log"
+            aria-live="off"
+            aria-busy={isGenerating}
+            aria-label={t('Conversation')}
+            tabIndex={0}
+          >
           {messages.map((msg, i) => (
             <ChatMessageRenderer
               key={msg.id || i}

@@ -333,3 +333,26 @@
   from { opacity: 0; transform: translateY(20px); scale: 0.98; }
   to { opacity: 1; transform: translateY(0); scale: 1; }
 }
+
+/* ── Accessibility: the title of a template is the button that uses it (keyboard); it looks as the h4 before ── */
+.cardTitle {
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 1rem;
+  margin: 0;
+  min-width: 0;
+}
+.cardTitleBtn {
+  padding: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

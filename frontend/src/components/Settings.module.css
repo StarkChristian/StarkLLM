@@ -291,7 +291,7 @@
 .segment + .segment { border-left: 1px solid var(--border-color); }
 .segmentActive {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent, #fff);
 }
 
 /* ── Theme picker ── */

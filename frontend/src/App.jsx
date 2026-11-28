@@ -9,6 +9,7 @@ import Dashboard from './components/Dashboard';
 import Inbox from './components/Inbox';
 import Settings from './components/Settings';
 import ErrorBoundary from './components/ErrorBoundary';
+import DialogBox from './components/DialogBox';
 import DocumentManager from './components/DocumentManager';
 import MemoryManager from './components/MemoryManager';
 import GlobalSearch from './components/GlobalSearch';
@@ -1645,6 +1646,14 @@ export default function App() {
   // ── Main app layout ──
   return (
     <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+      {/* WCAG 2.4.1: the first Tab stop jumps past the sidebar to the page */}
+      <a
+        href="#main-content"
+        className="skip-link"
+        onClick={(e) => { e.preventDefault(); document.getElementById('main-content')?.focus(); }}
+      >
+        {t('Skip to content')}
+      </a>
       <Sidebar
         workspaces={workspaces}
         activeWorkspace={activeWorkspace}
@@ -1681,6 +1690,7 @@ export default function App() {
       />
 
       {/* Main content */}
+      <main id="main-content" tabIndex={-1} className="app-main">
       <ErrorBoundary>
         {activeView === 'dashboard' && (
           <Dashboard
@@ -1714,6 +1724,7 @@ export default function App() {
             <HealthBanner token={token} />
             <ChatArea 
               messages={messages} 
+              isGenerating={isGenerating}
               onRegenerate={handleRegenerateMessage}
               onEdit={handleEditMessage}
               onExport={handleExportChat}
@@ -1775,6 +1786,7 @@ export default function App() {
           </div>
         )}
       </ErrorBoundary>
+      </main>
 
       <WorkspaceKBModal
         isOpen={showKbModal}
@@ -1919,7 +1931,7 @@ function WorkspaceNameModal({ value, onChange, onConfirm, onCancel, inputRef }) 
       background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center'
     }}>
-      <div style={{
+      <DialogBox onClose={onCancel} labelledBy="dlg-newws-title" style={{
         background: 'var(--bg-secondary)',
         border: '1px solid var(--border-color)',
         borderRadius: 14,
@@ -1930,7 +1942,7 @@ function WorkspaceNameModal({ value, onChange, onConfirm, onCancel, inputRef }) 
         gap: '1rem',
         boxShadow: '0 24px 80px rgba(0,0,0,0.5)'
       }}>
-        <h3 style={{ margin: 0, color: 'var(--text-primary)', fontWeight: 700 }}>{t('New Workspace')}</h3>
+        <h2 id="dlg-newws-title" style={{ margin: 0, color: 'var(--text-primary)', fontWeight: 700, fontSize: '1.17rem' }}>{t('New Workspace')}</h2>
         <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
           {t('Give your workspace a name to get started.')}
         </p>
@@ -1938,6 +1950,7 @@ function WorkspaceNameModal({ value, onChange, onConfirm, onCancel, inputRef }) 
           ref={inputRef}
           type="text"
           placeholder={t('e.g. Research, Work, Personal…')}
+          aria-label={t('Workspace name')}
           value={value}
           onChange={e => onChange(e.target.value)}
           onKeyDown={handleKey}
@@ -1974,7 +1987,7 @@ function WorkspaceNameModal({ value, onChange, onConfirm, onCancel, inputRef }) 
             {t('Create')}
           </button>
         </div>
-      </div>
+      </DialogBox>
     </div>
   );
 }

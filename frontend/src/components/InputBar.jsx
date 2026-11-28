@@ -188,6 +188,7 @@ export default function InputBar({ onSendImage, imageFollowUp = '', onClearImage
           id="kb-toggle-btn"
           className={`${styles.kbToggle} ${useKb ? styles.kbToggleOn : ''}`}
           onClick={onToggleKb}
+          aria-pressed={Boolean(useKb)}
           title={useKb ? t('Knowledge Base active — click to disable') : t('Enable Knowledge Base retrieval')}
           type="button"
         >
@@ -220,6 +221,7 @@ export default function InputBar({ onSendImage, imageFollowUp = '', onClearImage
         <button
           className={`${styles.kbToggle} ${useWebSearch ? styles.kbToggleOn : ''}`}
           onClick={onToggleWebSearch}
+          aria-pressed={Boolean(useWebSearch)}
           disabled={offline}
           title={offline ? t('Web Search is off while StarkLLM is fully offline') : useWebSearch ? t('Web Search active — click to disable') : t('Enable Web Search')}
           type="button"
@@ -234,6 +236,7 @@ export default function InputBar({ onSendImage, imageFollowUp = '', onClearImage
           <button
             className={`${styles.kbToggle} ${useWebTask ? styles.kbToggleOn : ''}`}
             onClick={onToggleWebTask}
+            aria-pressed={Boolean(useWebTask)}
             disabled={offline}
             title={offline ? t('Web tasks are off while StarkLLM is fully offline') : t('StarkLLM does the task on websites in its own browser window')}
             type="button"
@@ -327,7 +330,6 @@ export default function InputBar({ onSendImage, imageFollowUp = '', onClearImage
             className={styles.cloudBadge}
             onClick={onOpenSettings}
             title={t('A cloud model provider is selected in Settings. Click to change it.')}
-            role="status"
           >
             <Cloud size={14} />
             {t('Cloud: {host} receives your question and document passages', { host: cloudHost })}
@@ -353,14 +355,14 @@ export default function InputBar({ onSendImage, imageFollowUp = '', onClearImage
       )}
       <div className={styles.inputWrapper}>
         <div style={{ display: 'flex', gap: '4px' }}>
-          <button className={styles.iconBtn} onClick={() => setIsTemplatesOpen(true)} title={t('Prompt Templates')}>
+          <button className={styles.iconBtn} onClick={() => setIsTemplatesOpen(true)} title={t('Prompt Templates')} aria-label={t('Prompt Templates')}>
             <FileCode size={24} />
           </button>
-          <button className={styles.iconBtn} onClick={handleFileClick} disabled={isUploading} title={t('Attach files (PDF, Word, Excel, CSV, Markdown, text, JSON, XML, HTML, images) or drop them on the window')}>
+          <button className={styles.iconBtn} onClick={handleFileClick} disabled={isUploading} aria-label={t('Attach files')} title={t('Attach files (PDF, Word, Excel, CSV, Markdown, text, JSON, XML, HTML, images) or drop them on the window')}>
             {isUploading ? <Loader size={24} className="spinner" /> : <Paperclip size={24} />}
           </button>
           {onSendImage && (
-            <button className={styles.iconBtn} onClick={() => imageInputRef.current?.click()} title={t('Ask about an image (or paste a screenshot into the message box)')}>
+            <button className={styles.iconBtn} onClick={() => imageInputRef.current?.click()} aria-label={t('Ask about an image')} title={t('Ask about an image (or paste a screenshot into the message box)')}>
               <ImagePlus size={24} />
             </button>
           )}
@@ -382,10 +384,10 @@ export default function InputBar({ onSendImage, imageFollowUp = '', onClearImage
         />
 
         {isRecording ? (
-          <div className={styles.recordingIndicator}>
+          <div className={styles.recordingIndicator} role="status">
             <span className={styles.recordingPulseDot} />
             <span className={styles.recordingText}>{t('Listening… {time}', { time: formatDuration(recordingDuration) })}</span>
-            <div className={styles.waveformBars}>
+            <div className={styles.waveformBars} aria-hidden="true">
               <span className={styles.bar1} />
               <span className={styles.bar2} />
               <span className={styles.bar3} />
@@ -394,7 +396,7 @@ export default function InputBar({ onSendImage, imageFollowUp = '', onClearImage
             </div>
           </div>
         ) : isTranscribing ? (
-          <div className={styles.transcribingIndicator}>
+          <div className={styles.transcribingIndicator} role="status">
             <Loader size={16} className={styles.spinnerIcon} />
             <span>{t('Transcribing audio with Whisper...')}</span>
           </div>
@@ -407,6 +409,7 @@ export default function InputBar({ onSendImage, imageFollowUp = '', onClearImage
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             placeholder={pendingImage ? t('Ask about the image…') : t('Message StarkLLM or drop a file here...')}
+            aria-label={t('Message to StarkLLM')}
             rows={1}
           />
         )}
@@ -426,11 +429,11 @@ export default function InputBar({ onSendImage, imageFollowUp = '', onClearImage
             ) : <Mic size={24} />}
           </button>
           {isGenerating ? (
-            <button className={`${styles.iconBtn} ${styles.stopBtn}`} onClick={onStopGeneration} title={t('Stop generating')}>
+            <button className={`${styles.iconBtn} ${styles.stopBtn}`} onClick={onStopGeneration} title={t('Stop generating')} aria-label={t('Stop generating')}>
               <Square size={18} />
             </button>
           ) : (
-            <button className={`${styles.iconBtn} ${styles.sendBtn}`} onClick={handleSend} title={t('Send message')}>
+            <button className={`${styles.iconBtn} ${styles.sendBtn}`} onClick={handleSend} title={t('Send message')} aria-label={t('Send message')}>
               <Send size={22} />
             </button>
           )}

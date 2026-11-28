@@ -61,6 +61,34 @@ jobs:
       - name: Build
         run: npm run build
 
+  accessibility:
+    # WCAG 2.1 AA / EN 301 549 (docs/accessibility.md): axe-core on every page, settings section and dialog in every
+    # theme, plus keyboard (skip link, dialogs keep and give back the focus), headings and 200 % zoom. The API is
+    # simulated, no engine or model is needed.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - name: Playwright and axe-core (only for this check, not in package.json)
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.64.1 axe-core@4.14.0
+          npx playwright install --with-deps chromium
+      - name: Accessibility check
+        env:
+          # the light themes' contrast is fixed on fix261/theme; remove this line when that is merged
+          A11Y_CONTRAST_PENDING: light,doodle,flowers
+        run: npm run a11y
+
   languages:
     runs-on: ubuntu-latest
     timeout-minutes: 5
