@@ -125,3 +125,12 @@
   .docHead { flex-wrap: wrap; }
   .caseNext { margin-left: 0; }
 }
+
+/* reply letters (2.8, option 10): the action on a letter, and the note on a scam letter instead of it */
+.replyBtn {
+  display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; cursor: pointer;
+  border-radius: var(--radius-sm); font-size: 0.85rem; font-weight: 600;
+  background: transparent; color: var(--accent-bright); border: 1px solid var(--border-color);
+}
+.replyBtn:hover { background: var(--bg-hover); border-color: var(--accent-bright); }
+.scamNote { margin: 0; font-size: 0.82rem; line-height: 1.45; color: var(--danger); }

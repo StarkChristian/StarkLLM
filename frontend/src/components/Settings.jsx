@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal, BrainCircuit, Server, Play, Loader, Key, Globe, Keyboard, ShieldCheck, Lock, ScanText, Smartphone } from 'lucide-react';
+import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal, BrainCircuit, Server, Play, Loader, Key, Globe, Keyboard, ShieldCheck, Lock, ScanText, Smartphone, Mail } from 'lucide-react';
 import styles from './Settings.module.css';
 import BackupRestoreSettings from './BackupRestoreSettings';
 import OcrSettings from './OcrSettings';
+import LetterProfileSettings from './LetterProfileSettings';
 import { useLucyVisible } from './Lucy';
 import { setHidden as setLucyHidden } from '../utils/lucy';
 import ProtectionSettings from './ProtectionSettings';
@@ -34,6 +35,7 @@ const SECTIONS = [
   { id: 'ui',       label: t('Appearance'),    icon: Palette },
   { id: 'language', label: t('Language & Locale'), icon: Globe },
   { id: 'ocr',      label: t('Reading photos and scans'), icon: ScanText },
+  { id: 'letters',  label: t('Your details for letters'), icon: Mail },
   { id: 'shortcuts', label: t('Keyboard Shortcuts'), icon: Keyboard },
   { id: 'protection', label: t('Protection'), icon: Lock },
   { id: 'system',   label: t('Backup & Restore'), icon: Archive },
@@ -360,7 +362,15 @@ print(response.choices[0].message.content)`;
   const isLocal = username === 'local';
   // the phone link exists only in the desktop app
   const sections = SECTIONS.filter((s) => !(isLocal && s.id === 'account') && !(s.id === 'phone' && !hasPhoneLink()));
-  const [activeSection, setActiveSection] = useState(section || sections[0].id);
+  // another page can open a settings page once (the reply letter of the inbox opens "Your details for letters")
+  const [activeSection, setActiveSection] = useState(() => {
+    try {
+      const wanted = sessionStorage.getItem('starkllm_settings_section');
+      sessionStorage.removeItem('starkllm_settings_section');
+      if (!section && wanted) return wanted;
+    } catch (_) { /* private mode */ }
+    return section || sections[0].id;
+  });
   // a page opened directly from elsewhere (section) is shown and marked like a clicked one
   useEffect(() => { if (section) setActiveSection(section); }, [section]);
   // the page shown and the tab marked are one value (N49)
@@ -1191,6 +1201,9 @@ print(response.choices[0].message.content)`;
 
           {/* ───── Reading photos and scans (OCR languages) ───── */}
           {shown === 'ocr' && <OcrSettings token={token} />}
+
+          {/* ───── Your details for reply letters ───── */}
+          {shown === 'letters' && <LetterProfileSettings token={token} />}
 
           {/* ───── Keyboard Shortcuts ───── */}
           {shown === 'shortcuts' && (

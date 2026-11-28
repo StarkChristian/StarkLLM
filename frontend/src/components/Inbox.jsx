@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Inbox as InboxIcon, FileText, Image, Check, RotateCcw, Pencil, X, FolderOpen, CalendarClock, ShieldAlert, Copy, ChevronDown, ChevronRight } from 'lucide-react';
+import { Inbox as InboxIcon, FileText, Image, Check, RotateCcw, Pencil, X, FolderOpen, CalendarClock, ShieldAlert, Copy, ChevronDown, ChevronRight, PenLine } from 'lucide-react';
 import DocumentViewerModal from './DocumentViewerModal';
+import ReplyLetterModal from './ReplyLetterModal';
+import { replyActionFor } from '../utils/replyLetter';
 import EmptyState from './EmptyState';
 import Deadlines from './Deadlines';
 import { UI_LOCALE } from '../utils/locale';
@@ -76,6 +78,7 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
   const [viewing, setViewing] = useState(null);
   const [editing, setEditing] = useState(null); // { key, title }
   const [openCase, setOpenCase] = useState(null);
+  const [replying, setReplying] = useState(null); // the letter a reply letter is written for
 
   const load = async () => {
     try {
@@ -189,6 +192,11 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
             </span>
           </div>
           <div className={styles.docActions}>
+            {replyActionFor(doc) === 'reply' && !isEditing && (
+              <button className={styles.replyBtn} onClick={() => setReplying(doc)} title={t('Write a reply letter')}>
+                <PenLine size={15} /> {t('Reply letter')}
+              </button>
+            )}
             {!isEditing && (
               <button className={styles.iconBtn} title={t('Rename')} onClick={() => setEditing({ key, title: doc.title || suggestedTitle(doc) })}>
                 <Pencil size={15} />
@@ -211,6 +219,9 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
           {doc.replaced && <span className={styles.badgeMuted}>{t('Replaced by a newer letter')}</span>}
           {doc.duplicate_of && <span className={styles.badgeMuted}><Copy size={12} /> {t('Same letter as {file}', { file: doc.duplicate_of.filename })}</span>}
         </div>
+        {replyActionFor(doc) === 'scam' && (
+          <p className={styles.scamNote}>{t('No reply letter: this letter shows signs of a scam. Contact the sender only through an address or phone number you already know.')}</p>
+        )}
 
         <dl className={styles.facts}>
           {f.type && (<><dt>{t('Kind')}</dt><dd>{factLink(doc, f.type, TYPE_LABEL[f.type.value] || f.type.value)}</dd></>)}
@@ -332,6 +343,20 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
       )}
 
       {data && tab !== 'deadlines' && <p className={styles.hint}>{t('Found by fixed rules, word for word in your documents. Check the letter before you act on it.')}</p>}
+
+      {replying && (
+        <ReplyLetterModal
+          token={token}
+          doc={replying}
+          onClose={() => setReplying(null)}
+          onOpenSource={(fact) => open(replying, fact)}
+          onOpenSettings={onViewChange ? () => {
+            try { sessionStorage.setItem('starkllm_settings_section', 'letters'); } catch (_) { /* private mode */ }
+            setReplying(null);
+            onViewChange('settings');
+          } : null}
+        />
+      )}
 
       {viewing && (
         <DocumentViewerModal
