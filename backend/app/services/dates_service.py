@@ -100,6 +100,13 @@ def _year_before_amount(text: str, m) -> bool:
     return bool(_CENTS.search(after.group("n1")) or _YEAR_CONTEXT.search(text[max(0, m.start() - 40):m.start()]))
 
 
+def _unit_before_amount(text: str, m) -> bool:
+    """"15 m3 £3.00": the 3 of a unit (m³ read as m3) right before a currency sign is no amount."""
+    if not m.group("n2") or m.start("n2") == 0:
+        return False
+    return text[m.start("n2") - 1].isalpha()
+
+
 class _AmountPattern:
     """The amount pattern plus the year rule above, which a regular expression alone cannot say: finditer and search
     skip a year before a currency and find the amount that starts at the currency instead. Everything else is the
@@ -114,7 +121,7 @@ class _AmountPattern:
             m = self._pattern.search(text, pos, end)
             if not m:
                 return
-            if _year_before_amount(text[:end], m):
+            if _year_before_amount(text[:end], m) or _unit_before_amount(text, m):
                 pos = m.start("c2")  # the next match starts at the currency
                 continue
             yield m

@@ -124,3 +124,12 @@ def test_a_letter_with_one_amount_is_unchanged():
                                 "Fällig am 15.12.2026\n"})
     assert [(a["value"], a["role"]) for a in facts["amounts"]] == [("84,20 EUR", None)]
     assert [(d["value"], d["amount"]) for d in facts["dates"]] == [("2026-12-15", "84,20 EUR")]
+
+
+def test_the_digit_of_a_unit_before_a_currency_is_no_amount():
+    """MSI §47: the laptop's OCR read "Water used 15 m3 £3.00/m? £45.00" and the inbox showed "3 GBP"."""
+    from app.services import facts_service as fs
+    text = "Water used 15 m3 £3.00/m? £45.00\nTotal due 63.40 GBP"
+    got = {(a["value"], a["role"]) for a in fs.amounts({1: text})}
+    assert ("3 GBP", None) not in got
+    assert ("3.00 GBP", "rate") in got and ("45.00 GBP", None) in got and ("63.40 GBP", None) in got

@@ -4,6 +4,7 @@ import json
 from app.core.chroma_store import open_chroma
 from app.core.config import settings
 from app.services.llm_service import llm_service
+from app.services.llm_service import QUERY_EMBED_TIMEOUT
 from app.services.protected_collection import wrap as protect_collection
 from app.core.protection import protection
 
@@ -198,7 +199,7 @@ Conversation:
                 return ""
 
             n_results = min(5, ws_count)
-            query_embedding = llm_service.generate_embeddings(self.embedding_model, query)
+            query_embedding = llm_service.generate_embeddings(self.embedding_model, query, timeout=QUERY_EMBED_TIMEOUT)
             results = self.memory_collection.query(
                 query_embeddings=[query_embedding],
                 n_results=n_results,

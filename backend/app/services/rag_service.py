@@ -1,3 +1,4 @@
+from app.services.llm_service import QUERY_EMBED_TIMEOUT
 import os 
 import re 
 import math 
@@ -655,7 +656,7 @@ class RAGService :
         if count ==0 :
             return []
         n =min (n_candidates ,count )
-        embedding =llm_service .generate_embeddings (self .embedding_model ,query_text )
+        embedding =llm_service .generate_embeddings (self .embedding_model ,query_text ,timeout =QUERY_EMBED_TIMEOUT )
         where_filter =self ._build_where_filter (filters )
         query_kwargs ={"query_embeddings":[embedding ],"n_results":n }
         if where_filter :

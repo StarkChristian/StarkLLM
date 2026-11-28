@@ -234,7 +234,8 @@ _OUT_OF_MEMORY = re.compile(
     re.I,
 )
 REQUEST_TIMEOUT_SECONDS = 150
-EMBED_TIMEOUT = (10, 600)  # connect, read: a big batch on a slow PC may take minutes, an absent Ollama must not
+EMBED_TIMEOUT = (10, 600)
+QUERY_EMBED_TIMEOUT = (10, 90)  # one question: a busy Ollama must not hold the chat (MSI §47)  # connect, read: a big batch on a slow PC may take minutes, an absent Ollama must not
 EMBED_BATCH = 64  # passages per embedding request
 
 
@@ -563,14 +564,14 @@ class LLMService:
                 raise friendly from e
             raise
 
-    def generate_embeddings(self, model: str, prompt: str) -> list[float]:
+    def generate_embeddings(self, model: str, prompt: str, timeout=None) -> list[float]:
         url = f"{self.base_url}/api/embeddings"
         payload = {
             "model": model,
             "prompt": prompt
         }
         try:
-            response = netguard.post(url, feature="ollama", json=payload, timeout=EMBED_TIMEOUT)
+            response = netguard.post(url, feature="ollama", json=payload, timeout=timeout or EMBED_TIMEOUT)
             response.raise_for_status()
             return response.json().get("embedding", [])
         except requests.exceptions.RequestException as e:
