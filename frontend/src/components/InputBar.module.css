@@ -249,6 +249,20 @@
 }
 
 /* ── Character / Token Counter ── */
+/* the AI notice under the message box (EU AI Act, Article 50(1)): small and calm, always there */
+.aiNote {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+  width: 100%;
+  max-width: 850px;
+  opacity: 0.85;
+}
+
 .charCounter {
   display: flex;
   align-items: center;

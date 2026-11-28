@@ -136,7 +136,8 @@ function initApp() {
   });
   registerPhoneLinkHandlers();
   webtask.register(ipcMain, { fromApp, log: logLine });
-  app.on("will-quit", () => webtask.stopCommands()); // commands of a web task end with StarkLLM
+  // commands of a web task end with StarkLLM; the browser window's lists are written
+  app.on("will-quit", () => { webtask.stopCommands(); webtask.saveProfile(); });
   registerProtectionHandlers();
   registerUnlockHandlers();
   lockEngineOnQuit();
@@ -579,9 +580,15 @@ function registerPhoneLinkHandlers() {
   };
   ipcMain.handle('phone:status', allowed(() => phone().status()));
   ipcMain.handle('phone:enable', allowed((on) => phone().setEnabled(Boolean(on))));
-  ipcMain.handle('phone:user-session', allowed(async (token) => ({ ok: Boolean(await keepPhoneSession(token)) })));
-  // signing out in the window: the phones of that account are no longer paired
+  // the account signed in in the window: also the owner of the browser window's favourites, history and downloads list
+  ipcMain.handle('phone:user-session', allowed(async (token) => {
+    const user = await keepPhoneSession(token);
+    webtask.setAccount(user);
+    return { ok: Boolean(user) };
+  }));
+  // signing out in the window: the phones of that account are no longer paired; its browser window closes
   ipcMain.handle('phone:signed-out', allowed(async (token) => {
+    webtask.setAccount('');
     const user = await accountOf(String(token || ''));
     if (!user) return { ok: false };
     phoneSessions.delete(user);
