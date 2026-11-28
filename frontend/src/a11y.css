@@ -1,0 +1,103 @@
+/* =========================================================
+   Accessibility (WCAG 2.1 AA / EN 301 549), docs/accessibility.md
+   Loaded after index.css. Only focus rings, hidden helper text, motion and contrast; the design stays as it is.
+   ========================================================= */
+
+/* ── Focus ring (WCAG 2.4.7, 1.4.11) ──
+   Many fields and buttons set outline: none (some inline), so the ring is !important. It shows only for the
+   keyboard (:focus-visible), not on mouse clicks. Its colour has at least 3:1 against the background of every theme. */
+:root { --focus-ring: var(--accent-bright); }
+[data-theme="light"], [data-theme="doodle"], [data-theme="flowers"] { --focus-ring: var(--accent); }
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring) !important;
+  outline-offset: 2px !important;
+}
+/* inside lists that clip their content (sidebar, chat, menus) the ring is drawn inside the element */
+aside :focus-visible,
+[role="log"] :focus-visible,
+[role="menu"] :focus-visible,
+[role="dialog"] [role="listbox"] :focus-visible {
+  outline-offset: -2px !important;
+}
+/* the page and the chat log get the focus from the skip link or by Tab; they show it inside */
+.app-main:focus-visible, [role="log"]:focus-visible { outline-offset: -3px !important; }
+.app-main:focus:not(:focus-visible) { outline: none; }
+
+/* ── Text only for screen readers ── */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* ── Skip link (WCAG 2.4.1): hidden until the first Tab ── */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 100000;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 2px solid var(--focus-ring);
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(-200%);
+}
+.skip-link:focus { transform: none; }
+
+/* ── The page next to the sidebar: the <main> landmark ── */
+.app-main {
+  flex: 1;
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* ── Motion (WCAG 2.3.3): "Show animations" off in Windows, or reduce motion in the browser ──
+   Spinners, pulsing dots, the moving star and doodle backgrounds and Lucy stand still; nothing is hidden. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0s !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Windows high contrast (forced colours): the ring and the selected items use system colours ── */
+@media (forced-colors: active) {
+  :focus-visible { outline: 2px solid Highlight !important; }
+  [aria-current="page"], [aria-pressed="true"], [aria-selected="true"] { outline: 1px solid Highlight; }
+}
+
+/* ── Contrast of the dark themes (WCAG 1.4.3: 4.5:1 for text), measured with axe-core ──
+   The light themes (Daylight, Doodle, Flowers) are fixed on their own branch (2.6.1 theme fix) and not changed here. */
+:root:not([data-theme]), [data-theme="dark"] { --text-muted: #8d98a8; }     /* #768396: 3.6-4.4:1 on cards and table heads */
+[data-theme="doodle-night"] { --text-muted: #9eabb3; }                     /* #8696a0: 3.4-4.4:1 */
+[data-theme="stars"]        { --text-muted: #989fcd; }                     /* #8b93c7: 4.1:1 on raised cards */
+[data-theme="glass"]        { --text-muted: #9aa8bc; }                     /* #94a3b8: 4.4:1 on raised cards */
+
+/* text on a solid accent background (buttons, counters): white where it has 4.5:1, else dark ink */
+:root { --on-accent: #ffffff; --danger-text: #f87171; }
+[data-theme="pink"], [data-theme="black"], [data-theme="glass"], [data-theme="emerald"], [data-theme="amber"],
+[data-theme="nord"], [data-theme="doodle-night"], [data-theme="matrix"], [data-theme="stars"] { --on-accent: #0b0d12; }
+/* red text (warnings like "possible scam"): #ef4444 is 4.2:1 on the tinted dark badges */
+[data-theme="light"], [data-theme="doodle"], [data-theme="flowers"] { --danger-text: #b91c1c; }
+
+/* the gradient buttons (.btn-primary): their text has 4.5:1 at both ends of the gradient. In the default, Glass and
+   Starry Night themes the gradient itself is a little darker or lighter for that (white on #8b5cf6 was 4.2:1). */
+.btn-primary { color: var(--on-accent); }
+:root:not([data-theme]), [data-theme="dark"] { --grad-accent: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
+[data-theme="glass"] { --grad-accent: linear-gradient(135deg, #a855f7 0%, #818cf8 50%, #38bdf8 100%); }
+[data-theme="stars"] { --grad-accent: linear-gradient(135deg, #818cf8 0%, #f59e0b 100%); }

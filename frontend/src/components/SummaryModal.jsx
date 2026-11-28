@@ -5,6 +5,7 @@ import MarkdownIt from 'markdown-it';
 import { blockRemoteImages } from '../utils/markdown';
 import { t } from '../i18n';
 import { useEscape } from '../utils/useEscape';
+import DialogBox from './DialogBox';
 
 const md = blockRemoteImages(new MarkdownIt({ html: false }));
 
@@ -14,7 +15,7 @@ export default function SummaryModal({ chatTitle, summary, loading, error, onClo
 
   return (
     <div className={styles.backdrop} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className={styles.modal} role="dialog" aria-modal="true" aria-label={t('Chat Summary')}>
+      <DialogBox className={styles.modal} onClose={onClose} closeOnEscape={false} labelledBy="dlg-summary-title">
 
         {/* ── Header ── */}
         <div className={styles.header}>
@@ -23,7 +24,7 @@ export default function SummaryModal({ chatTitle, summary, loading, error, onClo
               <FileText size={16} />
             </div>
             <div>
-              <h3 className={styles.title}>{t('Chat Summary')}</h3>
+              <h3 id="dlg-summary-title" className={styles.title}>{t('Chat Summary')}</h3>
               {chatTitle && (
                 <p className={styles.subtitle}>{chatTitle}</p>
               )}
@@ -74,7 +75,7 @@ export default function SummaryModal({ chatTitle, summary, loading, error, onClo
             </button>
           </div>
         )}
-      </div>
+      </DialogBox>
     </div>
   );
 }

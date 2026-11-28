@@ -162,8 +162,8 @@ export default function EncryptedBackupSettings({ token }) {
       <div style={card}>
         <h4 style={{ margin: 0 }}><ShieldCheck size={16} /> {t('Test a backup file')}</h4>
         <div className={styles.hint}>{t('Unpacks the file into a temporary folder and compares it with what it says it contains. Your data is not changed.')}</div>
-        <input type="file" ref={verifyFile} accept=".starkbackup" />
-        <input type="password" placeholder={t('Passphrase')} value={verifyPass} onChange={(e) => setVerifyPass(e.target.value)} />
+        <input type="file" ref={verifyFile} accept=".starkbackup" aria-label={t('Test a backup file')} />
+        <input type="password" placeholder={t('Passphrase')} aria-label={t('Passphrase')} value={verifyPass} onChange={(e) => setVerifyPass(e.target.value)} />
         <button className="btn-secondary" disabled={busy === 'verify' || !verifyPass} onClick={verify} style={{ width: 'fit-content' }}>
           {busy === 'verify' ? <Loader size={16} className="spinner" /> : null} {t('Test the backup')}
         </button>
@@ -173,8 +173,8 @@ export default function EncryptedBackupSettings({ token }) {
       <div style={{ ...card, border: '1px solid rgba(239,68,68,0.25)', background: 'rgba(239,68,68,0.05)' }}>
         <h4 style={{ margin: 0, color: '#ef4444' }}><Upload size={16} /> {t('Restore from a backup')}</h4>
         <div className={styles.hint}>{t('The file is tested first. A file that is damaged, changed, or opened with the wrong passphrase is refused and nothing changes.')}</div>
-        <input type="file" ref={restoreFile} accept=".starkbackup" />
-        <input type="password" placeholder={t('Passphrase')} value={restorePass} onChange={(e) => setRestorePass(e.target.value)} />
+        <input type="file" ref={restoreFile} accept=".starkbackup" aria-label={t('Restore from a backup')} />
+        <input type="password" placeholder={t('Passphrase')} aria-label={t('Passphrase')} value={restorePass} onChange={(e) => setRestorePass(e.target.value)} />
         <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '0.9rem' }}>
           <input type="checkbox" checked={sure} onChange={(e) => setSure(e.target.checked)} />
           {t('I understand that this replaces my current data.')}

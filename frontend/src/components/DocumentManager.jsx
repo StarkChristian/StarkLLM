@@ -12,6 +12,7 @@ import { useToast } from './Toast';
 import { serverDate } from '../utils/time';
 import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
+import DialogBox from './DialogBox';
 
 /* --- Formatting Helpers --- */
 function formatBytes(bytes) {
@@ -384,11 +385,11 @@ export default function DocumentManager({
 
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.modal} onClick={e => e.stopPropagation()}>
+      <DialogBox className={styles.modal} onClick={e => e.stopPropagation()} onClose={onClose} labelledBy="dlg-documents-title">
         {/* ── Header ── */}
         <div className={styles.header}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <h2>{t('Workspace Documents')}</h2>
+            <h2 id="dlg-documents-title">{t('Workspace Documents')}</h2>
 
             {onUpload && (
               <>
@@ -918,7 +919,7 @@ export default function DocumentManager({
           </div>
 
         </div>
-      </div>
+      </DialogBox>
       {viewing && (
         <DocumentViewerModal
           isOpen

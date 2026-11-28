@@ -121,7 +121,12 @@ def sender(pages: Dict[int, str]) -> Optional[Dict]:
     if _not_a_name(lines[0]):
         return None
     name = re.split(r"\s+[-–|·]\s+", lines[0])[0].strip()  # "Finanzamt Rheinstadt - Vollstreckungsstelle"
+    name = _LOGO_NOISE.sub("", name) or name
     return _fact(name[:80], first_page, lines[0][:200])
+
+
+# OCR of a logo in front of the letterhead: "Oo Orneksehir Elektrik A.S.", "© Stadtwerke …", "» Sampleton …"
+_LOGO_NOISE = re.compile(r"^(?:[^\w\s]{1,3}|(?=[A-Za-z]{1,2}\b)(?![A-Z]{1,2}\b)[A-Za-z]{1,2})\s+(?=[^\W\d_]{4,})")
 
 
 # First lines of files that are not letters (seen on a real PC, 12 Nov 2026): "# Project card" (Markdown),

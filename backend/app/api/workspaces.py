@@ -74,6 +74,14 @@ def _purge_workspace_data(db: Session, ws: models.Workspace, user_id: int):
         except Exception as e:
             log.warning(f"Could not remove {d.filepath}: {e}")
         db.delete(d)
+    # folders whose letters went into this workspace are no longer watched (the folders and files stay)
+    watched = [f.id for f in db.query(models.WatchedFolder.id).filter(models.WatchedFolder.workspace_id == ws.id).all()]
+    if watched:
+        db.query(models.WatchedImport).filter(models.WatchedImport.folder_id.in_(watched)).delete(synchronize_session=False)
+        db.query(models.WatchedFolder).filter(models.WatchedFolder.id.in_(watched)).delete(synchronize_session=False)
+        from app.services.watch_service import watcher
+        for folder_id in watched:
+            watcher.forget_folder(folder_id)
     chat_ids = [c.id for c in db.query(models.Chat.id).filter(models.Chat.workspace_id == ws.id).all()]
     if chat_ids:
         db.query(models.Message).filter(models.Message.chat_id.in_(chat_ids)).delete(synchronize_session=False)

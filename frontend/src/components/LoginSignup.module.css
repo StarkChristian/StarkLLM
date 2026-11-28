@@ -103,7 +103,7 @@
 .tab:hover { color: var(--text-primary); }
 .tabActive {
   background: var(--accent) !important;
-  color: #fff !important;
+  color: var(--on-accent, #fff) !important;
   box-shadow: var(--shadow-sm);
 }
 
