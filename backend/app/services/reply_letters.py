@@ -220,6 +220,66 @@ RECIPIENT_PLACEHOLDER = {"de": "[Anschrift des Empfängers]", "en": "[Address of
                          "fr": "[Adresse du destinataire]", "es": "[Dirección del destinatario]",
                          "it": "[Indirizzo del destinatario]", "tr": "[Alıcının adresi]"}
 
+# Careful mode: a letter with a note to AI assistants or with hidden text (but no signs of a scam) is answered, with
+# a caution, without bank details, mandate reference or creditor ID, and with every prefilled fact marked to check.
+CAREFUL_WARNINGS = frozenset({"ai_instructions", "hidden_text"})
+CREDITOR_ID = re.compile(r"^[A-Z]{2}\d{2}[A-Z0-9]{3}[A-Z0-9]{4,28}$")  # SEPA creditor ID: DE98ZZZ09999999999
+CAUTION = {
+    "ai": {
+        "de": "Dieses Schreiben enthält einen Hinweis an KI-Assistenten. Prüfen Sie die Adresse des Empfängers und die "
+              "Referenznummern anhand von Angaben, die Sie bereits kennen, bevor Sie diese Antwort abschicken.",
+        "en": "This letter contains a note to AI assistants. Check the recipient's address and reference numbers "
+              "against details you already know before you send this reply.",
+        "fr": "Ce courrier contient une note destinée aux assistants d'IA. Vérifiez l'adresse du destinataire et les "
+              "numéros de référence à l'aide d'informations que vous connaissez déjà avant d'envoyer cette réponse.",
+        "es": "Esta carta contiene una nota dirigida a asistentes de IA. Compruebe la dirección del destinatario y los "
+              "números de referencia con datos que ya conozca antes de enviar esta respuesta.",
+        "it": "Questa lettera contiene una nota rivolta agli assistenti IA. Verifichi l'indirizzo del destinatario e i "
+              "numeri di riferimento con dati che conosce già prima di inviare questa risposta.",
+        "tr": "Bu mektupta yapay zeka asistanlarına yönelik bir not var. Bu yanıtı göndermeden önce alıcının adresini "
+              "ve referans numaralarını zaten bildiğiniz bilgilerle karşılaştırın.",
+    },
+    "hidden": {
+        "de": "Dieses Schreiben enthält versteckten Text. Prüfen Sie die Adresse des Empfängers und die "
+              "Referenznummern anhand von Angaben, die Sie bereits kennen, bevor Sie diese Antwort abschicken.",
+        "en": "This letter contains hidden text. Check the recipient's address and reference numbers against details "
+              "you already know before you send this reply.",
+        "fr": "Ce courrier contient du texte caché. Vérifiez l'adresse du destinataire et les numéros de référence à "
+              "l'aide d'informations que vous connaissez déjà avant d'envoyer cette réponse.",
+        "es": "Esta carta contiene texto oculto. Compruebe la dirección del destinatario y los números de referencia "
+              "con datos que ya conozca antes de enviar esta respuesta.",
+        "it": "Questa lettera contiene testo nascosto. Verifichi l'indirizzo del destinatario e i numeri di "
+              "riferimento con dati che conosce già prima di inviare questa risposta.",
+        "tr": "Bu mektupta gizli metin var. Bu yanıtı göndermeden önce alıcının adresini ve referans numaralarını "
+              "zaten bildiğiniz bilgilerle karşılaştırın.",
+    },
+}
+SEPA_HINT = {
+    "de": "Die Gläubiger-ID und die Mandatsreferenz wurden nicht aus dem Schreiben übernommen: Tragen Sie sie aus "
+          "Ihren eigenen Unterlagen ein, zum Beispiel aus Ihrem Kontoauszug.",
+    "en": "The creditor ID and the mandate reference were not taken from the letter: fill them in from your own "
+          "records, for example your bank statement.",
+    "fr": "L'identifiant créancier et la référence du mandat n'ont pas été repris du courrier : complétez-les à "
+          "partir de vos propres documents, par exemple votre relevé bancaire.",
+    "es": "El identificador del acreedor y la referencia del mandato no se han tomado de la carta: complételos con "
+          "sus propios documentos, por ejemplo su extracto bancario.",
+    "it": "Il codice identificativo del creditore e il riferimento del mandato non sono stati ripresi dalla lettera: "
+          "li completi con i Suoi documenti, ad esempio l'estratto conto.",
+    "tr": "Alacaklı kimlik numarası ve talimat referansı mektuptan alınmadı: Bunları kendi belgelerinizden, örneğin "
+          "hesap özetinizden doldurun.",
+}
+SEPA_PLACEHOLDERS = {
+    "de": " mit der Mandatsreferenz [Mandatsreferenz] (Gläubiger-Identifikationsnummer: [Gläubiger-ID])",
+    "en": " with the mandate reference [mandate reference] (creditor ID: [creditor ID])",
+    "fr": " portant la référence [référence du mandat] (identifiant créancier SEPA : [identifiant créancier])",
+    "es": " con la referencia [referencia del mandato] (identificador del acreedor: [identificador del acreedor])",
+    "it": " con riferimento [riferimento del mandato] (codice identificativo del creditore: [codice creditore])",
+    "tr": " ([talimat referansı] referanslı, alacaklı kimlik numarası: [alacaklı kimlik numarası])",
+}
+CHECK_LABEL = {"de": "Bitte prüfen", "en": "Please check", "fr": "À vérifier", "es": "Compruebe, por favor",
+               "it": "Da verificare", "tr": "Lütfen kontrol edin"}
+AMOUNT_WORD = {"de": "Betrag", "en": "Amount", "fr": "Montant", "es": "Importe", "it": "Importo", "tr": "Tutar"}
+
 
 # ---------------------------------------------------------------------------------------------------------------
 # Dates
@@ -348,7 +408,7 @@ def _noun_kind(doc_type: Optional[str]) -> str:
 # ---------------------------------------------------------------------------------------------------------------
 # The body without the model
 
-def template_body(kind: str, lang: str, facts: Dict, us: bool = False) -> str:
+def template_body(kind: str, lang: str, facts: Dict, us: bool = False, careful: bool = False) -> str:
     """The fixed body of a reply of this kind, filled with the letter's facts. Holds no date but the letter's own and
     no time limit, so it never states a deadline."""
     doc_type = (facts.get("type") or {}).get("value")
@@ -380,7 +440,9 @@ def template_body(kind: str, lang: str, facts: Dict, us: bool = False) -> str:
     elif lang == "it":
         values["noun_rif"] = {"notice": "al Vostro avviso", "bill": "alla Vostra fattura",
                               "letter": "alla Vostra comunicazione"}[noun_kind]
-    if mandate:
+    if careful and kind == "sepa_revoke":
+        values["mandate"] = SEPA_PLACEHOLDERS[lang]  # never the mandate or creditor of a letter with a note to AIs
+    elif mandate:
         values["mandate"] = {"de": f" mit der Mandatsreferenz {mandate}", "en": f" with the reference {mandate}",
                              "fr": f" portant la référence {mandate}", "es": f" con la referencia {mandate}",
                              "it": f" con riferimento {mandate}", "tr": f" ({mandate} referanslı)"}[lang]
@@ -616,37 +678,76 @@ def compose(kind: str, lang: str, facts: Dict, recipient: List[str], profile: Di
     return "\n\n".join(b for b in blocks if b) + "\n"
 
 
+def careful_facts(facts: Dict) -> Dict:
+    """The facts of a letter with a note to AI assistants or hidden text, without anything that would move money:
+    no bank account, no mandate reference, no creditor ID. The user fills these in from their own records."""
+    refs = [r for r in facts.get("references", []) if r.get("kind") != "mandate_reference"
+            and not CREDITOR_ID.search(re.sub(r"\s", "", r.get("value", "")))]
+    return {**facts, "references": refs, "accounts": []}
+
+
+def caution_of(kind: str, lang: str, warnings, recipient: List[str], facts: Dict, us: bool = False) -> Dict:
+    """The calm caution shown above the draft of a letter with a note to AI assistants or hidden text, in the letter's
+    language, with the prefilled facts to check against details the user already knows."""
+    what = "ai" if "ai_instructions" in warnings else "hidden"
+    lines = [CAUTION[what][lang]]
+    if kind == "sepa_revoke":
+        lines.append(SEPA_HINT[lang])
+    items = []
+    if recipient:
+        items.append(", ".join(recipient))
+    items += reference_lines(facts, lang)
+    amount = _main_amount(facts)
+    if amount:
+        items.append(f"{AMOUNT_WORD[lang]}{' : ' if lang == 'fr' else ': '}{amount['value']}")
+    return {"warnings": sorted(warnings), "text": " ".join(lines), "label": CHECK_LABEL[lang], "items": items}
+
+
 def draft(kind: str, facts: Dict, pages: Dict[int, str], profile: Dict, today: str, ui_language: str = "en",
-          model: Optional[str] = None, generate=None, language: Optional[str] = None) -> Dict:
-    """A reply letter for one letter: the text to edit, its parts and where each fact was read."""
+          model: Optional[str] = None, generate=None, language: Optional[str] = None, warnings=()) -> Dict:
+    """A reply letter for one letter: the text to edit, its parts and where each fact was read.
+
+    warnings: the letter's checks (facts_service). A letter with signs of a scam is never answered (the caller refuses
+    it). A letter with a note to AI assistants or with hidden text is drafted in careful mode: a caution in the letter's
+    language, no bank details, mandate reference or creditor ID, the fixed body (the model reads nothing of such a
+    letter), and every prefilled fact marked to be checked."""
     if kind not in KINDS:
         raise ValueError(kind)
+    if "scam_signs" in (warnings or ()):
+        raise ValueError("scam")
+    careful_warnings = sorted(set(warnings or ()) & CAREFUL_WARNINGS)
+    careful = bool(careful_warnings)
+    if careful:
+        facts = careful_facts(facts)
     lang = language if language in LANGS else letter_language(pages, ui_language)
     recipient_name = (facts.get("sender") or {}).get("value")
     address = sender_address(pages, facts.get("sender"))
     recipient = [recipient_name] + address if recipient_name else []
     us = lang == "en" and is_us_letter(address, facts)
-    template = template_body(kind, lang, facts, us)
+    template = template_body(kind, lang, facts, us, careful)
     letter_text = "\n".join((pages or {})[p] or "" for p in sorted(pages or {}))
     body, source, used_model = template, "template", None
-    chosen = local_model(model)
+    chosen = None if careful else local_model(model)
     if chosen and generate:
         written = model_body(kind, lang, facts, template, letter_text, profile, chosen, generate)
         if written:
             body, source, used_model = written["text"], "model", chosen
     text = compose(kind, lang, facts, recipient, profile, body, today, us)
     deadlines = deadlines_of(facts, today)
+    amount = _main_amount(facts)
     p = profile or {}
     return {
         "kind": kind, "language": lang, "us": us, "text": text, "subject": subject_line(kind, lang, facts, us),
         "body_source": source, "model": used_model,
         "recipient": {"lines": recipient, "page": (facts.get("sender") or {}).get("page"),
-                      "text": (facts.get("sender") or {}).get("text")},
-        "references": [{"kind": r["kind"], "value": r["value"], "page": r["page"], "text": r["text"]}
+                      "text": (facts.get("sender") or {}).get("text"), "check": careful},
+        "references": [{"kind": r["kind"], "value": r["value"], "page": r["page"], "text": r["text"], "check": careful}
                        for r in facts.get("references", [])[:4]],
         "letter_date": facts.get("date"),
-        "amount": _main_amount(facts),
+        "amount": {**amount, "check": careful} if amount else None,
         "deadlines": deadlines,
         "deadline_missing": not deadlines,
         "profile_complete": bool(p.get("full_name") and p.get("street") and p.get("city")),
+        "careful": careful,
+        "caution": caution_of(kind, lang, careful_warnings, recipient, facts, us) if careful else None,
     }

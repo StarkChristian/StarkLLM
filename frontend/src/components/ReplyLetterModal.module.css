@@ -91,3 +91,13 @@
   padding: 12px 20px; border-top: 1px solid var(--border-color); flex-shrink: 0;
 }
 .grow { flex: 1; }
+
+/* careful mode: a letter with a note to AI assistants or hidden text */
+.caution {
+  display: flex; gap: 10px; align-items: flex-start; margin: 0 0 14px; padding: 12px 14px; line-height: 1.45;
+  border-radius: var(--radius-md); background: var(--bg-card); border: 1px solid var(--warning, #d97706);
+  color: var(--text-primary); font-size: 0.9rem;
+}
+.caution p { margin: 0; }
+.checkList { margin: 8px 0 0; padding-inline-start: 18px; display: flex; flex-direction: column; gap: 2px; }
+.checkLabel { font-weight: 600; }

@@ -4,13 +4,23 @@
 // the kinds of reply letters, in the order the menu shows them
 export const REPLY_KINDS = ['cancel', 'objection', 'deferral', 'correction', 'sepa_revoke'];
 
-// What the inbox offers for a document: 'scam' (a warning, never a reply letter), 'reply' (the action) or null
-// (no letter: a note, a table, a book).
+// What the inbox offers for a document: 'scam' (signs of a scam: a warning, never a reply letter), 'reply' (the
+// action) or null (no letter: a note, a table, a book). A note to AI assistants or hidden text alone still gets the
+// action; the draft is then written in careful mode (see cautionView).
 export function replyActionFor(doc) {
   if (!doc) return null;
-  if (doc.suspicious || (doc.facts?.warnings || []).length > 0) return 'scam';
-  if (!doc.facts?.letter) return null;
+  const warnings = doc.facts?.warnings || [];
+  if (warnings.includes('scam_signs')) return 'scam';
+  if (!doc.facts?.letter && warnings.length === 0) return null;
   return 'reply';
+}
+
+// The caution above a careful draft (a letter with a note to AI assistants or hidden text): written by the engine in
+// the letter's language, with the prefilled facts to check. null for an ordinary draft.
+export function cautionView(draft) {
+  const c = draft?.caution;
+  if (!draft?.careful || !c || !c.text) return null;
+  return { lang: draft.language || 'en', text: c.text, label: c.label || 'Please check', items: [...(c.items || [])] };
 }
 
 // The draft for the existing Word and PDF exports: one plain-text part (its lines are kept as they are), named after

@@ -4,7 +4,7 @@ import { t, language } from '../i18n';
 import { useEscape } from '../utils/useEscape';
 import { UI_LOCALE } from '../utils/locale';
 import { saveAsWord, saveAsPdf } from '../utils/exportDocs';
-import { REPLY_KINDS, letterExport, shownDeadlines } from '../utils/replyLetter';
+import { REPLY_KINDS, letterExport, shownDeadlines, cautionView } from '../utils/replyLetter';
 import { useToast } from './Toast';
 import styles from './ReplyLetterModal.module.css';
 
@@ -91,6 +91,7 @@ export default function ReplyLetterModal({ token, doc, onClose, onOpenSource, on
   };
 
   const deadlines = shownDeadlines(draft);
+  const caution = cautionView(draft);
 
   return (
     <div className={styles.backdrop} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -131,6 +132,20 @@ export default function ReplyLetterModal({ token, doc, onClose, onOpenSource, on
           )}
           {error === 'failed' && (
             <p className={styles.danger}><AlertTriangle size={15} /> {t('The draft could not be written. Is StarkLLM running?')}</p>
+          )}
+
+          {draft && !loading && caution && (
+            <div className={styles.caution} lang={caution.lang} role="note">
+              <ShieldAlert size={16} />
+              <div>
+                <p>{caution.text}</p>
+                {caution.items.length > 0 && (
+                  <ul className={styles.checkList}>
+                    {caution.items.map((item, i) => <li key={i}><span className={styles.checkLabel}>{caution.label}:</span> {item}</li>)}
+                  </ul>
+                )}
+              </div>
+            </div>
           )}
 
           {draft && !loading && (

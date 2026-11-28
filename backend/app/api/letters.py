@@ -83,15 +83,17 @@ def make_draft(body: DraftIn, db: Session = Depends(get_db), current_user: model
     user's own details from the profile, the body by the local model (checked) or a fixed text, and the deadlines
     printed in the letter with their sentences. Nothing is sent."""
     item, pages, facts = _letter(db, current_user.id, body.scope, body.document_id)
-    if facts.get("warnings"):
+    warnings = facts.get("warnings") or []
+    if "scam_signs" in warnings:
         # a letter with signs of a scam is not answered: a reply would confirm the address and the person to the sender
-        raise HTTPException(status_code=409, detail={"code": "scam", "warnings": facts["warnings"]})
+        raise HTTPException(status_code=409, detail={"code": "scam", "warnings": warnings})
     if not facts.get("letter"):
         raise HTTPException(status_code=400, detail={"code": "not-a-letter"})
     from app.services.llm_service import llm_service
     model = (current_user.default_model or settings.DEFAULT_TEXT_MODEL) if body.use_model else None
+    # a note to AI assistants or hidden text alone: careful mode (caution, no bank or mandate details, facts to check)
     result = reply_letters.draft(body.kind, facts, pages, profile_of(db, current_user.id), date.today().isoformat(),
                                  ui_language=body.ui_language or "en", model=model,
-                                 generate=llm_service.generate_chat if model else None)
+                                 generate=llm_service.generate_chat if model else None, warnings=warnings)
     return {**result, "scope": item["scope"], "document_id": item["id"], "workspace_id": item.get("workspace_id"),
             "filename": item["filename"]}
