@@ -23,6 +23,7 @@ const { createPhoneLink } = require('./phonelink');
 const { qrMatrix } = require('./qr');
 const exportPdf = require('./export-pdf');
 const mcp = require('./mcp');
+const connections = require('./connections');
 
 let mainWindow = null;
 let tray = null;
@@ -45,7 +46,9 @@ const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
+    // a .mcpb bundle opened while StarkLLM runs: Settings › Connections shows it and asks first (connections.js)
+    for (const a of argv || []) if (/\.(mcpb|dxt)$/i.test(a)) connections.openBundleFile(a, mainWindow);
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
@@ -112,7 +115,10 @@ function initApp() {
   const fromApp = (event) => Boolean(event.senderFrame && sameOrigin(event.senderFrame.url, APP_URL));
   exportPdf.register(ipcMain, { fromApp }); // chats and answers as PDF (docs/roadmap-2026-12.md, R1)
   // tool servers (MCP) the user added: started by the desktop app, each call after a yes in the chat (docs/roadmap-2026-12.md, R6)
-  mcp.register(ipcMain, { fromApp, offline: () => require('./netguard').getShared().isOffline(), log: logLine });
+  mcp.register(ipcMain, { fromApp, offline: () => require('./netguard').getShared().isOffline(), log: logLine, auditFile: path.join(app.getPath('userData'), 'connections-audit.jsonl') });
+  // Settings › Connections: the catalog, installations through the bundled runtimes, .mcpb bundles (docs/connections.md)
+  connections.register(ipcMain, { fromApp, offline: () => require('./netguard').getShared().isOffline(), log: logLine });
+  for (const a of process.argv.slice(1)) if (/\.(mcpb|dxt)$/i.test(a)) connections.openBundleFile(a, null);
   app.on('will-quit', () => mcp.stopAll());
   const privacyState = () => ({ offline: guard.isOffline(), localCounts: guard.localCounts() });
   ipcMain.handle('privacy:get', (event) => (fromApp(event) ? privacyState() : { error: 'not allowed' }));
@@ -671,7 +677,7 @@ function createTray() {
 // wins, and the engine accepts the desktop app with the key derived from its SECRET_KEY, whoever is signed in).
 async function switchAppAndEngineOffline(on, from) {
   if (on) webtask.stopForOffline(); // a web task that runs ends with the switch
-  if (on) mcp.stopAll(); // tool servers end with the offline switch
+  if (on) mcp.stopEverything(); // tool servers end with the offline switch (and read tools allowed for the session)
   const setEngine = (value) => setEngineOffline({
     fetchFn: guard.wrapFetch((u, o) => net.fetch(u, o), 'local_engine', 'Fully offline switch of the engine on this PC'),
     apiUrl: apiUrl(), key: desktopKey(engineSecret()), on: value

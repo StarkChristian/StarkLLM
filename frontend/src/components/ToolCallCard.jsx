@@ -3,6 +3,20 @@ import styles from './ToolCallCard.module.css';
 import { Terminal, Check, X, AlertTriangle, Play, Loader2, Send } from 'lucide-react';
 import { t } from '../i18n';
 import { isExternalTool, externalToolLabel, mcpBridge } from '../utils/mcpBridge';
+import { TierBadge } from './McpServers';
+
+// read tools allowed for the session run by themselves once, in the newest answer only (not again on a re-render or
+// when an older chat is opened)
+const autoRan = new Set();
+const autoKey = (chatId, raw) => `${chatId || ''}|${raw || ''}`;
+function alreadyRan(key) {
+  if (autoRan.has(key)) return true;
+  try { return window.sessionStorage.getItem(`starkllm-autoran:${key}`) === '1'; } catch (e) { return false; }
+}
+function markRan(key) {
+  autoRan.add(key);
+  try { window.sessionStorage.setItem(`starkllm-autoran:${key}`, '1'); } catch (e) { /* memory only */ }
+}
 
 // in the user's language when the card is shown (not when the file is loaded)
 const TOOL_DESCRIPTIONS = {
@@ -18,7 +32,9 @@ export default function ToolCallCard({
   workspaceId,
   token,
   onToolExecuted,
-  onSendToolResult
+  onSendToolResult,
+  chatId,
+  isLatest
 }) {
   const [editedArgs, setEditedArgs] = useState(() => {
     if (parsedCall && parsedCall.arguments) {
@@ -38,10 +54,32 @@ export default function ToolCallCard({
   const [execResult, setExecResult] = useState(null);
   const [execError, setExecError] = useState(null);
   const pendingRegisteredRef = useRef(false);
+  // the rules of the desktop app for this call (docs/connections.md): risk tier, session allowance, second tick
+  const [policy, setPolicy] = useState(null);
+  const [checked, setChecked] = useState(false);
+  const [allowForSession, setAllowForSession] = useState(false);
+  const [autoRun, setAutoRun] = useState(false);
 
   const toolName = parsedCall?.name || '';
   // a tool of one of the user's MCP servers (R6): run by the desktop app after the yes below, not by the engine
   const external = isExternalTool(toolName);
+
+  useEffect(() => {
+    if (!external || isBrokenJson) return;
+    const b = mcpBridge();
+    if (!b || !b.check) return;
+    b.check(toolName, chatId).then((r) => { if (r && r.ok) setPolicy(r); }).catch(() => {});
+  }, [external, isBrokenJson, toolName, chatId]);
+
+  const runRef = useRef(null);
+  useEffect(() => {
+    if (!policy || !policy.sessionAllowed || !isLatest || status !== 'pending') return;
+    const key = autoKey(chatId, rawCallText);
+    if (alreadyRan(key)) return;
+    markRan(key);
+    setAutoRun(true);
+    if (runRef.current) runRef.current(true);
+  }, [policy, isLatest]); // eslint-disable-line react-hooks/exhaustive-deps
   const toolDesc = external ? t('A tool of an MCP server you added ({tool}). It runs on this PC only after you press Confirm and run.', { tool: externalToolLabel(toolName) })
     : TOOL_DESCRIPTIONS[toolName] ? TOOL_DESCRIPTIONS[toolName]() : t('Local read-only tool.');
 
@@ -125,7 +163,8 @@ export default function ToolCallCard({
     }
   };
 
-  const handleConfirmRun = async () => {
+  // auto: a read tool allowed for this session, started by the card itself (no click)
+  const handleConfirmRun = async (auto = false) => {
     let argsObj = {};
     try {
       argsObj = JSON.parse(editedArgs);
@@ -139,10 +178,14 @@ export default function ToolCallCard({
       if (!bridge) { setExecError(t('Tools of MCP servers work in the StarkLLM desktop app only.')); setStatus('error'); return; }
       setStatus('running');
       setExecError(null);
-      const r = await bridge.call(toolName, argsObj);
+      if (auto !== true && allowForSession && policy && policy.canAllowSession && bridge.allowSession) await bridge.allowSession(toolName);
+      const r = await bridge.call(toolName, argsObj, { confirmed: auto !== true, checked, chatId });
       if (!r || !r.ok) {
-        setExecError(r && r.error === 'tool-off' ? t('This tool is turned off in Settings › Tools.') : r && r.error === 'not-running' ? t('The tool server is not running.') : r && r.error === 'offline' ? t('StarkLLM is fully offline: tool servers are off.') : (r && r.message) || t('Execution error'));
-        setStatus('error');
+        const why = r && r.error;
+        setExecError(why === 'tool-off' ? t('This tool is turned off in Settings › Tools.') : why === 'not-running' ? t('The tool server is not running.') : why === 'offline' ? t('StarkLLM is fully offline: tool servers are off.')
+          : why === 'needs-check' ? t('Please tick the box to confirm that you checked the arguments.') : why === 'tool-blocked' ? t('This tool is always off for your safety.')
+            : why === 'needs-approval' ? t('This tool needs your confirmation.') : (r && r.message) || t('Execution error'));
+        setStatus(why === 'needs-check' || why === 'needs-approval' ? 'pending' : 'error');
         return;
       }
       setExecResult(r.result);
@@ -189,6 +232,10 @@ export default function ToolCallCard({
     }
   };
 
+  runRef.current = handleConfirmRun;
+  const tier = external && policy ? policy.tier : '';
+  const blockedByCheck = Boolean(policy && policy.needsCheck && !checked);
+
   const handleSendToChat = () => {
     if (onSendToolResult && execResult) {
       // the result as the user's next message: a short line in the user's language, then the result
@@ -206,6 +253,7 @@ export default function ToolCallCard({
           <Terminal size={16} color="#d4af37" />
           <span className={styles.toolBadge}>{t('Local Tool Call')}</span>
           <span className={styles.toolName}>{toolName}</span>
+          {tier && <TierBadge tier={tier} />}
         </div>
 
         {status === 'cancelled' && (
@@ -244,6 +292,24 @@ export default function ToolCallCard({
           />
           {jsonError && <div className={styles.argsError}>{jsonError}</div>}
           {execError && <div className={styles.argsError}>{execError}</div>}
+          {tier === 'exec' && (
+            <div className={styles.argsError}>
+              <AlertTriangle size={13} /> {t('This tool can run programs, send or delete. Please check every argument above before you run it.')}
+            </div>
+          )}
+          {policy && policy.needsCheck && (
+            <div className={styles.argsError}>
+              {t('Content from {source} was read into this chat. It may contain hidden instructions. Run this only if you asked for exactly this.', { source: policy.taintedBy })}
+              <label style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
+                <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} /> {t('I have checked the arguments and want this to run.')}
+              </label>
+            </div>
+          )}
+          {policy && policy.canAllowSession && (
+            <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: '0.82rem', marginTop: 4 }}>
+              <input type="checkbox" checked={allowForSession} onChange={(e) => setAllowForSession(e.target.checked)} /> {t('Allow this reading tool without asking until StarkLLM is closed')}
+            </label>
+          )}
 
           <div className={styles.btnRow}>
             <button className={styles.cancelBtn} onClick={handleCancel}>
@@ -251,8 +317,8 @@ export default function ToolCallCard({
             </button>
             <button
               className={styles.confirmBtn}
-              onClick={handleConfirmRun}
-              disabled={Boolean(jsonError) || (!external && (gatePending || !callId))}
+              onClick={() => handleConfirmRun(false)}
+              disabled={Boolean(jsonError) || blockedByCheck || (!external && (gatePending || !callId))}
             >
               <Play size={13} /> {t('Confirm and run')}
             </button>
@@ -268,6 +334,7 @@ export default function ToolCallCard({
 
       {status === 'executed' && execResult && (
         <div>
+          {autoRun && <div className={styles.argsLabelNote}>{t('Allowed for this session: it ran without asking.')}</div>}
           <div className={styles.argsLabel} style={{ color: '#10b981', marginTop: '0.4rem' }}>
             {t('Result of the tool:')}
           </div>

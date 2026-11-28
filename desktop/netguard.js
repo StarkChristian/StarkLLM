@@ -15,6 +15,7 @@ const path = require('path');
 
 const FEATURES = {
   mcp: 'A tool server (MCP) on this PC that the user added: the tool calls the user allowed',
+  connection_install: 'Download of a connection package the user chose to install (Settings › Connections: npm, PyPI, Python by uv)',
   update_check: 'Check for a newer StarkLLM version (GitHub)',
   update_download: 'Download of a StarkLLM update (GitHub)',
   ollama_install: 'Download of the Ollama installer the user asked for',

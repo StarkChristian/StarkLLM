@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal, BrainCircuit, Server, Play, Loader, Key, Globe, Keyboard, ShieldCheck, Lock, ScanText, Smartphone } from 'lucide-react';
+import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal, BrainCircuit, Server, Play, Loader, Key, Globe, Keyboard, ShieldCheck, Lock, ScanText, Smartphone, Plug } from 'lucide-react';
 import styles from './Settings.module.css';
 import BackupRestoreSettings from './BackupRestoreSettings';
 import OcrSettings from './OcrSettings';
@@ -13,6 +13,8 @@ import { UPLOAD_EXTENSIONS } from '../utils/uploadTypes';
 import OtherAppsPanel from './OtherAppsPanel';
 import PrivacyPanel from './PrivacyPanel';
 import McpServers from './McpServers';
+import ConnectionsPanel from './ConnectionsPanel';
+import { hasConnections } from '../utils/connections';
 import PhoneSettings, { hasPhoneLink } from './PhoneSettings';
 import { t, language, setLanguage } from '../i18n';
 import { languageName } from '../i18n/locales';
@@ -27,6 +29,7 @@ const SECTIONS = [
   { id: 'model',    label: t('Model Settings'),icon: Cpu },
   { id: 'rag',      label: t('Document search'), icon: Database },
   { id: 'kb',       label: t('Knowledge Base'), icon: Shield },
+  { id: 'connections', label: t('Connections'), icon: Plug },
   { id: 'mcp',      label: t('Local Tools'),   icon: Terminal },
   { id: 'dev-api',  label: t('Other apps'), icon: Server },
   { id: 'privacy',  label: t('Privacy & network'), icon: ShieldCheck },
@@ -359,7 +362,7 @@ print(response.choices[0].message.content)`;
   // The local user of the desktop app has no account to manage (no password, nothing to sign out of)
   const isLocal = username === 'local';
   // the phone link exists only in the desktop app
-  const sections = SECTIONS.filter((s) => !(isLocal && s.id === 'account') && !(s.id === 'phone' && !hasPhoneLink()));
+  const sections = SECTIONS.filter((s) => !(isLocal && s.id === 'account') && !(s.id === 'phone' && !hasPhoneLink()) && !(s.id === 'connections' && !hasConnections()));
   const [activeSection, setActiveSection] = useState(section || sections[0].id);
   // a page opened directly from elsewhere (section) is shown and marked like a clicked one
   useEffect(() => { if (section) setActiveSection(section); }, [section]);
@@ -944,6 +947,9 @@ print(response.choices[0].message.content)`;
               </button>
             </div>
           )}
+
+          {/* ───── Connections (desktop app only; docs/connections.md) ───── */}
+          {shown === 'connections' && <ConnectionsPanel />}
 
           {/* ───── MCP Host ───── */}
           {shown === 'mcp' && (
