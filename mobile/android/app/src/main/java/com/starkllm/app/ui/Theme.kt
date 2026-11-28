@@ -20,6 +20,8 @@ internal val Night = Color(0xFF07060B)
 
 /** Amber of the "check this quotation" note, as on the PC */
 val Amber = Color(0xFFB45309)
+/** the same amber, lighter, for "due this week" on the dark themes' cards (Amber itself is too dark there) */
+val AmberOnDark = Color(0xFFFBBF24)
 val AmberBackground = Color(0x14F59E0B)
 
 /** Success green of the "connected" dot */

@@ -98,7 +98,8 @@ fun StarkApp(vm: AppViewModel, activity: FragmentActivity, shared: Shared?, onSh
         return
     }
     val takePhoto = rememberPhotoCamera(vm)
-    CompositionLocalProvider(LocalTakePhoto provides takePhoto) {
+    val posture = rememberPosture(activity)
+    CompositionLocalProvider(LocalTakePhoto provides takePhoto, LocalPosture provides posture) {
         Box(Modifier.fillMaxSize()) {
             // the theme's background (and pattern) behind every screen, as on the PC
             ThemeBackground(LocalStarkTheme.current)

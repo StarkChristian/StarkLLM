@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Samsung: this widget is offered for the cover screen (Flex Window) of the Galaxy Z Flip5 and later -->
+<samsung-appwidget-provider display="sub_screen" />

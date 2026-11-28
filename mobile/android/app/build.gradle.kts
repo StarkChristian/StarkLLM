@@ -13,8 +13,8 @@ android {
         applicationId = "com.starkllm.app"
         minSdk = 29
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = 4
+        versionName = "0.4.0"
     }
 
     // Debug builds only: one fixed test key (password "android", Android's usual debug key), so that a test build from
@@ -55,6 +55,18 @@ android {
         localeFilters += listOf("en", "de", "es", "fr", "it", "tr")
     }
 
+    // Robolectric runs the screens' tests on the JVM, with the app's resources and real drawing (screenshots)
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            all { test ->
+                test.systemProperty("robolectric.graphicsMode", "NATIVE")
+                test.systemProperty("screens.out", layout.buildDirectory.dir("outputs/screens").get().asFile.absolutePath)
+                test.maxHeapSize = "2g"
+            }
+        }
+    }
+
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
@@ -78,10 +90,19 @@ dependencies {
     implementation(libs.biometric)
     implementation(libs.fragment.ktx)
     implementation(libs.work.runtime)
+    implementation(libs.window)
     debugImplementation(libs.compose.ui.tooling)
+    // the screens' tests (src/test, Robolectric): a test activity in the debug build only
+    debugImplementation(libs.compose.ui.test.manifest)
+    debugImplementation(libs.fragment.testing.manifest)
 
     testImplementation(libs.junit)
     testImplementation(libs.coroutines.core)
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.okhttp.tls)
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test.junit4)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.test.junit)
 }

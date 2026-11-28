@@ -81,6 +81,10 @@ data class RecentDocument(
     val workspace: String? = null,
     @SerialName("workspace_id") val workspaceId: Int? = null,
     val added: String? = null,
+    /** what the PC read in the letter (dashboard.py, _describe_letter); none for a document that is not a letter */
+    val sender: String? = null,
+    @SerialName("letter_kind") val letterKind: String? = null,
+    @SerialName("asked_amount") val askedAmount: String? = null,
 )
 
 @Serializable
