@@ -43,3 +43,4 @@ kb_mappings.json
 !backend/tests/fixtures/**/*.log
 # the engine package, unpacked here by the release pipeline before electron-builder
 desktop/build/engine-native/
+desktop/build/runtime/

@@ -135,10 +135,14 @@ class StdioConnection {
 
 // ── streamable HTTP: a server that runs on this PC ──
 class HttpConnection {
-  constructor({ url, fetchFn = fetch }) {
+  // allowLan: only for catalog connections that say so (Home Assistant on the home network; docs/connections.md);
+  // headers: extra headers (Authorization from Windows Credential Manager), never stored with the connection
+  constructor({ url, fetchFn = fetch, allowLan = false, headers = {} }) {
     this.url = localUrl(url);
+    if (!this.url && allowLan && !require('./connections-core').checkUrl(url, { allowLan: true })) this.url = new URL(String(url)).href;
     if (!this.url) throw new Error('only servers on this PC (127.0.0.1 or localhost)');
     this.fetch = fetchFn;
+    this.extraHeaders = headers || {};
     this.session = '';
     this.nextId = 1;
   }
@@ -147,7 +151,7 @@ class HttpConnection {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), seconds * 1000);
     try {
-      const headers = { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': PROTOCOL };
+      const headers = { ...this.extraHeaders, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': PROTOCOL };
       if (this.session) headers['Mcp-Session-Id'] = this.session;
       const res = await this.fetch(this.url, { method: 'POST', headers, body: JSON.stringify(body), signal: ctrl.signal, redirect: 'error' });
       const sid = res.headers.get('mcp-session-id');
@@ -198,18 +202,22 @@ async function connect(conn) {
   }, 30);
   conn.notify('notifications/initialized', {});
   const tools = [];
+  const raw = []; // as the server sent them (name, description, inputSchema): pinned at installation (connections-core.js)
   let cursor;
   for (let page = 0; page < 10; page++) {
     const r = await conn.request('tools/list', cursor ? { cursor } : {}, 30);
     for (const t of (r && r.tools) || []) {
       const c = cleanTool(t);
-      if (c && tools.length < 100) tools.push(c);
+      if (c && tools.length < 100) {
+        tools.push(c);
+        raw.push({ name: c.name, description: String((t && t.description) || ''), inputSchema: (t && t.inputSchema) || {} });
+      }
     }
     cursor = r && r.nextCursor;
     if (!cursor) break;
   }
   const info = (init && init.serverInfo) || {};
-  return { server: { name: cleanText(info.name, 80), version: cleanText(info.version, 40) }, tools };
+  return { server: { name: cleanText(info.name, 80), version: cleanText(info.version, 40) }, tools, raw };
 }
 
 async function callTool(conn, name, args) {

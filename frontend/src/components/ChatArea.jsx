@@ -191,7 +191,9 @@ const ChatMessageRenderer = React.memo(({
   onExportAnswer,
   onKeepCompared,
   onRemember,
-  onOpenMemory
+  onOpenMemory,
+  chatId,
+  isLatest
 }) => {
   const [exportOpen, setExportOpen] = useState(false);
   const contentSegments = msg.role === 'assistant' ? parseContentWithToolCalls(msg.content) : null;
@@ -271,6 +273,8 @@ const ChatMessageRenderer = React.memo(({
                         workspaceId={workspaceId}
                         token={token}
                         onSendToolResult={onSendToolResult}
+                        chatId={chatId}
+                        isLatest={isLatest}
                       />
                     );
                   }
@@ -957,6 +961,8 @@ export default function ChatArea({
               onKeepCompared={onKeepCompared}
               onRemember={workspaceId && token ? setRemembering : null}
               onOpenMemory={onOpenMemory}
+              chatId={chatId}
+              isLatest={i === messages.length - 1}
             />
           ))}
           <div ref={messagesEndRef} />

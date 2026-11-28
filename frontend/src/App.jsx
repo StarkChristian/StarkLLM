@@ -30,6 +30,7 @@ import { exportItems, exportTitle, saveAsWord, saveAsPdf } from './utils/exportD
 import { readableSource } from './utils/sources';
 import { UI_LOCALE } from './utils/locale';
 import { mcpBridge } from './utils/mcpBridge';
+import { connectionsBridge } from './utils/connections';
 import { currentCloudHost } from './utils/cloud';
 import { isUploadable, isRecording } from './utils/uploadTypes';
 import { serverDate } from './utils/time';
@@ -65,6 +66,15 @@ export default function App() {
   const [wsLoading, setWsLoading] = useState(false);
   const [wsError, setWsError] = useState(null);
   const [activeView, setActiveView] = useState('dashboard');
+  // a .mcpb bundle opened with StarkLLM (desktop app): Settings › Connections shows it and asks first
+  const [settingsKey, setSettingsKey] = useState(0);
+  useEffect(() => {
+    const b = connectionsBridge();
+    if (!b) return undefined;
+    const show = () => { setSettingsSection('connections'); setSettingsKey((k) => k + 1); setActiveView('settings'); };
+    b.hasPendingBundle().then((r) => { if (r && r.pending) show(); }).catch(() => {});
+    return b.onOpenBundle(show);
+  }, []);
   // number of new letters in the inbox, shown next to "Inbox" in the sidebar
   const [inboxCount, setInboxCount] = useState(0);
   useEffect(() => {
@@ -1719,7 +1729,7 @@ export default function App() {
         )}
 
         {activeView === 'settings' && (
-          <Settings token={token} username={username} activeWorkspace={activeWorkspace} currentModel={currentModel} section={settingsSection} />
+          <Settings key={settingsKey} section={settingsSection} token={token} username={username} activeWorkspace={activeWorkspace} currentModel={currentModel} />
         )}
 
         {activeView === 'chat' && (

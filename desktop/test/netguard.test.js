@@ -214,8 +214,10 @@ const NETWORK_USERS = {
   // web tasks: the local AI model through the network layer; the window's requests through attachSession
   'webtask.js': /getShared\(\)\.wrapFetch\(fetch, 'web_task'/,
   // tool servers on this PC only (mcp-client.js refuses other addresses)
-  'mcp.js': /getShared\(\)\.wrapFetch\(fetch, 'mcp'/,
+  'mcp.js': /getShared\(\)\.wrapFetch\(base, 'mcp'/,
   'mcp-client.js': /localUrl\(url\)/,
+  // Obsidian's own certificate, pinned (docs/connections.md): only addresses on this PC; called through mcp.js's wrapFetch
+  'pinned-https.js': /const href = localUrl\(url\)/,
   // incoming only (Settings > Phone); its calls to the engine stay on 127.0.0.1
   'phonelink.js': /guard\.inbound\('phone_link'/,
   // phones away from home: the relay connection is recorded and refused while offline; its local side is 127.0.0.1
@@ -245,7 +247,8 @@ test('code that connects to the internet announces itself to the network layer',
 
 test('every web address in the code is one that docs/privacy-network.md knows', () => {
   const known = new Set(['127.0.0.1', 'localhost', 'api.github.com', 'github.com', 'ollama.com', 'ghcr.io', 'www.docker.com', 'www.starkllm.com',
-    'registry.ollama.ai', 'registry-1.docker.io', 'pypi.org', 'deb.debian.org', 'starkllm.com', 'duckduckgo.com']);
+    'registry.ollama.ai', 'registry-1.docker.io', 'pypi.org', 'deb.debian.org', 'starkllm.com', 'duckduckgo.com',
+    'registry.npmjs.org']);
   const doc = fs.readFileSync(path.join(DESKTOP, '..', 'docs', 'privacy-network.md'), 'utf8');
   const unknown = [];
   for (const [file, text] of sources) {
