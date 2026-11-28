@@ -511,6 +511,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (_state.value.link?.id != q.pcId) break
                 // one answer at a time: the PC's model is busy while another answer is coming in
                 while (_state.value.answeringFor != null) delay(1_000)
+                // cancelled meanwhile (the list above is the one from the start)
+                if (questions.all().none { it.id == q.id }) continue
                 _state.update { it.copy(queueSending = q.id) }
                 try {
                     val request = ChatRequest(q.workspaceId, q.chatId, q.text, language = q.language, model = q.model,

@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
 import android.Manifest
@@ -362,13 +364,15 @@ internal fun SettingsScreen(state: UiState, vm: AppViewModel, activity: Fragment
 @Composable
 private fun SettingSwitch(icon: ImageVector, title: String, hint: String, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
     Surface(shape = CardShape, color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        // the whole row is the switch: TalkBack reads its title, hint and state, and a tap anywhere on it switches
+        Row(Modifier.toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
+            .padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Text(title, style = MaterialTheme.typography.bodyLarge)
                 Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
+            Switch(checked = checked, onCheckedChange = null, enabled = enabled)
         }
     }
 }
@@ -402,7 +406,9 @@ private fun ThemePicker(selected: String, onSelect: (String) -> Unit) {
 @Composable
 private fun ThemeTile(t: AppTheme, name: String, selected: Boolean, split: Boolean = false, width: androidx.compose.ui.unit.Dp = 90.dp, onClick: () -> Unit) {
     val border = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-    Column(Modifier.width(width).clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
+    // TalkBack reads the name and "selected"; the tiles are one group of choices (radio buttons)
+    Column(Modifier.width(width).clip(RoundedCornerShape(14.dp)).selectable(selected = selected, onClick = onClick, role = Role.RadioButton),
+        horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             Modifier.fillMaxWidth().height(62.dp).clip(RoundedCornerShape(14.dp))
                 .border(if (selected) 2.dp else 1.dp, border, RoundedCornerShape(14.dp)),

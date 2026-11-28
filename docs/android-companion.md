@@ -9,17 +9,21 @@ user paired it in Settings > Phone on the PC.
 | Feature | How |
 |---|---|
 | Pair with PCs | Settings > Phone on the PC shows a QR code; the app scans it once. Several PCs (home, office) can be paired; the drawer switches between them. |
-| Home | A greeting, the next deadlines, new documents and example questions; a question asked here starts a chat in the chosen workspace. |
+| Home | A greeting, a large "Photograph a letter" button (the camera app takes the photo into the chosen workspace), the next deadlines, new documents and example questions; a question asked here starts a chat in the chosen workspace. New documents show sender · kind · amount as the PC read them (`dashboard/home`: `sender`, `letter_kind`, `asked_amount`, else the amount of the letter's deadline); the file name only when the PC found neither sender nor kind. |
+| Waiting questions | A question asked while the PC cannot be reached (`UNREACHABLE`, `UNREACHABLE_AWAY`, fully offline) waits on the phone, encrypted with its own Android Keystore key (`QuestionQueue`, `KeystoreBox`, at most 20). Home lists them ("Waiting for the PC", Cancel); a chat shows its own. While the app is open it asks the paired PC every 30 seconds (only the hello), then sends them one after the other to the same PC and workspace; answered ones can be opened from home. A question the PC refuses is marked and not tried again. Nothing is sent while the app is closed, and nothing goes anywhere but the paired PC. |
 | Drawer | Home, workspaces, deadlines, This PC, settings, and the latest chats of all workspaces. |
 | Ask about documents | Workspaces, chats, answers that stream in, formatted (headings, lists, bold, code), with the documents used as chips, the warning for quotations that are not in the documents, and Copy. Choice of the AI model (the PC's local chat models; Ollama's cloud models are not offered) and of the knowledge base. An answer goes on when the chat or the app is left (a short foreground service while it comes in). |
 | Add | Camera (photo of a letter), photos, files (PDF, EPUB, Word, PowerPoint, text, images) into a workspace; the PC reads them, also the text in photos. "Share" from other apps does the same (only `content://` files of other apps); shared text goes into the question field. Photos are deleted on the phone after sending. |
 | Dictation | Hold the microphone button; the recording is turned into text by the speech model on the PC (not an online service) and lands in the question field. |
-| Deadlines | Overdue, today, this week, later, done; "Done" marks it on the PC. Reminders (off by default) check the PC every few hours while the phone is at home; no cloud push. A home-screen widget shows the next three. |
+| Deadlines | Overdue, today, this week, later, done; "Done" marks it on the PC. Colours by urgency from the PC's state (overdue red, today and this week amber, later neutral); the phone never counts days itself. "Add to calendar" opens the phone's calendar app with an all-day event filled in (Android's insert intent; no calendar permission, the app reads no calendar); the user saves it there, and a synced calendar then has it in its account. Reminders (off by default) check the PC every few hours while the phone is at home; no cloud push. A home-screen widget shows the next three. |
 | This PC | Connection, StarkLLM version, AI model, automatic backup, protection at rest, what this phone may do; at "manage": back up now and switch fully offline, each confirmed with the fingerprint (or face, or the phone's PIN) on the phone. The PC trusts the phone's token for these actions; the fingerprint protects against someone else picking up the unlocked phone, not against a copied token. |
 | Settings | App lock (fingerprint when the app opens; while it is on, no screenshots or recent-apps preview, and the widget shows only how many deadlines are open), reminders (private on the lock screen), shortcuts (Quick Settings tile "Ask StarkLLM", widget, share). |
-| Languages | The languages of the desktop app: English, German, Spanish, French, Italian, Turkish. Larger system text is followed by half. |
+| Languages | The languages of the desktop app: English, German, Spanish, French, Italian, Turkish, with formal address. Larger system text is followed by 40 %; at Android's largest text and display size no button, heading or deadline is cut (tested). |
+| Galaxy Z Flip | Flex mode (half folded): home and chats put the cards and answers above the fold, the question field, camera button and examples below it (Jetpack WindowManager, `ui/Posture.kt`). Cover screen (Flex Window): the app leaves out decoration in small windows (height under 520 dp); the widget "StarkLLM deadlines (cover screen)" can be added under Settings > Cover screen > Widgets (Samsung's `sub_screen` metadata, `res/xml/samsung_widget_cover.xml`). The cover screen is visible on the closed phone: with the app lock on, the widget shows only how many deadlines are open. Whether the app itself opens on the cover screen is up to Samsung's settings (Labs / Good Lock), not the app. |
+| Accessibility | Every button has a label for TalkBack (tested on each main screen); switches are one row with title and state; section titles are headings; the theme tiles are one group of choices. |
 
-The phone keeps only what it shows (chat list, the open chat, the next deadlines for the widget) and settings. No
+The phone keeps only what it shows (chat list, the open chat, the next deadlines for the widget), the questions that wait
+for the PC (encrypted) and settings. No
 analytics, no crash reporting service, no Firebase, no Google Play services: the app can also be offered outside
 Google Play.
 
@@ -91,8 +95,51 @@ Away from home: since 2.6.0, per phone and only when switched on, through the St
 - Kotlin, Jetpack Compose, Material 3; minimum Android 10 (API 29).
 - OkHttp with a trust manager that checks the pinned fingerprint, kotlinx.serialization, CameraX and ZXing core for
   the QR code. Nothing from Google Play services.
-- Built with Gradle in CI (debug APK for every pull request, a signed bundle for releases). Play App Signing; the
-  upload key belongs to the project owner and never leaves the owner's PC.
+- Built with Gradle in CI (`.github/workflows/android.yml`): unit tests and the screens' tests, a debug APK and an
+  unsigned release bundle (AAB) for every pull request. Play App Signing; the upload key belongs to the project owner
+  and never leaves the owner's PC, so CI never signs a release (see "Release on Google Play").
+- Version: `versionCode` and `versionName` in `mobile/android/app/build.gradle.kts`; each release raises `versionCode`
+  by one (0.4.0 = 4). Debug builds are `com.starkllm.app.debug`, version `…-debug`.
+- Tests (`app/src/test`, `./gradlew testDebugUnitTest`): JVM tests of the data layer, and the screens' tests with
+  Robolectric and Compose (`screens/`): home, deadlines, chat, This PC, settings and workspaces with demo data, at the
+  Galaxy Z Flip5's size and 130 % text, at the largest text and display size, half folded and on the cover screen.
+  They check the TalkBack labels, cut texts and the layout, and write screenshots to `app/build/outputs/screens`
+  (in CI: the `android-reports` artifact). The screens' test activity (`ScreensTestActivity`) is in debug builds only.
 - Google Play "Data safety": no data collected, none shared.
 - Play path for a personal developer account: internal test, then a closed test with at least 12 testers for 14 days,
   then production.
+
+## Release on Google Play
+
+Google Play signs the app for the phones (Play App Signing). The owner signs only the upload: an upload key that is
+created and kept on the owner's PC and never given to CI, GitHub or anyone else. StarkLLM's repository contains no
+release key and no password.
+
+Once (on the owner's PC):
+
+1. Create the upload key with the JDK's `keytool` and keep the file and its password safe (a backup on a stick in a
+   drawer, not in the cloud):
+   `keytool -genkeypair -v -keystore C:\Keys\starkllm-upload.jks -alias upload -keyalg RSA -keysize 4096 -validity 10000`
+2. In the Play Console: create the app `com.starkllm.app`, choose Play App Signing ("Let Google manage and protect your
+   app signing key"), and register the upload key's certificate when Play asks for it
+   (`keytool -export -rfc -keystore C:\Keys\starkllm-upload.jks -alias upload -file upload_certificate.pem`).
+
+Each release:
+
+1. Raise `versionCode` (and `versionName`) in `mobile/android/app/build.gradle.kts` in a pull request; after it is
+   merged, CI builds the bundle on `main`.
+2. Sign the bundle on the owner's PC, one of two ways:
+   - The bundle from CI: download the artifact `starkllm-android-release-aab` of the run on `main`, then
+     `powershell -ExecutionPolicy Bypass -File mobile\android\play\sign-bundle.ps1 -Bundle .\app-release.aab -Keystore C:\Keys\starkllm-upload.jks`
+     (jarsigner asks for the password; it writes `app-release-signed.aab` and checks it).
+   - Or build it on the PC: set `STARKLLM_UPLOAD_STORE` (path of the keystore), `STARKLLM_UPLOAD_STORE_PASSWORD` and, if
+     they differ from the defaults, `STARKLLM_UPLOAD_KEY_ALIAS` (default `upload`) and `STARKLLM_UPLOAD_KEY_PASSWORD`
+     for the PowerShell session (`$env:STARKLLM_UPLOAD_STORE = "C:\Keys\starkllm-upload.jks"`, the password with
+     `Read-Host`), then `cd mobile\android; .\gradlew bundleRelease`. Without these settings the bundle stays unsigned.
+3. Play Console: Testing > Internal testing > Create release, upload the signed AAB, release notes in the six
+   languages, roll out. Store texts and images are in `mobile/android/play/`.
+4. For a personal developer account: a closed test with at least 12 testers for 14 days before production; then
+   promote the tested release to production.
+
+Data safety form: no data collected, none shared (the app talks only to the user's own PC and, when the user allows it,
+through the end-to-end encrypted relay).

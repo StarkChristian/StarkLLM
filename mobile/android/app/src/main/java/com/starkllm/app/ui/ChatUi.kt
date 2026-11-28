@@ -6,6 +6,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.infiniteRepeatable
@@ -99,6 +100,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.pluralStringResource
@@ -761,6 +763,8 @@ internal fun InputBar(
                     Box(
                         // 48 dp to touch (Android's minimum touch target); the circle drawn inside is 40 dp
                         Modifier.size(48.dp)
+                            // TalkBack: one button "Hold to talk" (double-tap and hold), not an unlabelled area
+                            .semantics(mergeDescendants = true) { role = Role.Button }
                             .pointerInput(Unit) {
                                 detectTapGestures(onPress = {
                                     if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -869,13 +873,14 @@ private fun AttachSheet(state: UiState, vm: AppViewModel, target: Workspace?, on
             )
             SheetRow(StarkIcons.Chip, stringResource(R.string.model), state.model ?: stringResource(R.string.model_default)) { models = true }
             Surface(shape = CardShape, color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.toggleable(value = state.useKnowledgeBase, role = Role.Switch, onValueChange = vm::setKnowledgeBase)
+                    .padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(StarkIcons.Book, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
                     Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                         Text(stringResource(R.string.use_kb), style = MaterialTheme.typography.bodyLarge)
                         Text(stringResource(R.string.use_kb_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Switch(checked = state.useKnowledgeBase, onCheckedChange = vm::setKnowledgeBase)
+                    Switch(checked = state.useKnowledgeBase, onCheckedChange = null)
                 }
             }
         }

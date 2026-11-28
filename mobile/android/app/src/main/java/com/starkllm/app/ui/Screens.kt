@@ -69,6 +69,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
@@ -337,7 +339,8 @@ internal fun SectionLabel(text: String, start: Dp = 20.dp) {
         text.uppercase(),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = start, end = 20.dp, top = 12.dp, bottom = 8.dp),
+        // a heading for TalkBack: swiping by headings jumps from section to section
+        modifier = Modifier.padding(start = start, end = 20.dp, top = 12.dp, bottom = 8.dp).semantics { heading() },
     )
 }
 

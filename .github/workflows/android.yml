@@ -31,6 +31,8 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
+      # also the screens' tests (Robolectric, demo data): TalkBack labels, the largest text, flex mode, cover screen;
+      # their screenshots are in the reports artifact (outputs/screens)
       - name: Unit tests
         run: ./gradlew --no-daemon testDebugUnitTest
       - name: Debug APK, release build and release bundle (unsigned)
@@ -57,4 +59,5 @@ jobs:
           path: |
             mobile/android/app/build/reports/
             mobile/android/app/build/test-results/
+            mobile/android/app/build/outputs/screens/
           retention-days: 7

@@ -26,10 +26,21 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        // Google Play: the owner's upload key, only on the owner's PC (docs/android-companion.md, "Release on Google
+        // Play"). Without STARKLLM_UPLOAD_STORE (CI, other PCs) the release bundle stays unsigned, as before.
+        uploadKeystore()?.let { store ->
+            create("upload") {
+                storeFile = store
+                storePassword = secret("STARKLLM_UPLOAD_STORE_PASSWORD")
+                keyAlias = secret("STARKLLM_UPLOAD_KEY_ALIAS") ?: "upload"
+                keyPassword = secret("STARKLLM_UPLOAD_KEY_PASSWORD") ?: secret("STARKLLM_UPLOAD_STORE_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
+            signingConfigs.findByName("upload")?.let { signingConfig = it }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -92,9 +103,8 @@ dependencies {
     implementation(libs.work.runtime)
     implementation(libs.window)
     debugImplementation(libs.compose.ui.tooling)
-    // the screens' tests (src/test, Robolectric): a test activity in the debug build only
+    // the screens' tests (src/test, Robolectric) need Compose's test activity in the debug build only
     debugImplementation(libs.compose.ui.test.manifest)
-    debugImplementation(libs.fragment.testing.manifest)
 
     testImplementation(libs.junit)
     testImplementation(libs.coroutines.core)
@@ -106,3 +116,9 @@ dependencies {
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.androidx.test.junit)
 }
+
+/** A setting for signing: a Gradle property (-P or ~/.gradle/gradle.properties) or an environment variable of the same name */
+fun secret(name: String): String? = providers.gradleProperty(name).orNull ?: providers.environmentVariable(name).orNull
+
+/** The owner's upload keystore, when its path is given and the file is there */
+fun uploadKeystore(): File? = secret("STARKLLM_UPLOAD_STORE")?.let { file(it) }?.takeIf { it.isFile }
