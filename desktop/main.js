@@ -110,6 +110,12 @@ function initApp() {
   });
   // Settings > Privacy: the fully offline switch and the list of connections of the app (only the app's own page may ask)
   const fromApp = (event) => Boolean(event.senderFrame && sameOrigin(event.senderFrame.url, APP_URL));
+  // Settings > Letters from a folder: the folder dialog (the engine watches the folder; the app only asks for it)
+  ipcMain.handle('watch:choose-folder', async (event) => {
+    if (!fromApp(event)) return { error: 'not allowed' };
+    const r = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory'] });
+    return r.canceled || !r.filePaths[0] ? { canceled: true } : { folder: r.filePaths[0] };
+  });
   exportPdf.register(ipcMain, { fromApp }); // chats and answers as PDF (docs/roadmap-2026-12.md, R1)
   // tool servers (MCP) the user added: started by the desktop app, each call after a yes in the chat (docs/roadmap-2026-12.md, R6)
   mcp.register(ipcMain, { fromApp, offline: () => require('./netguard').getShared().isOffline(), log: logLine });

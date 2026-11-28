@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal, BrainCircuit, Server, Play, Loader, Key, Globe, Keyboard, ShieldCheck, Lock, ScanText, Smartphone } from 'lucide-react';
+import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal, BrainCircuit, Server, Play, Loader, Key, Globe, Keyboard, ShieldCheck, Lock, ScanText, Smartphone, FolderOpen } from 'lucide-react';
 import styles from './Settings.module.css';
 import BackupRestoreSettings from './BackupRestoreSettings';
 import OcrSettings from './OcrSettings';
+import WatchedFolders from './WatchedFolders';
 import { useLucyVisible } from './Lucy';
 import { setHidden as setLucyHidden } from '../utils/lucy';
 import ProtectionSettings from './ProtectionSettings';
@@ -29,6 +30,7 @@ const SECTIONS = [
   { id: 'model',    label: t('Model Settings'),icon: Cpu },
   { id: 'rag',      label: t('Document search'), icon: Database },
   { id: 'kb',       label: t('Knowledge Base'), icon: Shield },
+  { id: 'watch',    label: t('Letters from a folder'), icon: FolderOpen },
   { id: 'mcp',      label: t('Local Tools'),   icon: Terminal },
   { id: 'dev-api',  label: t('Other apps'), icon: Server },
   { id: 'privacy',  label: t('Privacy & network'), icon: ShieldCheck },
@@ -1213,6 +1215,9 @@ print(response.choices[0].message.content)`;
 
           {/* ───── Reading photos and scans (OCR languages) ───── */}
           {shown === 'ocr' && <OcrSettings token={token} />}
+
+          {/* ───── Watched folders for letters ───── */}
+          {shown === 'watch' && <WatchedFolders token={token} />}
 
           {/* ───── Keyboard Shortcuts ───── */}
           {shown === 'shortcuts' && (
