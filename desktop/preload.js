@@ -1,7 +1,7 @@
 // The only bridge from the web UI to the desktop app: an update check for Settings > About, opening the knowledge-base
 // folder, and the local session
 // (single user, no sign-up), which is placed before the web UI starts so it opens signed in.
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 const localToken = () => ipcRenderer.sendSync('desktop:local-token') || null;
 
@@ -33,9 +33,47 @@ contextBridge.exposeInMainWorld('starkllmDesktop', {
     stop: (id) => ipcRenderer.invoke('mcp:stop', String(id || '')),
     setTool: (id, tool, on) => ipcRenderer.invoke('mcp:set-tool', String(id || ''), String(tool || ''), Boolean(on)),
     enabledTools: () => ipcRenderer.invoke('mcp:enabled-tools'),
-    call: (name, args) => ipcRenderer.invoke('mcp:call', String(name || ''), args && typeof args === 'object' ? JSON.parse(JSON.stringify(args)) : {}),
+    // approval: { confirmed, checked, chatId } from the tool card (tool-policy.js decides what is enough)
+    call: (name, args, approval) => ipcRenderer.invoke('mcp:call', String(name || ''), args && typeof args === 'object' ? JSON.parse(JSON.stringify(args)) : {}, {
+      confirmed: Boolean(approval && approval.confirmed), checked: Boolean(approval && approval.checked), chatId: String((approval && approval.chatId) || ''),
+    }),
+    check: (name, chatId) => ipcRenderer.invoke('mcp:check', String(name || ''), String(chatId || '')),
+    allowSession: (name) => ipcRenderer.invoke('mcp:allow-session', String(name || '')),
+    acceptChanges: (id) => ipcRenderer.invoke('mcp:accept-changes', String(id || '')),
+    stopAll: () => ipcRenderer.invoke('mcp:stop-all'),
+    audit: (limit) => ipcRenderer.invoke('mcp:audit', Number(limit) || 200),
+  },
+  // Settings › Connections (docs/connections.md): the catalog, installation, .mcpb bundles
+  connections: {
+    catalog: (lang) => ipcRenderer.invoke('connections:catalog', String(lang || 'en')),
+    pickFolder: () => ipcRenderer.invoke('connections:pick-folder'),
+    install: (id, values, opts) => ipcRenderer.invoke('connections:install', String(id || ''), JSON.parse(JSON.stringify(values || {})), { acknowledged: Boolean(opts && opts.acknowledged), lang: String((opts && opts.lang) || 'en') }),
+    uninstall: (serverId) => ipcRenderer.invoke('connections:uninstall', String(serverId || '')),
+    chooseBundle: () => ipcRenderer.invoke('connections:choose-bundle'),
+    // a dropped file: its path comes from Electron (webUtils), never from the page
+    previewDroppedBundle: (file) => ipcRenderer.invoke('connections:preview-bundle', webUtils.getPathForFile(file)),
+    hasPendingBundle: () => ipcRenderer.invoke('connections:has-pending'),
+    pendingBundle: () => ipcRenderer.invoke('connections:pending-bundle'),
+    installBundle: (token, values) => ipcRenderer.invoke('connections:install-bundle', String(token || ''), JSON.parse(JSON.stringify(values || {}))),
+    onProgress: (cb) => {
+      const handler = (_event, p) => cb(p);
+      ipcRenderer.on('connections:progress', handler);
+      return () => ipcRenderer.removeListener('connections:progress', handler);
+    },
+    onOpenBundle: (cb) => {
+      const handler = () => cb();
+      ipcRenderer.on('connections:open-mcpb', handler);
+      return () => ipcRenderer.removeListener('connections:open-mcpb', handler);
+    },
   },
   openKnowledgeFolder: () => ipcRenderer.invoke('kb:open-folder'),
+  // Settings > Letters from a folder: the folder dialog; the page gets the chosen path ({ folder } or { canceled })
+  chooseFolder: () => ipcRenderer.invoke('watch:choose-folder'),
+  // "Record a meeting": the sound of this PC (an online call) can be recorded too, on Windows (loopback)
+  meeting: {
+    systemAudio: process.platform === 'win32',
+    armSystemAudio: () => ipcRenderer.invoke('meeting:arm-system-audio'),
+  },
   // download progress of an update: cb({ phase: 'downloading' | 'done', percent }); returns an unsubscribe function
   onUpdateStatus: (cb) => {
     const handler = (_event, status) => cb(status);

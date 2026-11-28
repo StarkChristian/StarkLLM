@@ -5,6 +5,7 @@ import EmptyState from './EmptyState';
 import { serverDate } from '../utils/time';
 import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
+import DialogBox from './DialogBox';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -250,10 +251,10 @@ function AddFolderModal({ onClose, onAdd, loading, error, token }) {
 
   return (
     <div className={styles.modalOverlay} onClick={onClose}>
-      <div className={styles.modal} onClick={e => e.stopPropagation()} style={{ maxWidth: '580px', width: '95%' }}>
+      <DialogBox className={styles.modal} onClick={e => e.stopPropagation()} style={{ maxWidth: '580px', width: '95%' }} onClose={onClose} labelledBy="dlg-addfolder-title">
         <div className={styles.modalHeader}>
-          <span className={styles.modalTitle}><FolderPlus size={18} /> {t('Add Knowledge Base Folder')}</span>
-          <button className={styles.modalClose} onClick={onClose}><X size={18} /></button>
+          <h2 id="dlg-addfolder-title" className={styles.modalTitle}><FolderPlus size={18} /> {t('Add Knowledge Base Folder')}</h2>
+          <button className={styles.modalClose} onClick={onClose} aria-label={t('Close')}><X size={18} /></button>
         </div>
 
         <form onSubmit={handleSubmit} className={styles.modalBody}>
@@ -292,10 +293,10 @@ function AddFolderModal({ onClose, onAdd, loading, error, token }) {
             <FolderBrowser token={token} onSelect={handleBrowseSelect} />
           ) : (
             <>
-              <label className={styles.label}>
+              <label className={styles.label} htmlFor="kb-field-1">
                 {t('Container Folder Path')} <span className={styles.required}>*</span>
               </label>
-              <input
+              <input id="kb-field-1"
                 className={`${styles.input} ${isWindowsPath ? styles.inputError : ''}`}
                 type="text"
                 placeholder="/kb_data/my-documents"
@@ -317,10 +318,10 @@ function AddFolderModal({ onClose, onAdd, loading, error, token }) {
                 {t('Selected Path:')} <code style={{ color: 'var(--accent-bright)' }}>{path}</code>
               </p>
 
-              <label className={styles.label}>
+              <label className={styles.label} htmlFor="kb-field-2">
                 {t('Folder Name')} <span className={styles.optional}>{t('(optional)')}</span>
               </label>
-              <input
+              <input id="kb-field-2"
                 className={styles.input}
                 type="text"
                 placeholder={t('My Reports')}
@@ -345,7 +346,7 @@ function AddFolderModal({ onClose, onAdd, loading, error, token }) {
             </button>
           </div>
         </form>
-      </div>
+      </DialogBox>
     </div>
   );
 }
@@ -489,9 +490,15 @@ function FolderRow({ folder, token, onRefresh }) {
       {/* Header row */}
       <div className={styles.folderHeader} onClick={() => setExpanded(v => !v)}>
         <div className={styles.folderLeft}>
-          <span className={styles.chevronBtn}>
+          <button
+            type="button"
+            className={styles.chevronBtn + ' ' + styles.chevronToggle}
+            onClick={(e) => { e.stopPropagation(); setExpanded(v => !v); }}
+            aria-expanded={expanded}
+            aria-label={t('Documents in {folder}', { folder: folder.folder_name })}
+          >
             {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          </span>
+          </button>
           <FolderOpen size={18} className={styles.folderIcon} />
           <div>
             <div className={styles.folderName}>{folder.folder_name}</div>
@@ -774,7 +781,7 @@ export default function KnowledgeBase({ token }) {
             <FolderOpen size={20} />
           </div>
           <div className={styles.kbHelperContent}>
-            <h3 className={styles.kbHelperTitle}>{t('Your knowledge base folder')}</h3>
+            <h2 className={styles.kbHelperTitle}>{t('Your knowledge base folder')}</h2>
             <p className={styles.kbHelperText}>
               {t('Put documents into this folder. StarkLLM reads new and changed files on its own and keeps them searchable.')}
             </p>
@@ -873,12 +880,12 @@ export default function KnowledgeBase({ token }) {
       {/* Preview Modal */}
       {previewDoc && (
         <div className={styles.modalOverlay} onClick={() => setPreviewDoc(null)}>
-          <div className={styles.modalContent} onClick={e => e.stopPropagation()} style={{ maxWidth: '800px', width: '90%' }}>
+          <DialogBox className={styles.modalContent} onClick={e => e.stopPropagation()} style={{ maxWidth: '800px', width: '90%' }} onClose={() => setPreviewDoc(null)} labelledBy="dlg-kbpreview-title">
             <div className={styles.modalHeader}>
-              <h3 style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <h2 id="dlg-kbpreview-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '1.17em' }}>
                 Preview: {previewDoc.file_name}
-              </h3>
-              <button className={styles.modalClose} onClick={() => setPreviewDoc(null)}>
+              </h2>
+              <button className={styles.modalClose} onClick={() => setPreviewDoc(null)} aria-label={t('Close')}>
                 <X size={16} />
               </button>
             </div>
@@ -898,7 +905,7 @@ export default function KnowledgeBase({ token }) {
                 </pre>
               )}
             </div>
-          </div>
+          </DialogBox>
         </div>
       )}
     </div>

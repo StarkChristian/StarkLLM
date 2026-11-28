@@ -1,5 +1,5 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, dialog, net, session, safeStorage, Notification } = require('electron');
-const { sameOrigin, isWebLink, permissionAllowed } = require('./window-security');
+const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, dialog, net, session, safeStorage, Notification, desktopCapturer } = require('electron');
+const { sameOrigin, isWebLink, permissionAllowed, displayCaptureAllowed } = require('./window-security');
 const fs = require('fs');
 const path = require('path');
 const { diagnose, buildErrorPage } = require('./diagnostics');
@@ -23,6 +23,7 @@ const { createPhoneLink } = require('./phonelink');
 const { qrMatrix } = require('./qr');
 const exportPdf = require('./export-pdf');
 const mcp = require('./mcp');
+const connections = require('./connections');
 
 let mainWindow = null;
 let tray = null;
@@ -45,7 +46,9 @@ const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
+    // a .mcpb bundle opened while StarkLLM runs: Settings › Connections shows it and asks first (connections.js)
+    for (const a of argv || []) if (/\.(mcpb|dxt)$/i.test(a)) connections.openBundleFile(a, mainWindow);
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
@@ -110,9 +113,18 @@ function initApp() {
   });
   // Settings > Privacy: the fully offline switch and the list of connections of the app (only the app's own page may ask)
   const fromApp = (event) => Boolean(event.senderFrame && sameOrigin(event.senderFrame.url, APP_URL));
+  // Settings > Letters from a folder: the folder dialog (the engine watches the folder; the app only asks for it)
+  ipcMain.handle('watch:choose-folder', async (event) => {
+    if (!fromApp(event)) return { error: 'not allowed' };
+    const r = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory'] });
+    return r.canceled || !r.filePaths[0] ? { canceled: true } : { folder: r.filePaths[0] };
+  });
   exportPdf.register(ipcMain, { fromApp }); // chats and answers as PDF (docs/roadmap-2026-12.md, R1)
   // tool servers (MCP) the user added: started by the desktop app, each call after a yes in the chat (docs/roadmap-2026-12.md, R6)
-  mcp.register(ipcMain, { fromApp, offline: () => require('./netguard').getShared().isOffline(), log: logLine });
+  mcp.register(ipcMain, { fromApp, offline: () => require('./netguard').getShared().isOffline(), log: logLine, auditFile: path.join(app.getPath('userData'), 'connections-audit.jsonl') });
+  // Settings › Connections: the catalog, installations through the bundled runtimes, .mcpb bundles (docs/connections.md)
+  connections.register(ipcMain, { fromApp, offline: () => require('./netguard').getShared().isOffline(), log: logLine });
+  for (const a of process.argv.slice(1)) if (/\.(mcpb|dxt)$/i.test(a)) connections.openBundleFile(a, null);
   app.on('will-quit', () => mcp.stopAll());
   const privacyState = () => ({ offline: guard.isOffline(), localCounts: guard.localCounts() });
   ipcMain.handle('privacy:get', (event) => (fromApp(event) ? privacyState() : { error: 'not allowed' }));
@@ -130,7 +142,8 @@ function initApp() {
   });
   registerPhoneLinkHandlers();
   webtask.register(ipcMain, { fromApp, log: logLine });
-  app.on("will-quit", () => webtask.stopCommands()); // commands of a web task end with StarkLLM
+  // commands of a web task end with StarkLLM; the browser window's lists are written
+  app.on("will-quit", () => { webtask.stopCommands(); webtask.saveProfile(); });
   registerProtectionHandlers();
   registerUnlockHandlers();
   lockEngineOnQuit();
@@ -141,11 +154,34 @@ function initApp() {
     return { latest: r && r.latest, error: r && r.error, upToDate: Boolean(r && !r.error && !r.show) };
   });
   // Electron grants every permission to every page unless told otherwise: only the app's own page, only what it uses
+  // "Record a meeting" with the sound of this PC (Windows): the page arms one screen capture through the bridge right
+  // before it asks; the answer is the screen with its sound (loopback), and the page records only the sound
+  let meetingArmedAt = null;
+  ipcMain.handle('meeting:arm-system-audio', (event) => {
+    if (!fromApp(event) || process.platform !== 'win32') return { ok: false };
+    meetingArmedAt = Date.now();
+    return { ok: true };
+  });
+  const allowed = (permission, url, details) => (permission === 'display-capture'
+    ? displayCaptureAllowed(url, APP_URL, meetingArmedAt)
+    : permissionAllowed(permission, url, APP_URL, details));
   session.defaultSession.setPermissionRequestHandler((wc, permission, callback, details) => {
-    callback(permissionAllowed(permission, (details && details.requestingUrl) || wc.getURL(), APP_URL, details || {}));
+    callback(allowed(permission, (details && details.requestingUrl) || wc.getURL(), details || {}));
   });
   session.defaultSession.setPermissionCheckHandler((wc, permission, requestingOrigin, details) =>
-    permissionAllowed(permission, requestingOrigin || (wc && wc.getURL()) || '', APP_URL, details || {}));
+    allowed(permission, requestingOrigin || (wc && wc.getURL()) || '', details || {}));
+  session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+    const armed = meetingArmedAt;
+    meetingArmedAt = null; // one capture per arming
+    const url = (request.frame && request.frame.url) || request.securityOrigin || '';
+    if (!displayCaptureAllowed(url, APP_URL, armed)) {
+      callback({});
+      return;
+    }
+    desktopCapturer.getSources({ types: ['screen'] })
+      .then((sources) => (sources.length ? callback({ video: sources[0], audio: 'loopback' }) : callback({})))
+      .catch((e) => { logLine(`meeting: no screen source for the sound of this PC (${e.message})`); callback({}); });
+  });
   createMainWindow();
   createTray();
   // Also when the engine cannot start: an old version is often the reason.
@@ -573,9 +609,15 @@ function registerPhoneLinkHandlers() {
   };
   ipcMain.handle('phone:status', allowed(() => phone().status()));
   ipcMain.handle('phone:enable', allowed((on) => phone().setEnabled(Boolean(on))));
-  ipcMain.handle('phone:user-session', allowed(async (token) => ({ ok: Boolean(await keepPhoneSession(token)) })));
-  // signing out in the window: the phones of that account are no longer paired
+  // the account signed in in the window: also the owner of the browser window's favourites, history and downloads list
+  ipcMain.handle('phone:user-session', allowed(async (token) => {
+    const user = await keepPhoneSession(token);
+    webtask.setAccount(user);
+    return { ok: Boolean(user) };
+  }));
+  // signing out in the window: the phones of that account are no longer paired; its browser window closes
   ipcMain.handle('phone:signed-out', allowed(async (token) => {
+    webtask.setAccount('');
     const user = await accountOf(String(token || ''));
     if (!user) return { ok: false };
     phoneSessions.delete(user);
@@ -671,7 +713,7 @@ function createTray() {
 // wins, and the engine accepts the desktop app with the key derived from its SECRET_KEY, whoever is signed in).
 async function switchAppAndEngineOffline(on, from) {
   if (on) webtask.stopForOffline(); // a web task that runs ends with the switch
-  if (on) mcp.stopAll(); // tool servers end with the offline switch
+  if (on) mcp.stopEverything(); // tool servers end with the offline switch (and read tools allowed for the session)
   const setEngine = (value) => setEngineOffline({
     fetchFn: guard.wrapFetch((u, o) => net.fetch(u, o), 'local_engine', 'Fully offline switch of the engine on this PC'),
     apiUrl: apiUrl(), key: desktopKey(engineSecret()), on: value

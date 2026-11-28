@@ -89,6 +89,9 @@ def resume_interrupted_indexing():
         db.close()
     for doc_id, workspace_id, user_id, path in todo:
         if not path or not os.path.exists(path):
+            from app.services import meetings
+            if meetings.resume(doc_id):
+                continue  # a meeting cut off while it was written down: its recording is written down again
             _set_doc_status(doc_id, DocStatus.FAILED, error_message="Indexing was interrupted and the file is no longer "
                             "on this PC. Delete this entry and upload the file again.")
             continue
@@ -173,6 +176,60 @@ def _same_document(db, workspace_id: int, path: str, size: int):
     return None
 
 
+def _register_saved_file(db, workspace_id: int, user_id: int, file_path: str, display_name: str, ext: str, size: int):
+    """The second half of an upload, once the copy is in the upload folder: the same-bytes check, the document entry
+    and the background indexing (text and OCR; facts, deadlines and the checks read the indexed text).
+    Returns (document, duplicate). An upload and a letter from a watched folder both go through here."""
+    # The same letter twice (uploaded again, or from the phone and the scanner) would be read twice and show its
+    # dates and answers twice. Same bytes in this workspace: keep the one that is there.
+    same = _same_document(db, workspace_id, file_path, size)
+    if same is not None:
+        os.remove(file_path)
+        logger.info(f"'{display_name}' is the same file as document {same.id} ('{same.filename}'); not added again")
+        return same, True
+
+    # Create DB record immediately with UPLOADING status
+    doc = models.Document(
+        workspace_id=workspace_id,
+        filename=display_name,  # Keep original name for display
+        filepath=file_path,
+        file_type=ext,
+        status=DocStatus.UPLOADING,
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+
+    # Kick off background indexing thread (does not block the HTTP response)
+    thread = threading.Thread(
+        target=_index_document_background,
+        args=(doc.id, workspace_id, user_id, file_path),
+        daemon=True,
+    )
+    thread.start()
+    return doc, False
+
+
+def add_file_from_disk(db, workspace_id: int, user_id: int, source_path: str, display_name: str):
+    """A file on this PC into the workspace, like an upload (watched folders, services/watch_service.py): a copy in
+    the upload folder, encrypted while protection is on, then _register_saved_file. The file itself is only read.
+    Returns (document, duplicate)."""
+    import hashlib
+    display_name = os.path.basename(display_name)
+    ext = os.path.splitext(display_name)[1].lower().lstrip(".")
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+    unique_prefix = hashlib.md5(f"{workspace_id}_{time.time()}_{display_name}".encode()).hexdigest()[:8]
+    file_path = os.path.join(settings.UPLOAD_DIR, _disk_name(unique_prefix, display_name))
+    try:
+        with open(source_path, "rb") as src, vault.open_write(file_path) as out:
+            shutil.copyfileobj(src, out)
+    except BaseException:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise
+    return _register_saved_file(db, workspace_id, user_id, file_path, display_name, ext, vault.size(file_path))
+
+
 @router.post("/{workspace_id}/upload")
 async def upload_document(
     workspace_id: int,
@@ -238,12 +295,9 @@ async def upload_document(
 
     logger.info(f"File saved: '{file.filename}' ({actual_size} bytes) → {file_path}")
 
-    # The same letter twice (uploaded again, or from the phone and the scanner) would be read twice and show its
-    # dates and answers twice. Same bytes in this workspace: keep the one that is there.
-    same = _same_document(db, workspace_id, file_path, actual_size)
-    if same is not None:
-        os.remove(file_path)
-        logger.info(f"'{file.filename}' is the same file as document {same.id} ('{same.filename}'); not added again")
+    doc, duplicate = _register_saved_file(db, workspace_id, current_user.id, file_path, file.filename, ext, actual_size)
+    if duplicate:
+        same = doc
         return {
             "id": same.id,
             "filename": same.filename,
@@ -255,27 +309,6 @@ async def upload_document(
             "file_size": actual_size,
             "duplicate": True,
         }
-
-
-    # Create DB record immediately with UPLOADING status
-    doc = models.Document(
-        workspace_id=workspace_id,
-        filename=file.filename,  # Keep original name for display
-        filepath=file_path,
-        file_type=ext,
-        status=DocStatus.UPLOADING,
-    )
-    db.add(doc)
-    db.commit()
-    db.refresh(doc)
-
-    # Kick off background indexing thread (does not block the HTTP response)
-    thread = threading.Thread(
-        target=_index_document_background,
-        args=(doc.id, workspace_id, current_user.id, file_path),
-        daemon=True,
-    )
-    thread.start()
 
     return {
         "id": doc.id,
@@ -1206,6 +1239,48 @@ async def get_document_facts(
         raise HTTPException(status_code=404, detail="Document not found")
     return {"id": doc.id, "filename": doc.filename,
             "facts": document_facts_cached(_indexed_pages(workspace_id, current_user.id, doc.filepath), doc.filename)}
+
+
+@router.get("/{workspace_id}/documents/{document_id}/health")
+async def get_document_health(
+    workspace_id: int,
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Document health (2.7): what StarkLLM could read from the document (the first part of the text, passages, pages,
+    OCR and its languages) and what may be missing (empty pages, little text, password, tracked changes, flattened
+    tables, a reading error). From the indexed passages and the file itself; see services/document_health.py."""
+    from app.services import document_health
+    ws = db.query(models.Workspace).filter(
+        models.Workspace.id == workspace_id, models.Workspace.user_id == current_user.id).first()
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    doc = db.query(models.Document).filter(
+        models.Document.id == document_id, models.Document.workspace_id == workspace_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    filepath, file_type, status, error = doc.filepath, doc.file_type or "", doc.status, doc.error_message
+
+    def collect():
+        passages = []
+        if filepath:
+            try:
+                got = rag_service.get_or_create_collection(workspace_id, current_user.id).get(
+                    where={"source": filepath}, include=["documents", "metadatas"])
+                passages = list(zip(got.get("documents") or [], got.get("metadatas") or []))
+            except ProtectionLocked:
+                raise
+            except Exception as e:
+                logger.warning(f"document health: passages of document {document_id} not readable: {e}")
+        exists = bool(filepath and os.path.exists(filepath))
+        effective = "missing" if not exists and status == DocStatus.INDEXED else status
+        info = document_health.inspect_file(filepath, file_type) if exists else {}
+        return effective, document_health.health(status=effective, error_message=error, file_type=file_type,
+                                                 passages=passages, file_info=info)
+
+    effective, result = await asyncio.to_thread(collect)
+    return {"id": doc.id, "filename": doc.filename, "file_type": file_type, "status": effective, **result}
 
 
 @router.get("/{workspace_id}/documents/{document_id}/content")

@@ -1,0 +1,19 @@
+.addBox { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin: 12px 0 20px; }
+.pathRow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.pathRow input { flex: 1; min-width: 220px; }
+.check { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--text-primary); cursor: pointer; }
+.list, .history { list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.folder { padding: 10px 12px; border-radius: var(--radius-md); background: var(--bg-hover); display: flex; flex-direction: column; gap: 6px; }
+.folderHead { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.folderText { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.path { font-size: 0.75rem; color: var(--text-secondary); overflow-wrap: anywhere; }
+.meta { font-size: 0.75rem; color: var(--text-secondary); }
+.warn { display: flex; align-items: center; gap: 6px; margin: 0; font-size: var(--text-sm); color: var(--warning, #f59e0b); }
+.small { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; padding: 4px 8px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle); background: transparent; color: var(--text-primary); cursor: pointer; white-space: nowrap; }
+.small:disabled { opacity: 0.5; cursor: default; }
+.historyHead { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.entry { display: flex; align-items: flex-start; gap: 8px; padding: 6px 10px; border-radius: var(--radius-md); background: var(--bg-hover); font-size: var(--text-sm); }
+.entryFailed { border-left: 3px solid var(--danger, #ef4444); }
+.entryIcon { display: inline-flex; padding-top: 2px; color: var(--text-secondary); }
+.entryText { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.error { font-size: 0.75rem; color: var(--danger, #ef4444); }

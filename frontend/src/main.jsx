@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import './a11y.css'
 import App from './App.jsx'
 
 // Apply saved theme before first render to avoid flash

@@ -40,6 +40,17 @@
   min-width: 0;
 }
 
+/* ── Accessibility: the title part of the header is its own button (keyboard), it looks as before ── */
+.headerToggle {
+  padding: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
 .headerIcon {
   display: flex;
   align-items: center;

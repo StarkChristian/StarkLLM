@@ -1,0 +1,9 @@
+# security.txt for https://www.starkllm.com/.well-known/security.txt (RFC 9116).
+# The website is another repository: copy this file there unchanged, and renew "Expires" before it passes
+# (at least once a year; RFC 9116 recommends less than a year ahead).
+Contact: mailto:info@starkllm.com
+Contact: https://github.com/StarkChristian/StarkLLM/security/advisories/new
+Expires: 2027-11-01T00:00:00.000Z
+Preferred-Languages: en, de
+Policy: https://github.com/StarkChristian/StarkLLM/blob/main/SECURITY.md
+Canonical: https://www.starkllm.com/.well-known/security.txt

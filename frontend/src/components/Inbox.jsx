@@ -1,14 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Inbox as InboxIcon, FileText, Image, Check, RotateCcw, Pencil, X, FolderOpen, CalendarClock, ShieldAlert, Copy, ChevronDown, ChevronRight } from 'lucide-react';
+import { Inbox as InboxIcon, FileText, Image, Check, RotateCcw, Pencil, X, FolderOpen, CalendarClock, ShieldAlert, Copy, ChevronDown, ChevronRight, Briefcase } from 'lucide-react';
 import DocumentViewerModal from './DocumentViewerModal';
 import EmptyState from './EmptyState';
 import Deadlines from './Deadlines';
+import TaxPackDialog from './TaxPackDialog';
+import MeetingTasks from './MeetingTasks';
 import { UI_LOCALE } from '../utils/locale';
 import { t } from '../i18n';
 import { accountLabel } from '../utils/accounts';
 import AmbiguousDate, { ChosenDate } from './AmbiguousDate';
 import { LucyHelper } from './Lucy';
 import styles from './Inbox.module.css';
+import { tabKeys } from '../utils/menuKeys';
 
 // The document inbox (docs/document-inbox-design.md, B4): what StarkLLM read in each new letter, to check and mark
 // done, and the letters grouped into cases by sender. Every fact links to the page it was read from. StarkLLM only
@@ -76,6 +79,7 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
   const [viewing, setViewing] = useState(null);
   const [editing, setEditing] = useState(null); // { key, title }
   const [openCase, setOpenCase] = useState(null);
+  const [taxPack, setTaxPack] = useState(false); // the yearly package for the tax advisor
 
   const load = async () => {
     try {
@@ -253,12 +257,15 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
           <h1 className={styles.title}><InboxIcon size={24} /> {t('Inbox')}</h1>
           <p className={styles.subtitle}>{t('What StarkLLM read in your letters. Click a value to see it on the page; mark a letter done when you have dealt with it.')}</p>
         </div>
-        {newDocs.length > 1 && tab === 'new' && (
-          <button className="btn-secondary" onClick={allDone}><Check size={15} /> {t('Mark all as done')}</button>
-        )}
+        <div className={styles.headerActions}>
+          {newDocs.length > 1 && tab === 'new' && (
+            <button className="btn-secondary" onClick={allDone}><Check size={15} /> {t('Mark all as done')}</button>
+          )}
+          <button className="btn-secondary" onClick={() => setTaxPack(true)}><Briefcase size={15} /> {t('Export for my tax advisor')}</button>
+        </div>
       </header>
 
-      <div className={styles.tabs} role="tablist">
+      <div className={styles.tabs} role="tablist" aria-label={t('Inbox')} onKeyDown={tabKeys}>
         <button role="tab" aria-selected={tab === 'new'} className={tab === 'new' ? styles.tabActive : styles.tab} onClick={() => setTab('new')}>
           {t('New')} {newDocs.length > 0 && <span className={styles.count}>{newDocs.length}</span>}
         </button>
@@ -274,7 +281,10 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
       </div>
 
       {tab === 'deadlines' ? (
-        <Deadlines token={token} onOpen={openDeadline} />
+        <>
+          <MeetingTasks token={token} onOpen={openDeadline} />
+          <Deadlines token={token} onOpen={openDeadline} />
+        </>
       ) : !data ? (
         <p className={styles.note}>{error ? t('The inbox could not be loaded. Is StarkLLM running?') : t('Looking through your documents…')}</p>
       ) : tab === 'cases' ? (
@@ -332,6 +342,8 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
       )}
 
       {data && tab !== 'deadlines' && <p className={styles.hint}>{t('Found by fixed rules, word for word in your documents. Check the letter before you act on it.')}</p>}
+
+      {taxPack && <TaxPackDialog token={token} onClose={() => setTaxPack(false)} />}
 
       {viewing && (
         <DocumentViewerModal

@@ -70,6 +70,7 @@
   text-align: center;
 }
 
+.wizardHeader h1,
 .wizardHeader h2 {
   margin: 0 0 0.5rem;
   font-size: 1.5rem;
@@ -155,7 +156,7 @@
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  color: #ef4444;
+  color: var(--danger-text, #ef4444);
   font-size: 0.85rem;
   font-weight: 500;
   text-transform: capitalize;
@@ -225,7 +226,7 @@
   align-items: center;
   gap: 0.5rem;
   background: var(--accent-color);
-  color: #fff;
+  color: var(--on-accent, #fff);
   border: none;
   padding: 0.6rem 1.25rem;
   border-radius: 8px;

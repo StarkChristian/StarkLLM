@@ -1,0 +1,17 @@
+{
+  "_about": [
+    "One recommended chat model and one image model per hardware tier (StarkLLM 2.7, model picker).",
+    "Read by the engine (backend/app/services/model_fit.py) and by the desktop app at first start (desktop/model-tiers.js).",
+    "To update: change a model name or a threshold here; every text model and image model named here must also be in",
+    "RECOMMENDED_MODELS (backend/app/services/llm_service.py) with its size on disk. The tests check both.",
+    "A tier applies when the PC has at least gpu_gb of video memory on a graphics card of its own (gpu tiers) or at",
+    "least ram_gb of memory (processor tiers, also for integrated graphics, which share the PC's memory).",
+    "The highest tier that applies wins."
+  ],
+  "tiers": [
+    { "id": "cpu",    "kind": "cpu", "ram_gb": 0,  "text": "qwen3:4b",  "vision": "gemma3:4b" },
+    { "id": "gpu_8",  "kind": "gpu", "gpu_gb": 6,  "text": "qwen3:4b",  "vision": "gemma3:4b" },
+    { "id": "gpu_12", "kind": "gpu", "gpu_gb": 11, "text": "qwen3:8b",  "vision": "qwen2.5vl:7b" },
+    { "id": "gpu_24", "kind": "gpu", "gpu_gb": 20, "text": "qwen3:14b", "vision": "gemma3:12b" }
+  ]
+}

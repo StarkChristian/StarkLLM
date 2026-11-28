@@ -86,6 +86,42 @@ function createModelProgress() {
   };
 }
 
+// The download speed, measured from the download itself (never with an extra test request): the first figures come
+// after `warmupMs` of downloading; before that only the size is known. Bytes that were already on the PC when the
+// download started (a resumed download) do not count as speed.
+const SPEED_WARMUP_MS = 3000;
+function createSpeedMeter({ warmupMs = SPEED_WARMUP_MS } = {}) {
+  let start = null;
+  let last = null;
+  return {
+    // completed and total in bytes, now in ms
+    feed(completed, total, now = Date.now()) {
+      if (!(total > 0)) return;
+      if (!start) start = { at: now, bytes: completed };
+      last = { at: now, bytes: completed, total };
+    },
+    // bytes per second, or null during the first seconds
+    bytesPerSecond() {
+      if (!start || !last || last.at - start.at < warmupMs || last.bytes <= start.bytes) return null;
+      return (last.bytes - start.bytes) / ((last.at - start.at) / 1000);
+    },
+    // seconds left, or null while the speed is not known yet
+    secondsLeft() {
+      const speed = this.bytesPerSecond();
+      return speed ? Math.max(0, Math.round((last.total - last.bytes) / speed)) : null;
+    },
+  };
+}
+
+// 42 -> { key: '{n} s', values: { n: 42 } } (for t()); rounded up to whole minutes from 2 minutes on
+function durationParts(seconds) {
+  const s = Math.max(1, Math.round(seconds));
+  if (s < 120) return { key: '{n} s', values: { n: s } };
+  const minutes = Math.ceil(s / 60);
+  if (minutes < 60) return { key: '{n} min', values: { n: minutes } };
+  return { key: '{h} h {m} min', values: { h: Math.floor(minutes / 60), m: minutes % 60 } };
+}
+
 // Calls fn at most every `ms` milliseconds; the last call is never lost.
 function throttle(fn, ms = 250) {
   let last = 0;
@@ -109,4 +145,4 @@ function throttle(fn, ms = 250) {
   };
 }
 
-module.exports = { parseSize, formatBytes, createPullProgress, createModelProgress, throttle };
+module.exports = { parseSize, formatBytes, createPullProgress, createModelProgress, createSpeedMeter, durationParts, throttle };

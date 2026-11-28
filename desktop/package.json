@@ -10,7 +10,9 @@
     "start": "electron .",
     "pack": "electron-builder --dir",
     "dist": "electron-builder --win --x64",
-    "test": "node --test"
+    "test": "node --test",
+    "fetch-runtimes": "node build/fetch-runtimes.js",
+    "predist": "node build/fetch-runtimes.js"
   },
   "devDependencies": {
     "electron": "^45.3.3",
@@ -90,6 +92,20 @@
         "from": "build/engine-native",
         "to": "engine-native",
         "filter": ["**/*"]
+      },
+      {
+        "from": "build/runtime",
+        "to": "runtime",
+        "filter": ["**/*"]
+      }
+    ],
+    "asarUnpack": ["connectors/**"],
+    "fileAssociations": [
+      {
+        "ext": "mcpb",
+        "name": "MCP Bundle",
+        "description": "MCP Bundle (StarkLLM Connections)",
+        "role": "Viewer"
       }
     ],
     "publish": [

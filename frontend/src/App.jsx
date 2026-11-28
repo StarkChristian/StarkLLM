@@ -9,8 +9,10 @@ import Dashboard from './components/Dashboard';
 import Inbox from './components/Inbox';
 import Settings from './components/Settings';
 import ErrorBoundary from './components/ErrorBoundary';
+import DialogBox from './components/DialogBox';
 import DocumentManager from './components/DocumentManager';
 import MemoryManager from './components/MemoryManager';
+import { parseMemoryHeader, memorySources } from './utils/memory';
 import GlobalSearch from './components/GlobalSearch';
 import SummaryModal from './components/SummaryModal';
 import WorkspaceKBModal from './components/WorkspaceKBModal';
@@ -28,6 +30,7 @@ import { exportItems, exportTitle, saveAsWord, saveAsPdf } from './utils/exportD
 import { readableSource } from './utils/sources';
 import { UI_LOCALE } from './utils/locale';
 import { mcpBridge } from './utils/mcpBridge';
+import { connectionsBridge } from './utils/connections';
 import { currentCloudHost } from './utils/cloud';
 import { isUploadable, isRecording } from './utils/uploadTypes';
 import { serverDate } from './utils/time';
@@ -63,6 +66,15 @@ export default function App() {
   const [wsLoading, setWsLoading] = useState(false);
   const [wsError, setWsError] = useState(null);
   const [activeView, setActiveView] = useState('dashboard');
+  // a .mcpb bundle opened with StarkLLM (desktop app): Settings › Connections shows it and asks first
+  const [settingsKey, setSettingsKey] = useState(0);
+  useEffect(() => {
+    const b = connectionsBridge();
+    if (!b) return undefined;
+    const show = () => { setSettingsSection('connections'); setSettingsKey((k) => k + 1); setActiveView('settings'); };
+    b.hasPendingBundle().then((r) => { if (r && r.pending) show(); }).catch(() => {});
+    return b.onOpenBundle(show);
+  }, []);
   // number of new letters in the inbox, shown next to "Inbox" in the sidebar
   const [inboxCount, setInboxCount] = useState(0);
   useEffect(() => {
@@ -77,6 +89,36 @@ export default function App() {
     const timer = setInterval(loadCount, 30000);
     return () => clearInterval(timer);
   }, [token]);
+  // the settings page to open (a notice's "Details" opens Settings > Letters from a folder)
+  const [settingsSection, setSettingsSection] = useState(null);
+  useEffect(() => { if (activeView !== 'settings') setSettingsSection(null); }, [activeView]);
+  // letters imported from a watched folder (Settings > Letters from a folder): a short notice, once per import
+  useEffect(() => {
+    if (!token) return undefined;
+    const check = async () => {
+      try {
+        const res = await fetch('/api/v1/watch-folders/notices', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        const { imported = [], failed = [] } = await res.json();
+        for (const n of imported) {
+          toast.success(n.count === 1
+            ? t('1 letter imported from {folder}', { folder: n.folder })
+            : t('{count} letters imported from {folder}', { count: n.count, folder: n.folder }),
+          8000, { label: t('Open inbox'), onClick: () => setActiveView('inbox') });
+        }
+        for (const n of failed) {
+          toast.error(n.count === 1
+            ? t('1 file from {folder} could not be imported.', { folder: n.folder })
+            : t('{count} files from {folder} could not be imported.', { count: n.count, folder: n.folder }),
+          10000, { label: t('Details'), onClick: () => { setActiveView('settings'); setSettingsSection('watch'); } });
+        }
+        if (imported.length) setInboxCount((c) => c + imported.reduce((sum, n) => sum + n.count, 0));
+      } catch (_) { /* tried again shortly */ }
+    };
+    check();
+    const timer = setInterval(check, 15000);
+    return () => clearInterval(timer);
+  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
   const [useKb, setUseKb] = useState(false);
   const [useWebSearch, setUseWebSearch] = useState(false);
   // a second local model that answers the same question, to compare (docs/roadmap-2026-12.md, R4); '' is off
@@ -357,6 +399,7 @@ export default function App() {
                 warnings: m.sources.warnings || [],
                 webSources: m.sources.web || [],
                 cloudHost: m.sources.cloud || null,
+                memorySources: memorySources(m.sources.memory),
               } : m))
           : [{ role: 'assistant', content: t('Chat loaded. How can I help you?'), timestamp: new Date(), greeting: true }]
       ));
@@ -1021,6 +1064,7 @@ export default function App() {
       const webSourcesUrlsHeader = response.headers.get('X-Web-Sources-Urls') ? decodeURIComponent(response.headers.get('X-Web-Sources-Urls')) : '';
       const cloudHostHeader = response.headers.get('X-Cloud-Provider') || null;
       const sourcesModeHeader = response.headers.get('X-Sources-Mode') || null;
+      const memoryUsed = parseMemoryHeader(response.headers.get('X-Memory-Sources'));
       let docWarnings = [];
       try { docWarnings = JSON.parse(decodeURIComponent(response.headers.get('X-Doc-Warnings') || '%5B%5D')); } catch { docWarnings = []; }
 
@@ -1060,6 +1104,7 @@ export default function App() {
             sourcesMode: sourcesModeHeader,
             webSources: webSourcesData,
             cloudHost: cloudHostHeader,
+            memorySources: memoryUsed,
             warnings: docWarnings
           };
           return msgs;
@@ -1283,7 +1328,7 @@ export default function App() {
     if (!items.length) return;
     const args = {
       title: exportTitle(title), items, headers: getHeaders(), lang: language(), dir: document.documentElement.dir || 'ltr',
-      words: { user: t('You'), assistant: 'StarkLLM', sources: t('Sources'), exported: t('Exported from StarkLLM') },
+      words: { user: t('You'), assistant: 'StarkLLM', sources: t('Sources'), exported: t('Exported from StarkLLM'), ai_note: t('Created with AI assistance (StarkLLM)') },
       dateText: new Date().toLocaleDateString(UI_LOCALE),
     };
     try {
@@ -1303,7 +1348,7 @@ export default function App() {
       const title = (!found || found === 'New Chat') ? (firstQuestion || (found ? t('New Chat') : 'StarkLLM')) : found;
       return exportAsDocument(format, title, messages);
     }
-    exportChat(messages, chats, activeChatId, format);
+    exportChat(messages, chats, activeChatId, format, { locale: UI_LOCALE, aiNote: t('Created with AI assistance (StarkLLM)') });
   };
 
   const handleExportAnswer = (index, format) => {
@@ -1582,6 +1627,10 @@ export default function App() {
       }}>
         <img src="/Logo.png" alt="StarkLLM" style={{ width: 144, height: 'auto', marginBottom: 12 }} />
         <h2 style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: '1.75rem' }}>{t('Welcome to StarkLLM!')}</h2>
+        {/* EU AI Act, Article 50(1): the user knows from the start that this is an AI */}
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', maxWidth: 520, textAlign: 'center', margin: 0 }}>
+          {t('StarkLLM is an AI assistant. Its answers are generated by an AI model and can contain mistakes. Please check important information.')}
+        </p>
         {!wsError ? (
           <p style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>{t('Getting your documents ready…')}</p>
         ) : (
@@ -1611,6 +1660,14 @@ export default function App() {
   // ── Main app layout ──
   return (
     <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+      {/* WCAG 2.4.1: the first Tab stop jumps past the sidebar to the page */}
+      <a
+        href="#main-content"
+        className="skip-link"
+        onClick={(e) => { e.preventDefault(); document.getElementById('main-content')?.focus(); }}
+      >
+        {t('Skip to content')}
+      </a>
       <Sidebar
         workspaces={workspaces}
         activeWorkspace={activeWorkspace}
@@ -1647,6 +1704,7 @@ export default function App() {
       />
 
       {/* Main content */}
+      <main id="main-content" tabIndex={-1} className="app-main">
       <ErrorBoundary>
         {activeView === 'dashboard' && (
           <Dashboard
@@ -1671,7 +1729,7 @@ export default function App() {
         )}
 
         {activeView === 'settings' && (
-          <Settings token={token} username={username} activeWorkspace={activeWorkspace} currentModel={currentModel} />
+          <Settings key={settingsKey} section={settingsSection} token={token} username={username} activeWorkspace={activeWorkspace} currentModel={currentModel} />
         )}
 
         {activeView === 'chat' && (
@@ -1680,6 +1738,7 @@ export default function App() {
             <HealthBanner token={token} />
             <ChatArea 
               messages={messages} 
+              isGenerating={isGenerating}
               onRegenerate={handleRegenerateMessage}
               onEdit={handleEditMessage}
               onExport={handleExportChat}
@@ -1690,6 +1749,7 @@ export default function App() {
               onSelectStarter={handleSendMessage}
               workspaceId={activeWorkspace?.id}
               chatId={activeChatId}
+              onOpenMemory={() => setShowMemoryManager(true)}
               onUpload={handleFileUpload}
               newestDocument={[...workspaceDocs].filter(d => d.status === 'indexed').sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0]?.filename}
               token={token}
@@ -1741,6 +1801,7 @@ export default function App() {
           </div>
         )}
       </ErrorBoundary>
+      </main>
 
       <WorkspaceKBModal
         isOpen={showKbModal}
@@ -1773,6 +1834,7 @@ export default function App() {
           documents={workspaceDocs}
           onDeleteDocument={handleDeleteDocument}
           onUpload={handleFileUpload}
+          onDocumentsChanged={() => { fetchWorkspaceDocs(activeWorkspace.id); startDocPolling(activeWorkspace.id); }}
           token={token}
         />
       )}
@@ -1885,7 +1947,7 @@ function WorkspaceNameModal({ value, onChange, onConfirm, onCancel, inputRef }) 
       background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center'
     }}>
-      <div style={{
+      <DialogBox onClose={onCancel} labelledBy="dlg-newws-title" style={{
         background: 'var(--bg-secondary)',
         border: '1px solid var(--border-color)',
         borderRadius: 14,
@@ -1896,7 +1958,7 @@ function WorkspaceNameModal({ value, onChange, onConfirm, onCancel, inputRef }) 
         gap: '1rem',
         boxShadow: '0 24px 80px rgba(0,0,0,0.5)'
       }}>
-        <h3 style={{ margin: 0, color: 'var(--text-primary)', fontWeight: 700 }}>{t('New Workspace')}</h3>
+        <h2 id="dlg-newws-title" style={{ margin: 0, color: 'var(--text-primary)', fontWeight: 700, fontSize: '1.17rem' }}>{t('New Workspace')}</h2>
         <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
           {t('Give your workspace a name to get started.')}
         </p>
@@ -1904,6 +1966,7 @@ function WorkspaceNameModal({ value, onChange, onConfirm, onCancel, inputRef }) 
           ref={inputRef}
           type="text"
           placeholder={t('e.g. Research, Work, Personal…')}
+          aria-label={t('Workspace name')}
           value={value}
           onChange={e => onChange(e.target.value)}
           onKeyDown={handleKey}
@@ -1940,7 +2003,7 @@ function WorkspaceNameModal({ value, onChange, onConfirm, onCancel, inputRef }) 
             {t('Create')}
           </button>
         </div>
-      </div>
+      </DialogBox>
     </div>
   );
 }

@@ -232,6 +232,9 @@ def on_startup():
         from app.core.chroma_store import scrub_soon
         scrub_soon(settings.CHROMA_PERSIST_DIRECTORY, delay=1.0)
     kb_service.start_background_watcher()
+    # watched folders for letters: the first look imports what arrived while StarkLLM was closed (2.7, option 8)
+    from app.services.watch_service import watcher as _folder_watcher
+    _folder_watcher.start()
     # documents whose indexing was cut off by closing the app are indexed again (N40)
     import threading as _threading
     from app.api.documents import resume_interrupted_indexing
@@ -246,6 +249,8 @@ def on_startup():
 @app.on_event("shutdown")
 def on_shutdown():
     kb_service.stop_background_watcher()
+    from app.services.watch_service import watcher as _folder_watcher
+    _folder_watcher.stop()
     from app.services import summaries
     summaries.stop()
 

@@ -211,6 +211,46 @@ class KnowledgeBaseDocument(Base):
         )
 
 
+# ---------------------------------------------------------------------------
+# Watched folders for letters (2.7, plan option 8): new files in a folder the user chose (the scanner's output
+# folder, Downloads\Letters) go into the inbox of a workspace (services/watch_service.py). Separate from the
+# knowledge base folders: those are searched where they are, these are imported like an upload.
+# ---------------------------------------------------------------------------
+class WatchedFolder(Base):
+    __tablename__ = "watched_folders"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    user_id       = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    workspace_id  = Column(Integer, ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    # the path names the user's folders ("Briefe Finanzamt"): stored protected while protection is on
+    folder_path   = Column(ProtectedText("watched_folders.folder_path", locked_value=None), nullable=False)
+    move_imported = Column(Integer, default=0, nullable=False)   # 1: imported files go into the "imported" subfolder
+    is_active     = Column(Integer, default=1, nullable=False)
+    created_at    = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WatchedImport(Base):
+    """One file of a watched folder and what happened to it. status: imported, duplicate (the workspace already had
+    the same bytes), failed (error says why), existing (was in the folder when it was added and was not to be
+    imported; not shown in the history). A file whose bytes are here already is not imported again."""
+    __tablename__ = "watched_imports"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    user_id      = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    folder_id    = Column(Integer, ForeignKey("watched_folders.id", ondelete="CASCADE"), nullable=False, index=True)
+    workspace_id = Column(Integer, nullable=True)
+    document_id  = Column(Integer, nullable=True)
+    file_name    = Column(ProtectedText("watched_imports.file_name", locked_value="\U0001F512"), nullable=False)
+    sha256       = Column(String, nullable=True, index=True)
+    file_size    = Column(Integer, nullable=True)
+    mtime_ns     = Column(Integer, nullable=True)
+    status       = Column(String, nullable=False)
+    error        = Column(ProtectedText("watched_imports.error", locked_value=None), nullable=True)
+    moved        = Column(Integer, default=0, nullable=False)    # 1: moved into the "imported" subfolder
+    announced    = Column(Integer, default=0, nullable=False)    # 1: the "letters imported" notice was shown
+    created_at   = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class DocumentReview(Base):
     """What the user decided about a document in the inbox (docs/document-inbox-design.md, B4): done or still new,
     their own title, the case it belongs to. StarkLLM only suggests; nothing is renamed or moved on disk.
@@ -279,6 +319,47 @@ class DeadlineDone(Base):
     created_at  = Column(DateTime, default=datetime.utcnow)
 
 
+class MeetingRecording(Base):
+    """A meeting recorded on this PC (services/meetings.py). Its document is the transcript ("[00:12:30] ..."); the
+    audio is kept beside it until the user deletes it (audio_path None then: the text stays). summary is the checked
+    summary as JSON (decisions, open points, proposed tasks with their status); nothing of it is added anywhere until
+    the user confirms a task. Deleted with its document."""
+    __tablename__ = "meeting_recordings"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    user_id      = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    scope        = Column(String, default="ws", nullable=False)   # the transcript is a workspace document
+    document_id  = Column(Integer, nullable=False, index=True)
+    workspace_id = Column(Integer, nullable=False)
+    audio_path   = Column(String, nullable=True)                  # None once the user deleted the audio
+    mime         = Column(String, nullable=True)
+    started      = Column(String, nullable=True)                  # local time the recording began, ISO
+    duration     = Column(Float, nullable=True)
+    language     = Column(String, nullable=True)
+    system_audio = Column(Boolean, default=False)
+    status       = Column(String, default="transcribing")         # transcribing, ready, failed
+    summary      = Column(ProtectedText("meeting_recordings.summary"), nullable=True)
+    created_at   = Column(DateTime, default=datetime.utcnow)
+
+
+class MeetingTask(Base):
+    """A task from a meeting that the user confirmed: in the inbox's deadline list with the time it was said. owner,
+    due_text and due_date are only what was said in the meeting, or what the user typed when confirming."""
+    __tablename__ = "meeting_tasks"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    user_id     = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    scope       = Column(String, default="ws", nullable=False)
+    document_id = Column(Integer, nullable=False, index=True)     # the meeting's transcript
+    meeting_id  = Column(Integer, nullable=False, index=True)
+    text        = Column(ProtectedText("meeting_tasks.text"), nullable=False)
+    owner       = Column(ProtectedText("meeting_tasks.owner"), nullable=True)
+    due_text    = Column(ProtectedText("meeting_tasks.due_text"), nullable=True)
+    due_date    = Column(String, nullable=True)                   # ISO yyyy-mm-dd, only for a day that was said
+    seconds     = Column(Integer, nullable=False, default=0)      # where in the meeting it was said
+    done        = Column(Integer, default=0, nullable=False)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+
 
 # ---------------------------------------------------------------------------
 # What the user decided about a document goes with the document (MSI night test of 2.3.0, N38)
@@ -290,7 +371,14 @@ class DeadlineDone(Base):
 from sqlalchemy import delete as _delete, event as _event, select as _select  # noqa: E402
 from sqlalchemy.orm import Session as _Session  # noqa: E402
 
-DOCUMENT_LINKED = (DocumentReview, DateChoice, DeadlineReminder, DeadlineDone)
+DOCUMENT_LINKED = (DocumentReview, DateChoice, DeadlineReminder, DeadlineDone, MeetingRecording, MeetingTask)
+
+
+def _remove_meeting_audio(connection_or_session, condition) -> None:
+    """A meeting's transcript goes: its audio file goes with it."""
+    from app.services.meetings import remove_audio
+    for (path,) in connection_or_session.execute(_select(MeetingRecording.audio_path).where(condition)).all():
+        remove_audio(path)
 
 
 def forget_documents(connection_or_session, scope: str, ids) -> None:
@@ -298,6 +386,7 @@ def forget_documents(connection_or_session, scope: str, ids) -> None:
     ids = [i for i in ids if i is not None]
     if not ids:
         return
+    _remove_meeting_audio(connection_or_session, (MeetingRecording.scope == scope) & MeetingRecording.document_id.in_(ids))
     for model in DOCUMENT_LINKED:
         connection_or_session.execute(_delete(model).where(model.scope == scope, model.document_id.in_(ids)))
 
@@ -317,6 +406,7 @@ def forget_orphans(session) -> int:
     removed = 0
     for scope, model in (("ws", Document), ("kb", KnowledgeBaseDocument)):
         existing = _select(model.id)
+        _remove_meeting_audio(session, (MeetingRecording.scope == scope) & MeetingRecording.document_id.not_in(existing))
         for linked in DOCUMENT_LINKED:
             result = session.execute(_delete(linked).where(linked.scope == scope, linked.document_id.not_in(existing)))
             removed += result.rowcount or 0

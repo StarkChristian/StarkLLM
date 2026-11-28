@@ -1,0 +1,527 @@
+{
+  "version": 1,
+  "note": "Connections catalog (docs/connections.md). Checked by desktop/test/connections.test.js. Every package is pinned to an exact version; texts in en, de, es, fr, it, tr (formal address).",
+  "texts": {
+    "folder": { "en": "Folder", "de": "Ordner", "es": "Carpeta", "fr": "Dossier", "it": "Cartella", "tr": "Klasör" },
+    "repository": { "en": "Repository folder", "de": "Repository-Ordner", "es": "Carpeta del repositorio", "fr": "Dossier du dépôt", "it": "Cartella del repository", "tr": "Depo klasörü" },
+    "allowWrite": { "en": "Allow changes", "de": "Änderungen erlauben", "es": "Permitir cambios", "fr": "Autoriser les modifications", "it": "Consentire le modifiche", "tr": "Değişikliklere izin ver" },
+    "allowWriteHint": { "en": "Off: the assistant can only read. On: tools that change things can be turned on, and each call still asks you.", "de": "Aus: Der Assistent kann nur lesen. An: Werkzeuge, die etwas ändern, lassen sich einschalten, und jeder Aufruf fragt Sie weiterhin.", "es": "Desactivado: el asistente solo puede leer. Activado: se pueden activar herramientas que cambian cosas, y cada llamada le sigue preguntando.", "fr": "Désactivé : l'assistant peut seulement lire. Activé : les outils qui modifient peuvent être activés, et chaque appel vous demande toujours votre accord.", "it": "Disattivato: l'assistente può solo leggere. Attivato: si possono attivare gli strumenti che modificano, e ogni chiamata Le chiede comunque conferma.", "tr": "Kapalı: asistan yalnızca okuyabilir. Açık: değişiklik yapan araçlar açılabilir ve her çağrı yine size sorar." },
+    "apiKey": { "en": "API key", "de": "API-Schlüssel", "es": "Clave de API", "fr": "Clé d'API", "it": "Chiave API", "tr": "API anahtarı" },
+    "token": { "en": "Access token", "de": "Zugriffstoken", "es": "Token de acceso", "fr": "Jeton d'accès", "it": "Token di accesso", "tr": "Erişim belirteci" },
+    "password": { "en": "Password", "de": "Passwort", "es": "Contraseña", "fr": "Mot de passe", "it": "Password", "tr": "Parola" },
+    "port": { "en": "Port", "de": "Port", "es": "Puerto", "fr": "Port", "it": "Porta", "tr": "Bağlantı noktası" },
+    "secretHint": { "en": "Stored in Windows Credential Manager, never in a settings file.", "de": "Wird in der Windows-Anmeldeinformationsverwaltung gespeichert, nie in einer Einstellungsdatei.", "es": "Se guarda en el Administrador de credenciales de Windows, nunca en un archivo de configuración.", "fr": "Enregistré dans le Gestionnaire d'identification de Windows, jamais dans un fichier de réglages.", "it": "Salvato in Gestione credenziali di Windows, mai in un file di impostazioni.", "tr": "Windows Kimlik Bilgileri Yöneticisi'nde saklanır, hiçbir zaman bir ayar dosyasında saklanmaz." }
+  },
+  "entries": [
+    {
+      "id": "files",
+      "status": "ready",
+      "name": { "en": "Files (chosen folders)", "de": "Dateien (ausgewählte Ordner)", "es": "Archivos (carpetas elegidas)", "fr": "Fichiers (dossiers choisis)", "it": "File (cartelle scelte)", "tr": "Dosyalar (seçilen klasörler)" },
+      "category": "files",
+      "publisher": "Model Context Protocol (LF Projects)",
+      "license": "MIT / Apache-2.0",
+      "lastUpdate": "2026-11-27",
+      "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
+      "network": "offline",
+      "description": {
+        "en": "Lets the assistant read the files in folders you choose. Changes are off unless you allow them.",
+        "de": "Der Assistent kann die Dateien in Ordnern lesen, die Sie auswählen. Änderungen sind aus, bis Sie sie erlauben.",
+        "es": "El asistente puede leer los archivos de las carpetas que usted elija. Los cambios están desactivados hasta que usted los permita.",
+        "fr": "L'assistant peut lire les fichiers des dossiers que vous choisissez. Les modifications sont désactivées tant que vous ne les autorisez pas.",
+        "it": "L'assistente può leggere i file nelle cartelle che Lei sceglie. Le modifiche restano disattivate finché Lei non le consente.",
+        "tr": "Asistan, seçtiğiniz klasörlerdeki dosyaları okuyabilir. Siz izin verene kadar değişiklikler kapalıdır."
+      },
+      "package": { "runtime": "npm", "name": "@modelcontextprotocol/server-filesystem", "version": "2.4.1", "bin": "mcp-server-filesystem" },
+      "transport": "stdio",
+      "args": ["{folder}"],
+      "env": {},
+      "fields": [
+        { "id": "folder", "kind": "folder", "label": "@folder", "required": true },
+        { "id": "allowWrite", "kind": "checkbox", "label": "@allowWrite", "hint": "@allowWriteHint", "default": false, "unlocks": "write" }
+      ],
+      "readOnlyByDefault": true,
+      "tiers": {
+        "read": ["read_*", "list_*", "directory_tree", "search_files", "get_file_info"],
+        "write": ["write_file", "edit_file", "append_file", "create_directory", "move_file", "copy_file"],
+        "exec": []
+      },
+      "defaultTier": "exec",
+      "blockedTools": [],
+      "untrustedOutput": ["read_*", "search_files", "directory_tree", "list_*"],
+      "needsApp": null,
+      "steps": [
+        { "en": "Choose a folder. The assistant sees only this folder and the folders inside it.", "de": "Wählen Sie einen Ordner. Der Assistent sieht nur diesen Ordner und die Ordner darin.", "es": "Elija una carpeta. El asistente solo ve esta carpeta y las carpetas que contiene.", "fr": "Choisissez un dossier. L'assistant ne voit que ce dossier et ses sous-dossiers.", "it": "Scelga una cartella. L'assistente vede solo questa cartella e le cartelle al suo interno.", "tr": "Bir klasör seçin. Asistan yalnızca bu klasörü ve içindeki klasörleri görür." }
+      ]
+    },
+    {
+      "id": "obsidian",
+      "status": "ready",
+      "name": "Obsidian",
+      "category": "notes",
+      "publisher": "Local REST API plugin (Adam Coddington)",
+      "license": "MIT",
+      "lastUpdate": "2026-11-27",
+      "homepage": "https://github.com/coddingtonbear/obsidian-local-rest-api",
+      "network": "offline",
+      "description": {
+        "en": "Searches and reads the notes of your Obsidian vault. Uses the Local REST API plugin, which runs inside Obsidian.",
+        "de": "Durchsucht und liest die Notizen Ihres Obsidian-Tresors. Nutzt das Plugin „Local REST API“, das in Obsidian läuft.",
+        "es": "Busca y lee las notas de su bóveda de Obsidian. Usa el complemento Local REST API, que funciona dentro de Obsidian.",
+        "fr": "Recherche et lit les notes de votre coffre Obsidian. Utilise le module Local REST API, qui fonctionne dans Obsidian.",
+        "it": "Cerca e legge le note della Sua cassaforte Obsidian. Usa il plugin Local REST API, che funziona dentro Obsidian.",
+        "tr": "Obsidian kasanızdaki notları arar ve okur. Obsidian içinde çalışan Local REST API eklentisini kullanır."
+      },
+      "package": { "runtime": "none", "requires": "Local REST API 5.6.0" },
+      "transport": "http",
+      "url": "https://127.0.0.1:27124/mcp/",
+      "tls": "pin",
+      "fields": [
+        { "id": "apiKey", "kind": "secret", "label": "@apiKey", "hint": "@secretHint", "required": true, "header": "Authorization", "format": "Bearer {value}" },
+        { "id": "allowWrite", "kind": "checkbox", "label": "@allowWrite", "hint": "@allowWriteHint", "default": false, "unlocks": "write" }
+      ],
+      "readOnlyByDefault": true,
+      "tiers": {
+        "read": ["vault_read*", "vault_list", "vault_get_document_map", "search_*", "active_file_get*", "command_list", "list_*", "get_*", "periodic_*_get*"],
+        "write": ["vault_append", "vault_write", "vault_patch", "vault_copy", "vault_move", "open_file", "active_file_*", "periodic_*"],
+        "exec": ["*delete*", "command_execute", "vault_get_upload_url"]
+      },
+      "defaultTier": "exec",
+      "blockedTools": [],
+      "untrustedOutput": ["*"],
+      "needsApp": { "en": "Obsidian must be open, with the Local REST API plugin (5.6 or newer) turned on.", "de": "Obsidian muss geöffnet sein, mit eingeschaltetem Plugin „Local REST API“ (5.6 oder neuer).", "es": "Obsidian debe estar abierto, con el complemento Local REST API (5.6 o posterior) activado.", "fr": "Obsidian doit être ouvert, avec le module Local REST API (5.6 ou plus récent) activé.", "it": "Obsidian deve essere aperto, con il plugin Local REST API (5.6 o successivo) attivato.", "tr": "Obsidian açık olmalı ve Local REST API eklentisi (5.6 veya daha yeni) etkin olmalıdır." },
+      "steps": [
+        { "en": "In Obsidian: Settings › Community plugins › install and turn on “Local REST API”.", "de": "In Obsidian: Einstellungen › Community-Plugins › „Local REST API“ installieren und einschalten.", "es": "En Obsidian: Ajustes › Complementos de la comunidad › instale y active «Local REST API».", "fr": "Dans Obsidian : Réglages › Modules complémentaires › installez et activez « Local REST API ».", "it": "In Obsidian: Impostazioni › Plugin della community › installi e attivi «Local REST API».", "tr": "Obsidian'da: Ayarlar › Topluluk eklentileri › “Local REST API” eklentisini yükleyin ve açın." },
+        { "en": "Copy the API key from the plugin's settings and paste it below.", "de": "Kopieren Sie den API-Schlüssel aus den Einstellungen des Plugins und fügen Sie ihn unten ein.", "es": "Copie la clave de API de los ajustes del complemento y péguela abajo.", "fr": "Copiez la clé d'API dans les réglages du module et collez-la ci-dessous.", "it": "Copi la chiave API dalle impostazioni del plugin e la incolli qui sotto.", "tr": "Eklentinin ayarlarındaki API anahtarını kopyalayıp aşağıya yapıştırın." },
+        { "en": "StarkLLM trusts the plugin's own certificate only for this address on this PC.", "de": "StarkLLM vertraut dem eigenen Zertifikat des Plugins nur für diese Adresse auf diesem PC.", "es": "StarkLLM confía en el certificado propio del complemento solo para esta dirección en este PC.", "fr": "StarkLLM fait confiance au certificat du module uniquement pour cette adresse sur ce PC.", "it": "StarkLLM si fida del certificato del plugin solo per questo indirizzo su questo PC.", "tr": "StarkLLM, eklentinin kendi sertifikasına yalnızca bu bilgisayardaki bu adres için güvenir." }
+      ]
+    },
+    {
+      "id": "zotero",
+      "status": "ready",
+      "name": "Zotero",
+      "category": "research",
+      "publisher": "54yyyu (zotero-mcp)",
+      "license": "MIT AND AGPL-3.0-or-later",
+      "lastUpdate": "2026-11-24",
+      "homepage": "https://pypi.org/project/zotero-mcp-server/",
+      "network": "offline",
+      "description": {
+        "en": "Searches your Zotero library and reads metadata, notes and annotations. Works with the Zotero app on this PC, without a Zotero account.",
+        "de": "Durchsucht Ihre Zotero-Bibliothek und liest Metadaten, Notizen und Anmerkungen. Arbeitet mit der Zotero-App auf diesem PC, ohne Zotero-Konto.",
+        "es": "Busca en su biblioteca de Zotero y lee metadatos, notas y anotaciones. Funciona con la aplicación Zotero de este PC, sin cuenta de Zotero.",
+        "fr": "Recherche dans votre bibliothèque Zotero et lit les métadonnées, notes et annotations. Fonctionne avec l'application Zotero de ce PC, sans compte Zotero.",
+        "it": "Cerca nella Sua libreria Zotero e legge metadati, note e annotazioni. Funziona con l'app Zotero su questo PC, senza account Zotero.",
+        "tr": "Zotero kitaplığınızda arama yapar; üst verileri, notları ve açıklamaları okur. Bu bilgisayardaki Zotero uygulamasıyla, Zotero hesabı olmadan çalışır."
+      },
+      "package": { "runtime": "uv", "name": "zotero-mcp-server", "version": "0.17.4", "bin": "zotero-mcp", "python": "3.12" },
+      "transport": "stdio",
+      "args": ["serve"],
+      "env": { "ZOTERO_LOCAL": "true" },
+      "fields": [
+        { "id": "allowWrite", "kind": "checkbox", "label": "@allowWrite", "hint": "@allowWriteHint", "default": false, "unlocks": "write" }
+      ],
+      "readOnlyByDefault": true,
+      "tiers": {
+        "read": ["zotero_get_*", "zotero_search*", "zotero_advanced_search", "zotero_list_*", "zotero_find_*", "zotero_library_coverage", "zotero_export_bibliography", "zotero_read_pdf_pages", "zotero_semantic_search", "zotero_write_capabilities", "search", "fetch"],
+        "write": ["zotero_add_*", "zotero_create_*", "zotero_update_*", "zotero_manage_*", "zotero_set_*", "zotero_batch_update", "zotero_attach_file", "zotero_copy_*", "zotero_merge_duplicates", "zotero_remove_item_relation", "zotero_switch_library", "zotero_synthesize_annotations"],
+        "exec": ["zotero_delete_*", "zotero_authorize_local_writes"]
+      },
+      "defaultTier": "exec",
+      "blockedTools": ["scite_*"],
+      "untrustedOutput": ["*"],
+      "needsApp": { "en": "Zotero 7 must be open.", "de": "Zotero 7 muss geöffnet sein.", "es": "Zotero 7 debe estar abierto.", "fr": "Zotero 7 doit être ouvert.", "it": "Zotero 7 deve essere aperto.", "tr": "Zotero 7 açık olmalıdır." },
+      "steps": [
+        { "en": "In Zotero: Settings › Advanced › tick “Allow other applications on this computer to communicate with Zotero”.", "de": "In Zotero: Einstellungen › Erweitert › „Anderen Anwendungen auf diesem Computer erlauben, mit Zotero zu kommunizieren“ ankreuzen.", "es": "En Zotero: Configuración › Avanzado › marque «Permitir que otras aplicaciones de este equipo se comuniquen con Zotero».", "fr": "Dans Zotero : Paramètres › Avancé › cochez « Autoriser d'autres applications de cet ordinateur à communiquer avec Zotero ».", "it": "In Zotero: Impostazioni › Avanzate › spunti «Consenti ad altre applicazioni di questo computer di comunicare con Zotero».", "tr": "Zotero'da: Ayarlar › Gelişmiş › “Bu bilgisayardaki diğer uygulamaların Zotero ile iletişim kurmasına izin ver” seçeneğini işaretleyin." },
+        { "en": "The tools that ask an online service (scite) are switched off.", "de": "Die Werkzeuge, die einen Online-Dienst (scite) fragen, sind ausgeschaltet.", "es": "Las herramientas que consultan un servicio en línea (scite) están desactivadas.", "fr": "Les outils qui interrogent un service en ligne (scite) sont désactivés.", "it": "Gli strumenti che interrogano un servizio online (scite) sono disattivati.", "tr": "Çevrim içi bir hizmete (scite) soran araçlar kapalıdır." }
+      ]
+    },
+    {
+      "id": "home-assistant",
+      "status": "ready",
+      "name": "Home Assistant",
+      "category": "home",
+      "publisher": "Home Assistant (built-in MCP Server integration)",
+      "license": "Apache-2.0",
+      "lastUpdate": "",
+      "homepage": "https://www.home-assistant.io/integrations/mcp_server/",
+      "network": "lan",
+      "description": {
+        "en": "Asks about the devices you exposed to Assist in Home Assistant and, if you allow it, switches them. Connects to Home Assistant on your home network.",
+        "de": "Fragt die Geräte ab, die Sie in Home Assistant für Assist freigegeben haben, und schaltet sie, wenn Sie es erlauben. Verbindet sich mit Home Assistant in Ihrem Heimnetz.",
+        "es": "Consulta los dispositivos que usted expuso a Assist en Home Assistant y, si lo permite, los controla. Se conecta a Home Assistant en su red doméstica.",
+        "fr": "Interroge les appareils que vous avez exposés à Assist dans Home Assistant et, si vous l'autorisez, les commande. Se connecte à Home Assistant sur votre réseau domestique.",
+        "it": "Interroga i dispositivi che Lei ha esposto ad Assist in Home Assistant e, se Lei lo consente, li comanda. Si collega a Home Assistant nella Sua rete domestica.",
+        "tr": "Home Assistant'ta Assist'e açtığınız cihazları sorgular ve izin verirseniz onları açıp kapatır. Ev ağınızdaki Home Assistant'a bağlanır."
+      },
+      "package": { "runtime": "none", "requires": "Home Assistant with the Model Context Protocol Server integration" },
+      "transport": "http",
+      "url": "{url}",
+      "allowLan": true,
+      "fields": [
+        { "id": "url", "kind": "url", "lan": true, "required": true, "default": "http://homeassistant.local:8123/api/mcp", "label": { "en": "Address of Home Assistant", "de": "Adresse von Home Assistant", "es": "Dirección de Home Assistant", "fr": "Adresse de Home Assistant", "it": "Indirizzo di Home Assistant", "tr": "Home Assistant adresi" } },
+        { "id": "token", "kind": "secret", "label": "@token", "hint": "@secretHint", "required": true, "header": "Authorization", "format": "Bearer {value}" },
+        { "id": "allowWrite", "kind": "checkbox", "label": { "en": "Allow switching devices", "de": "Schalten von Geräten erlauben", "es": "Permitir controlar dispositivos", "fr": "Autoriser la commande des appareils", "it": "Consentire di comandare i dispositivi", "tr": "Cihazları açıp kapatmaya izin ver" }, "hint": "@allowWriteHint", "default": false, "unlocks": "write" }
+      ],
+      "readOnlyByDefault": true,
+      "tiers": {
+        "read": ["GetLiveContext", "GetDateTime", "Get*", "get_*"],
+        "write": ["Hass*"],
+        "exec": ["*Unlock*", "*Alarm*", "*Disarm*"]
+      },
+      "defaultTier": "write",
+      "blockedTools": [],
+      "untrustedOutput": [],
+      "needsApp": { "en": "Home Assistant on your home network, with the “Model Context Protocol Server” integration added.", "de": "Home Assistant in Ihrem Heimnetz, mit hinzugefügter Integration „Model Context Protocol Server“.", "es": "Home Assistant en su red doméstica, con la integración «Model Context Protocol Server» añadida.", "fr": "Home Assistant sur votre réseau domestique, avec l'intégration « Model Context Protocol Server » ajoutée.", "it": "Home Assistant nella Sua rete domestica, con l'integrazione «Model Context Protocol Server» aggiunta.", "tr": "Ev ağınızda, “Model Context Protocol Server” entegrasyonu eklenmiş bir Home Assistant." },
+      "steps": [
+        { "en": "In Home Assistant: Settings › Devices & services › Add integration › “Model Context Protocol Server”.", "de": "In Home Assistant: Einstellungen › Geräte & Dienste › Integration hinzufügen › „Model Context Protocol Server“.", "es": "En Home Assistant: Ajustes › Dispositivos y servicios › Añadir integración › «Model Context Protocol Server».", "fr": "Dans Home Assistant : Paramètres › Appareils et services › Ajouter une intégration › « Model Context Protocol Server ».", "it": "In Home Assistant: Impostazioni › Dispositivi e servizi › Aggiungi integrazione › «Model Context Protocol Server».", "tr": "Home Assistant'ta: Ayarlar › Cihazlar ve hizmetler › Entegrasyon ekle › “Model Context Protocol Server”." },
+        { "en": "Your profile › Security › Long-lived access tokens › Create token. Paste the token below.", "de": "Ihr Profil › Sicherheit › Langlebige Zugriffstoken › Token erstellen. Fügen Sie das Token unten ein.", "es": "Su perfil › Seguridad › Tokens de acceso de larga duración › Crear token. Pegue el token abajo.", "fr": "Votre profil › Sécurité › Jetons d'accès longue durée › Créer un jeton. Collez le jeton ci-dessous.", "it": "Il Suo profilo › Sicurezza › Token di accesso di lunga durata › Crea token. Incolli il token qui sotto.", "tr": "Profiliniz › Güvenlik › Uzun ömürlü erişim belirteçleri › Belirteç oluştur. Belirteci aşağıya yapıştırın." },
+        { "en": "Only the devices exposed to Assist are visible (Settings › Voice assistants › Expose).", "de": "Sichtbar sind nur die Geräte, die für Assist freigegeben sind (Einstellungen › Sprachassistenten › Freigeben).", "es": "Solo se ven los dispositivos expuestos a Assist (Ajustes › Asistentes de voz › Exponer).", "fr": "Seuls les appareils exposés à Assist sont visibles (Paramètres › Assistants vocaux › Exposer).", "it": "Sono visibili solo i dispositivi esposti ad Assist (Impostazioni › Assistenti vocali › Esponi).", "tr": "Yalnızca Assist'e açılan cihazlar görünür (Ayarlar › Sesli asistanlar › Paylaş)." }
+      ]
+    },
+    {
+      "id": "blender",
+      "status": "ready",
+      "name": "Blender",
+      "category": "3d",
+      "publisher": "Siddharth Ahuja (mcp-for-blender)",
+      "license": "MIT",
+      "lastUpdate": "2026-11-26",
+      "homepage": "https://pypi.org/project/mcp-for-blender/",
+      "network": "offline",
+      "description": {
+        "en": "Looks at and changes scenes in Blender: objects, materials, the viewport. Running Python code inside Blender is a separate tool that always asks.",
+        "de": "Betrachtet und ändert Szenen in Blender: Objekte, Materialien, das Ansichtsfenster. Python-Code in Blender auszuführen ist ein eigenes Werkzeug, das immer fragt.",
+        "es": "Examina y modifica escenas en Blender: objetos, materiales, la vista. Ejecutar código Python dentro de Blender es una herramienta aparte que siempre pregunta.",
+        "fr": "Examine et modifie les scènes dans Blender : objets, matériaux, la vue. Exécuter du code Python dans Blender est un outil à part qui demande toujours.",
+        "it": "Osserva e modifica le scene in Blender: oggetti, materiali, la vista. Eseguire codice Python in Blender è uno strumento a parte che chiede sempre.",
+        "tr": "Blender'daki sahnelere bakar ve onları değiştirir: nesneler, malzemeler, görünüm. Blender içinde Python kodu çalıştırmak her zaman soran ayrı bir araçtır."
+      },
+      "package": { "runtime": "uv", "name": "mcp-for-blender", "version": "2.3.3", "bin": "mcp-for-blender", "python": "3.12", "setup": [["install-addon"]] },
+      "transport": "stdio",
+      "args": [],
+      "env": { "DISABLE_TELEMETRY": "true", "BLENDER_MCP_DISABLE_TELEMETRY": "true", "BLENDER_MCP_SAFE_MODE": "1", "BLENDER_HOST": "127.0.0.1" },
+      "fields": [],
+      "tiers": {
+        "read": ["get_*", "look", "viewport_capture", "viewport_latest", "viewport_pick"],
+        "write": ["disable_telemetry"],
+        "exec": ["execute_blender_code"]
+      },
+      "defaultTier": "exec",
+      "blockedTools": ["generate_3d", "generate_gaussian_world", "search_assets", "import_asset", "record_trajectory_feedback"],
+      "untrustedOutput": [],
+      "needsApp": { "en": "Blender must be open, with the add-on connected.", "de": "Blender muss geöffnet sein, mit verbundenem Add-on.", "es": "Blender debe estar abierto, con el complemento conectado.", "fr": "Blender doit être ouvert, avec l'extension connectée.", "it": "Blender deve essere aperto, con il componente aggiuntivo collegato.", "tr": "Blender açık olmalı ve eklenti bağlı olmalıdır." },
+      "steps": [
+        { "en": "StarkLLM copies the Blender add-on into Blender's add-on folder for you.", "de": "StarkLLM kopiert das Blender-Add-on für Sie in den Add-on-Ordner von Blender.", "es": "StarkLLM copia el complemento en la carpeta de complementos de Blender por usted.", "fr": "StarkLLM copie l'extension dans le dossier des extensions de Blender pour vous.", "it": "StarkLLM copia per Lei il componente aggiuntivo nella cartella dei componenti di Blender.", "tr": "StarkLLM, Blender eklentisini sizin için Blender'ın eklenti klasörüne kopyalar." },
+        { "en": "In Blender: Edit › Preferences › Add-ons › turn on “Blender MCP”. In the 3D view open the sidebar (N), tab “BlenderMCP”, and connect.", "de": "In Blender: Bearbeiten › Einstellungen › Add-ons › „Blender MCP“ einschalten. In der 3D-Ansicht die Seitenleiste öffnen (N), Reiter „BlenderMCP“, und verbinden.", "es": "En Blender: Editar › Preferencias › Complementos › active «Blender MCP». En la vista 3D abra la barra lateral (N), pestaña «BlenderMCP», y conecte.", "fr": "Dans Blender : Édition › Préférences › Extensions › activez « Blender MCP ». Dans la vue 3D, ouvrez la barre latérale (N), onglet « BlenderMCP », et connectez.", "it": "In Blender: Modifica › Preferenze › Componenti aggiuntivi › attivi «Blender MCP». Nella vista 3D apra la barra laterale (N), scheda «BlenderMCP», e si colleghi.", "tr": "Blender'da: Düzen › Tercihler › Eklentiler › “Blender MCP”yi açın. 3B görünümde kenar çubuğunu açın (N), “BlenderMCP” sekmesinden bağlanın." },
+        { "en": "Telemetry is off, and safe mode only lets scripts use Blender's own modules. Online asset and 3D-generation tools are switched off.", "de": "Telemetrie ist aus, und der sichere Modus erlaubt Skripten nur Blenders eigene Module. Online-Werkzeuge für Assets und 3D-Erzeugung sind ausgeschaltet.", "es": "La telemetría está desactivada y el modo seguro solo permite a los scripts usar los módulos propios de Blender. Las herramientas en línea de recursos y de generación 3D están desactivadas.", "fr": "La télémétrie est désactivée et le mode sûr ne laisse les scripts utiliser que les modules de Blender. Les outils en ligne de ressources et de génération 3D sont désactivés.", "it": "La telemetria è disattivata e la modalità sicura consente agli script solo i moduli di Blender. Gli strumenti online per risorse e generazione 3D sono disattivati.", "tr": "Telemetri kapalıdır; güvenli mod betiklerin yalnızca Blender'ın kendi modüllerini kullanmasına izin verir. Çevrim içi varlık ve 3B üretim araçları kapalıdır." }
+      ]
+    },
+    {
+      "id": "comfyui",
+      "status": "ready",
+      "name": "ComfyUI",
+      "category": "images",
+      "publisher": "Comfy Org (comfy-mcp)",
+      "license": "AGPL-3.0-or-later OR LicenseRef-Comfy-Commercial",
+      "lastUpdate": "2026-11-16",
+      "homepage": "https://github.com/Comfy-Org/comfy-mcp",
+      "network": "offline",
+      "description": {
+        "en": "Runs image workflows in your local ComfyUI and fetches the results. The paid partner tools (cloud) are switched off.",
+        "de": "Führt Bild-Workflows in Ihrem lokalen ComfyUI aus und holt die Ergebnisse. Die kostenpflichtigen Partner-Werkzeuge (Cloud) sind ausgeschaltet.",
+        "es": "Ejecuta flujos de imágenes en su ComfyUI local y recoge los resultados. Las herramientas de socios de pago (nube) están desactivadas.",
+        "fr": "Exécute des flux d'images dans votre ComfyUI local et récupère les résultats. Les outils partenaires payants (cloud) sont désactivés.",
+        "it": "Esegue flussi di immagini nel Suo ComfyUI locale e recupera i risultati. Gli strumenti partner a pagamento (cloud) sono disattivati.",
+        "tr": "Yerel ComfyUI'nizde görüntü iş akışlarını çalıştırır ve sonuçları getirir. Ücretli iş ortağı araçları (bulut) kapalıdır."
+      },
+      "package": { "runtime": "uv", "name": "comfy-mcp", "version": "0.11.0", "bin": "comfy-mcp", "python": "3.12" },
+      "transport": "stdio",
+      "args": [],
+      "env": { "COMFYUI_URL": "{comfyUrl}" },
+      "fields": [
+        { "id": "comfyUrl", "kind": "url", "required": true, "default": "http://127.0.0.1:8188", "label": { "en": "Address of ComfyUI on this PC", "de": "Adresse von ComfyUI auf diesem PC", "es": "Dirección de ComfyUI en este PC", "fr": "Adresse de ComfyUI sur ce PC", "it": "Indirizzo di ComfyUI su questo PC", "tr": "Bu bilgisayardaki ComfyUI adresi" } }
+      ],
+      "tiers": {
+        "read": ["server_info", "system_stats", "nodes", "search_*", "get_*", "list_*", "fetch_outputs", "preview_media", "discover", "which", "job", "workflow_deps", "node_dependencies", "validate_workflow", "project"],
+        "write": ["generate_image", "run_workflow", "run_template", "set_workflow_slot", "vary_workflow", "upload_file", "free_memory", "fetch_template"],
+        "exec": ["install_node", "download", "download_model", "update_comfyui", "switch_comfyui_version", "launch_comfyui", "stop_comfyui", "restart_comfyui"]
+      },
+      "defaultTier": "exec",
+      "blockedTools": ["auth_login", "auth_status", "billing_status", "partner_*", "list_partner_models", "emit_partner_workflow"],
+      "untrustedOutput": [],
+      "needsApp": { "en": "ComfyUI must run on this PC.", "de": "ComfyUI muss auf diesem PC laufen.", "es": "ComfyUI debe estar en marcha en este PC.", "fr": "ComfyUI doit fonctionner sur ce PC.", "it": "ComfyUI deve essere in esecuzione su questo PC.", "tr": "ComfyUI bu bilgisayarda çalışıyor olmalıdır." },
+      "steps": [
+        { "en": "Start ComfyUI as usual. The address is usually http://127.0.0.1:8188.", "de": "Starten Sie ComfyUI wie gewohnt. Die Adresse ist meist http://127.0.0.1:8188.", "es": "Inicie ComfyUI como de costumbre. La dirección suele ser http://127.0.0.1:8188.", "fr": "Lancez ComfyUI comme d'habitude. L'adresse est en général http://127.0.0.1:8188.", "it": "Avvii ComfyUI come al solito. L'indirizzo di solito è http://127.0.0.1:8188.", "tr": "ComfyUI'yi her zamanki gibi başlatın. Adres genellikle http://127.0.0.1:8188 olur." }
+      ]
+    },
+    {
+      "id": "git",
+      "status": "ready",
+      "name": "Git",
+      "category": "developer",
+      "publisher": "Model Context Protocol (Anthropic, PBC)",
+      "license": "MIT",
+      "lastUpdate": "2026-11-27",
+      "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/git",
+      "network": "offline",
+      "description": {
+        "en": "Reads the history, changes and branches of a Git repository you choose. Commits ask every time, and reset always asks.",
+        "de": "Liest Verlauf, Änderungen und Zweige eines Git-Repositorys, das Sie auswählen. Commits fragen jedes Mal, Zurücksetzen fragt immer.",
+        "es": "Lee el historial, los cambios y las ramas de un repositorio Git que usted elija. Los commits preguntan cada vez y el reset siempre pregunta.",
+        "fr": "Lit l'historique, les modifications et les branches d'un dépôt Git que vous choisissez. Les commits demandent à chaque fois, la réinitialisation demande toujours.",
+        "it": "Legge cronologia, modifiche e rami di un repository Git che Lei sceglie. I commit chiedono ogni volta, il reset chiede sempre.",
+        "tr": "Seçtiğiniz bir Git deposunun geçmişini, değişikliklerini ve dallarını okur. Commit'ler her seferinde, sıfırlama ise her zaman sorar."
+      },
+      "package": { "runtime": "uv", "name": "mcp-server-git", "version": "2026.11.27", "bin": "mcp-server-git", "python": "3.12" },
+      "transport": "stdio",
+      "args": ["--repository", "{repository}"],
+      "env": {},
+      "fields": [
+        { "id": "repository", "kind": "folder", "label": "@repository", "required": true }
+      ],
+      "tiers": {
+        "read": ["git_status", "git_diff*", "git_log", "git_show", "git_branch", "git_summarize_changes", "git_commit_message"],
+        "write": ["git_add", "git_commit", "git_create_branch", "git_checkout", "git_merge"],
+        "exec": ["git_reset", "git_remote", "*push*"]
+      },
+      "defaultTier": "exec",
+      "blockedTools": [],
+      "untrustedOutput": ["git_diff*", "git_show", "git_log"],
+      "needsApp": null,
+      "steps": [
+        { "en": "Choose the folder of the repository. Other repositories stay out of reach.", "de": "Wählen Sie den Ordner des Repositorys. Andere Repositorys bleiben außer Reichweite.", "es": "Elija la carpeta del repositorio. Los demás repositorios quedan fuera de alcance.", "fr": "Choisissez le dossier du dépôt. Les autres dépôts restent hors de portée.", "it": "Scelga la cartella del repository. Gli altri repository restano fuori portata.", "tr": "Deponun klasörünü seçin. Diğer depolara erişilemez." }
+      ]
+    },
+    {
+      "id": "davinci-resolve",
+      "status": "ready",
+      "name": "DaVinci Resolve",
+      "category": "video",
+      "publisher": "Samuel Gursky (davinci-resolve-mcp)",
+      "license": "MIT",
+      "lastUpdate": "2026-11-28",
+      "homepage": "https://github.com/samuelgursky/davinci-resolve-mcp",
+      "network": "offline",
+      "description": {
+        "en": "Controls DaVinci Resolve: projects, timelines, markers and render jobs.",
+        "de": "Steuert DaVinci Resolve: Projekte, Timelines, Marker und Render-Aufträge.",
+        "es": "Controla DaVinci Resolve: proyectos, líneas de tiempo, marcadores y trabajos de render.",
+        "fr": "Pilote DaVinci Resolve : projets, timelines, marqueurs et rendus.",
+        "it": "Controlla DaVinci Resolve: progetti, timeline, marcatori e lavori di rendering.",
+        "tr": "DaVinci Resolve'u yönetir: projeler, zaman çizelgeleri, işaretçiler ve işleme görevleri."
+      },
+      "package": { "runtime": "npm", "name": "davinci-resolve-mcp", "version": "5.7.2", "bin": "davinci-resolve-mcp", "python": "3.12", "pythonEnv": "DAVINCI_RESOLVE_MCP_PYTHON", "dataDirEnv": "DAVINCI_RESOLVE_MCP_INSTALL_ROOT", "setup": [["setup", "--clients", "manual"]], "setupDownloads": "pypi", "setupOptional": true },
+      "transport": "stdio",
+      "args": ["server"],
+      "env": {},
+      "fields": [],
+      "tiers": {
+        "read": ["get_*", "list_*", "describe_*", "search_*", "find_*"],
+        "write": [],
+        "exec": ["delete_*", "*_delete_*", "archive_project", "export_project_to_file", "dctl", "encrypt_dctl_native", "fuse_plugin", "fusion_comp", "*script*", "*execute*"]
+      },
+      "defaultTier": "write",
+      "blockedTools": ["create_cloud_project_tool", "generate_speech"],
+      "untrustedOutput": [],
+      "needsApp": { "en": "Studio required: DaVinci Resolve Studio (the paid version) must be open. The free version does not allow outside control.", "de": "Studio erforderlich: DaVinci Resolve Studio (die kostenpflichtige Version) muss geöffnet sein. Die kostenlose Version erlaubt keine Steuerung von außen.", "es": "Se requiere Studio: DaVinci Resolve Studio (la versión de pago) debe estar abierto. La versión gratuita no permite el control externo.", "fr": "Studio requis : DaVinci Resolve Studio (la version payante) doit être ouvert. La version gratuite ne permet pas le pilotage externe.", "it": "Serve Studio: DaVinci Resolve Studio (la versione a pagamento) deve essere aperto. La versione gratuita non consente il controllo esterno.", "tr": "Studio gerekir: DaVinci Resolve Studio (ücretli sürüm) açık olmalıdır. Ücretsiz sürüm dışarıdan denetime izin vermez." },
+      "steps": [
+        { "en": "In Resolve: Preferences › System › General › “External scripting using” › Local.", "de": "In Resolve: Einstellungen › System › Allgemein › „External scripting using“ › Local.", "es": "En Resolve: Preferencias › Sistema › General › «External scripting using» › Local.", "fr": "Dans Resolve : Préférences › Système › Général › « External scripting using » › Local.", "it": "In Resolve: Preferenze › Sistema › Generale › «External scripting using» › Local.", "tr": "Resolve'da: Tercihler › Sistem › Genel › “External scripting using” › Local." },
+        { "en": "StarkLLM prepares the helper program once; it does not change the settings of other AI apps.", "de": "StarkLLM richtet das Hilfsprogramm einmal ein; es ändert keine Einstellungen anderer KI-Apps.", "es": "StarkLLM prepara el programa auxiliar una vez; no cambia los ajustes de otras aplicaciones de IA.", "fr": "StarkLLM prépare le programme d'aide une seule fois ; il ne modifie pas les réglages d'autres applications d'IA.", "it": "StarkLLM prepara il programma di supporto una sola volta; non modifica le impostazioni di altre app di IA.", "tr": "StarkLLM yardımcı programı bir kez hazırlar; başka yapay zekâ uygulamalarının ayarlarını değiştirmez." }
+      ]
+    },
+    {
+      "id": "gimp",
+      "status": "ready",
+      "name": "GIMP 3.2",
+      "category": "images",
+      "publisher": "gimp-mcp-plugin",
+      "license": "GPL-3.0-or-later",
+      "lastUpdate": "2026-11-21",
+      "homepage": "https://pypi.org/project/gimp-mcp-plugin/",
+      "network": "offline",
+      "description": {
+        "en": "Edits images in GIMP 3.2: layers, selections, filters and export. The tool that calls any GIMP function directly is switched off.",
+        "de": "Bearbeitet Bilder in GIMP 3.2: Ebenen, Auswahlen, Filter und Export. Das Werkzeug, das beliebige GIMP-Funktionen direkt aufruft, ist ausgeschaltet.",
+        "es": "Edita imágenes en GIMP 3.2: capas, selecciones, filtros y exportación. La herramienta que llama directamente a cualquier función de GIMP está desactivada.",
+        "fr": "Retouche des images dans GIMP 3.2 : calques, sélections, filtres et export. L'outil qui appelle directement n'importe quelle fonction de GIMP est désactivé.",
+        "it": "Modifica immagini in GIMP 3.2: livelli, selezioni, filtri ed esportazione. Lo strumento che chiama direttamente qualsiasi funzione di GIMP è disattivato.",
+        "tr": "GIMP 3.2'de görüntüleri düzenler: katmanlar, seçimler, filtreler ve dışa aktarma. Herhangi bir GIMP işlevini doğrudan çağıran araç kapalıdır."
+      },
+      "package": { "runtime": "uv", "name": "gimp-mcp-plugin", "version": "0.6.0", "bin": "gimp-mcp-plugin", "python": "3.12", "setup": [["install-plugin"]] },
+      "transport": "stdio",
+      "args": [],
+      "env": {},
+      "fields": [],
+      "tiers": {
+        "read": ["get_*", "list_*", "version_status", "check_server"],
+        "write": [],
+        "exec": ["delete_*"]
+      },
+      "defaultTier": "write",
+      "blockedTools": ["call_api"],
+      "untrustedOutput": [],
+      "needsApp": { "en": "GIMP 3.2 must be open, with its MCP server started (Tools › MCP › Start MCP Server).", "de": "GIMP 3.2 muss geöffnet sein, mit gestartetem MCP-Server (Werkzeuge › MCP › Start MCP Server).", "es": "GIMP 3.2 debe estar abierto, con su servidor MCP iniciado (Herramientas › MCP › Start MCP Server).", "fr": "GIMP 3.2 doit être ouvert, avec son serveur MCP démarré (Outils › MCP › Start MCP Server).", "it": "GIMP 3.2 deve essere aperto, con il suo server MCP avviato (Strumenti › MCP › Start MCP Server).", "tr": "GIMP 3.2 açık olmalı ve MCP sunucusu başlatılmış olmalıdır (Araçlar › MCP › Start MCP Server)." },
+      "steps": [
+        { "en": "StarkLLM installs the GIMP plug-in for you. Restart GIMP once, then choose Tools › MCP › Start MCP Server.", "de": "StarkLLM installiert das GIMP-Plug-in für Sie. Starten Sie GIMP einmal neu, dann Werkzeuge › MCP › Start MCP Server.", "es": "StarkLLM instala el complemento de GIMP por usted. Reinicie GIMP una vez y elija Herramientas › MCP › Start MCP Server.", "fr": "StarkLLM installe le greffon GIMP pour vous. Redémarrez GIMP une fois, puis Outils › MCP › Start MCP Server.", "it": "StarkLLM installa per Lei il plug-in di GIMP. Riavvii GIMP una volta, poi Strumenti › MCP › Start MCP Server.", "tr": "StarkLLM GIMP eklentisini sizin için yükler. GIMP'i bir kez yeniden başlatın, ardından Araçlar › MCP › Start MCP Server'ı seçin." }
+      ]
+    },
+    {
+      "id": "obs",
+      "status": "ready",
+      "name": "OBS Studio",
+      "category": "video",
+      "publisher": "StarkLLM (built-in connector)",
+      "license": "Apache-2.0",
+      "lastUpdate": "2026-11-28",
+      "homepage": "",
+      "network": "offline",
+      "description": {
+        "en": "Shows the scenes and the recording state of OBS Studio, switches scenes, starts and stops recordings. Starting a live stream always asks.",
+        "de": "Zeigt die Szenen und den Aufnahmestatus von OBS Studio, wechselt Szenen, startet und beendet Aufnahmen. Einen Livestream zu starten fragt immer.",
+        "es": "Muestra las escenas y el estado de grabación de OBS Studio, cambia de escena, inicia y detiene grabaciones. Iniciar una emisión en directo siempre pregunta.",
+        "fr": "Affiche les scènes et l'état d'enregistrement d'OBS Studio, change de scène, démarre et arrête les enregistrements. Démarrer un direct demande toujours.",
+        "it": "Mostra le scene e lo stato di registrazione di OBS Studio, cambia scena, avvia e ferma le registrazioni. Avviare una diretta chiede sempre.",
+        "tr": "OBS Studio'nun sahnelerini ve kayıt durumunu gösterir, sahne değiştirir, kayıtları başlatır ve durdurur. Canlı yayın başlatmak her zaman sorar."
+      },
+      "package": { "runtime": "builtin", "script": "obs-mcp.js", "version": "1.0.0" },
+      "transport": "stdio",
+      "args": [],
+      "env": { "OBS_WEBSOCKET_PORT": "{port}" },
+      "fields": [
+        { "id": "port", "kind": "number", "label": "@port", "default": 4455, "required": true },
+        { "id": "password", "kind": "secret", "label": "@password", "hint": "@secretHint", "required": false, "env": "OBS_WEBSOCKET_PASSWORD" }
+      ],
+      "tiers": {
+        "read": ["obs_get_status", "obs_list_scenes"],
+        "write": ["obs_set_scene", "obs_start_recording", "obs_stop_recording"],
+        "exec": ["obs_start_streaming", "obs_stop_streaming"]
+      },
+      "defaultTier": "exec",
+      "blockedTools": [],
+      "untrustedOutput": [],
+      "needsApp": { "en": "OBS Studio 28 or newer must be open, with the WebSocket server turned on.", "de": "OBS Studio 28 oder neuer muss geöffnet sein, mit eingeschaltetem WebSocket-Server.", "es": "OBS Studio 28 o posterior debe estar abierto, con el servidor WebSocket activado.", "fr": "OBS Studio 28 ou plus récent doit être ouvert, avec le serveur WebSocket activé.", "it": "OBS Studio 28 o successivo deve essere aperto, con il server WebSocket attivato.", "tr": "OBS Studio 28 veya daha yeni açık olmalı ve WebSocket sunucusu etkin olmalıdır." },
+      "steps": [
+        { "en": "In OBS: Tools › WebSocket Server Settings › tick “Enable WebSocket server”. “Show Connect Info” shows the password: paste it below.", "de": "In OBS: Werkzeuge › WebSocket-Servereinstellungen › „WebSocket-Server aktivieren“ ankreuzen. „Verbindungsinformationen anzeigen“ zeigt das Passwort: Fügen Sie es unten ein.", "es": "En OBS: Herramientas › Ajustes del servidor WebSocket › marque «Habilitar servidor WebSocket». «Mostrar información de conexión» muestra la contraseña: péguela abajo.", "fr": "Dans OBS : Outils › Paramètres du serveur WebSocket › cochez « Activer le serveur WebSocket ». « Afficher les informations de connexion » montre le mot de passe : collez-le ci-dessous.", "it": "In OBS: Strumenti › Impostazioni server WebSocket › spunti «Abilita server WebSocket». «Mostra informazioni di connessione» mostra la password: la incolli qui sotto.", "tr": "OBS'te: Araçlar › WebSocket Sunucu Ayarları › “WebSocket sunucusunu etkinleştir”i işaretleyin. “Bağlantı Bilgilerini Göster” parolayı gösterir: aşağıya yapıştırın." }
+      ]
+    },
+    {
+      "id": "excel",
+      "status": "ready",
+      "name": "Excel",
+      "category": "office",
+      "publisher": "Delyan Dosev (mcp-office)",
+      "license": "MIT",
+      "lastUpdate": "2026-06-15",
+      "homepage": "https://github.com/dosev-ai/mcp-office",
+      "network": "offline",
+      "description": {
+        "en": "Reads Excel workbooks on this PC and, if you allow it, changes them. Macros never run.",
+        "de": "Liest Excel-Arbeitsmappen auf diesem PC und ändert sie, wenn Sie es erlauben. Makros laufen nie.",
+        "es": "Lee libros de Excel de este PC y, si usted lo permite, los modifica. Las macros nunca se ejecutan.",
+        "fr": "Lit les classeurs Excel de ce PC et, si vous l'autorisez, les modifie. Les macros ne s'exécutent jamais.",
+        "it": "Legge le cartelle di lavoro Excel su questo PC e, se Lei lo consente, le modifica. Le macro non vengono mai eseguite.",
+        "tr": "Bu bilgisayardaki Excel çalışma kitaplarını okur ve izin verirseniz değiştirir. Makrolar asla çalışmaz."
+      },
+      "package": { "runtime": "uv", "name": "mcp-office[com]", "version": "0.7.0", "bin": "excelmcp", "python": "3.12" },
+      "transport": "stdio",
+      "args": [],
+      "env": { "EXCEL_ENABLE_COM": "true", "EXCEL_ENABLE_MACROS": "false" },
+      "fields": [
+        { "id": "allowWrite", "kind": "checkbox", "label": "@allowWrite", "hint": "@allowWriteHint", "default": false, "unlocks": "write", "env": "EXCEL_ENABLE_WRITE" }
+      ],
+      "readOnlyByDefault": true,
+      "tiers": {
+        "read": ["read_*", "get_*", "list_*", "workbook_metadata", "diff_workbooks", "snapshot_workbook", "evaluate_formula", "validate_formula_syntax", "capabilities", "export_range_as_csv", "review_workbook_render"],
+        "write": [],
+        "exec": ["*macro*", "delete_*", "protect"]
+      },
+      "defaultTier": "write",
+      "blockedTools": ["run_macro"],
+      "untrustedOutput": ["*"],
+      "needsApp": { "en": "Microsoft Excel (desktop) for open workbooks; files can also be read without it.", "de": "Microsoft Excel (Desktop) für geöffnete Arbeitsmappen; Dateien lassen sich auch ohne Excel lesen.", "es": "Microsoft Excel (escritorio) para los libros abiertos; los archivos también se pueden leer sin él.", "fr": "Microsoft Excel (bureau) pour les classeurs ouverts ; les fichiers peuvent aussi être lus sans lui.", "it": "Microsoft Excel (desktop) per le cartelle aperte; i file si possono leggere anche senza.", "tr": "Açık çalışma kitapları için Microsoft Excel (masaüstü); dosyalar onsuz da okunabilir." },
+      "steps": [
+        { "en": "Macros are blocked: StarkLLM never turns on macro execution.", "de": "Makros sind gesperrt: StarkLLM schaltet die Ausführung von Makros nie ein.", "es": "Las macros están bloqueadas: StarkLLM nunca activa la ejecución de macros.", "fr": "Les macros sont bloquées : StarkLLM n'active jamais leur exécution.", "it": "Le macro sono bloccate: StarkLLM non attiva mai l'esecuzione delle macro.", "tr": "Makrolar engellidir: StarkLLM makro çalıştırmayı asla açmaz." }
+      ]
+    },
+    {
+      "id": "word",
+      "status": "ready",
+      "name": "Word",
+      "category": "office",
+      "publisher": "Delyan Dosev (mcp-office)",
+      "license": "MIT",
+      "lastUpdate": "2026-06-15",
+      "homepage": "https://github.com/dosev-ai/mcp-office",
+      "network": "offline",
+      "description": {
+        "en": "Reads Word documents on this PC and, if you allow it, changes them.",
+        "de": "Liest Word-Dokumente auf diesem PC und ändert sie, wenn Sie es erlauben.",
+        "es": "Lee documentos de Word de este PC y, si usted lo permite, los modifica.",
+        "fr": "Lit les documents Word de ce PC et, si vous l'autorisez, les modifie.",
+        "it": "Legge i documenti Word su questo PC e, se Lei lo consente, li modifica.",
+        "tr": "Bu bilgisayardaki Word belgelerini okur ve izin verirseniz değiştirir."
+      },
+      "package": { "runtime": "uv", "name": "mcp-office[com]", "version": "0.7.0", "bin": "wordmcp", "python": "3.12" },
+      "transport": "stdio",
+      "args": [],
+      "env": { "WORD_ENABLE_COM": "true" },
+      "fields": [
+        { "id": "allowWrite", "kind": "checkbox", "label": "@allowWrite", "hint": "@allowWriteHint", "default": false, "unlocks": "write", "env": "WORD_ENABLE_WRITE" }
+      ],
+      "readOnlyByDefault": true,
+      "tiers": {
+        "read": ["read_*", "get_*", "list_*", "extract_*", "capabilities"],
+        "write": [],
+        "exec": ["*macro*", "delete_*"]
+      },
+      "defaultTier": "write",
+      "blockedTools": ["run_macro"],
+      "untrustedOutput": ["*"],
+      "needsApp": { "en": "Microsoft Word (desktop) for open documents; files can also be read without it.", "de": "Microsoft Word (Desktop) für geöffnete Dokumente; Dateien lassen sich auch ohne Word lesen.", "es": "Microsoft Word (escritorio) para los documentos abiertos; los archivos también se pueden leer sin él.", "fr": "Microsoft Word (bureau) pour les documents ouverts ; les fichiers peuvent aussi être lus sans lui.", "it": "Microsoft Word (desktop) per i documenti aperti; i file si possono leggere anche senza.", "tr": "Açık belgeler için Microsoft Word (masaüstü); dosyalar onsuz da okunabilir." },
+      "steps": []
+    },
+    {
+      "id": "windows",
+      "status": "ready",
+      "advanced": true,
+      "name": { "en": "Windows control (advanced)", "de": "Windows-Steuerung (für Fortgeschrittene)", "es": "Control de Windows (avanzado)", "fr": "Contrôle de Windows (avancé)", "it": "Controllo di Windows (avanzato)", "tr": "Windows denetimi (ileri düzey)" },
+      "category": "system",
+      "publisher": "CursorTouch (Windows-MCP)",
+      "license": "MIT",
+      "lastUpdate": "2026-11-22",
+      "homepage": "https://github.com/CursorTouch/Windows-MCP",
+      "network": "offline",
+      "description": {
+        "en": "Lets the assistant see the screen and click and type in Windows programs. Every action asks. The PowerShell, registry and file tools are switched off.",
+        "de": "Der Assistent kann den Bildschirm sehen und in Windows-Programmen klicken und tippen. Jede Aktion fragt. Die Werkzeuge für PowerShell, Registrierung und Dateien sind ausgeschaltet.",
+        "es": "El asistente puede ver la pantalla y hacer clic y escribir en programas de Windows. Cada acción pregunta. Las herramientas de PowerShell, registro y archivos están desactivadas.",
+        "fr": "L'assistant peut voir l'écran, cliquer et taper dans les programmes Windows. Chaque action demande. Les outils PowerShell, registre et fichiers sont désactivés.",
+        "it": "L'assistente può vedere lo schermo e fare clic e digitare nei programmi di Windows. Ogni azione chiede. Gli strumenti PowerShell, registro e file sono disattivati.",
+        "tr": "Asistan ekranı görebilir ve Windows programlarında tıklayıp yazabilir. Her eylem sorar. PowerShell, kayıt defteri ve dosya araçları kapalıdır."
+      },
+      "advancedWarning": {
+        "en": "This connection can operate any program on your PC as if it were you. A mistake, or a hidden instruction in a web page or document, could do damage. Turn it on only if you understand this.",
+        "de": "Diese Verbindung kann jedes Programm auf Ihrem PC bedienen, als wären Sie es. Ein Fehler oder eine versteckte Anweisung in einer Webseite oder einem Dokument könnte Schaden anrichten. Schalten Sie sie nur ein, wenn Sie das verstehen.",
+        "es": "Esta conexión puede manejar cualquier programa de su PC como si fuera usted. Un error, o una instrucción oculta en una página web o un documento, podría causar daños. Actívela solo si lo comprende.",
+        "fr": "Cette connexion peut utiliser n'importe quel programme de votre PC comme si c'était vous. Une erreur, ou une instruction cachée dans une page web ou un document, pourrait causer des dégâts. Activez-la seulement si vous comprenez cela.",
+        "it": "Questa connessione può usare qualsiasi programma del Suo PC come se fosse Lei. Un errore, o un'istruzione nascosta in una pagina web o in un documento, potrebbe causare danni. La attivi solo se ne comprende i rischi.",
+        "tr": "Bu bağlantı, bilgisayarınızdaki her programı sizmişsiniz gibi kullanabilir. Bir hata ya da bir web sayfasında veya belgede gizlenmiş bir talimat zarar verebilir. Yalnızca bunu anlıyorsanız açın."
+      },
+      "package": { "runtime": "uv", "name": "windows-mcp", "version": "0.9.0", "bin": "windows-mcp", "python": "3.14" },
+      "transport": "stdio",
+      "args": ["serve", "--transport", "stdio", "--exclude-tools", "PowerShell,Registry,FileSystem"],
+      "env": { "ANONYMIZED_TELEMETRY": "false", "WINDOWS_MCP_EXCLUDE_TOOLS": "PowerShell,Registry,FileSystem" },
+      "fields": [],
+      "tiers": {
+        "read": ["Snapshot", "Screenshot", "DisplayInventory", "ControlStatus", "Wait", "WaitFor"],
+        "write": [],
+        "exec": ["*"]
+      },
+      "defaultTier": "exec",
+      "blockedTools": ["PowerShell", "Registry", "FileSystem"],
+      "untrustedOutput": ["*"],
+      "needsApp": { "en": "Windows 10 or 11.", "de": "Windows 10 oder 11.", "es": "Windows 10 u 11.", "fr": "Windows 10 ou 11.", "it": "Windows 10 o 11.", "tr": "Windows 10 veya 11." },
+      "steps": []
+    }
+  ]
+}

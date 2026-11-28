@@ -4,6 +4,7 @@ import { X, Search, FileCode, Plus, Trash2, Edit2, Check, ArrowLeft } from 'luci
 import { useToast } from './Toast';
 import { t } from '../i18n';
 import { useEscape } from '../utils/useEscape';
+import DialogBox from './DialogBox';
 
 export default function PromptTemplateModal({ isOpen, onClose, token, onInsertTemplate }) {
   useEscape(onClose, isOpen);
@@ -158,7 +159,7 @@ export default function PromptTemplateModal({ isOpen, onClose, token, onInsertTe
 
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.modal} onClick={e => e.stopPropagation()}>
+      <DialogBox className={styles.modal} onClick={e => e.stopPropagation()} onClose={onClose} labelledBy="dlg-templates-title">
         
         {/* Header */}
         <div className={styles.header}>
@@ -170,7 +171,7 @@ export default function PromptTemplateModal({ isOpen, onClose, token, onInsertTe
             ) : (
               <FileCode size={20} className={styles.headerIcon} />
             )}
-            <h2>
+            <h2 id="dlg-templates-title">
               {view === 'edit' ? (editingTemplate ? t('Edit Template') : t('New Template')) : 
                view === 'fill' ? t('Fill Template Variables') : t('Prompt Templates')}
             </h2>
@@ -214,7 +215,11 @@ export default function PromptTemplateModal({ isOpen, onClose, token, onInsertTe
                   {filteredTemplates.map(tpl => (
                     <div key={tpl.id} className={styles.card} onClick={() => handleInsertClick(tpl)}>
                       <div className={styles.cardHeader}>
-                        <h4 title={tpl.title}>{tpl.title}</h4>
+                        <h3 title={tpl.title} className={styles.cardTitle}>
+                          <button type="button" className={styles.cardTitleBtn} onClick={(e) => { e.stopPropagation(); handleInsertClick(tpl); }}>
+                            {tpl.title}
+                          </button>
+                        </h3>
                         <div className={styles.cardActions}>
                           <button 
                             className={styles.cardBtn} 
@@ -249,8 +254,8 @@ export default function PromptTemplateModal({ isOpen, onClose, token, onInsertTe
         ) : view === 'edit' ? (
           <div className={styles.editContainer}>
             <div className={styles.formGroup}>
-              <label>{t('Title')}</label>
-              <input 
+              <label htmlFor="tpl-field-1">{t('Title')}</label>
+              <input id="tpl-field-1" 
                 type="text" 
                 value={title} 
                 onChange={(e) => setTitle(e.target.value)} 
@@ -259,8 +264,8 @@ export default function PromptTemplateModal({ isOpen, onClose, token, onInsertTe
               />
             </div>
             <div className={styles.formGroup}>
-              <label>{t('Prompt Content')}</label>
-              <textarea 
+              <label htmlFor="tpl-field-2">{t('Prompt Content')}</label>
+              <textarea id="tpl-field-2" 
                 value={content} 
                 onChange={(e) => setContent(e.target.value)} 
                 placeholder={t('Type your prompt here...')}
@@ -271,8 +276,8 @@ export default function PromptTemplateModal({ isOpen, onClose, token, onInsertTe
               </span>
             </div>
             <div className={styles.formGroup}>
-              <label>{t('Tags (optional)')}</label>
-              <input 
+              <label htmlFor="tpl-field-3">{t('Tags (optional)')}</label>
+              <input id="tpl-field-3" 
                 type="text" 
                 value={tags} 
                 onChange={(e) => setTags(e.target.value)} 
@@ -295,8 +300,8 @@ export default function PromptTemplateModal({ isOpen, onClose, token, onInsertTe
             </div>
             {Object.keys(variableValues).map(key => (
               <div key={key} className={styles.formGroup}>
-                <label>{key}</label>
-                <input 
+                <label htmlFor="tpl-field-4">{key}</label>
+                <input id="tpl-field-4" 
                   type="text" 
                   value={variableValues[key]} 
                   onChange={(e) => setVariableValues(prev => ({ ...prev, [key]: e.target.value }))}
@@ -315,7 +320,7 @@ export default function PromptTemplateModal({ isOpen, onClose, token, onInsertTe
           </div>
         ) : null}
 
-      </div>
+      </DialogBox>
     </div>
   );
 }
