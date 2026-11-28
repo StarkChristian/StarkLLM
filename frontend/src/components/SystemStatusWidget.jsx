@@ -130,12 +130,18 @@ export default function SystemStatusWidget({ token }) {
   return (
     <div className={`${styles.widget} ${expanded ? styles.expanded : ''}`}>
       {/* ── Header ── */}
-      <button
+      {/* the header is two buttons side by side (open/close, refresh), not a button in a button */}
+      <div
         className={styles.header}
         onClick={() => setExpanded(prev => !prev)}
-        title={expanded ? t('Collapse') : t('Expand system status')}
       >
-        <div className={styles.headerLeft}>
+        <button
+          type="button"
+          className={`${styles.headerLeft} ${styles.headerToggle}`}
+          onClick={(e) => { e.stopPropagation(); setExpanded(prev => !prev); }}
+          title={expanded ? t('Collapse') : t('Expand system status')}
+          aria-expanded={expanded}
+        >
           <div className={styles.headerIcon} style={{ '--icon-color': overallColor }}>
             <Activity size={15} />
           </div>
@@ -146,19 +152,20 @@ export default function SystemStatusWidget({ token }) {
           >
             <span className={styles.pulseInner} />
           </span>
-        </div>
+        </button>
         <div className={styles.headerRight}>
           <StatusBadge status={overall} />
           <button
             className={`${styles.refreshBtn} ${loading ? styles.spinning : ''}`}
             onClick={(e) => { e.stopPropagation(); fetchStatus(); }}
             title={t('Refresh status')}
+            aria-label={t('Refresh status')}
             disabled={loading}
           >
             <RefreshCw size={13} />
           </button>
         </div>
-      </button>
+      </div>
 
       {/* ── Collapsed summary ── */}
       {!expanded && data && (

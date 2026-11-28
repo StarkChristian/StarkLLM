@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal, BrainCircuit, Server, Play, Loader, Key, Globe, Keyboard, ShieldCheck, Lock, ScanText, Smartphone } from 'lucide-react';
+import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal, BrainCircuit, Server, Play, Loader, Key, Globe, Keyboard, ShieldCheck, Lock, ScanText, Smartphone, FolderOpen } from 'lucide-react';
 import styles from './Settings.module.css';
 import BackupRestoreSettings from './BackupRestoreSettings';
 import OcrSettings from './OcrSettings';
+import WatchedFolders from './WatchedFolders';
 import RerankerSettings from './RerankerSettings';
 import { useLucyVisible } from './Lucy';
 import { setHidden as setLucyHidden } from '../utils/lucy';
@@ -14,6 +15,8 @@ import { UPLOAD_EXTENSIONS } from '../utils/uploadTypes';
 import OtherAppsPanel from './OtherAppsPanel';
 import PrivacyPanel from './PrivacyPanel';
 import McpServers from './McpServers';
+import ModelFitBadge from './ModelFitBadge';
+import { fitLabel, recommendationSentence, hardwareSummary } from '../utils/modelFitText';
 import PhoneSettings, { hasPhoneLink } from './PhoneSettings';
 import { t, language, setLanguage } from '../i18n';
 import { languageName } from '../i18n/locales';
@@ -28,6 +31,7 @@ const SECTIONS = [
   { id: 'model',    label: t('Model Settings'),icon: Cpu },
   { id: 'rag',      label: t('Document search'), icon: Database },
   { id: 'kb',       label: t('Knowledge Base'), icon: Shield },
+  { id: 'watch',    label: t('Letters from a folder'), icon: FolderOpen },
   { id: 'mcp',      label: t('Local Tools'),   icon: Terminal },
   { id: 'dev-api',  label: t('Other apps'), icon: Server },
   { id: 'privacy',  label: t('Privacy & network'), icon: ShieldCheck },
@@ -53,6 +57,7 @@ function Toggle({ checked, onChange, label, hint }) {
         onClick={() => onChange(!checked)}
         role="switch"
         aria-checked={checked}
+        aria-label={typeof label === 'string' ? label : undefined}
       >
         <span className={styles.toggleThumb} />
       </button>
@@ -183,6 +188,8 @@ print(response.choices[0].message.content)`;
   const [maxTokens, setMaxTokens] = useState('');
   const [modelSaved, setModelSaved] = useState(false);
   const [modelLoading, setModelLoading] = useState(false);
+  const [modelFits, setModelFits] = useState({});
+  const [pcInfo, setPcInfo] = useState(null);
 
   // Multi-Provider & Cloud API
   const [provider, setProvider] = useState(localStorage.getItem('llm_provider') || 'ollama');
@@ -202,6 +209,17 @@ print(response.choices[0].message.content)`;
         }
       })
       .catch(err => console.error('Failed to load models', err));
+    // the model picker: whether each installed model fits this PC, and the model recommended for it
+    fetch('/api/v1/chat/models/detailed', { headers: getHeaders() })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (data?.models) setModelFits(Object.fromEntries(data.models.filter(m => m?.name && m.fit).map(m => [m.name, m.fit])));
+      })
+      .catch(() => {});
+    fetch('/api/v1/chat/models/hardware', { headers: getHeaders() })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => { if (data) setPcInfo(data); })
+      .catch(() => {});
   }, []);
 
   const saveModelSettings = async () => {
@@ -480,8 +498,8 @@ print(response.choices[0].message.content)`;
                 </div>
 
                 <div className={styles.formGroup}>
-                  <label className={styles.label}>{t('New Password')}</label>
-                  <input
+                  <label className={styles.label} htmlFor="set-field-1">{t('New Password')}</label>
+                  <input id="set-field-1"
                     type="password"
                     className="input-field"
                     placeholder={t('Enter new password')}
@@ -493,8 +511,8 @@ print(response.choices[0].message.content)`;
                 </div>
 
                 <div className={styles.formGroup}>
-                  <label className={styles.label}>{t('Confirm Password')}</label>
-                  <input
+                  <label className={styles.label} htmlFor="set-field-2">{t('Confirm Password')}</label>
+                  <input id="set-field-2"
                     type="password"
                     className="input-field"
                     placeholder={t('Re-enter new password')}
@@ -529,8 +547,8 @@ print(response.choices[0].message.content)`;
               </p>
 
               <div className={styles.formGroup}>
-                <label className={styles.label}>{t('Profile Context')}</label>
-                <textarea
+                <label className={styles.label} htmlFor="set-field-3">{t('Profile Context')}</label>
+                <textarea id="set-field-3"
                   className="input-field"
                   placeholder={t('What would you like StarkLLM to know about you to provide better responses? (e.g. I work as a frontend developer, I live in Berlin...)')}
                   rows={4}
@@ -541,8 +559,8 @@ print(response.choices[0].message.content)`;
               </div>
 
               <div className={styles.formGroup}>
-                <label className={styles.label}>{t('Custom Instructions')}</label>
-                <textarea
+                <label className={styles.label} htmlFor="set-field-4">{t('Custom Instructions')}</label>
+                <textarea id="set-field-4"
                   className="input-field"
                   placeholder={t('How would you like StarkLLM to respond? (e.g. Always be concise, use bullet points, adopt a formal tone...)')}
                   rows={4}
@@ -585,8 +603,8 @@ print(response.choices[0].message.content)`;
               ) : (
                 <>
                   <div className={styles.formGroup}>
-                    <label className={styles.label}>{t('Workspace System Prompt')}</label>
-                    <textarea
+                    <label className={styles.label} htmlFor="set-field-5">{t('Workspace System Prompt')}</label>
+                    <textarea id="set-field-5"
                       className="input-field"
                       placeholder={t('Example:') + '\n' + t('You are a senior Python software engineer specializing in data pipelines and ML systems. Always provide production-ready code with error handling. Prefer asyncio for I/O-bound tasks. When reviewing code, highlight security issues first.')}
                       rows={10}
@@ -745,8 +763,8 @@ print(response.choices[0].message.content)`;
                   </div>
 
                   <div className={styles.formGroup} style={{ marginBottom: 0 }}>
-                    <label className={styles.label}>{t('Base URL')}</label>
-                    <input 
+                    <label className={styles.label} htmlFor="set-field-6">{t('Base URL')}</label>
+                    <input id="set-field-6" 
                       type="text" 
                       className="input-field" 
                       placeholder={t('e.g. https://api.deepseek.com/v1')}
@@ -761,8 +779,8 @@ print(response.choices[0].message.content)`;
                   </div>
 
                   <div className={styles.formGroup} style={{ marginBottom: 0 }}>
-                    <label className={styles.label}>{t('API Key')}</label>
-                    <input 
+                    <label className={styles.label} htmlFor="set-field-7">{t('API Key')}</label>
+                    <input id="set-field-7" 
                       type="password" 
                       className="input-field" 
                       placeholder={t('sk-...')}
@@ -772,8 +790,8 @@ print(response.choices[0].message.content)`;
                   </div>
 
                   <div className={styles.formGroup} style={{ marginBottom: 0 }}>
-                    <label className={styles.label}>{t('Model ID')}</label>
-                    <input 
+                    <label className={styles.label} htmlFor="set-field-8">{t('Model ID')}</label>
+                    <input id="set-field-8" 
                       type="text" 
                       className="input-field" 
                       placeholder={t('e.g. deepseek-chat, gpt-4o, claude-3-5-sonnet')}
@@ -790,28 +808,35 @@ print(response.choices[0].message.content)`;
 
               {provider === 'ollama' && (
                 <div className={styles.formGroup}>
-                  <label className={styles.label}>{t('Local Ollama Model')}</label>
-                  <select 
+                  <label className={styles.label} htmlFor="set-field-9">{t('Local Ollama Model')}</label>
+                  <select id="set-field-9" 
                     className="input-field" 
                     value={modelName} 
                     onChange={(e) => setModelName(e.target.value)}
                   >
                     <option value="">{t('Default Backend Model')}</option>
                     {availableModels.filter(m => !isEmbeddingModel(m) || m === modelName).map(m => (
-                      <option key={m} value={m}>{m}</option>
+                      <option key={m} value={m}>{modelFits[m] ? `${m} · ${fitLabel(modelFits[m])}` : m}</option>
                     ))}
                   </select>
                   <p className={styles.hint}>{t('Choose the active local AI model to use for chat.')}</p>
+                  {modelName && <ModelFitBadge fit={modelFits[modelName]} />}
+                  {pcInfo?.recommendation?.text?.name && (
+                    <p className={styles.hint}>
+                      {recommendationSentence(pcInfo.recommendation, pcInfo.hardware)}{' '}
+                      {t('This PC: {hardware}', { hardware: hardwareSummary(pcInfo.hardware) })}
+                    </p>
+                  )}
                 </div>
               )}
 
               <div className={styles.divider} />
 
               <div className={styles.formGroup}>
-                <label className={styles.label}>
+                <label className={styles.label} htmlFor="set-field-10">
                   {t('Temperature ({value})', { value: temperature })}
                 </label>
-                <input 
+                <input id="set-field-10" 
                   type="range" 
                   min="0.0" 
                   max="1.5" 
@@ -824,10 +849,10 @@ print(response.choices[0].message.content)`;
               </div>
 
               <div className={styles.formGroup}>
-                <label className={styles.label}>
+                <label className={styles.label} htmlFor="set-field-11">
                   {t('Top P ({value})', { value: topP })}
                 </label>
-                <input 
+                <input id="set-field-11" 
                   type="range" 
                   min="0.0" 
                   max="1.0" 
@@ -840,8 +865,8 @@ print(response.choices[0].message.content)`;
               </div>
 
               <div className={styles.formGroup}>
-                <label className={styles.label}>{t('Max Tokens')}</label>
-                <input 
+                <label className={styles.label} htmlFor="set-field-12">{t('Max Tokens')}</label>
+                <input id="set-field-12" 
                   type="number" 
                   className="input-field" 
                   placeholder={t('e.g. 1024 (leave empty for model default)')}
@@ -1194,6 +1219,9 @@ print(response.choices[0].message.content)`;
 
           {/* ───── Reading photos and scans (OCR languages) ───── */}
           {shown === 'ocr' && <OcrSettings token={token} />}
+
+          {/* ───── Watched folders for letters ───── */}
+          {shown === 'watch' && <WatchedFolders token={token} />}
 
           {/* ───── Keyboard Shortcuts ───── */}
           {shown === 'shortcuts' && (

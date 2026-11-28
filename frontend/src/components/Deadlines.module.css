@@ -50,7 +50,7 @@
   border: 1px solid var(--border-color); background: transparent; color: var(--text-secondary);
 }
 .chip:hover { background: var(--bg-hover); color: var(--text-primary); }
-.chipOn { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.chipOn { background: var(--accent); border-color: var(--accent); color: var(--on-accent, #fff); font-weight: 600; }
 
 .calBtn {
   display: inline-grid; place-items: center; width: 32px; height: 32px; flex: 0 0 32px; cursor: pointer;
@@ -87,7 +87,7 @@
   display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 5px 12px; cursor: pointer;
   border-radius: var(--radius-sm); font-size: 0.82rem; font-weight: 600;
 }
-.doneBtn { background: var(--accent); color: #fff; border: 1px solid var(--accent); }
+.doneBtn { background: var(--accent); color: var(--on-accent, #fff); border: 1px solid var(--accent); }
 .doneBtn:hover { background: var(--accent-hover); }
 .undoBtn { background: transparent; color: var(--text-secondary); border: 1px solid var(--border-color); }
 .undoBtn:hover { color: var(--text-primary); background: var(--bg-hover); }

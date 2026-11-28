@@ -3,6 +3,7 @@ import { X, Database, Loader, CheckSquare, Square } from 'lucide-react';
 import styles from './KnowledgeBase.module.css';
 import { t } from '../i18n';
 import { useEscape } from '../utils/useEscape';
+import DialogBox from './DialogBox';
 
 export default function WorkspaceKBModal({ isOpen, onClose, activeWorkspace, token, onWorkspaceUpdated }) {
   useEscape(onClose, isOpen);
@@ -86,9 +87,9 @@ export default function WorkspaceKBModal({ isOpen, onClose, activeWorkspace, tok
 
   return (
     <div className={styles.modalOverlay}>
-      <div className={styles.modalContent} style={{ maxWidth: '500px' }}>
+      <DialogBox className={styles.modalContent} style={{ maxWidth: '500px' }} onClose={onClose} labelledBy="dlg-kbsettings-title">
         <button className={styles.closeBtn} onClick={onClose}><X size={20} /></button>
-        <h3 className={styles.modalTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <h3 id="dlg-kbsettings-title" className={styles.modalTitle} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Database size={20} className={styles.iconAccent} />
           {t('Knowledge Base Settings')}
         </h3>
@@ -135,7 +136,7 @@ export default function WorkspaceKBModal({ isOpen, onClose, activeWorkspace, tok
             {saving ? <Loader size={16} className={styles.spin} /> : t('Save Settings')}
           </button>
         </div>
-      </div>
+      </DialogBox>
     </div>
   );
 }

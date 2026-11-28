@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { sameOrigin, isWebLink, permissionAllowed } = require('../window-security');
+const { sameOrigin, isWebLink, permissionAllowed, displayCaptureAllowed, DISPLAY_ARM_MS } = require('../window-security');
 
 const APP = 'http://localhost:5173';
 
@@ -26,4 +26,15 @@ test('permissions only for the app page, and only what it uses', () => {
   assert.ok(permissionAllowed('clipboard-sanitized-write', `${APP}/`, APP));
   assert.ok(!permissionAllowed('geolocation', `${APP}/`, APP));
   assert.ok(!permissionAllowed('media', 'https://evil.example/', APP, { mediaTypes: ['audio'] }));
+});
+
+test('the sound of this PC for a meeting: Windows, the app page, and only right after the recorder armed it', () => {
+  const now = 1_000_000;
+  assert.ok(displayCaptureAllowed(`${APP}/`, APP, now - 500, now, 'win32'));
+  assert.ok(!displayCaptureAllowed(`${APP}/`, APP, null, now, 'win32'), 'never without arming');
+  assert.ok(!displayCaptureAllowed(`${APP}/`, APP, now - DISPLAY_ARM_MS - 1, now, 'win32'), 'an old arming has run out');
+  assert.ok(!displayCaptureAllowed(`${APP}/`, APP, now + 10, now, 'win32'));
+  assert.ok(!displayCaptureAllowed('https://evil.example/', APP, now - 500, now, 'win32'), 'no other page');
+  assert.ok(!displayCaptureAllowed(`${APP}/`, APP, now - 500, now, 'linux'), 'loopback is Windows only');
+  assert.ok(!permissionAllowed('display-capture', `${APP}/`, APP), 'not one of the standing permissions');
 });

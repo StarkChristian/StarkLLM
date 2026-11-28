@@ -282,7 +282,8 @@ def test_upload_search_facts_and_memory_with_the_encrypted_index(env, monkeypatc
     mem = memory_service.memory_collection
     assert isinstance(mem, si.SecureCollection)
     mem.add(ids=["m1"], documents=["Der Nutzer heisst Mueller"], embeddings=[[0.1, 0.2, 0.3]], metadatas=[{"workspace_id": ws_id}])
-    assert memory_service.get_memories(ws_id) == [{"id": "m1", "content": "Der Nutzer heisst Mueller"}]
+    # an entry of an older version (no provenance yet) is listed and marked as such (2.8)
+    assert [(m["id"], m["content"], m["origin"]) for m in memory_service.get_memories(ws_id)] == [("m1", "Der Nutzer heisst Mueller", "legacy")]
     assert memory_service.delete_memory(ws_id, "m1") is True
     client.delete(f"/api/v1/workspaces/{ws_id}", headers=h)
     assert f"user_{user_id}_workspace_{ws_id}" not in env.secure.store.list_names()

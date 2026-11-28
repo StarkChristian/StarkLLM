@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     KB_DATA_DIR: str = "/kb_data"
     KB_AUTO_SYNC_INTERVAL_SECONDS: int = int(os.getenv("KB_AUTO_SYNC_INTERVAL_SECONDS", "30"))
     KB_SYNC_DEBOUNCE_SECONDS: int = int(os.getenv("KB_SYNC_DEBOUNCE_SECONDS", "3"))
+
+    # Watched folders for letters (services/watch_service.py): how often they are looked at, and how long a new file
+    # must keep its size before it is imported (a scanner may still be writing it)
+    WATCH_INTERVAL_SECONDS: int = int(os.getenv("STARKLLM_WATCH_INTERVAL_SECONDS", "5"))
+    WATCH_STABLE_SECONDS: int = int(os.getenv("STARKLLM_WATCH_STABLE_SECONDS", "4"))
     
     # Auth
     SECRET_KEY: str = "starkllm_research_beta_secure_fallback_key_2026_change_in_production"

@@ -15,6 +15,7 @@
 .header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .title { display: flex; align-items: center; gap: 10px; margin: 0; font-size: var(--text-2xl); color: var(--text-primary); }
 .subtitle { margin: 6px 0 0; max-width: 70ch; color: var(--text-secondary); line-height: 1.5; }
+.headerActions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--border-color); }
 .tab, .tabActive {
@@ -25,7 +26,7 @@
 .tab:hover { color: var(--text-primary); }
 .tabActive { color: var(--accent-bright); border-bottom-color: var(--accent-bright); }
 .count, .countMuted { font-size: 0.75rem; padding: 0 7px; border-radius: 999px; }
-.count { background: var(--accent); color: #fff; }
+.count { background: var(--accent); color: var(--on-accent, #fff); }
 .countMuted { background: var(--bg-hover); color: var(--text-secondary); }
 
 .note, .hint { margin: 0; color: var(--text-secondary); }
@@ -40,7 +41,9 @@
   padding: 16px 18px;
   display: flex; flex-direction: column; gap: 10px;
 }
-.docDone { opacity: 0.72; }
+.docDone { opacity: 1; }  /* was 0.72: the text of done letters fell below 4.5:1; the icon and title show it now */
+.docDone .docIcon { opacity: 0.6; }
+.docDone .docTitle { color: var(--text-secondary); }
 .docHead { display: flex; align-items: flex-start; gap: 12px; }
 .docIcon {
   flex: 0 0 34px; height: 34px; display: grid; place-items: center;
@@ -71,7 +74,7 @@
   display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; cursor: pointer;
   border-radius: var(--radius-sm); font-size: 0.85rem; font-weight: 600;
 }
-.doneBtn { background: var(--accent); color: #fff; border: 1px solid var(--accent); }
+.doneBtn { background: var(--accent); color: var(--on-accent, #fff); border: 1px solid var(--accent); }
 .doneBtn:hover { background: var(--accent-hover); }
 .undoBtn { background: transparent; color: var(--text-secondary); border: 1px solid var(--border-color); }
 .undoBtn:hover { color: var(--text-primary); background: var(--bg-hover); }
@@ -81,7 +84,7 @@
 .badgeDanger, .badgeMuted {
   display: inline-flex; align-items: center; gap: 5px; font-size: 0.78rem; padding: 2px 9px; border-radius: 999px;
 }
-.badgeDanger { background: rgba(239, 68, 68, 0.14); color: var(--danger); font-weight: 600; }
+.badgeDanger { background: rgba(239, 68, 68, 0.14); color: var(--danger-text, var(--danger)); font-weight: 600; }
 .badgeMuted { background: var(--bg-hover); color: var(--text-secondary); }
 
 .facts {
