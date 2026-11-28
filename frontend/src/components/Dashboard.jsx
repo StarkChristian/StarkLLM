@@ -7,6 +7,7 @@ import styles from './Dashboard.module.css';
 import DateTimeWidget from './DateTimeWidget';
 import MarketPricesWidget from './MarketPricesWidget';
 import SystemStatusWidget from './SystemStatusWidget';
+import ModelIntro from './ModelIntro';
 import EmptyState from './EmptyState';
 import { DueReminders } from './Deadlines';
 import { LucyGuide, LucyHelper } from './Lucy';
@@ -167,6 +168,9 @@ export default function Dashboard({ token, username, workspaces, onNewWorkspace,
   return (
     <div className={styles.page}>
       <canvas ref={canvasRef} className={styles.neuralNetCanvas} />
+
+      {/* the first start: why this AI model was chosen for this PC (shown once) */}
+      <ModelIntro token={token} />
 
       {/* ── Hero: what this is for, and the two things people come here to do ── */}
       <div className={styles.hero}>
