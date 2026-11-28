@@ -15,6 +15,7 @@
 .header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .title { display: flex; align-items: center; gap: 10px; margin: 0; font-size: var(--text-2xl); color: var(--text-primary); }
 .subtitle { margin: 6px 0 0; max-width: 70ch; color: var(--text-secondary); line-height: 1.5; }
+.headerActions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--border-color); }
 .tab, .tabActive {
