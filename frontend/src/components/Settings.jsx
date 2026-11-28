@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal, BrainCircuit, Server, Play, Loader, Key, Globe, Keyboard, ShieldCheck, Lock, ScanText, Smartphone } from 'lucide-react';
+import { User, Shield, Cpu, Database, Palette, Save, CheckCircle, ChevronRight, Moon, Sun, Archive, FileText, Info, Terminal, BrainCircuit, Server, Play, Loader, Key, Globe, Keyboard, ShieldCheck, Lock, ScanText, Smartphone, Mail } from 'lucide-react';
 import styles from './Settings.module.css';
 import BackupRestoreSettings from './BackupRestoreSettings';
 import OcrSettings from './OcrSettings';
+import MailImportSettings from './MailImportSettings';
 import { useLucyVisible } from './Lucy';
 import { setHidden as setLucyHidden } from '../utils/lucy';
 import ProtectionSettings from './ProtectionSettings';
@@ -34,6 +35,7 @@ const SECTIONS = [
   { id: 'ui',       label: t('Appearance'),    icon: Palette },
   { id: 'language', label: t('Language & Locale'), icon: Globe },
   { id: 'ocr',      label: t('Reading photos and scans'), icon: ScanText },
+  { id: 'mail',     label: t('Letters from e-mail'), icon: Mail },
   { id: 'shortcuts', label: t('Keyboard Shortcuts'), icon: Keyboard },
   { id: 'protection', label: t('Protection'), icon: Lock },
   { id: 'system',   label: t('Backup & Restore'), icon: Archive },
@@ -1191,6 +1193,8 @@ print(response.choices[0].message.content)`;
 
           {/* ───── Reading photos and scans (OCR languages) ───── */}
           {shown === 'ocr' && <OcrSettings token={token} />}
+
+          {shown === 'mail' && <MailImportSettings token={token} />}
 
           {/* ───── Keyboard Shortcuts ───── */}
           {shown === 'shortcuts' && (

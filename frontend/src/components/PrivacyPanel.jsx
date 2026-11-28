@@ -22,6 +22,7 @@ function featureLabel(key) {
     case 'cloud_llm': return t('Online AI provider');
     case 'speech_model_download': return t('Speech model download');
     case 'ocr_language_pack': return t('OCR language download');
+    case 'mail_import': return t('Letters from e-mail');
     case 'update_check': return t('Update check');
     case 'update_download': return t('Update download');
     case 'ollama_install': return t('Ollama installer download');

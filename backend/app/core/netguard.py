@@ -19,11 +19,13 @@ without network (docs/verify-privacy.md) is the proof.
 """
 import contextlib
 import contextvars
+import imaplib
 import ipaddress
 import json
 import logging
 import os
 import socket
+import ssl
 import threading
 import time
 import uuid
@@ -53,6 +55,7 @@ FEATURES: Dict[str, str] = {
     "cloud_llm": "Chat with the online AI provider the user configured",
     "speech_model_download": "One-time download of the speech recognition model",
     "ocr_language_pack": "Download of one OCR language file the user asked for in Settings",
+    "mail_import": "Check of the e-mail account the user added for letters (attachments only, read-only)",
     "unattributed": "A connection that did not go through StarkLLM's network layer",
 }
 
@@ -454,6 +457,62 @@ def check_model(name: str) -> None:
         record("ollama_cloud_model", "ollama.com", scheme="https", outcome="blocked", error="offline mode")
         raise OfflineBlocked("ollama.com", "ollama_cloud_model")
     record("ollama_cloud_model", "ollama.com", scheme="https", via="local Ollama", bytes_out=None)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# e-mail (IMAP) for "Letters from e-mail" (docs/mail-import.md): TLS only, recorded, refused while offline
+# ---------------------------------------------------------------------------------------------------------------
+IMAP_SECURITY = ("ssl", "starttls")   # IMAPS (port 993) or STARTTLS (port 143); plain IMAP is never used
+
+
+class PlainTextRefused(ValueError):
+    """A mail connection without TLS was asked for, or the server does not offer STARTTLS: StarkLLM never sends a mail
+    password over an unencrypted connection."""
+
+
+def _imap_tls_context() -> ssl.SSLContext:
+    ctx = ssl.create_default_context()          # the certificate and the host name are checked
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    return ctx
+
+
+@contextlib.contextmanager
+def imap(host: str, port: int, *, security: str, feature: str = "mail_import", purpose: str = "",
+         timeout: float = 30.0) -> Iterator["imaplib.IMAP4"]:
+    """An IMAP connection that is encrypted before anything else is said (no login without TLS), recorded in the
+    network log, and refused while offline. The caller logs in and reads; this module logs out."""
+    host = (host or "").strip().lower()
+    if security not in IMAP_SECURITY:
+        raise PlainTextRefused("Only encrypted connections (IMAPS or STARTTLS) are allowed.")
+    scheme = "imaps" if security == "ssl" else "imap+starttls"
+    if is_offline() and classify(host) != "this_pc":
+        record(feature, host, purpose=purpose, scheme=scheme, port=port, outcome="blocked", error="offline mode")
+        raise OfflineBlocked(host, feature)
+    entry = record(feature, host, purpose=purpose, scheme=scheme, port=port, bytes_out=None, bytes_in=None)
+    token = _in_flight(feature, host)
+    conn = None
+    try:
+        ctx = _imap_tls_context()
+        if security == "ssl":
+            conn = imaplib.IMAP4_SSL(host, port, ssl_context=ctx, timeout=timeout)
+        else:
+            conn = imaplib.IMAP4(host, port, timeout=timeout)
+            if "STARTTLS" not in tuple(getattr(conn, "capabilities", ()) or ()):
+                raise PlainTextRefused("The mail server does not offer STARTTLS; StarkLLM does not log in without encryption.")
+            conn.starttls(ssl_context=ctx)
+        yield conn
+    except Exception as e:
+        if entry.get("id"):
+            entry.update(outcome="error", error=f"{type(e).__name__}: {e}"[:200])
+            _append(entry)
+        raise
+    finally:
+        if conn is not None:
+            try:
+                conn.logout()
+            except Exception:
+                pass
+        _ctx.reset(token)
 
 
 # ---------------------------------------------------------------------------------------------------------------

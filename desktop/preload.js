@@ -50,6 +50,14 @@ contextBridge.exposeInMainWorld('starkllmDesktop', {
   localToken,
   // Settings > Protection: the key is created, wrapped and handed to the engine by the desktop app; the page only
   // gets the recovery key (once, to show it) and answers.
+  // Settings > Letters from e-mail: the password goes to the Windows key store of the desktop app (mail-secrets.js) and
+  // from there to the engine's memory; the page cannot read it back
+  mail: {
+    available: () => ipcRenderer.invoke('mail:available'),
+    setPassword: (id, password) => ipcRenderer.invoke('mail:set-password', Number(id) || 0, String(password || '')),
+    forgetPassword: (id) => ipcRenderer.invoke('mail:forget-password', Number(id) || 0),
+    deliver: () => ipcRenderer.invoke('mail:deliver'),
+  },
   // Settings > Backup: automatic weekly backup into a folder the user chooses (backup-schedule.js)
   backup: {
     status: () => ipcRenderer.invoke('backup:status'),

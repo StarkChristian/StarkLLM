@@ -242,12 +242,19 @@ def on_startup():
         import threading
         from app.services import summaries
         threading.Timer(30.0, summaries.resume_on_start).start()
+    # Letters from e-mail (docs/mail-import.md): checks every N minutes, only while the engine runs and never offline
+    if os.environ.get("STARKLLM_MAIL_IMPORT", "on") != "off":
+        from app.services import mail_import
+        mail_import.start()
 
 @app.on_event("shutdown")
 def on_shutdown():
     kb_service.stop_background_watcher()
     from app.services import summaries
     summaries.stop()
+    from app.services import mail_import
+    mail_import.stop()
+    mail_import.forget_password(None)
 
 
 # ---------------------------------------------------------------------------

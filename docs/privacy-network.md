@@ -63,6 +63,7 @@ not started; the code has no analytics library.
 | E10 | Local calls | the local Ollama (`host.docker.internal:11434`), the engine itself | always | embeddings, chat, health | - | on | allowed (counted, not listed) | `ollama` |
 | E11 | Code runner | none | "Run" on a code block | run a snippet on the PC | - | the child process cannot open a socket (`_NO_NETWORK`) | same | - |
 | E12 | Tools (MCP), Studio, memory, search | none | - | all of them read the PC's own data and use the model of E5/E10; a tool runs only after the user's click | - | - | - | - |
+| E13 | Letters from e-mail ([mail-import.md](mail-import.md)) | the IMAP server of the mail account the user added (for example `imap.gmail.com`), port 993 (IMAPS) or 143 (STARTTLS); never without TLS | every N minutes (default 15) while StarkLLM runs, and on "Check now" / "Import older messages" in Settings › Letters from e-mail | attachments (PDF, pictures, Word) of new mails become documents; read-only (EXAMINE, BODY.PEEK), nothing is moved, deleted or sent; the password comes from the Windows key store of the desktop app and is sent only inside the TLS connection | yes: add or remove the account, switch it off, filters | **off** (no account) | no check runs; "Check now" says why | `mail_import` |
 
 Any new online feature must use `app/core/netguard.py` (the backend test then covers it) and be added to this table.
 
