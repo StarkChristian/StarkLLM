@@ -66,9 +66,10 @@ heading levels jumped from `h1` to `h3` on the dashboard and the knowledge base.
 | axe violations, the 10 dark themes | 90 elements | **0** |
 | keyboard, headings, zoom checks | (not checked) | 0 problems |
 
-The 260 light-theme elements are the colours that `fix261/theme` (2.6.1 theme fix) changes; they were left alone here
-as agreed. Until it is merged, CI runs with `A11Y_CONTRAST_PENDING=light,doodle,flowers`; remove that line in
-`checks.yml` after the merge, then the light themes are held to the same rule.
+The 260 light-theme elements are mostly the colours that `fix261/theme` (2.6.1 theme fix) changes; they were left
+alone here as agreed. With `fix261/theme` merged on top of this branch (trial merge, not committed; it merges without
+conflict) the light themes go from 260 to **51** elements. Until both are in, CI runs with
+`A11Y_CONTRAST_PENDING=light,doodle,flowers`; remove that line in `checks.yml` once the light themes pass.
 
 ## What was changed
 
@@ -116,8 +117,12 @@ transitions stop (stars, doodles, pulsing dots, spinners, Lucy) and the dashboar
 
 ## What is left
 
-- **Light themes' contrast**: merge `fix261/theme`, then run the check without `A11Y_CONTRAST_PENDING`. The gradient
-  buttons of the light themes (white on #6366f1…#8b5cf6, 4.2–4.5:1) should be looked at in the same go.
+- **Light themes' contrast**: merge `fix261/theme`. The 51 elements left after it are fixed dark-theme colours that
+  the light themes do not override: the search dialog (`GlobalSearch`, dark panel with light-theme text), the AI
+  Studio tabs and texts (`#a1a1aa`, white on grey), sky-blue `#38bdf8` notes and "payment" dates, red `#ef4444`
+  titles and the health banner, green `#22c55e` / `#4ade80` badges, the inline code colour on grey. Then run the check
+  without `A11Y_CONTRAST_PENDING`. The gradient buttons of the light themes (white on #6366f1…#8b5cf6, 4.2–4.5:1)
+  belong in the same go.
 - **Real screen readers**: NVDA and Narrator on Windows were not run here (no Windows desktop in this setup). To do
   on the GEEKOM: one question with streaming answer (one "writing" line, then the answer once), a web task card, the
   inbox, a dialog (Tab, Escape), the settings switches.
