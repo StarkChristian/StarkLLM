@@ -48,25 +48,48 @@ def size(path: str) -> int:
     return crypto.plain_size(n) if is_protected(path) else n
 
 
-def open_write(path: str):
-    """Writer for a new document: protected if protection is on. Use as a context manager."""
+def _write_key(workspace_id=None) -> bytes:
+    """The key a new document is protected with: the shared workspace's own files key (services/household.py) for a
+    document of a shared workspace, else the PC's files key."""
+    if workspace_id is not None:
+        from app.services import household
+        key = household.files_key_for_write(workspace_id)
+        if key is not None:
+            return key
+    return _files_key()
+
+
+def _read_key(path: str) -> bytes:
+    """The key a protected file needs, chosen by the key id in its header: the PC's files key, or the files key of a
+    shared workspace. An unknown id gives the PC's key, and reading then fails with WrongKey."""
+    key = _files_key()
+    kid = crypto.file_key_id(path)
+    if kid and kid != crypto.key_id(key):
+        from app.services import household
+        return household.files_key_by_id(kid) or key
+    return key
+
+
+def open_write(path: str, workspace_id=None):
+    """Writer for a new document: protected if protection is on. Use as a context manager. workspace_id: the
+    workspace the document belongs to (a shared workspace's documents are protected with its own key)."""
     if protection.writes_protected():
-        return crypto.create_encrypted(path, _files_key())
+        return crypto.create_encrypted(path, _write_key(workspace_id))
     return open(path, "wb")
 
 
-def write_bytes(path: str, data: bytes):
-    with open_write(path) as f:
+def write_bytes(path: str, data: bytes, workspace_id=None):
+    with open_write(path, workspace_id) as f:
         f.write(data)
 
 
-def write_text(path: str, text: str):
-    write_bytes(path, text.encode("utf-8"))
+def write_text(path: str, text: str, workspace_id=None):
+    write_bytes(path, text.encode("utf-8"), workspace_id)
 
 
 def iter_bytes(path: str, block: int = 1 << 20) -> Iterator[bytes]:
     if is_protected(path):
-        yield from crypto.iter_decrypted(path, _files_key())
+        yield from crypto.iter_decrypted(path, _read_key(path))
         return
     with open(path, "rb") as f:
         while True:
@@ -138,7 +161,7 @@ def unprotect_file(path: str) -> bool:
     """The reverse of protect_file (used when protection is switched off)."""
     if not is_protected(path):
         return False
-    key = _files_key()
+    key = _read_key(path)
     tmp = path + ".unprotecting"
     try:
         h_plain, h_back = hashlib.sha256(), hashlib.sha256()
@@ -151,6 +174,32 @@ def unprotect_file(path: str) -> bool:
                 h_back.update(block)
         if h_plain.digest() != h_back.digest():
             raise crypto.CorruptData("The unprotected copy does not match.")
+        os.replace(tmp, path)
+        return True
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+
+def rekey_file(path: str, new_key: bytes) -> bool:
+    """Protect a protected file again with another key (a shared workspace's new key version, after a member left).
+    Like protect_file: the new copy is read back and compared before it replaces the file, so a failure at any point
+    leaves the old file, which still opens. Returns False if the file already uses new_key or is not protected."""
+    if not is_protected(path) or crypto.file_key_id(path) == crypto.key_id(new_key):
+        return False
+    old_key = _read_key(path)
+    tmp = path + ".rekeying"
+    try:
+        h_plain, h_back = hashlib.sha256(), hashlib.sha256()
+        with crypto.create_encrypted(tmp, new_key) as out:
+            for block in crypto.iter_decrypted(path, old_key):
+                h_plain.update(block)
+                out.write(block)
+        for block in crypto.iter_decrypted(tmp, new_key):
+            h_back.update(block)
+        if h_plain.digest() != h_back.digest():
+            raise crypto.CorruptData("The copy with the new key does not match the original.")
+        shutil.copymode(path, tmp)
         os.replace(tmp, path)
         return True
     finally:

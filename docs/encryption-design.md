@@ -391,3 +391,13 @@ Start-up passphrase (section 3), additionally:
 25. Settings > Protection > "Start-up passphrase": set one. Quit StarkLLM completely, start it again: the lock screen appears (German on a German Windows), the app does not. A wrong passphrase gives a message and gets slower; the right one opens the app.
 26. On the lock screen use "I forgot my passphrase" with the recovery key: the app opens and Settings shows the passphrase as off. Set a new one.
 27. With the passphrase on, quit and look at `docker ps` / Task Manager: the engine may keep running, but the next start still asks for the passphrase and a request to the engine for a protected document before that answers "locked".
+
+## 12. Shared household workspaces
+
+A shared workspace (several accounts of one PC, [household-design.md](household-design.md)) has its own data key, wrapped
+for each member with that account's own key, which is wrapped with the PC data key (HKDF purpose `account-keys`). Its
+document files are protected with the workspace key; the key id in each file header tells the readers which key to use.
+When a member leaves or is removed, their wrapped copies are deleted, the workspace key is replaced and every document
+of the workspace is encrypted again in the background. Between accounts of one PC the separation is enforced by the
+engine's access checks (all account keys are wrapped with the one PC data key); the search-index text, names and
+decisions of a shared workspace stay protected with the PC key. Details, costs and limits: household-design.md, section 4.

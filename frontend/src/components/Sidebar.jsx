@@ -5,7 +5,7 @@ import {
   Plus, LogOut, Monitor, ChevronRight, Trash2, Check, X,
   MessageCircle, ChevronDown, FileText, FolderOpen, BrainCircuit,
   Pencil, Search, Pin, PinOff, AlignLeft, SearchCheck,
-  FolderPlus, Folder, MoveRight, Cpu, Sparkles, Palette, Inbox
+  FolderPlus, Folder, MoveRight, Cpu, Sparkles, Palette, Inbox, Users
 } from 'lucide-react';
 import { SidebarStatusDot } from './SystemStatusWidget';
 import EmptyState from './EmptyState';
@@ -27,6 +27,8 @@ export default function Sidebar({
   activeWorkspace,
   onSelectWorkspace,
   onNewWorkspace,
+  onOpenHousehold,
+  householdInvites = 0,
   activeView,
   onViewChange,
   inboxCount = 0,
@@ -412,6 +414,17 @@ export default function Sidebar({
         <div className={styles.wsSelector} ref={wsDropdownRef}>
           <div className={styles.wsSelectorHeader}>
             <span className={styles.sectionLabel}>{t('Workspace')}</span>
+            {onOpenHousehold && (
+              <button
+                className={styles.addBtnSmall}
+                onClick={onOpenHousehold}
+                title={householdInvites > 0 ? t('{count} invitations to a shared workspace', { count: householdInvites }) : t('Shared workspaces')}
+                style={{ marginLeft: 'auto', position: 'relative' }}
+              >
+                <Users size={12} />
+                {householdInvites > 0 && <span className={styles.navBadge} style={{ position: 'absolute', top: -6, right: -8 }}>{householdInvites}</span>}
+              </button>
+            )}
             <button
               className={styles.addBtnSmall}
               onClick={onNewWorkspace}
@@ -455,7 +468,7 @@ export default function Sidebar({
                     setWsDropdownOpen(false);
                   }}
                 >
-                  <FolderOpen size={13} />
+                  {ws.shared ? <Users size={13} aria-label={t('Shared workspace')} /> : <FolderOpen size={13} />}
                   <span>{ws.name}</span>
                 </button>
               ))}

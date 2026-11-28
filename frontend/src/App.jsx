@@ -14,6 +14,7 @@ import MemoryManager from './components/MemoryManager';
 import GlobalSearch from './components/GlobalSearch';
 import SummaryModal from './components/SummaryModal';
 import WorkspaceKBModal from './components/WorkspaceKBModal';
+import HouseholdModal from './components/HouseholdModal';
 import HealthBanner from './components/HealthBanner';
 import OfflineBanner, { useOffline } from './components/OfflineBanner';
 import OnboardingWizard from './components/OnboardingWizard';
@@ -65,6 +66,8 @@ export default function App() {
   const [activeView, setActiveView] = useState('dashboard');
   // number of new letters in the inbox, shown next to "Inbox" in the sidebar
   const [inboxCount, setInboxCount] = useState(0);
+  const [showHousehold, setShowHousehold] = useState(false);
+  const [householdInvites, setHouseholdInvites] = useState(0);   // invitations to a shared workspace
   useEffect(() => {
     if (!token) return undefined;
     const loadCount = async () => {
@@ -193,6 +196,7 @@ export default function App() {
       // the phone link: phones paired with this account use this session (desktop app only)
       try { window.starkllmDesktop?.phoneLink?.setUserSession?.(token); } catch (e) { /* not the desktop app */ }
       fetchWorkspaces();
+      fetchHouseholdInvites();
       fetchMe();
     } else {
       localStorage.removeItem('token');
@@ -224,6 +228,13 @@ export default function App() {
         }
       }
     } catch (_) {}
+  };
+
+  const fetchHouseholdInvites = async () => {
+    try {
+      const res = await fetch('/api/v1/household', { headers: getHeaders() });
+      if (res.ok) setHouseholdInvites(((await res.json()).invitations || []).length);
+    } catch (e) { /* the engine is still starting */ }
   };
 
   const fetchWorkspaces = async (retryCount = 0) => {
@@ -1620,6 +1631,8 @@ export default function App() {
         activeWorkspace={activeWorkspace}
         onSelectWorkspace={handleSelectWorkspace}
         onNewWorkspace={openNewWorkspaceModal}
+        onOpenHousehold={() => setShowHousehold(true)}
+        householdInvites={householdInvites}
         activeView={activeView}
         onViewChange={setActiveView}
         inboxCount={inboxCount}
@@ -1745,6 +1758,13 @@ export default function App() {
           </div>
         )}
       </ErrorBoundary>
+
+      <HouseholdModal
+        isOpen={showHousehold}
+        onClose={() => setShowHousehold(false)}
+        token={token}
+        onChanged={() => { fetchWorkspaces(0); fetchHouseholdInvites(); }}
+      />
 
       <WorkspaceKBModal
         isOpen={showKbModal}

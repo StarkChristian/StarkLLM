@@ -17,6 +17,7 @@ import asyncio
 import re
 import requests
 from app.core.protection import protection
+from app.services import household
 
 router = APIRouter()
 
@@ -32,7 +33,7 @@ def get_dashboard_stats(
     # Workspace count
     workspace_count = (
         db.query(func.count(models.Workspace.id))
-        .filter(models.Workspace.user_id == user_id)
+        .filter(household.ws_visible(user_id))
         .scalar()
     )
 
@@ -40,7 +41,7 @@ def get_dashboard_stats(
     doc_count = (
         db.query(func.count(models.Document.id))
         .join(models.Workspace, models.Document.workspace_id == models.Workspace.id)
-        .filter(models.Workspace.user_id == user_id, models.Document.status == models.DocStatus.INDEXED)
+        .filter(household.ws_visible(user_id), models.Document.status == models.DocStatus.INDEXED)
         .scalar()
     )
 
@@ -48,7 +49,7 @@ def get_dashboard_stats(
     chat_count = (
         db.query(func.count(models.Chat.id))
         .join(models.Workspace, models.Chat.workspace_id == models.Workspace.id)
-        .filter(models.Workspace.user_id == user_id)
+        .filter(household.chat_visible(user_id))
         .scalar()
     )
 
@@ -57,7 +58,7 @@ def get_dashboard_stats(
         db.query(func.count(models.Message.id))
         .join(models.Chat, models.Message.chat_id == models.Chat.id)
         .join(models.Workspace, models.Chat.workspace_id == models.Workspace.id)
-        .filter(models.Workspace.user_id == user_id)
+        .filter(household.chat_visible(user_id))
         .scalar()
     )
 
@@ -316,7 +317,7 @@ def _dates_cached(text: str, order_hint=None):
 def date_choices(db, user_id: int) -> dict:
     """The user's readings of ambiguous dates: {(scope, document_id, "03/04/2026"): "dmy" | "mdy"}."""
     return {(c.scope, c.document_id, c.literal): c.reading
-            for c in db.query(models.DateChoice).filter(models.DateChoice.user_id == user_id).all()}
+            for c in db.query(models.DateChoice).filter(household.decisions_visible(models.DateChoice, user_id)).all()}
 
 
 def documents_with_pages(db, user_id: int, workspace_id: int = None, include_kb: bool = True):
@@ -326,7 +327,7 @@ def documents_with_pages(db, user_id: int, workspace_id: int = None, include_kb:
 
     q = (db.query(models.Document, models.Workspace)
          .join(models.Workspace, models.Document.workspace_id == models.Workspace.id)
-         .filter(models.Workspace.user_id == user_id, models.Document.status == models.DocStatus.INDEXED))
+         .filter(household.ws_visible(user_id), models.Document.status == models.DocStatus.INDEXED))
     if workspace_id is not None:
         q = q.filter(models.Workspace.id == workspace_id)
     ws_docs = q.order_by(models.Document.created_at.desc()).limit(HOME_SCAN).all()
@@ -345,6 +346,7 @@ def documents_with_pages(db, user_id: int, workspace_id: int = None, include_kb:
     for doc, ws in ws_docs:
         items.append({"scope": "ws", "id": doc.id, "workspace_id": ws.id, "workspace": ws.name, "filename": doc.filename,
                       "file_type": doc.file_type, "added": doc.created_at.isoformat() if doc.created_at else None,
+                      "shared": bool(ws.shared), "added_by_id": doc.added_by,
                       "_where": ("ws", ws.id, {"source": doc.filepath})})
     for doc in kb_docs:
         added = doc.indexed_at or doc.created_at
@@ -510,7 +512,10 @@ def document_inbox(db, user_id: int) -> dict:
 
     items, pages_of = documents_with_pages(db, user_id)
     reviews = {(r.scope, r.document_id): r for r in
-               db.query(models.DocumentReview).filter(models.DocumentReview.user_id == user_id).all()}
+               db.query(models.DocumentReview).filter(household.decisions_visible(models.DocumentReview, user_id)).all()}
+    # who added a shared document and who decided about it ("Added by Anna", "Marked done by Ben")
+    who = household.names(db, [i.get("added_by_id") for i in items if i.get("shared")]
+                          + [r.actor_id for r in reviews.values() if r.actor_id])
     today = date.today().isoformat()
     recent = (datetime.utcnow() - timedelta(days=INBOX_NEW_DAYS)).isoformat()
     choices = date_choices(db, user_id)
@@ -529,6 +534,11 @@ def document_inbox(db, user_id: int) -> dict:
                      "case": (review.case_key if review and review.case_key else facts.get("case")),
                      "replaced": is_replaced, "suspicious": bool(facts.get("warnings")),
                      "next": None if is_replaced or facts.get("warnings") else _next_date(facts, today)})
+        shared = docs[-1].pop("shared", False)
+        added_by = docs[-1].pop("added_by_id", None)
+        if shared:
+            docs[-1].update({"shared": True, "added_by": who.get(added_by),
+                             "status_by": who.get(review.actor_id) if review and review.actor_id else None})
 
     # the same letter twice (a photo and the PDF, or added twice): the same text after OCR noise is removed
     first_of = {}
@@ -584,10 +594,10 @@ def get_inbox_count(
     from datetime import datetime, timedelta
     recent = datetime.utcnow() - timedelta(days=INBOX_NEW_DAYS)
     reviews = {(r.scope, r.document_id): r.status for r in
-               db.query(models.DocumentReview).filter(models.DocumentReview.user_id == current_user.id).all()}
+               db.query(models.DocumentReview).filter(household.decisions_visible(models.DocumentReview, current_user.id)).all()}
     ws = (db.query(models.Document.id, models.Document.created_at)
           .join(models.Workspace, models.Document.workspace_id == models.Workspace.id)
-          .filter(models.Workspace.user_id == current_user.id, models.Document.status == models.DocStatus.INDEXED).all())
+          .filter(household.ws_visible(current_user.id), models.Document.status == models.DocStatus.INDEXED).all())
     kb = (db.query(models.KnowledgeBaseDocument.id, models.KnowledgeBaseDocument.indexed_at, models.KnowledgeBaseDocument.created_at)
           .join(models.KnowledgeBaseFolder, models.KnowledgeBaseDocument.folder_id == models.KnowledgeBaseFolder.id)
           .filter(models.KnowledgeBaseFolder.user_id == current_user.id, models.KnowledgeBaseDocument.status == "indexed").all())
@@ -614,7 +624,7 @@ class ReviewIn(BaseModel):
 def _owns(db, user_id: int, scope: str, document_id: int) -> bool:
     if scope == "ws":
         return db.query(models.Document).join(models.Workspace, models.Document.workspace_id == models.Workspace.id) \
-            .filter(models.Document.id == document_id, models.Workspace.user_id == user_id).first() is not None
+            .filter(models.Document.id == document_id, household.ws_visible(user_id)).first() is not None
     if scope == "kb":
         return db.query(models.KnowledgeBaseDocument) \
             .join(models.KnowledgeBaseFolder, models.KnowledgeBaseDocument.folder_id == models.KnowledgeBaseFolder.id) \
@@ -623,10 +633,14 @@ def _owns(db, user_id: int, scope: str, document_id: int) -> bool:
 
 
 def _review(db, user_id: int, scope: str, document_id: int):
-    r = db.query(models.DocumentReview).filter_by(user_id=user_id, scope=scope, document_id=document_id).first()
+    """The decision about a document, to change. For a document of a shared workspace it is the household's one decision
+    (kept under the owner's id); actor_id records who changed it."""
+    owner = household.decision_owner(db, scope, document_id, user_id)
+    r = db.query(models.DocumentReview).filter_by(user_id=owner, scope=scope, document_id=document_id).first()
     if not r:
-        r = models.DocumentReview(user_id=user_id, scope=scope, document_id=document_id, status="new")
+        r = models.DocumentReview(user_id=owner, scope=scope, document_id=document_id, status="new")
         db.add(r)
+    r.actor_id = user_id
     return r
 
 
@@ -645,11 +659,16 @@ def set_review(
     r = _review(db, current_user.id, scope, document_id)
     sent = body.model_dump(exclude_unset=True)
     if "status" in sent and sent["status"]:
+        if r.status != sent["status"] or r.id is None:
+            household.log_document(db, scope, document_id, current_user.id,
+                                   "marked_done" if sent["status"] == "done" else "marked_new")
         r.status = sent["status"]
     if "title" in sent:
         r.title = (sent["title"] or "").strip() or None
     if "case" in sent:
         r.case_key = (sent["case"] or "").strip().lower() or None
+    if "title" in sent or "case" in sent:
+        household.log_document(db, scope, document_id, current_user.id, "edited")
     db.commit()
     return {"scope": scope, "id": document_id, "status": r.status, "title": r.title, "case": r.case_key}
 
@@ -667,16 +686,18 @@ def set_date_choice(
     if not _owns(db, current_user.id, scope, document_id):
         raise HTTPException(status_code=404, detail="Document not found")
     rows = [c for c in db.query(models.DateChoice).filter(
-        models.DateChoice.user_id == current_user.id, models.DateChoice.scope == scope,
+        household.decisions_visible(models.DateChoice, current_user.id), models.DateChoice.scope == scope,
         models.DateChoice.document_id == document_id).all() if c.literal == body.literal]
     if not body.reading:
         for c in rows:
             db.delete(c)
     elif rows:
-        rows[0].reading = body.reading
-    else:
-        db.add(models.DateChoice(user_id=current_user.id, scope=scope, document_id=document_id, literal=body.literal,
-                                 reading=body.reading))
+        rows[0].reading, rows[0].actor_id = body.reading, current_user.id
+    else:   # a shared document's reading is the household's (kept under the owner's id)
+        db.add(models.DateChoice(user_id=household.decision_owner(db, scope, document_id, current_user.id), scope=scope,
+                                 document_id=document_id, literal=body.literal, reading=body.reading,
+                                 actor_id=current_user.id))
+    household.log_document(db, scope, document_id, current_user.id, "date_read")
     db.commit()
     return {"scope": scope, "id": document_id, "literal": body.literal, "reading": body.reading}
 
@@ -692,6 +713,7 @@ def set_all_done(
     for doc in inbox["documents"]:
         if doc["status"] == "new":
             _review(db, current_user.id, doc["scope"], doc["id"]).status = "done"
+            household.log_document(db, doc["scope"], doc["id"], current_user.id, "marked_done")
             changed += 1
     db.commit()
     return {"done": changed}
@@ -748,10 +770,13 @@ def _deadlines(db, user_id: int):
     """(today, deadlines with their reminders) for the user's inbox letters."""
     from app.services.deadlines_service import add_done, add_reminders, build_deadlines
     inbox = document_inbox(db, user_id)
+    # reminders are personal; a done mark on a shared letter is the household's ("Marked done by Anna")
     rows = db.query(models.DeadlineReminder).filter(models.DeadlineReminder.user_id == user_id).all()
-    done = db.query(models.DeadlineDone).filter(models.DeadlineDone.user_id == user_id).all()
+    done = db.query(models.DeadlineDone).filter(household.decisions_visible(models.DeadlineDone, user_id)).all()
+    shared_ids = {d["id"] for d in inbox["documents"] if d.get("shared")}
+    who = household.names(db, [r.actor_id for r in done if r.scope == "ws" and r.document_id in shared_ids])
     deadlines = add_reminders(build_deadlines(inbox, inbox["today"]), rows, inbox["today"])
-    return inbox["today"], add_done(deadlines, done)
+    return inbox["today"], add_done(deadlines, done, who)
 
 
 @router.get("/deadlines")
@@ -806,9 +831,11 @@ def _group(db, user_id: int, key: str):
     return parse_key(found["key"] if found else key), [parse_key(k) for k in keys]
 
 
-def _group_rows(db, model, user_id: int, group: list):
+def _group_rows(db, model, visible, group: list):
+    """Rows of `model` for the keys of a deadline group; visible: the clause of the rows the account may change (its own
+    reminders; for done marks also the household's)."""
     from sqlalchemy import and_, or_
-    return db.query(model).filter(model.user_id == user_id, or_(*[
+    return db.query(model).filter(visible, or_(*[
         and_(model.scope == g["scope"], model.document_id == g["document_id"], model.due_date == g["due"], model.kind == g["kind"])
         for g in group])).all()
 
@@ -827,7 +854,7 @@ def set_deadline_reminders(
         raise HTTPException(status_code=422, detail=f"Reminders: up to {MAX_REMINDERS}, each 0 to {MAX_REMINDER_DAYS} days before")
     own, group = _group(db, current_user.id, body.key)
     kept = {}
-    for row in _group_rows(db, models.DeadlineReminder, current_user.id, group):
+    for row in _group_rows(db, models.DeadlineReminder, models.DeadlineReminder.user_id == current_user.id, group):
         if row.days_before in offsets and row.days_before not in kept:
             kept[row.days_before] = row
         else:
@@ -851,7 +878,7 @@ def acknowledge_deadline_reminders(
     own, group = _group(db, current_user.id, body.key)
     today, due = date.today(), date.fromisoformat(own["due"])
     changed = 0
-    for r in _group_rows(db, models.DeadlineReminder, current_user.id, group):
+    for r in _group_rows(db, models.DeadlineReminder, models.DeadlineReminder.user_id == current_user.id, group):
         if due - timedelta(days=r.days_before) <= today and not r.acknowledged:
             r.acknowledged = 1
             changed += 1
@@ -868,13 +895,24 @@ def set_deadline_done(
     """Mark one deadline done (a paid invoice) or take the mark back. Independent of the letter, which stays in the
     inbox; a done deadline leaves the dashboard and the calendar file. Stored on this PC."""
     own, group = _group(db, current_user.id, body.key)
-    rows = _group_rows(db, models.DeadlineDone, current_user.id, group)
+    rows = _group_rows(db, models.DeadlineDone, household.decisions_visible(models.DeadlineDone, current_user.id), group)
     if body.done and not rows:
-        db.add(models.DeadlineDone(user_id=current_user.id, scope=own["scope"], document_id=own["document_id"],
-                                   due_date=own["due"], kind=own["kind"]))
+        # the mark goes on the deadline's own document and, if that one is private, also on a shared copy of the letter,
+        # so that the other members see it (a shared document's mark is kept under the owner's id)
+        targets = [own]
+        if not household.is_shared_document(db, own["scope"], own["document_id"]):
+            shared_copy = next((g for g in group if household.is_shared_document(db, g["scope"], g["document_id"])), None)
+            if shared_copy:
+                targets.append(shared_copy)
+        for g in targets:
+            db.add(models.DeadlineDone(user_id=household.decision_owner(db, g["scope"], g["document_id"], current_user.id),
+                                       scope=g["scope"], document_id=g["document_id"], due_date=g["due"], kind=g["kind"],
+                                       actor_id=current_user.id))
+            household.log_document(db, g["scope"], g["document_id"], current_user.id, "deadline_done")
     elif not body.done:
         for row in rows:
             db.delete(row)
+            household.log_document(db, row.scope, row.document_id, current_user.id, "deadline_open")
     db.commit()
     return {"key": body.key, "done": body.done}
 

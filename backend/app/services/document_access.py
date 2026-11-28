@@ -11,12 +11,13 @@ from typing import Dict, List
 from app.db import models
 from app.db.session import SessionLocal
 from app.services.rag_service import rag_service
+from app.services.household import ws_visible   # own workspaces and the shared ones the account joined
 
 logger = logging.getLogger(__name__)
 
 
 def _workspaces(db, user_id: int) -> List[models.Workspace]:
-    return db.query(models.Workspace).filter(models.Workspace.user_id == user_id).order_by(models.Workspace.id).all()
+    return db.query(models.Workspace).filter(ws_visible(user_id)).order_by(models.Workspace.id).all()
 
 
 def search(user_id: int, query: str, limit: int = 6) -> List[Dict]:
@@ -59,7 +60,7 @@ def documents(user_id: int) -> List[Dict]:
     try:
         rows = (db.query(models.Document, models.Workspace)
                 .join(models.Workspace, models.Document.workspace_id == models.Workspace.id)
-                .filter(models.Workspace.user_id == user_id)
+                .filter(ws_visible(user_id))
                 .order_by(models.Document.created_at.desc()).limit(500).all())
         return [{"file": d.filename, "workspace": w.name, "type": d.file_type, "status": str(d.status),
                  "added": d.created_at.isoformat() if d.created_at else None} for d, w in rows]

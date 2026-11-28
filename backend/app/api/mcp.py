@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from app.db.session import get_db
 from app.db import models
 from app.api.auth import get_current_user
+from app.services import household
 from app.services.mcp_service import mcp_service, TOOL_SCHEMAS
 
 router = APIRouter()
@@ -91,7 +92,7 @@ def create_pending_tool_call(
     if ws_id:
         ws = db.query(models.Workspace).filter(
             models.Workspace.id == ws_id,
-            models.Workspace.user_id == current_user.id
+            household.ws_visible(current_user.id)
         ).first()
         if not ws:
             raise HTTPException(status_code=404, detail="Workspace not found or unauthorized.")
@@ -173,7 +174,7 @@ def execute_mcp_tool(
                     resolved_ws_id = int(raw_ws_id)
                 except (ValueError, TypeError):
                     # names may be stored protected, so they are compared after reading
-                    ws = next((w for w in db.query(models.Workspace).filter(models.Workspace.user_id == current_user.id)
+                    ws = next((w for w in db.query(models.Workspace).filter(household.ws_visible(current_user.id))
                                if w.name == str(raw_ws_id)), None)
                     if ws:
                         resolved_ws_id = ws.id

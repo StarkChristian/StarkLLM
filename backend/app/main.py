@@ -31,6 +31,15 @@ _migrations = [
     "ALTER TABLE workspaces ADD COLUMN system_prompt TEXT",
     "ALTER TABLE messages ADD COLUMN feedback TEXT",
     "ALTER TABLE documents ADD COLUMN summary_status TEXT",
+    # shared household workspaces (services/household.py)
+    "ALTER TABLE workspaces ADD COLUMN shared INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE workspaces ADD COLUMN key_version INTEGER",
+    "ALTER TABLE chats ADD COLUMN user_id INTEGER",
+    "ALTER TABLE chat_folders ADD COLUMN user_id INTEGER",
+    "ALTER TABLE documents ADD COLUMN added_by INTEGER",
+    "ALTER TABLE document_reviews ADD COLUMN actor_id INTEGER",
+    "ALTER TABLE date_choices ADD COLUMN actor_id INTEGER",
+    "ALTER TABLE deadline_done ADD COLUMN actor_id INTEGER",
 ]
 for _sql in _migrations:
     try:

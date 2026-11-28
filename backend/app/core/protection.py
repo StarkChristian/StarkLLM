@@ -35,6 +35,15 @@ class ProtectionLocked(Exception):
     """Protected data is needed but the key has not been handed to the engine."""
 
 
+_FORGET_HOOKS = []
+
+
+def on_forget(fn):
+    """Call fn when the engine is locked (the key is cleared): caches of keys unwrapped with the data key."""
+    _FORGET_HOOKS.append(fn)
+    return fn
+
+
 class ProtectionState:
     """Process-wide state. One instance (`protection`) is used by the whole engine; tests create their own."""
 
@@ -109,6 +118,11 @@ class ProtectionState:
             self._key = None
             self._label_cache.clear()          # decrypted short texts must not outlive the key
             crypto.forget_cached_keys()
+            for forget in list(_FORGET_HOOKS):  # keys unwrapped from the data key (shared workspaces) go too
+                try:
+                    forget()
+                except Exception as e:
+                    logger.warning("forgetting derived keys failed: %s", e)
 
     @property
     def key(self) -> Optional[bytes]:

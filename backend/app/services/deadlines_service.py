@@ -183,12 +183,16 @@ def add_reminders(deadlines: List[Dict], rows: Iterable, today: str) -> List[Dic
     return deadlines
 
 
-def add_done(deadlines: List[Dict], rows: Iterable) -> List[Dict]:
+def add_done(deadlines: List[Dict], rows: Iterable, names: Dict = None) -> List[Dict]:
     """Mark the deadlines the user finished (rows with scope, document_id, due_date, kind). A done deadline has no
-    active reminder."""
-    finished = {deadline_key(r.scope, r.document_id, r.due_date, r.kind) for r in rows}
+    active reminder. names: {account id: name} of the accounts that marked a shared letter's deadline done; such a
+    deadline gets done_by ("Marked done by Anna")."""
+    names = names or {}
+    finished = {deadline_key(r.scope, r.document_id, r.due_date, r.kind): getattr(r, "actor_id", None) for r in rows}
     for d in deadlines:
-        d["done"] = any(k in finished for k in d.get("keys", [d["key"]]))
+        keys = [k for k in d.get("keys", [d["key"]]) if k in finished]
+        d["done"] = bool(keys)
+        d["done_by"] = next((names[finished[k]] for k in keys if finished[k] in names), None)
         if d["done"]:
             d["reminder_active"] = False
     return deadlines

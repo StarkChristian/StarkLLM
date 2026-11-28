@@ -15,6 +15,7 @@ from app.db.session import get_db
 from app.db import models
 from app.api.auth import get_current_user
 from app.api.deps import get_workspace_or_404
+from app.services.household import memory_scope  # memories come from private chats: per account in a shared workspace
 from app.services.memory_service import memory_service
 
 router = APIRouter()
@@ -32,8 +33,8 @@ def get_memories(
     current_user: models.User = Depends(get_current_user),
 ):
     """Get all long-term memories for a workspace."""
-    get_workspace_or_404(db, workspace_id, current_user.id)
-    return memory_service.get_memories(workspace_id)
+    scope = memory_scope(get_workspace_or_404(db, workspace_id, current_user.id), current_user.id)
+    return memory_service.get_memories(scope)
 
 
 @router.post("/memory/{workspace_id}")
@@ -44,10 +45,10 @@ def add_memory(
     current_user: models.User = Depends(get_current_user),
 ):
     """Manually add a long-term memory."""
-    get_workspace_or_404(db, workspace_id, current_user.id)
+    scope = memory_scope(get_workspace_or_404(db, workspace_id, current_user.id), current_user.id)
     if not req.content or not req.content.strip():
         raise HTTPException(status_code=400, detail="Content cannot be empty")
-    return memory_service.add_memory(workspace_id, req.content.strip())
+    return memory_service.add_memory(scope, req.content.strip())
 
 
 @router.delete("/memory/{workspace_id}/{memory_id}")
@@ -58,8 +59,8 @@ def delete_memory(
     current_user: models.User = Depends(get_current_user),
 ):
     """Delete a specific memory."""
-    get_workspace_or_404(db, workspace_id, current_user.id)
-    if not memory_service.delete_memory(workspace_id, memory_id):
+    scope = memory_scope(get_workspace_or_404(db, workspace_id, current_user.id), current_user.id)
+    if not memory_service.delete_memory(scope, memory_id):
         raise HTTPException(status_code=404, detail="Memory not found")
     return {"status": "deleted"}
 
@@ -71,6 +72,6 @@ def clear_memories(
     current_user: models.User = Depends(get_current_user),
 ):
     """Clear all memories for a workspace."""
-    get_workspace_or_404(db, workspace_id, current_user.id)
-    memory_service.clear_memories(workspace_id)
+    scope = memory_scope(get_workspace_or_404(db, workspace_id, current_user.id), current_user.id)
+    memory_service.clear_memories(scope)
     return {"status": "cleared"}

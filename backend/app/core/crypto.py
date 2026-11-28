@@ -214,6 +214,19 @@ def is_encrypted_file(path: str) -> bool:
         return False
 
 
+def file_key_id(path: str) -> str:
+    """The key id in a protected file's header ("" for a plain or unreadable file): which key the file needs (the
+    PC's files key, or the files key of a shared workspace)."""
+    try:
+        with open(path, "rb") as f:
+            header = f.read(FILE_HEADER_LEN)
+    except OSError:
+        return ""
+    if header[:len(FILE_MAGIC)] != FILE_MAGIC or len(header) < len(FILE_MAGIC) + 4:
+        return ""
+    return header[len(FILE_MAGIC):len(FILE_MAGIC) + 4].hex()
+
+
 def plain_size(encrypted_size: int) -> int:
     """Size of the original, from the size of the protected file (no need to decrypt)."""
     body = encrypted_size - FILE_HEADER_LEN

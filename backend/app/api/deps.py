@@ -30,11 +30,12 @@ def get_workspace_or_404(
         ws = db.query(models.Workspace).filter(...).first()
         if not ws: raise HTTPException(404, ...)
     """
+    from app.services.household import ws_visible
     ws = (
         db.query(models.Workspace)
         .filter(
             models.Workspace.id == workspace_id,
-            models.Workspace.user_id == user_id,
+            ws_visible(user_id),   # own workspaces and the shared workspaces the account has joined
         )
         .first()
     )
@@ -55,12 +56,13 @@ def get_chat_or_404(
     """
     Return the chat session owned (via workspace) by user_id, or raise HTTP 404.
     """
+    from app.services.household import chat_visible
     chat = (
         db.query(models.Chat)
         .join(models.Workspace, models.Chat.workspace_id == models.Workspace.id)
         .filter(
             models.Chat.id == chat_id,
-            models.Workspace.user_id == user_id,
+            chat_visible(user_id),   # chats are private, also in a shared workspace
         )
         .first()
     )
@@ -81,13 +83,14 @@ def get_message_or_404(
     """
     Return the message owned (via chat → workspace) by user_id, or raise HTTP 404.
     """
+    from app.services.household import chat_visible
     msg = (
         db.query(models.Message)
         .join(models.Chat, models.Message.chat_id == models.Chat.id)
         .join(models.Workspace, models.Chat.workspace_id == models.Workspace.id)
         .filter(
             models.Message.id == message_id,
-            models.Workspace.user_id == user_id,
+            chat_visible(user_id),
         )
         .first()
     )

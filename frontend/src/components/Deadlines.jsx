@@ -141,7 +141,7 @@ export default function Deadlines({ token, onOpen }) {
               <div className={styles.meta}>
                 <span className={styles[`kind_${d.kind}`]}>{d.notice ? t('Last day to give notice') : (KIND_LABEL[d.kind] || d.kind)}</span>
                 {d.done
-                  ? <span className={styles.doneTag}><Check size={13} /> {t('Done')}</span>
+                  ? <span className={styles.doneTag}><Check size={13} /> {d.done_by ? t('Marked done by {name}', { name: d.done_by }) : t('Done')}</span>
                   : <span className={styles[STATE_CLASS[d.state]]}>{whenText(d.days)}{d.time ? ` · ${t('at {time}', { time: d.time })}` : ''}</span>}
                 {d.amount && <strong>{d.amount}</strong>}
                 {d.reminder_active && <span className={styles.bell} title={t('Reminder is on')}><BellRing size={13} /> {t('Reminder due')}</span>}

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db import models
 from app.services.rag_service import rag_service
+from app.services import household
 
 logger = logging.getLogger(__name__)
 
@@ -248,7 +249,7 @@ class MCPService:
         """Read-only: lists files uploaded in the specified workspace for this user only."""
         ws = db.query(models.Workspace).filter(
             models.Workspace.id == workspace_id,
-            models.Workspace.user_id == user_id
+            household.ws_visible(user_id)
         ).first()
         if not ws:
             return {"error": f"Workspace {workspace_id} not found or unauthorized", "files": []}
@@ -359,7 +360,7 @@ class MCPService:
         if workspace_id:
             ws = db.query(models.Workspace).filter(
                 models.Workspace.id == workspace_id,
-                models.Workspace.user_id == user_id
+                household.ws_visible(user_id)
             ).first()
             if ws:
                 try:

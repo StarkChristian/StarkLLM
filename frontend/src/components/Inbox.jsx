@@ -186,6 +186,8 @@ export default function Inbox({ token, onViewChange, onCountChange }) {
               {doc.filename}
               {doc.scope === 'kb' ? ` · ${t('Knowledge base')}` : doc.workspace ? ` · ${doc.workspace}` : ''}
               {doc.added ? ` · ${t('added {date}', { date: new Date(doc.added).toLocaleDateString(UI_LOCALE) })}` : ''}
+              {doc.shared && doc.added_by ? ` · ${t('Added by {name}', { name: doc.added_by })}` : ''}
+              {doc.shared && doc.status_by && doc.status === 'done' ? ` · ${t('Marked done by {name}', { name: doc.status_by })}` : ''}
             </span>
           </div>
           <div className={styles.docActions}>

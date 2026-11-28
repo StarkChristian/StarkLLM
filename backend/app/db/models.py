@@ -35,6 +35,9 @@ class Workspace(Base):
     name = Column(ProtectedText("workspaces.name", locked_value="\U0001F512"), index=True)
     active_kb_dir_ids = Column(String, nullable=True)  # JSON-encoded list of integer folder IDs
     system_prompt = Column(ProtectedText("workspaces.system_prompt"), nullable=True)       # Custom workspace-level system prompt
+    # A shared household workspace (services/household.py): user_id is its owner, the members are in workspace_members.
+    shared = Column(Integer, default=0, nullable=False)
+    key_version = Column(Integer, nullable=True)   # current version of its own data key (workspace_keys), with protection on
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="workspaces")
@@ -47,6 +50,7 @@ class ChatFolder(Base):
     __tablename__ = "chat_folders"
     id = Column(Integer, primary_key=True, index=True)
     workspace_id = Column(Integer, ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, nullable=True, index=True)   # whose folder; None: the workspace owner's (older rows)
     name = Column(ProtectedText("chat_folders.name", locked_value="\U0001F512"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -59,6 +63,8 @@ class Chat(Base):
     id = Column(Integer, primary_key=True, index=True)
     workspace_id = Column(Integer, ForeignKey("workspaces.id"))
     folder_id = Column(Integer, ForeignKey("chat_folders.id", ondelete="SET NULL"), nullable=True)
+    # whose chat: chats are private to their account, also in a shared workspace. None: the workspace owner's (older rows)
+    user_id = Column(Integer, nullable=True, index=True)
     title = Column(ProtectedText("chats.title", locked_value="\U0001F512"))
     is_pinned = Column(Integer, default=0, nullable=False)  # 0 = unpinned, 1 = pinned
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -104,6 +110,7 @@ class Document(Base):
     error_message = Column(ProtectedText("documents.error_message", locked_value=None), nullable=True)
     # layered summaries of large documents (services/summaries.py): None, queued, "<done>/<total>", done, small, failed
     summary_status = Column(String, nullable=True)
+    added_by = Column(Integer, nullable=True)   # the account that added it ("Added by Anna" in a shared workspace)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     workspace = relationship("Workspace", back_populates="documents")
@@ -225,6 +232,7 @@ class DocumentReview(Base):
     status      = Column(String, default="new", nullable=False)  # "new" or "done"
     title       = Column(ProtectedText("document_reviews.title"), nullable=True)                  # the user's own title, else the suggested one
     case_key    = Column(ProtectedText("document_reviews.case_key"), nullable=True)                  # the user's case, else the suggested one
+    actor_id    = Column(Integer, nullable=True)                 # who made the last change (shared workspaces)
     updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
@@ -240,6 +248,7 @@ class DateChoice(Base):
     document_id = Column(Integer, nullable=False, index=True)
     literal     = Column(ProtectedText("date_choices.literal"), nullable=False)
     reading     = Column(String, nullable=False)                 # "dmy" or "mdy"
+    actor_id    = Column(Integer, nullable=True)                 # who chose (shared workspaces)
     updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
@@ -276,7 +285,72 @@ class DeadlineDone(Base):
     document_id = Column(Integer, nullable=False)
     due_date    = Column(String, nullable=False)                 # ISO yyyy-mm-dd
     kind        = Column(String, nullable=False)
+    actor_id    = Column(Integer, nullable=True)                 # who marked it done ("Marked done by Anna")
     created_at  = Column(DateTime, default=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Shared household workspaces (services/household.py, docs/household-design.md)
+# ---------------------------------------------------------------------------
+
+class WorkspaceMember(Base):
+    """An account's place in a shared workspace: the owner (role "owner") and the members (role "member"). An invited
+    account has status "invited" and sees nothing until it accepts ("active")."""
+    __tablename__ = "workspace_members"
+    __table_args__ = (UniqueConstraint("workspace_id", "user_id", name="uq_workspace_member"),)
+
+    id           = Column(Integer, primary_key=True, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id      = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    role         = Column(String, nullable=False, default="member")    # "owner" or "member"
+    status       = Column(String, nullable=False, default="invited")   # "invited" or "active"
+    invited_by   = Column(Integer, nullable=True)
+    created_at   = Column(DateTime, default=datetime.utcnow)
+    joined_at    = Column(DateTime, nullable=True)
+
+
+class AccountKey(Base):
+    """Each account's own key (32 random bytes), wrapped with the PC's data key (HKDF purpose "account-keys", the
+    account id as authenticated data). It wraps the keys of the shared workspaces the account belongs to.
+    dk_id names the data key it is wrapped with; a row wrapped with an older data key is replaced."""
+    __tablename__ = "account_keys"
+
+    id         = Column(Integer, primary_key=True, index=True)
+    user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    dk_id      = Column(String, nullable=False)
+    wrapped    = Column(String, nullable=False)       # base64(nonce | AES-256-GCM(account key))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class WorkspaceKey(Base):
+    """A shared workspace's own data key, one row per version and member: the key wrapped with that member's account
+    key. key_id is the public fingerprint of the files key made from it (it stands in the header of every document
+    file protected with it). A member who leaves or is removed loses their rows, and the key gets a new version."""
+    __tablename__ = "workspace_keys"
+    __table_args__ = (UniqueConstraint("workspace_id", "version", "user_id", name="uq_workspace_key"),)
+
+    id           = Column(Integer, primary_key=True, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    version      = Column(Integer, nullable=False)
+    user_id      = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    key_id       = Column(String, nullable=False, index=True)
+    wrapped      = Column(String, nullable=False)     # base64(nonce | AES-256-GCM(workspace key)), the member's account key
+    created_at   = Column(DateTime, default=datetime.utcnow)
+
+
+class WorkspaceActivity(Base):
+    """Who did what in a shared workspace ("Marked done by Anna"). detail holds the file name of a deleted document
+    and is stored protected; a document that still exists is named by its id."""
+    __tablename__ = "workspace_activity"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    actor_id     = Column(Integer, nullable=True)
+    action       = Column(String, nullable=False)
+    target_id    = Column(Integer, nullable=True)     # the account an invitation or a removal is about
+    document_id  = Column(Integer, nullable=True)
+    detail       = Column(ProtectedText("workspace_activity.detail", locked_value=None), nullable=True)
+    created_at   = Column(DateTime, default=datetime.utcnow, index=True)
 
 
 
@@ -287,7 +361,7 @@ class DeadlineDone(Base):
 # gives a new document the id of a deleted one, so a new bill inherited the deleted letter's "done", its title and
 # its case, and could have hidden its deadline. They are now deleted with the document, however it is deleted (one
 # document, a workspace, a knowledge-base folder), and rows left by older versions are removed at start-up.
-from sqlalchemy import delete as _delete, event as _event, select as _select  # noqa: E402
+from sqlalchemy import delete as _delete, event as _event, select as _select, update as _update  # noqa: E402
 from sqlalchemy.orm import Session as _Session  # noqa: E402
 
 DOCUMENT_LINKED = (DocumentReview, DateChoice, DeadlineReminder, DeadlineDone)
@@ -300,6 +374,9 @@ def forget_documents(connection_or_session, scope: str, ids) -> None:
         return
     for model in DOCUMENT_LINKED:
         connection_or_session.execute(_delete(model).where(model.scope == scope, model.document_id.in_(ids)))
+    if scope == "ws":   # the activity of a shared workspace keeps the file name, but must not point to a later document
+        connection_or_session.execute(_update(WorkspaceActivity).where(WorkspaceActivity.document_id.in_(ids))
+                                      .values(document_id=None))
 
 
 @_event.listens_for(_Session, "after_flush")
