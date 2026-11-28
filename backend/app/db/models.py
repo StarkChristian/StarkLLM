@@ -211,6 +211,46 @@ class KnowledgeBaseDocument(Base):
         )
 
 
+# ---------------------------------------------------------------------------
+# Watched folders for letters (2.7, plan option 8): new files in a folder the user chose (the scanner's output
+# folder, Downloads\Letters) go into the inbox of a workspace (services/watch_service.py). Separate from the
+# knowledge base folders: those are searched where they are, these are imported like an upload.
+# ---------------------------------------------------------------------------
+class WatchedFolder(Base):
+    __tablename__ = "watched_folders"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    user_id       = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    workspace_id  = Column(Integer, ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    # the path names the user's folders ("Briefe Finanzamt"): stored protected while protection is on
+    folder_path   = Column(ProtectedText("watched_folders.folder_path", locked_value=None), nullable=False)
+    move_imported = Column(Integer, default=0, nullable=False)   # 1: imported files go into the "imported" subfolder
+    is_active     = Column(Integer, default=1, nullable=False)
+    created_at    = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WatchedImport(Base):
+    """One file of a watched folder and what happened to it. status: imported, duplicate (the workspace already had
+    the same bytes), failed (error says why), existing (was in the folder when it was added and was not to be
+    imported; not shown in the history). A file whose bytes are here already is not imported again."""
+    __tablename__ = "watched_imports"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    user_id      = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    folder_id    = Column(Integer, ForeignKey("watched_folders.id", ondelete="CASCADE"), nullable=False, index=True)
+    workspace_id = Column(Integer, nullable=True)
+    document_id  = Column(Integer, nullable=True)
+    file_name    = Column(ProtectedText("watched_imports.file_name", locked_value="\U0001F512"), nullable=False)
+    sha256       = Column(String, nullable=True, index=True)
+    file_size    = Column(Integer, nullable=True)
+    mtime_ns     = Column(Integer, nullable=True)
+    status       = Column(String, nullable=False)
+    error        = Column(ProtectedText("watched_imports.error", locked_value=None), nullable=True)
+    moved        = Column(Integer, default=0, nullable=False)    # 1: moved into the "imported" subfolder
+    announced    = Column(Integer, default=0, nullable=False)    # 1: the "letters imported" notice was shown
+    created_at   = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class DocumentReview(Base):
     """What the user decided about a document in the inbox (docs/document-inbox-design.md, B4): done or still new,
     their own title, the case it belongs to. StarkLLM only suggests; nothing is renamed or moved on disk.

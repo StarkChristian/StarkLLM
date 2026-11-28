@@ -176,6 +176,60 @@ def _same_document(db, workspace_id: int, path: str, size: int):
     return None
 
 
+def _register_saved_file(db, workspace_id: int, user_id: int, file_path: str, display_name: str, ext: str, size: int):
+    """The second half of an upload, once the copy is in the upload folder: the same-bytes check, the document entry
+    and the background indexing (text and OCR; facts, deadlines and the checks read the indexed text).
+    Returns (document, duplicate). An upload and a letter from a watched folder both go through here."""
+    # The same letter twice (uploaded again, or from the phone and the scanner) would be read twice and show its
+    # dates and answers twice. Same bytes in this workspace: keep the one that is there.
+    same = _same_document(db, workspace_id, file_path, size)
+    if same is not None:
+        os.remove(file_path)
+        logger.info(f"'{display_name}' is the same file as document {same.id} ('{same.filename}'); not added again")
+        return same, True
+
+    # Create DB record immediately with UPLOADING status
+    doc = models.Document(
+        workspace_id=workspace_id,
+        filename=display_name,  # Keep original name for display
+        filepath=file_path,
+        file_type=ext,
+        status=DocStatus.UPLOADING,
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+
+    # Kick off background indexing thread (does not block the HTTP response)
+    thread = threading.Thread(
+        target=_index_document_background,
+        args=(doc.id, workspace_id, user_id, file_path),
+        daemon=True,
+    )
+    thread.start()
+    return doc, False
+
+
+def add_file_from_disk(db, workspace_id: int, user_id: int, source_path: str, display_name: str):
+    """A file on this PC into the workspace, like an upload (watched folders, services/watch_service.py): a copy in
+    the upload folder, encrypted while protection is on, then _register_saved_file. The file itself is only read.
+    Returns (document, duplicate)."""
+    import hashlib
+    display_name = os.path.basename(display_name)
+    ext = os.path.splitext(display_name)[1].lower().lstrip(".")
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+    unique_prefix = hashlib.md5(f"{workspace_id}_{time.time()}_{display_name}".encode()).hexdigest()[:8]
+    file_path = os.path.join(settings.UPLOAD_DIR, _disk_name(unique_prefix, display_name))
+    try:
+        with open(source_path, "rb") as src, vault.open_write(file_path) as out:
+            shutil.copyfileobj(src, out)
+    except BaseException:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise
+    return _register_saved_file(db, workspace_id, user_id, file_path, display_name, ext, vault.size(file_path))
+
+
 @router.post("/{workspace_id}/upload")
 async def upload_document(
     workspace_id: int,
@@ -241,12 +295,9 @@ async def upload_document(
 
     logger.info(f"File saved: '{file.filename}' ({actual_size} bytes) → {file_path}")
 
-    # The same letter twice (uploaded again, or from the phone and the scanner) would be read twice and show its
-    # dates and answers twice. Same bytes in this workspace: keep the one that is there.
-    same = _same_document(db, workspace_id, file_path, actual_size)
-    if same is not None:
-        os.remove(file_path)
-        logger.info(f"'{file.filename}' is the same file as document {same.id} ('{same.filename}'); not added again")
+    doc, duplicate = _register_saved_file(db, workspace_id, current_user.id, file_path, file.filename, ext, actual_size)
+    if duplicate:
+        same = doc
         return {
             "id": same.id,
             "filename": same.filename,
@@ -258,27 +309,6 @@ async def upload_document(
             "file_size": actual_size,
             "duplicate": True,
         }
-
-
-    # Create DB record immediately with UPLOADING status
-    doc = models.Document(
-        workspace_id=workspace_id,
-        filename=file.filename,  # Keep original name for display
-        filepath=file_path,
-        file_type=ext,
-        status=DocStatus.UPLOADING,
-    )
-    db.add(doc)
-    db.commit()
-    db.refresh(doc)
-
-    # Kick off background indexing thread (does not block the HTTP response)
-    thread = threading.Thread(
-        target=_index_document_background,
-        args=(doc.id, workspace_id, current_user.id, file_path),
-        daemon=True,
-    )
-    thread.start()
 
     return {
         "id": doc.id,

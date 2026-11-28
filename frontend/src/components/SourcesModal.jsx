@@ -4,6 +4,7 @@ import styles from './SourcesModal.module.css';
 import { t } from '../i18n';
 import { readableLocator } from '../utils/sources';
 import { useEscape } from '../utils/useEscape';
+import DialogBox from './DialogBox';
 
 // What an answer was built from: per source the file, the page and the passages word for word, and a button that
 // opens the document at that page. Answers from before this window existed only have source names; those are listed
@@ -36,7 +37,7 @@ export default function SourcesModal({ labels, evidence, loadEvidence, onClose, 
 
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="sources-title" onClick={(e) => e.stopPropagation()}>
+      <DialogBox className={styles.modal} labelledBy="sources-title" onClose={onClose} onClick={(e) => e.stopPropagation()}>
         <div className={styles.header}>
           <h3 id="sources-title" className={styles.title}>{t('Sources of this answer')}</h3>
           <button className={styles.close} onClick={onClose} aria-label={t('Close')}><X size={18} /></button>
@@ -73,7 +74,7 @@ export default function SourcesModal({ labels, evidence, loadEvidence, onClose, 
             </>
           )}
         </div>
-      </div>
+      </DialogBox>
     </div>
   );
 }

@@ -37,6 +37,42 @@ page is a view of its own below it, with the same separate storage and the same 
 permissions, no downloads, no pages of this PC or the home network). When the user uses the bar while a task runs, the
 task waits as with "Take over"; the bar shows "StarkLLM is working here" or "You have taken over".
 
+## Tabs, favourites, history, find, zoom, downloads (after 2.6.1)
+
+The window has the everyday parts of Chrome, Firefox and Opera ([browser-features.md](browser-features.md) compares
+them and says what is planned and what never comes). The rules are in `desktop/browser-core.js` (no Electron, tested in
+`desktop/test/browser-core.test.js`); `desktop/tools/browser-try.js` checks them in a real window, with a stand-in model.
+
+- **Tabs.** Each web task works in a tab of its own (made when it opens its first page); a follow-up goes on in the tab
+  of the task before. The user opens more tabs (+, Ctrl+T, Alt+Enter in the address, a middle click or Ctrl+click on a
+  link, links with `target=_blank`), closes them (×, Ctrl+W, middle click; Ctrl+Shift+T reopens the last ten) and
+  switches (click, Ctrl+Tab, Ctrl+1 … 9). At most 20 tabs. While a task works in a tab, a link that asks for a new
+  window opens in that tab, as before, so the task's checks look at it. Switching away from the task's tab, opening a
+  panel or using the bar in that tab makes the task wait, as with "Take over"; "Hand back" brings its tab to the front.
+  Closing the task's tab ends the task, like closing the window.
+- **Favourites.** The star in the address bar (Ctrl+D) adds or removes the page; the favourites bar (Ctrl+Shift+B) and
+  the manager (Ctrl+Shift+O: rename, change the address, drag to reorder, delete). Only `http`/`https` addresses, never
+  one with a user name or password in it.
+- **History** (Ctrl+H): the pages of this window, newest first, by day, with search, "remove" per entry and "Clear
+  history". Scheduled web tasks (the hidden window) leave no history.
+- **Find in page** (Ctrl+F, F3, Shift+F3, Enter, Esc) with "3 of 12".
+- **Zoom** (Ctrl+±, Ctrl+0, Ctrl+wheel; the steps of Chrome, 25 % to 500 %, per site). The % shows in the address bar;
+  a click there resets it. A web task's clicks are scaled by the zoom, so they hit the same element at any zoom.
+- **Downloads** (Ctrl+J): only a download the user starts, in a tab where no task works, and never while fully offline;
+  the save dialog asks where (or the user cancels); programs and scripts (`.exe`, `.msi`, `.bat`, `.ps1`, `.js`,
+  `.lnk` …) get a warning first. The list shows name, site, size, state and where the file went ("Show in folder").
+  StarkLLM never opens a downloaded file. A download a task or a page starts on its own while a task works is refused
+  and recorded in the network log.
+- **Open in your browser**: the page in the user's own browser (the button next to the address, the ⋮ menu, the
+  right-click menu). That is the user's browser, not a connection of StarkLLM.
+- **Right-click menu**: open a link in a new tab, copy the link, save an image (the download rules apply), cut, copy,
+  paste, back, forward, reload.
+- **Stored per account, encrypted.** Favourites, history and the downloads list belong to the StarkLLM account signed in
+  in the app, in `browser/<hash>.bin` in the profile folder, encrypted with Windows (DPAPI) like the sessions of paired
+  phones. Without Windows encryption nothing is written. Signing out or another account closes the window. The
+  cookies and sign-ins of pages are still one storage for the PC (`persist:starkllm-web`, "Clear the data of StarkLLM's
+  browser" in Settings); one per account is a next step.
+
 ## How it works
 
 | Part | File | What it does |
@@ -65,12 +101,14 @@ is data, never instructions.
   services, health and government sites ask first; adult sites are blocked; the user's own list comes first
   (`webtask-sites.json` in the profile folder). A site the rules do not allow is not opened, and one reached by a
   click or a redirect is left at once, before the model acts on it.
-- **Only `http` and `https`** addresses; no `file:`, `javascript:` or other schemes; pop-ups open in the same window.
+- **Only `http` and `https`** addresses; no `file:`, `javascript:` or other schemes; pop-ups never open a window: in
+  the same page while a task works there, else in a new tab.
 - **Limits**: 30 steps, 15 minutes, five questions to the user; a step repeated without effect is stopped.
 - **Own storage**: the window uses its own browser profile (`persist:starkllm-web`), never the user's browser, its
   sign-ins or cookies, and never StarkLLM's own page or its token. Settings can clear it (`webTask.clearData`).
-- **No permissions, no downloads**: camera, microphone, location, notifications and every other permission are
-  refused; downloads are cancelled and recorded.
+- **No permissions, no downloads by a task**: camera, microphone, location, notifications and every other permission
+  are refused; a download while a task works is cancelled and recorded. The user's own downloads: see the section
+  above.
 - **Not to this PC or the home network**: a web page in the window cannot reach `127.0.0.1`, `localhost` or a
   private address (the engine, Ollama, a router). Tested: `test/netguard.test.js`, and in the real window by
   `tools/webtask-electron-try.js`.

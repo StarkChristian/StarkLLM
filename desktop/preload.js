@@ -36,6 +36,8 @@ contextBridge.exposeInMainWorld('starkllmDesktop', {
     call: (name, args) => ipcRenderer.invoke('mcp:call', String(name || ''), args && typeof args === 'object' ? JSON.parse(JSON.stringify(args)) : {}),
   },
   openKnowledgeFolder: () => ipcRenderer.invoke('kb:open-folder'),
+  // Settings > Letters from a folder: the folder dialog; the page gets the chosen path ({ folder } or { canceled })
+  chooseFolder: () => ipcRenderer.invoke('watch:choose-folder'),
   // "Record a meeting": the sound of this PC (an online call) can be recorded too, on Windows (loopback)
   meeting: {
     systemAudio: process.platform === 'win32',
